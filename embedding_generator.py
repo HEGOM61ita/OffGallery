@@ -299,11 +299,11 @@ class EmbeddingGenerator:
             # Prova repo congelato
             if frozen_repo:
                 try:
-                    logger.info(f"CLIP: caricamento da repo congelato {frozen_repo}/clip...")
+                    logger.info(f"CLIP: caricamento da cache locale...")
                     self.clip_model = CLIPModel.from_pretrained(frozen_repo, subfolder='clip').to(self.device)
                     self.clip_processor = CLIPProcessor.from_pretrained(frozen_repo, subfolder='clip')
                     loaded = True
-                    logger.info(f"[OK] CLIP caricato da {frozen_repo}/clip")
+                    logger.info(f"[OK] CLIP caricato da cache locale")
                 except Exception as e:
                     logger.warning(f"CLIP: repo congelato non disponibile ({e}), uso fallback...")
 
@@ -334,11 +334,11 @@ class EmbeddingGenerator:
             # Prova repo congelato
             if frozen_repo:
                 try:
-                    logger.info(f"DINOv2: caricamento da repo congelato {frozen_repo}/dinov2...")
+                    logger.info(f"DINOv2: caricamento da cache locale...")
                     self.dinov2_model = AutoModel.from_pretrained(frozen_repo, subfolder='dinov2').to(self.device)
                     self.dinov2_processor = AutoImageProcessor.from_pretrained(frozen_repo, subfolder='dinov2')
                     loaded = True
-                    logger.info(f"[OK] DINOv2 caricato da {frozen_repo}/dinov2")
+                    logger.info(f"[OK] DINOv2 caricato da cache locale")
                 except Exception as e:
                     logger.warning(f"DINOv2: repo congelato non disponibile ({e}), uso fallback...")
 
@@ -393,14 +393,14 @@ class EmbeddingGenerator:
             # 2. Prova repo congelato
             if clip_model is None and frozen_repo:
                 try:
-                    logger.info(f"Aesthetic: caricamento da repo congelato {frozen_repo}/aesthetic...")
+                    logger.info(f"Aesthetic: caricamento da cache locale...")
                     clip_model = CLIPModel.from_pretrained(frozen_repo, subfolder='aesthetic').to(self.device)
                     self.aesthetic_processor = CLIPProcessor.from_pretrained(frozen_repo, subfolder='aesthetic')
                     # Salva in locale per uso futuro offline
                     aesthetic_dir.mkdir(exist_ok=True)
                     clip_model.save_pretrained(str(aesthetic_dir))
                     self.aesthetic_processor.save_pretrained(str(aesthetic_dir))
-                    logger.info(f"[OK] Aesthetic caricato da {frozen_repo}/aesthetic e salvato in locale")
+                    logger.info(f"[OK] Aesthetic caricato da cache locale")
                 except Exception as e:
                     logger.warning(f"Aesthetic: repo congelato non disponibile ({e}), uso fallback...")
                     clip_model = None
