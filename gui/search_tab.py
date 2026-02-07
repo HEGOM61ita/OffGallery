@@ -298,7 +298,10 @@ class SearchTab(QWidget):
             conditions.append("gps_latitude IS NOT NULL")
             
         # --- BIANCO E NERO ---
-        if self.monochrome_only.isChecked():
+        mono_idx = self.monochrome_combo.currentIndex()
+        if mono_idx == 1:    # Colori
+            conditions.append("is_monochrome = 0")
+        elif mono_idx == 2:  # B/N
             conditions.append("is_monochrome = 1")
             
         # --- SYNC STATE (XMP out of sync) ---
@@ -929,10 +932,16 @@ class SearchTab(QWidget):
         self.gps_only = QCheckBox("Solo con GPS")
         layout.addWidget(self.gps_only)
         
-        # Filtro Bianco/Nero
-        self.monochrome_only = QCheckBox("Solo B/N")
-        self.monochrome_only.setToolTip("Mostra solo immagini in bianco e nero")
-        layout.addWidget(self.monochrome_only)
+        # Filtro Bianco/Nero (combo a 3 opzioni)
+        row_bn = QHBoxLayout()
+        row_bn.addWidget(QLabel("Foto:"))
+        self.monochrome_combo = QComboBox()
+        self.monochrome_combo.addItems(["Tutte", "Colori", "B/N"])
+        self.monochrome_combo.setToolTip("Filtra per tipo colore immagine")
+        self.monochrome_combo.setFixedWidth(80)
+        row_bn.addWidget(self.monochrome_combo)
+        row_bn.addStretch()
+        layout.addLayout(row_bn)
         
         group.setLayout(layout)
         return group
@@ -1056,7 +1065,7 @@ class SearchTab(QWidget):
             'aperture_min': 0.0, 'aperture_max': 64.0, 'focal35_min': 0, 'focal35_max': 2000,
             'ev_min': -5.0, 'ev_max': 5.0, 'aesthetic_min': 0.0, 'aesthetic_max': 10.0,
             'technical_min': 0.0, 'technical_max': 100.0,
-            'gps_only': False, 'monochrome_only': False, 'sync_filter': False,
+            'gps_only': False, 'monochrome_combo': 0, 'sync_filter': False,
             'date_filter_enabled': False
         }
         
@@ -1440,7 +1449,7 @@ class SearchTab(QWidget):
             return True
         
         # Filtro B/N
-        if self.monochrome_only.isChecked():
+        if self.monochrome_combo.currentIndex() != 0:
             return True
             
         # Sync
