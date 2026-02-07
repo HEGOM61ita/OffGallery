@@ -1,0 +1,43 @@
+# ============================================
+# OffGallery - Dipendenze Python
+# Ambiente: OffGallery (Python 3.11)
+# ============================================
+
+# === CORE AI / DEEP LEARNING ===
+# PyTorch con CUDA 11.8 (funziona anche su CPU)
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch
+torchvision
+
+# Transformers (HuggingFace) per CLIP, DINOv2, Aesthetic
+transformers
+huggingface-hub
+safetensors
+timm
+
+# BioCLIP per classificazione flora/fauna
+pybioclip
+open-clip-torch
+
+# === IMAGE PROCESSING ===
+pillow
+rawpy
+opencv-contrib-python
+numpy
+
+# === TRANSLATION ===
+argostranslate
+
+# === UI ===
+PyQt6
+
+# === UTILITIES ===
+pyyaml
+requests
+tqdm
+ftfy
+regex
+
+# === NOTA ===
+# Questo file contiene SOLO le dipendenze realmente utilizzate.
+# Le dipendenze transitive vengono installate automaticamente da pip.

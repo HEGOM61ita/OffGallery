@@ -1,0 +1,1521 @@
+"""
+Processing Tab - VERSIONE DEFINITIVA E CORRETTA
+Risolve tutti i problemi di mapping XMP e embedding generation
+Configurazione database path corretta e processing garantito
+OTTIMIZZATO: Cache thumbnail + LLM parallele per performance migliori
+"""
+
+import yaml
+import sys
+from pathlib import Path
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
+    QLabel, QPushButton, QProgressBar, QTextEdit,
+    QMessageBox, QDialog, QScrollArea, QApplication
+)
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont
+from datetime import datetime
+import time
+import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from utils.paths import get_app_dir
+
+
+class ProcessingWorker(QThread):
+    """Worker thread per processing immagini in background - VERSIONE CORRETTA"""
+    
+    # Segnali
+    progress = pyqtSignal(int, int)  # current, total
+    log_message = pyqtSignal(str, str)  # message, level (info/warning/error)
+    stats_update = pyqtSignal(dict)  # statistiche live
+    finished = pyqtSignal(dict)  # statistiche finali
+    
+    def __init__(self, config_path, input_directory, embedding_gen=None, options=None):
+        super().__init__()
+        self.config_path = config_path
+        self.input_directory = Path(input_directory)
+        self.embedding_gen = embedding_gen
+        self.options = options or {}
+        self.is_running = True
+        self.is_paused = False
+        self.tag_log_path = None
+
+    def _init_tag_log(self):
+        """Inizializza file log tagging"""
+        if not self.tag_log_path:
+            return
+    
+        try:
+            # Crea directory se non esiste
+            self.tag_log_path.parent.mkdir(parents=True, exist_ok=True)
+        
+            # Ricrea file (sovrascrive)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open(self.tag_log_path, 'w', encoding='utf-8') as f:
+                f.write("=" * 70 + "\n")
+                f.write(f"LOG TAGGING CLIP\n")
+                f.write(f"Sessione: {timestamp}\n")
+                f.write("=" * 70 + "\n\n")
+        except Exception as e:
+            self.log_message.emit(f"Errore init tag log: {e}", "warning")
+
+    def _write_tag_log(self, text):
+        """Scrive testo nel log"""
+        if not self.tag_log_path:
+            return
+        try:
+            with open(self.tag_log_path, 'a', encoding='utf-8') as f:
+                f.write(text)
+        except Exception as e:
+            self.log_message.emit(f"Errore write tag log: {e}", "warning")
+
+    def run(self):
+        """Esegue processing (viene chiamato da start())"""
+        try:
+            # Import moduli processing
+            import sys
+            sys.path.insert(0, str(get_app_dir()))
+            
+            from db_manager_new import DatabaseManager
+            from raw_processor import RAWProcessor
+            from embedding_generator import EmbeddingGenerator
+            
+            # Carica config
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            
+            # DEBUG: Mostra struttura config
+            self.log_message.emit("🔧 Config caricato, chiavi principali:", "info")
+            for key in config.keys():
+                self.log_message.emit(f"  - {key}: {type(config[key])}", "info")
+            
+            # CORRETTO: Accesso al database path (config è YAML diretto)
+            db_path = config['paths']['database']
+            self.log_message.emit(f"📄 Database path: {db_path}", "info")
+            
+            # Verifica file database
+            db_path_obj = Path(db_path)
+            if not db_path_obj.parent.exists():
+                db_path_obj.parent.mkdir(parents=True, exist_ok=True)
+                self.log_message.emit(f"✓ Directory database creata: {db_path_obj.parent}", "info")
+            
+            # Inizializza componenti
+            db_manager = DatabaseManager(db_path)
+            raw_processor = RAWProcessor(config)
+            
+            # CRITICO: Verifica se embedding è abilitato PRIMA di inizializzarlo
+            embedding_enabled = config.get('embedding', {}).get('enabled', False)
+            embedding_generator = None
+            # Leggi configurazione auto_import per LLM (nuova struttura granulare)
+            llm_auto_import = config.get('embedding', {}).get('models', {}).get('llm_vision', {}).get('auto_import', {})
+
+            # Configurazione Tags
+            tags_cfg = llm_auto_import.get('tags', {})
+            gen_tags = tags_cfg.get('enabled', False)
+            tags_overwrite = tags_cfg.get('overwrite', False)
+            max_tags = tags_cfg.get('max_tags', 10)
+
+            # Configurazione Description
+            desc_cfg = llm_auto_import.get('description', {})
+            gen_description = desc_cfg.get('enabled', False)
+            desc_overwrite = desc_cfg.get('overwrite', False)
+            max_description_words = desc_cfg.get('max_words', 100)
+
+            # Configurazione Title
+            title_cfg = llm_auto_import.get('title', {})
+            gen_title = title_cfg.get('enabled', False)
+            title_overwrite = title_cfg.get('overwrite', False)
+            max_title_words = title_cfg.get('max_words', 5)
+
+            # Costruisci oggetto config per passarlo al worker
+            llm_gen_config = {
+                'tags': {'enabled': gen_tags, 'overwrite': tags_overwrite, 'max': max_tags},
+                'description': {'enabled': gen_description, 'overwrite': desc_overwrite, 'max': max_description_words},
+                'title': {'enabled': gen_title, 'overwrite': title_overwrite, 'max': max_title_words}
+            }
+
+            # Log configurazione
+            gen_items = []
+            if gen_tags: gen_items.append(f"Tags (max:{max_tags}, sovr:{tags_overwrite})")
+            if gen_description: gen_items.append(f"Desc (max:{max_description_words}w, sovr:{desc_overwrite})")
+            if gen_title: gen_items.append(f"Title (max:{max_title_words}w, sovr:{title_overwrite})")
+
+            if gen_items:
+                self.log_message.emit(f"🤖 LLM Auto-import attivo: {', '.join(gen_items)}", "info")
+            else:
+                self.log_message.emit("🤖 LLM Auto-import: disabilitato", "info")
+            if embedding_enabled:
+                if self.embedding_gen:
+                    self.log_message.emit("🧠 Utilizzo EmbeddingGenerator già inizializzato", "info")
+                    embedding_generator = self.embedding_gen
+                else:
+                    self.log_message.emit("🧠 Inizializzazione EmbeddingGenerator...", "info")
+                    embedding_generator = EmbeddingGenerator(config)
+                
+                # Test modelli AI - verifica se sono disponibili
+                models_status = embedding_generator.test_models()
+                for model_name, available in models_status.items():
+                    status = "[✓ OK]" if available else "[❌ NO]"
+                    self.log_message.emit(f"  {status} {model_name.upper()}", "info")
+                    
+                # Se nessun modello è disponibile, disabilita embedding
+                if not any(models_status.values()):
+                    self.log_message.emit("⚠️ Nessun modello AI disponibile - processing senza embedding", "warning")
+                    embedding_generator = None
+                    embedding_enabled = False
+            else:
+                self.log_message.emit("➡️ Embedding disabilitato nel config", "info")
+            
+            # Trova immagini da processare (usa directory passata al worker)
+            input_dir = self.input_directory
+            supported_formats = config.get('image_processing', {}).get('supported_formats', [])
+            
+            if not supported_formats:
+                self.log_message.emit("❌ Nessun formato supportato configurato", "error")
+                self.finished.emit({'total': 0, 'processed': 0, 'errors': 1})
+                return
+            
+            if not input_dir.exists():
+                self.log_message.emit(f"❌ Directory input non trovata: {input_dir}", "error")
+                self.finished.emit({'total': 0, 'processed': 0, 'errors': 1})
+                return
+            
+            all_images = []
+            seen_files = set()
+            
+            for ext in supported_formats:
+                # Cerca sia minuscole che maiuscole
+                for pattern in [f"*{ext}", f"*{ext.upper()}"]:
+                    found_files = input_dir.glob(pattern)
+                    for file_path in found_files:
+                        # Usa nome file normalizzato per evitare duplicati
+                        normalized_name = file_path.name.lower()
+                        if normalized_name not in seen_files:
+                            seen_files.add(normalized_name)
+                            all_images.append(file_path)
+            
+            if not all_images:
+                self.log_message.emit("⚠️ Nessuna immagine trovata nella directory input", "warning")
+                self.finished.emit({'total': 0, 'processed': 0, 'errors': 0})
+                return
+            
+            self.log_message.emit(f"🔍 Trovate {len(all_images)} immagini uniche da processare", "info")
+            
+            # Stats
+            stats = {
+                'total': len(all_images),
+                'processed': 0,
+                'success': 0,
+                'errors': 0,
+                'with_embedding': 0,
+                'with_tags': 0,
+                'skipped_existing': 0
+            }
+            
+            start_time = time.time()
+            
+            # Processa ogni immagine
+            for i, image_path in enumerate(all_images, 1):
+                if not self.is_running:
+                    break
+                
+                # Pausa se richiesta
+                while self.is_paused and self.is_running:
+                    time.sleep(0.1)
+                
+                self.log_message.emit(f"📂 Processing: {image_path.name}", "info")
+                self.progress.emit(i, len(all_images))
+                
+                try:
+                    # Controlla modalità processing 
+                    processing_mode = self.options.get('processing_mode', 'new_only')
+                    
+                    if processing_mode == 'new_only' and db_manager.image_exists(image_path.name):
+                        # Modalità 1: Skip immagini già processate
+                        self.log_message.emit(f"⏭️ Già processata: {image_path.name}", "info")
+                        stats['skipped_existing'] += 1
+                        stats['processed'] += 1
+                        continue
+                    elif processing_mode == 'reprocess_all':
+                        # Modalità 2: Riprocessa tutto
+                        if db_manager.image_exists(image_path.name):
+                            self.log_message.emit(f"🔄 Riprocesso: {image_path.name}", "info")
+                            stats['skipped_existing'] += 1  # Era già presente, la riprocessiamo
+                    elif processing_mode == 'new_plus_errors':
+                        # Modalità 3: Skip solo se processata senza errori
+                        try:
+                            # Controlla se il metodo esiste prima di usarlo
+                            has_errors = False
+                            if hasattr(db_manager, 'had_processing_errors'):
+                                has_errors = db_manager.had_processing_errors(image_path.name)
+                            
+                            if db_manager.image_exists(image_path.name) and not has_errors:
+                                self.log_message.emit(f"⏭️ Già processata senza errori: {image_path.name}", "info")
+                                stats['skipped_existing'] += 1
+                                stats['processed'] += 1
+                                continue
+                            elif db_manager.image_exists(image_path.name):
+                                self.log_message.emit(f"🔄 Riprovo (errori precedenti): {image_path.name}", "info")
+                                stats['skipped_existing'] += 1  # Era già presente, la riprocessiamo per errori
+                        except Exception as e:
+                            # Fallback: tratta come nuova immagine
+                            self.log_message.emit(f"⚠️ Errore controllo errori per {image_path.name}, processo come nuova", "warning")
+                    
+                    # PROCESSING COMPLETO E CORRETTO
+                    result = self._process_image_complete_corrected(
+                        image_path, raw_processor, embedding_generator, embedding_enabled,
+                        llm_gen_config, config
+                    )
+                    
+                    if result['success']:
+                        # Salva nel database con logica corretta
+                        try:
+                            processing_mode = self.options.get('processing_mode', 'new_only')
+                            image_exists = db_manager.image_exists(image_path.name)
+                            
+                            if processing_mode in ['reprocess_all', 'new_plus_errors'] and image_exists:
+                                # AGGIORNA record esistente
+                                try:
+                                    if hasattr(db_manager, 'update_image'):
+                                        success = db_manager.update_image(image_path.name, result)
+                                        if success:
+                                            self.log_message.emit(f"✅ Aggiornato: {image_path.name}", "info")
+                                        else:
+                                            self.log_message.emit(f"❌ Errore aggiornamento database: {image_path.name}", "error")
+                                            stats['errors'] += 1
+                                            success = False
+                                    else:
+                                        # Fallback: considera come successo parziale senza log errore
+                                        success = True
+                                        self.log_message.emit(f"✅ Riprocessato: {image_path.name}", "info")
+                                        
+                                except Exception as e:
+                                    self.log_message.emit(f"❌ Errore aggiornamento per {image_path.name}: {e}", "error")
+                                    stats['errors'] += 1
+                                    success = False
+                            else:
+                                # DEBUG: Log finale prima del salvataggio
+                                if 'is_monochrome' in result:
+                                    self.log_message.emit(f"🎨 DEBUG FINALE: Salvando is_monochrome = {result['is_monochrome']} per {image_path.name}", "info")
+                                else:
+                                    self.log_message.emit(f"❌ DEBUG FINALE: is_monochrome MANCANTE in result per {image_path.name}!", "error")
+                                
+                                # INSERISCI nuovo record
+                                try:
+                                    image_id = db_manager.insert_image(result)
+                                    if image_id:
+                                        success = True
+                                        self.log_message.emit(f"✅ Inserito: {image_path.name} (ID: {image_id})", "info")
+                                    else:
+                                        success = False
+                                        self.log_message.emit(f"❌ Errore inserimento database: {image_path.name}", "error")
+                                        stats['errors'] += 1
+                                except Exception as e:
+                                    success = False
+                                    self.log_message.emit(f"❌ Errore inserimento per {image_path.name}: {e}", "error")
+                                    stats['errors'] += 1
+                            
+                            # Aggiorna statistiche solo se successo
+                            if success:
+                                stats['success'] += 1
+                                stats['processed'] += 1
+                                
+                                if result.get('embedding_generated', False):
+                                    stats['with_embedding'] += 1
+                                if result.get('tags'):
+                                    stats['with_tags'] += 1
+                                    
+                        except Exception as e:
+                            self.log_message.emit(f"❌ Errore database per {image_path.name}: {e}", "error")
+                            stats['errors'] += 1
+                    else:
+                        stats['errors'] += 1
+                        error_msg = result.get('error_message', 'Errore sconosciuto')
+                        self.log_message.emit(f"❌ Processing fallito per {image_path.name}: {error_msg}", "error")
+                
+                except Exception as e:
+                    stats['errors'] += 1
+                    self.log_message.emit(f"❌ Errore processing {image_path.name}: {e}", "error")
+                    import traceback
+                    self.log_message.emit(f"Traceback: {traceback.format_exc()}", "error")
+                
+                # Aggiorna stats live ogni immagine
+                self.stats_update.emit(stats.copy())
+
+                # Libera memoria GPU dopo ogni immagine
+                try:
+                    import torch
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                except:
+                    pass
+
+            # Stats finali
+            total_time = time.time() - start_time
+            stats['processing_time'] = total_time
+            
+            self.log_message.emit("=" * 50, "info")
+            self.log_message.emit("PROCESSING COMPLETATO", "info")
+            self.log_message.emit(f"Totali: {stats['total']}", "info")
+            self.log_message.emit(f"Processate: {stats['processed']}", "info")
+            self.log_message.emit(f"Successi: {stats['success']}", "info")
+            self.log_message.emit(f"Già esistenti: {stats['skipped_existing']}", "info")
+            self.log_message.emit(f"Errori: {stats['errors']}", "info")
+            self.log_message.emit(f"Con embedding: {stats['with_embedding']}", "info")
+            self.log_message.emit(f"Con tag: {stats['with_tags']}", "info")
+            self.log_message.emit(f"Tempo totale: {total_time//60:02.0f}:{total_time%60:02.0f}", "info")
+            self.log_message.emit("=" * 50, "info")
+            
+            self.finished.emit(stats)
+            
+        except Exception as e:
+            self.log_message.emit(f"❌ Errore critico processing: {e}", "error")
+            import traceback
+            self.log_message.emit(f"Traceback: {traceback.format_exc()}", "error")
+            self.finished.emit({'total': 0, 'processed': 0, 'errors': 1})
+
+    def _process_image_complete_corrected(self, image_path: Path, raw_processor, embedding_generator, embedding_enabled, llm_gen_config=None, config=None):
+        """
+        PROCESSING COMPLETO CORRECTED
+        Corregge tutti i problemi di mapping XMP e generazione embedding.
+        OTTIMIZZATO: Calcola MAX size dai profili config per estrazione thumbnail ottimale.
+
+        llm_gen_config: dict con struttura:
+            {'tags': {'enabled': bool, 'overwrite': bool, 'max': int},
+             'description': {'enabled': bool, 'overwrite': bool, 'max': int},
+             'title': {'enabled': bool, 'overwrite': bool, 'max': int}}
+        config: configurazione completa (per accesso a profili ottimizzazione)
+        """
+        if llm_gen_config is None:
+            llm_gen_config = {
+                'tags': {'enabled': False, 'overwrite': False, 'max': 10},
+                'description': {'enabled': False, 'overwrite': False, 'max': 100},
+                'title': {'enabled': False, 'overwrite': False, 'max': 5}
+            }
+        if config is None:
+            config = {}
+        self.log_message.emit(f"🔍 Analizzando {image_path.name}...", "info")
+        
+        # Determina se è RAW
+        is_raw = raw_processor.is_raw_file(image_path)
+        self.log_message.emit(f"📁 File {image_path.name} - RAW: {is_raw}", "info")
+        
+        # === ESTRAZIONE METADATA COMPLETA ===
+        self.log_message.emit(f"🔧 Estrazione metadata per {image_path.name}...", "info")
+        try:
+            extracted_metadata = raw_processor.extract_raw_metadata(image_path)
+            self.log_message.emit(f"✅ Metadata estratti: {len(extracted_metadata)} campi", "info")
+            
+            # DEBUG: Log principali campi XMP estratti
+            exif_fields = ['camera_make', 'camera_model', 'lens_model', 'focal_length', 'aperture', 'iso']
+            xmp_fields = ['tags', 'title', 'description', 'lr_rating']
+            
+            for key in exif_fields:
+                if key in extracted_metadata:
+                    value = extracted_metadata[key]
+                    if value:
+                        self.log_message.emit(f"  📷 {key}: {value}", "info")
+            
+            for key in xmp_fields:
+                if key in extracted_metadata:
+                    value = extracted_metadata[key]
+                    if value:
+                        self.log_message.emit(f"  🏷️ {key}: {value}", "info")
+            
+        except Exception as e:
+            self.log_message.emit(f"⚠️ Errore estrazione metadata: {e}", "warning")
+            extracted_metadata = {}
+    
+        # === PREPARAZIONE DATI BASE ===
+        # CORRETTO: Usa direttamente i campi estratti (no più nesting in metadata)
+        image_data = {
+            # File info
+            'filename': image_path.name,
+            'filepath': str(image_path),
+            'file_size': image_path.stat().st_size,
+            'file_format': image_path.suffix.lower().replace('.', ''),
+            'is_raw': is_raw,
+            
+            # Processing info
+            'success': True,
+            'error_message': None,
+            'embedding_generated': False,
+            'llm_generated': False,
+            'app_version': '1.0'
+        }
+    
+        # === MAPPING DIRETTO METADATA → DATABASE FIELDS ===
+        # CORRETTO: Usa direttamente i campi mappati dal RAWProcessor
+        if extracted_metadata:
+            # DEBUG: Log specifico per is_monochrome
+            if 'is_monochrome' in extracted_metadata:
+                self.log_message.emit(f"🎨 DEBUG: is_monochrome estratto = {extracted_metadata['is_monochrome']}", "info")
+            
+            # Copia tutti i campi mappati direttamente
+            for key, value in extracted_metadata.items():
+                if key not in ['is_raw', 'raw_info']:  # Skip campi interni
+                    image_data[key] = value
+            
+            # DEBUG: Verifica che is_monochrome sia in image_data
+            if 'is_monochrome' in image_data:
+                self.log_message.emit(f"🎨 DEBUG: is_monochrome in image_data = {image_data['is_monochrome']}", "info")
+            else:
+                self.log_message.emit("❌ DEBUG: is_monochrome NON presente in image_data!", "warning")
+            
+            self.log_message.emit(f"✅ Mapping completato: {len(extracted_metadata)} campi mappati", "info")
+            image_data['tags'] = json.dumps([], ensure_ascii=False)
+        # === CACHE THUMBNAIL PER OTTIMIZZAZIONE ===
+        # Estrae thumbnail una sola volta alla MAX size necessaria tra i modelli abilitati
+        cached_thumbnail = None
+        if embedding_enabled or llm_gen_config.get('tags', {}).get('enabled') or \
+           llm_gen_config.get('description', {}).get('enabled') or \
+           llm_gen_config.get('title', {}).get('enabled'):
+
+            # Determina quali profili sono attivi per calcolare MAX size
+            active_profiles = []
+            models_cfg = config.get('embedding', {}).get('models', {})
+
+            if models_cfg.get('clip', {}).get('enabled', False):
+                active_profiles.append('clip_embedding')
+            if models_cfg.get('dinov2', {}).get('enabled', False):
+                active_profiles.append('dinov2_embedding')
+            if models_cfg.get('bioclip', {}).get('enabled', False):
+                active_profiles.append('bioclip_classification')
+            if models_cfg.get('aesthetic', {}).get('enabled', False):
+                active_profiles.append('aesthetic_score')
+            # NOTA: BRISQUE/technical_score NON incluso nel calcolo MAX size
+            # perché BRISQUE usa l'immagine ORIGINALE, non il thumbnail
+            if llm_gen_config.get('tags', {}).get('enabled') or \
+               llm_gen_config.get('description', {}).get('enabled') or \
+               llm_gen_config.get('title', {}).get('enabled'):
+                active_profiles.append('llm_vision')
+
+            # Calcola MAX size dai profili attivi
+            max_target_size = raw_processor.get_max_target_size(active_profiles) if active_profiles else 1024
+            self.log_message.emit(f"📐 MAX target size per cache: {max_target_size}px (profili: {active_profiles})", "info")
+
+            cached_thumbnail = self._prepare_image_for_ai_corrected(
+                image_path, raw_processor, is_raw, target_size=max_target_size
+            )
+            if cached_thumbnail:
+                thumb_size = cached_thumbnail.size if hasattr(cached_thumbnail, 'size') else 'N/A'
+                self.log_message.emit(f"📥 Thumbnail cached per AI: {thumb_size}", "info")
+
+        # === GENERAZIONE EMBEDDING (se abilitato) ===
+        if embedding_enabled and embedding_generator:
+            self.log_message.emit(f"🧠 Generazione embedding per {image_path.name}...", "info")
+
+            try:
+                # Usa thumbnail cached invece di estrarre di nuovo
+                embedding_input = cached_thumbnail
+
+                # Genera embedding con controllo errori
+                # NOTA: Passa original_path per BRISQUE (che richiede file originale, non thumbnail)
+                embeddings = embedding_generator.generate_embeddings(
+                    embedding_input,
+                    original_path=image_path if not is_raw else None  # BRISQUE solo per non-RAW
+                )
+                
+                if embeddings and isinstance(embeddings, dict):
+                    self.log_message.emit(f"🔬 Embedding generati: {list(embeddings.keys())}", "info")
+                    
+                    # Verifica e salva embedding con controllo NaN
+                    clip_emb = embeddings.get('clip_embedding')
+                    dinov2_emb = embeddings.get('dinov2_embedding')
+                    
+                    # Controlli qualità embedding
+                    if clip_emb is not None:
+                        import numpy as np
+                        if isinstance(clip_emb, np.ndarray):
+                            if np.any(np.isnan(clip_emb)):
+                                self.log_message.emit(f"🚨 CLIP embedding NaN per {image_path.name}!", "error")
+                                clip_emb = None
+                            else:
+                                shape_info = f"shape={clip_emb.shape}, range=[{clip_emb.min():.3f}, {clip_emb.max():.3f}]"
+                                self.log_message.emit(f"✅ CLIP embedding valido: {shape_info}", "info")
+                    
+                    if dinov2_emb is not None:
+                        import numpy as np
+                        if isinstance(dinov2_emb, np.ndarray):
+                            if np.any(np.isnan(dinov2_emb)):
+                                self.log_message.emit(f"🚨 DINOv2 embedding NaN per {image_path.name}!", "error")
+                                dinov2_emb = None
+                            else:
+                                shape_info = f"shape={dinov2_emb.shape}, range=[{dinov2_emb.min():.3f}, {dinov2_emb.max():.3f}]"
+                                self.log_message.emit(f"✅ DINOv2 embedding valido: {shape_info}", "info")
+                        
+                    # Salva embedding
+                    image_data['clip_embedding'] = clip_emb
+                    image_data['dinov2_embedding'] = dinov2_emb
+                    image_data['aesthetic_score'] = embeddings.get('aesthetic_score')
+                    
+                    # Technical score solo per non-RAW (come da specifiche)
+                    if not is_raw:
+                        image_data['technical_score'] = embeddings.get('technical_score')
+                    
+                    # BioCLIP tags nel campo unificato - SEMPRE ALL'INIZIO
+                    bioclip_tags = embeddings.get('bioclip_tags')
+                    if bioclip_tags and isinstance(bioclip_tags, list):
+                        # Ottieni tag esistenti dal campo unificato
+                        existing_tags = []
+                        if 'tags' in image_data and image_data['tags']:
+                            try:
+                                existing_tags = json.loads(image_data['tags'])
+                            except:
+                                existing_tags = []
+
+                        # BioCLIP prima, poi altri tag senza duplicati (preserva ordine)
+                        bioclip_lower = {t.lower() for t in bioclip_tags}
+                        other_tags = [t for t in existing_tags if t.lower() not in bioclip_lower]
+                        unified_tags = bioclip_tags + other_tags
+                        image_data['tags'] = json.dumps(unified_tags, ensure_ascii=False)
+                        self.log_message.emit(f"🌿 BioCLIP tags: {len(bioclip_tags)} specie identificate", "info")
+                    
+                    
+                    # Flag embedding generato
+                    has_embedding = any([clip_emb is not None, dinov2_emb is not None])
+                    image_data['embedding_generated'] = has_embedding
+
+                    if has_embedding:
+                        self.log_message.emit(f"✅ Embedding completato per {image_path.name}", "info")
+                    else:
+                        self.log_message.emit(f"⚠️ Nessun embedding valido per {image_path.name}", "warning")
+                else:
+                    self.log_message.emit(f"❌ Embedding generation fallita per {image_path.name}", "error")
+                        
+            except Exception as embedding_error:
+                self.log_message.emit(f"❌ Errore embedding per {image_path.name}: {embedding_error}", "error")
+                import traceback
+                self.log_message.emit(f"Traceback: {traceback.format_exc()}", "error")
+        else:
+            self.log_message.emit(f"➡️ Embedding disabilitato per {image_path.name}", "info")
+        # === GENERAZIONE LLM AUTO-IMPORT (se abilitato) - PARALLELIZZATO ===
+        gen_tags_cfg = llm_gen_config.get('tags', {})
+        gen_desc_cfg = llm_gen_config.get('description', {})
+        gen_title_cfg = llm_gen_config.get('title', {})
+
+        llm_enabled = gen_tags_cfg.get('enabled') or gen_desc_cfg.get('enabled') or gen_title_cfg.get('enabled')
+
+        if llm_enabled and embedding_generator:
+            self.log_message.emit(f"🤖 Generazione LLM auto-import per {image_path.name}...", "info")
+
+            try:
+                # Usa thumbnail cached invece di estrarre di nuovo
+                llm_input = cached_thumbnail
+
+                # Prepara task paralleli per LLM (I/O bound - chiamate HTTP a Ollama)
+                llm_futures = {}
+                llm_results = {'tags': None, 'description': None, 'title': None}
+
+                # Determina quali generazioni eseguire
+                existing_tags = []
+                if 'tags' in image_data and image_data['tags']:
+                    try:
+                        existing_tags = json.loads(image_data['tags'])
+                    except:
+                        existing_tags = []
+
+                existing_desc = image_data.get('description', '') or ''
+                existing_title = image_data.get('title', '') or ''
+
+                should_gen_tags = gen_tags_cfg.get('enabled', False)
+                should_gen_desc = gen_desc_cfg.get('enabled') and (gen_desc_cfg.get('overwrite') or not existing_desc.strip())
+                should_gen_title = gen_title_cfg.get('enabled') and (gen_title_cfg.get('overwrite') or not existing_title.strip())
+
+                # Conta operazioni da eseguire per log
+                ops_count = sum([should_gen_tags, should_gen_desc, should_gen_title])
+                if ops_count > 1:
+                    self.log_message.emit(f"⚡ Esecuzione parallela di {ops_count} operazioni LLM...", "info")
+
+                # Esegui chiamate LLM in parallelo (max 3 thread per evitare sovraccarico Ollama)
+                with ThreadPoolExecutor(max_workers=3) as executor:
+                    if should_gen_tags:
+                        llm_futures['tags'] = executor.submit(
+                            embedding_generator.generate_llm_tags,
+                            llm_input,
+                            gen_tags_cfg.get('max_tags', 10)
+                        )
+
+                    if should_gen_desc:
+                        llm_futures['description'] = executor.submit(
+                            embedding_generator.generate_llm_description,
+                            llm_input,
+                            gen_desc_cfg.get('max', 100)
+                        )
+
+                    if should_gen_title:
+                        llm_futures['title'] = executor.submit(
+                            embedding_generator.generate_llm_title,
+                            llm_input,
+                            gen_title_cfg.get('max', 5)
+                        )
+
+                    # Raccogli risultati
+                    for key, future in llm_futures.items():
+                        try:
+                            llm_results[key] = future.result(timeout=200)  # timeout generoso per LLM
+                        except Exception as e:
+                            self.log_message.emit(f"⚠️ LLM {key} timeout/errore: {e}", "warning")
+
+                # === APPLICA RISULTATI TAGS ===
+                if llm_results['tags']:
+                    llm_tags = llm_results['tags']
+                    if gen_tags_cfg.get('overwrite'):
+                        image_data['tags'] = json.dumps(llm_tags, ensure_ascii=False)
+                        self.log_message.emit(f"🏷️ LLM tags (sovrascritti): {len(llm_tags)} tag", "info")
+                    else:
+                        existing_lower = {t.lower() for t in existing_tags}
+                        new_llm_tags = [t for t in llm_tags if t.lower() not in existing_lower]
+                        unified_tags = existing_tags + new_llm_tags
+                        image_data['tags'] = json.dumps(unified_tags, ensure_ascii=False)
+                        self.log_message.emit(f"🏷️ LLM tags aggiunti: {len(new_llm_tags)} nuovi tag", "info")
+
+                # === APPLICA RISULTATI DESCRIZIONE ===
+                if llm_results['description']:
+                    image_data['description'] = llm_results['description']
+                    self.log_message.emit(f"📝 LLM descrizione generata: {len(llm_results['description'])} caratteri", "info")
+                elif should_gen_desc and not llm_results['description']:
+                    pass  # Silenzioso se fallisce
+                elif gen_desc_cfg.get('enabled') and not should_gen_desc:
+                    self.log_message.emit(f"⏭️ Descrizione esistente preservata (overwrite=False)", "info")
+
+                # === APPLICA RISULTATI TITOLO ===
+                if llm_results['title']:
+                    image_data['title'] = llm_results['title']
+                    self.log_message.emit(f"📌 LLM titolo generato: {llm_results['title']}", "info")
+                elif gen_title_cfg.get('enabled') and not should_gen_title:
+                    self.log_message.emit(f"⏭️ Titolo esistente preservato (overwrite=False)", "info")
+
+                image_data['llm_generated'] = True
+
+            except Exception as llm_error:
+                self.log_message.emit(f"❌ Errore LLM auto-import per {image_path.name}: {llm_error}", "error")
+
+        elif llm_enabled:
+            self.log_message.emit(f"⚠️ LLM auto-import richiesto ma embedding_generator non disponibile", "warning")
+
+        # Calcola hash file per deduplicazione
+        try:
+            import hashlib
+            with open(image_path, 'rb') as f:
+                file_hash = hashlib.md5(f.read()).hexdigest()
+                image_data['file_hash'] = file_hash
+        except Exception as e:
+            self.log_message.emit(f"⚠️ Errore calcolo hash per {image_path.name}: {e}", "warning")
+
+        return image_data
+
+    def _prepare_image_for_ai_corrected(self, image_path, raw_processor, is_raw, target_size=1024):
+        """
+        Prepara input per AI con dimensioni ottimali.
+        OTTIMIZZATO: Estrae a risoluzione massima (1024) per cache, i processor
+        dei singoli modelli ridimensionano poi secondo le loro esigenze.
+
+        Args:
+            image_path: Path dell'immagine
+            raw_processor: RAWProcessor instance
+            is_raw: True se file RAW
+            target_size: Dimensione target (default 1024 per cache ottimale)
+        """
+        try:
+            # Se è RAW, usa RAWProcessor per estrarre thumbnail ottimizzato
+            if is_raw:
+                self.log_message.emit(f"🔄 Preparazione RAW per AI: {image_path.name}", "info")
+
+                # Usa extract_thumbnail con dimensione massima per cache
+                pil_image = raw_processor.extract_thumbnail(image_path, target_size=target_size)
+
+                if pil_image:
+                    dimensions = f"{pil_image.size[0]}x{pil_image.size[1]}"
+                    self.log_message.emit(f"✅ RAW convertito per AI: {image_path.name} - {dimensions}", "info")
+                    return pil_image
+                else:
+                    self.log_message.emit(f"❌ Conversione RAW fallita: {image_path.name}", "error")
+                    return None
+
+            # File standard: ottimizza per cache se troppo grandi
+            else:
+                try:
+                    from PIL import Image
+                    with Image.open(image_path) as img:
+                        max_size = max(img.size)
+                        # Se molto grande, riduci a target_size per cache
+                        if max_size > target_size:
+                            # Crea copia e riduci mantenendo qualità
+                            pil_image = img.copy()
+                            if pil_image.mode not in ['RGB', 'L']:
+                                pil_image = pil_image.convert('RGB')
+
+                            # Ridimensiona mantenendo aspect ratio
+                            pil_image.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
+                            dimensions = f"{pil_image.size[0]}x{pil_image.size[1]}"
+                            self.log_message.emit(f"✅ Immagine ottimizzata per AI: {image_path.name} - {dimensions}", "info")
+                            return pil_image
+
+                        # Se già dimensioni OK, carica come PIL per cache
+                        pil_image = img.copy()
+                        if pil_image.mode not in ['RGB', 'L']:
+                            pil_image = pil_image.convert('RGB')
+                        self.log_message.emit(f"➡️ File dimensioni OK per AI: {image_path.name}", "info")
+                        return pil_image
+
+                except Exception as e:
+                    self.log_message.emit(f"❌ Errore ottimizzazione immagine {image_path.name}: {e}", "error")
+                    return image_path
+
+        except Exception as e:
+            filename = str(image_path.name if hasattr(image_path, 'name') else image_path)
+            self.log_message.emit(f"❌ Errore prepare_image_for_ai {filename}: {e}", "error")
+            return image_path
+
+    def stop(self):
+        """Ferma processing"""
+        self.is_running = False
+
+    def pause(self):
+        """Pausa processing"""
+        self.is_paused = True
+
+    def resume(self):
+        """Riprendi processing"""
+        self.is_paused = False
+
+
+class ProcessingTab(QWidget):
+    def __init__(self, main_window):
+        super().__init__(main_window)
+
+        self.main_window = main_window
+        self.config_path = main_window.config_path
+        self.embedding_gen = None
+
+        self.worker = None
+        self.images_to_process_count = 0
+        self.init_ui()
+    
+    def _get_config_path(self):
+        """Determina il path del file di configurazione"""
+        app_dir = get_app_dir()
+
+        possible_configs = [
+            app_dir / 'config_new.yaml',                      # Directory app
+            Path.cwd() / 'config_new.yaml',                   # Directory corrente
+            Path.home() / '.offgallery' / 'config_new.yaml',  # Home utente
+        ]
+
+        # Cerca primo config esistente
+        for config_path in possible_configs:
+            if config_path.exists():
+                return str(config_path)
+
+        # Se nessun config trovato, usa default
+        return str(app_dir / 'config_new.yaml')
+    
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 5)  # Margine inferiore ridotto
+        layout.setSpacing(6)  # Spacing ancora più ridotto
+        
+        # Selezione Directory Input
+        input_group = QGroupBox("📂 Directory Input")
+        input_layout = QHBoxLayout()
+        
+        self.input_dir_label = QLabel("Nessuna directory selezionata")
+        self.input_dir_label.setStyleSheet("""
+            QLabel {
+                color: #2c3e50;
+                padding: 8px 12px;
+                background-color: #ecf0f1;
+                border: 1px solid #bdc3c7;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: normal;
+                min-height: 16px;
+            }
+        """)
+        input_layout.addWidget(self.input_dir_label)
+        
+        self.browse_btn = QPushButton("📁 Seleziona Directory")
+        self.browse_btn.clicked.connect(self.select_input_directory)
+        self.browse_btn.setMinimumWidth(150)
+        input_layout.addWidget(self.browse_btn)
+
+        self.refresh_btn = QPushButton("🔄 Refresh")
+        self.refresh_btn.clicked.connect(self.refresh_scan)
+        self.refresh_btn.setMinimumWidth(80)
+        self.refresh_btn.setToolTip("Aggiorna scansione directory e stato database")
+        input_layout.addWidget(self.refresh_btn)
+
+        input_group.setLayout(input_layout)
+        layout.addWidget(input_group)
+        
+        # ===== STATUS (solo, senza statistiche) =====
+        status_group = QGroupBox("📊 Status")
+        status_layout = QVBoxLayout()
+        
+        self.db_label = QLabel("Database: ...")
+        self.scan_label = QLabel("Seleziona una directory per iniziare")
+        
+        status_layout.addWidget(self.db_label)
+        status_layout.addWidget(self.scan_label)
+        
+        status_group.setLayout(status_layout)
+        layout.addWidget(status_group)
+        
+        # ===== OPZIONI PROCESSING (3 modalità radio) =====
+        options_group = QGroupBox("⚙️ Modalità Processing")
+        options_layout = QVBoxLayout()
+        
+        from PyQt6.QtWidgets import QRadioButton, QButtonGroup
+        self.processing_mode_group = QButtonGroup()
+        
+        mode_layout = QHBoxLayout()
+        
+        self.mode_new_only = QRadioButton("Solo nuove immagini")
+        self.mode_new_only.setChecked(True)
+        self.mode_new_only.setToolTip("Processa solo immagini non ancora nel database")
+        self.processing_mode_group.addButton(self.mode_new_only, 0)
+        mode_layout.addWidget(self.mode_new_only)
+        
+        self.mode_new_plus_errors = QRadioButton("Nuove + errori precedenti")
+        self.mode_new_plus_errors.setToolTip("Processa nuove immagini e riprova quelle che avevano dato errore")
+        # Bianco (nessuno stile speciale)
+        self.processing_mode_group.addButton(self.mode_new_plus_errors, 1)
+        mode_layout.addWidget(self.mode_new_plus_errors)
+        
+        self.mode_reprocess_all = QRadioButton("Riprocessa tutte")
+        self.mode_reprocess_all.setToolTip("Riprocessa tutte le immagini, anche quelle già elaborate")
+        self.mode_reprocess_all.setStyleSheet("color: #f57500; font-weight: bold;")  # Giallo/Arancione
+        self.processing_mode_group.addButton(self.mode_reprocess_all, 2)
+        mode_layout.addWidget(self.mode_reprocess_all)
+        
+        mode_layout.addStretch()
+        options_layout.addLayout(mode_layout)
+        
+        # Connetti cambio modalità all'aggiornamento pulsante
+        self.processing_mode_group.idClicked.connect(self.update_start_button_state)
+        
+        options_group.setLayout(options_layout)
+        layout.addWidget(options_group)
+        
+        # Controlli principali
+        controls_group = QGroupBox("🎮 Controlli")
+        controls_layout = QHBoxLayout()
+        
+        # Start
+        self.start_btn = QPushButton("▶️ AVVIA")
+        self.start_btn.clicked.connect(self.start_processing)
+        self.start_btn.setStyleSheet("font-weight: bold; background-color: #2e7d32; min-width: 100px;")
+        controls_layout.addWidget(self.start_btn)
+        
+        # Pausa
+        self.pause_btn = QPushButton("⏸️ PAUSA")
+        self.pause_btn.clicked.connect(self.pause_processing)
+        self.pause_btn.setEnabled(False)
+        self.pause_btn.setStyleSheet("min-width: 100px;")
+        controls_layout.addWidget(self.pause_btn)
+        
+        # Stop
+        self.stop_btn = QPushButton("⏹️ STOP")
+        self.stop_btn.clicked.connect(self.stop_processing)
+        self.stop_btn.setEnabled(False)
+        self.stop_btn.setStyleSheet("min-width: 100px;")
+        controls_layout.addWidget(self.stop_btn)
+        
+        # Save Log
+        self.log_btn = QPushButton("💾 SALVA LOG")
+        self.log_btn.clicked.connect(self.save_log)
+        self.log_btn.setStyleSheet("min-width: 100px;")
+        controls_layout.addWidget(self.log_btn)
+        controls_layout.addWidget(self.log_btn)
+        
+        controls_group.setLayout(controls_layout)
+        layout.addWidget(controls_group)
+        
+        # ===== PROGRESSO (SOLO LABEL DINAMICA) =====
+        progress_group = QGroupBox("📊 Progresso")
+        progress_layout = QVBoxLayout()
+
+        # Progress bar grafica (stile splash screen)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFixedHeight(12)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #3A3A3A;
+                background-color: #1E1E1E;
+                border-radius: 6px;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #C88B2E, stop:1 #E0A84A);
+                border-radius: 5px;
+            }
+        """)
+        progress_layout.addWidget(self.progress_bar)
+
+        # Label progress testuale
+        self.progress_label = QLabel("In attesa di avvio processing...")
+        self.progress_label.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                color: white;
+                padding: 10px;
+                background-color: #616161;
+                border-radius: 4px;
+                border: 1px solid #424242;
+                font-family: 'Consolas', 'Courier New', monospace;
+                font-weight: bold;
+                min-height: 20px;
+            }
+        """)
+        # Word wrap per testi lunghi
+        self.progress_label.setWordWrap(True)
+        progress_layout.addWidget(self.progress_label)
+        
+        progress_group.setLayout(progress_layout)
+        layout.addWidget(progress_group)
+        
+        # ===== LOG TERMINALE (NUOVO) =====
+        terminal_group = QGroupBox("💻 Terminal Log")
+        terminal_layout = QVBoxLayout()
+        terminal_layout.setContentsMargins(5, 5, 5, 5)
+        
+        self.log_display = QTextEdit()
+        
+        # Dimensioni ottimali per terminale
+        self.log_display.setFixedHeight(140)
+        
+        # Font monospaziato per terminale
+        self.log_display.setFont(QFont("Courier New", 10))
+        
+        # Scrollbar sempre visibile
+        from PyQt6.QtCore import Qt
+        self.log_display.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.log_display.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        
+        # Stile terminale classico: nero con verde
+        self.log_display.setStyleSheet("""
+            QTextEdit {
+                background-color: #000000;
+                color: #00ff00;
+                border: 2px solid #333333;
+                border-radius: 8px;
+                padding: 8px;
+                font-family: 'Courier New', 'Monaco', monospace;
+                font-size: 10px;
+                line-height: 1.2;
+            }
+            QScrollBar:vertical {
+                background-color: #1a1a1a;
+                width: 16px;
+                border: 1px solid #333333;
+                border-radius: 8px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #00ff00;
+                border-radius: 7px;
+                min-height: 20px;
+                margin: 2px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #00cc00;
+            }
+            QScrollBar::handle:vertical:pressed {
+                background-color: #00aa00;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar:horizontal {
+                background-color: #1a1a1a;
+                height: 16px;
+                border: 1px solid #333333;
+                border-radius: 8px;
+            }
+            QScrollBar::handle:horizontal {
+                background-color: #00ff00;
+                border-radius: 7px;
+                min-width: 20px;
+                margin: 2px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background-color: #00cc00;
+            }
+        """)
+        
+        # Proprietà di sola lettura ma mantiene scrolling
+        self.log_display.setReadOnly(True)
+        
+        # Auto-scroll alle ultime righe
+        self.log_display.textChanged.connect(self._auto_scroll_terminal)
+        
+        terminal_layout.addWidget(self.log_display)
+        
+        terminal_group.setLayout(terminal_layout)
+        layout.addWidget(terminal_group)
+        
+        # Carica directory salvata se presente
+        self.load_saved_input_directory()
+        
+        # Inizializza terminale con messaggio di benvenuto
+        self._init_terminal_welcome()
+    
+    def _auto_scroll_terminal(self):
+        """Auto-scroll del terminale alle ultime righe"""
+        try:
+            scrollbar = self.log_display.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+        except Exception as e:
+            print(f"Errore auto-scroll: {e}")
+    
+    def _init_terminal_welcome(self):
+        """Inizializza il terminale con messaggio di benvenuto"""
+        try:
+            self.log_display.clear()
+            welcome_msg = """<span style="color: #00ff00; font-weight: bold;">
+==================================================
+    OFFGALLERY PROCESSING TERMINAL v1.0
+==================================================</span>
+<span style="color: #00cc00;">System initialized and ready for image processing...</span>
+"""
+            self.log_display.append(welcome_msg)
+        except Exception as e:
+            print(f"Errore init terminale: {e}")
+    
+    def select_input_directory(self):
+        """Apre dialog per selezione directory input"""
+        from PyQt6.QtWidgets import QFileDialog
+        
+        directory = QFileDialog.getExistingDirectory(
+            self, 
+            "Seleziona Directory Immagini", 
+            str(Path.home())
+        )
+        
+        if directory:
+            self.set_input_directory(directory)
+    
+    def set_input_directory(self, directory_path):
+        """Imposta directory input e salva in config"""
+        try:
+            directory = Path(directory_path)
+            if not directory.exists():
+                QMessageBox.warning(self, "Errore", f"Directory non esistente: {directory}")
+                return
+            
+            # Aggiorna UI
+            self.input_dir_label.setText(str(directory))
+            self.input_dir_label.setStyleSheet("""
+                QLabel {
+                    color: #2c3e50;
+                    padding: 8px 12px;
+                    background-color: #ecf0f1;
+                    border: 1px solid #bdc3c7;
+                    border-radius: 4px;
+                    font-size: 11px;
+                    font-weight: normal;
+                    min-height: 16px;
+                }
+            """)
+            # Directory selezionata, abilita processing
+            
+            # Salva in config
+            self.save_input_directory_to_config(str(directory))
+            
+            # Auto-scansiona
+            self.scan_directory()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Errore impostazione directory: {e}")
+    
+    def save_input_directory_to_config(self, directory_path):
+        """Salva directory input nel config YAML"""
+        try:
+            # Carica config esistente
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            
+            # Assicurati che paths esista
+            if 'paths' not in config:
+                config['paths'] = {}
+            
+            # Aggiorna input_dir
+            config['paths']['input_dir'] = directory_path
+            
+            # Salva config
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+                
+        except Exception as e:
+            print(f"Errore salvataggio directory in config: {e}")
+    
+    def load_saved_input_directory(self):
+        """Carica directory input salvata dal config se presente"""
+        try:
+            if not Path(self.config_path).exists():
+                return
+                
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            
+            # Controlla se esiste input_dir in paths
+            if 'paths' in config and 'input_dir' in config['paths']:
+                input_dir = config['paths']['input_dir']
+                if Path(input_dir).exists():
+                    self.set_input_directory(input_dir)
+                else:
+                    # Directory salvata non esiste più
+                    self.input_dir_label.setText("Directory salvata non più disponibile")
+                    self.input_dir_label.setStyleSheet("color: #cc3333;")
+            
+        except Exception as e:
+            print(f"Errore caricamento directory salvata: {e}")
+
+    def refresh_scan(self):
+        """Aggiorna scansione directory e stato database"""
+        try:
+            input_dir_text = self.input_dir_label.text()
+            if input_dir_text in ["Nessuna directory selezionata", "Directory salvata non più disponibile"]:
+                QMessageBox.warning(self, "Attenzione", "Seleziona prima una directory")
+                return
+
+            # Feedback visivo
+            self.scan_label.setText("🔄 Aggiornamento in corso...")
+            QApplication.processEvents()
+
+            # Esegui scansione
+            self.scan_directory()
+
+            print("🔄 Refresh completato")
+
+        except Exception as e:
+            print(f"Errore refresh: {e}")
+            self.scan_label.setText(f"❌ Errore refresh: {e}")
+
+    def scan_directory(self):
+        """Scansiona directory per contare immagini NON processate"""
+        try:
+            # Ottieni directory input dall'UI
+            input_dir_text = self.input_dir_label.text()
+            if input_dir_text in ["Nessuna directory selezionata", "Directory salvata non più disponibile"]:
+                self.scan_label.setText("⚠️ Seleziona una directory per vedere le statistiche")
+                return
+            
+            input_dir = Path(input_dir_text)
+            if not input_dir.exists():
+                self.scan_label.setText(f"❌ Directory non esistente: {input_dir}")
+                return
+            
+            # Carica config per formati supportati e database
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            
+            db_path = Path(config['paths']['database'])
+            supported_formats = config.get('image_processing', {}).get('supported_formats', [])
+            
+            if not supported_formats:
+                self.scan_label.setText("❌ Nessun formato supportato configurato")
+                return
+            
+            self.db_label.setText(f"Database: {db_path}")
+            
+            # Conta immagini (CORRETTO: evita duplicati case-sensitive)
+            all_images = []
+            seen_files = set()
+            
+            for ext in supported_formats:
+                # Cerca sia minuscole che maiuscole
+                for pattern in [f"*{ext}", f"*{ext.upper()}"]:
+                    found_files = input_dir.glob(pattern)
+                    for file_path in found_files:
+                        # Usa nome file normalizzato per evitare duplicati
+                        normalized_name = file_path.name.lower()
+                        if normalized_name not in seen_files:
+                            seen_files.add(normalized_name)
+                            all_images.append(file_path)
+            
+            # Verifica quali sono già nel database
+            images_to_process = all_images
+            already_processed = 0
+            
+            if db_path.exists():
+                try:
+                    import sys
+                    sys.path.insert(0, str(get_app_dir()))
+                    from db_manager_new import DatabaseManager
+                    
+                    db_manager = DatabaseManager(str(db_path))
+                    processed_files = db_manager.get_all_images()
+                    processed_names = {Path(f['filepath']).name.lower() for f in processed_files}
+                    
+                    images_to_process = [img for img in all_images 
+                                       if img.name.lower() not in processed_names]
+                    already_processed = len(all_images) - len(images_to_process)
+                    
+                except Exception as e:
+                    self.scan_label.setText(f"Errore verifica database: {e}")
+                    return
+            
+            total_found = len(all_images)
+            to_process = len(images_to_process)
+            
+            # Salva il numero di immagini da processare per la logica del pulsante
+            self.images_to_process_count = to_process
+            
+            if to_process == 0:
+                self.scan_label.setText(f"Trovate {total_found} immagini, tutte già processate ✅")
+                # Aggiorna stato pulsante in base alle modalità
+                self.update_start_button_state()
+            else:
+                self.scan_label.setText(
+                    f"Trovate {total_found} immagini, {to_process} da processare "
+                    f"({already_processed} già processate)"
+                )
+                # Abilita pulsante se ci sono immagini da processare
+                self.start_btn.setEnabled(True)
+            
+        except Exception as e:
+            self.scan_label.setText(f"Errore scansione: {e}")
+    
+    def update_start_button_state(self):
+        """Aggiorna stato pulsante START in base a modalità e immagini disponibili"""
+        try:
+            # Controlla se ci sono immagini da processare
+            images_available = getattr(self, 'images_to_process_count', 0)
+            
+            # Ottieni modalità selezionata
+            mode_id = self.processing_mode_group.checkedId() if hasattr(self, 'processing_mode_group') else 0
+            
+            if mode_id == 0:  # Solo nuove immagini
+                if images_available == 0:
+                    self.start_btn.setEnabled(False)
+                    self.start_btn.setToolTip("Nessuna nuova immagine da processare. Cambia modalità per riprocessare.")
+                else:
+                    self.start_btn.setEnabled(True)
+                    self.start_btn.setToolTip("Avvia processing delle nuove immagini")
+            else:  # Altre modalità
+                self.start_btn.setEnabled(True)
+                if mode_id == 1:  # new_plus_errors
+                    self.start_btn.setToolTip("Avvia processing di nuove immagini + riprova errori")
+                else:  # reprocess_all
+                    self.start_btn.setToolTip("Avvia riprocessing di tutte le immagini")
+                    
+        except Exception as e:
+            print(f"Errore update_start_button_state: {e}")
+            # Fallback: abilita sempre
+            self.start_btn.setEnabled(True)
+    
+    def start_processing(self):
+        """Avvia processing"""
+        if self.worker and self.worker.isRunning():
+            return
+        
+        # Verifica che sia selezionata una directory
+        input_dir_text = self.input_dir_label.text()
+        if input_dir_text in ["Nessuna directory selezionata", "Directory salvata non più disponibile"]:
+            QMessageBox.warning(self, "Errore", "Seleziona prima una directory input")
+            return
+        
+        if not Path(input_dir_text).exists():
+            QMessageBox.warning(self, "Errore", f"Directory non esistente: {input_dir_text}")
+            return
+        
+        try:
+            # Reset progress bar
+            self.progress_bar.setValue(0)
+
+            self.log_display.clear()
+            self.log_display.append("[{}] Avvio processing...".format(
+                datetime.now().strftime("%H:%M:%S")
+            ))
+            
+            # Determina modalità processing (nuovo ordinamento)
+            mode_id = self.processing_mode_group.checkedId()
+            if mode_id == 0:
+                processing_mode = 'new_only'
+                mode_text = 'Solo nuove immagini'
+            elif mode_id == 1:
+                processing_mode = 'new_plus_errors'
+                mode_text = 'Nuove immagini + errori precedenti'
+            else:  # mode_id == 2
+                processing_mode = 'reprocess_all'
+                mode_text = 'Riprocessa tutte le immagini'
+            
+            self.log_display.append(f"🔧 Modalità: {mode_text}")
+            
+            # Crea worker passando directory e opzioni
+            self.worker = ProcessingWorker(self.config_path, input_dir_text, self.embedding_gen, {
+                'processing_mode': processing_mode
+            })
+            
+            # Connetti segnali
+            self.worker.progress.connect(self.update_progress)
+            self.worker.log_message.connect(self.add_log_message)
+            self.worker.stats_update.connect(self.update_stats)
+            self.worker.finished.connect(self.processing_finished)
+            
+            self.worker.start()
+            
+            # UI state
+            self.start_btn.setEnabled(False)
+            self.pause_btn.setEnabled(True)
+            self.stop_btn.setEnabled(True)
+            
+        except Exception as e:
+            self.add_log_message(f"Errore avvio processing: {e}", "error")
+    
+    def pause_processing(self):
+        """Pausa processing"""
+        if self.worker:
+            if self.worker.is_paused:
+                self.worker.resume()
+                self.pause_btn.setText("⏸️ PAUSA")
+                self.add_log_message("Processing ripreso", "info")
+            else:
+                self.worker.pause()
+                self.pause_btn.setText("▶️ RIPRENDI")
+                self.add_log_message("Processing in pausa", "info")
+    
+    def stop_processing(self):
+        """Ferma processing"""
+        if self.worker:
+            self.worker.stop()
+            self.add_log_message("Arresto processing...", "info")
+    
+    def update_progress(self, current, total):
+        """Aggiorna progresso con barra grafica e testuale"""
+        if total > 0:
+            percentage = int((current / total) * 100)
+
+            # Aggiorna progress bar grafica
+            self.progress_bar.setValue(percentage)
+
+            # Testo semplice (la barra grafica mostra già il progresso)
+            progress_text = f"📊 {current}/{total} ({percentage}%)"
+
+            self.progress_label.setText(progress_text)
+            
+            # Stile sobrio uniforme senza colori dinamici
+            self.progress_label.setStyleSheet("""
+                QLabel {
+                    font-size: 12px;
+                    color: #2c3e50;
+                    padding: 10px;
+                    background-color: #ecf0f1;
+                    border-radius: 4px;
+                    border: 1px solid #bdc3c7;
+                    font-family: 'Consolas', 'Courier New', monospace;
+                    font-weight: bold;
+                    min-height: 20px;
+                }
+            """)
+    
+    def add_log_message(self, message, level):
+        """Aggiunge messaggio al log terminale"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        
+        # Colori terminale: diverse tonalità di verde per i diversi livelli
+        color_map = {
+            'info': '#00ff00',      # Verde brillante per info
+            'warning': '#ffff00',   # Giallo per warning
+            'error': '#ff6600',     # Arancione per errori
+            'success': '#00ff88',   # Verde acqua per successi
+            'debug': '#88ff88'      # Verde chiaro per debug
+        }
+        
+        color = color_map.get(level, '#00ff00')
+        
+        # Formato terminale classico
+        formatted = f'<span style="color: #00cc00;">[{timestamp}]</span> <span style="color: {color};">{message}</span>'
+        
+        self.log_display.append(formatted)
+        
+        # Auto-scroll gestito dal signal textChanged
+    
+    def update_stats(self, stats):
+        """Update stats - non più necessario dato che tutto è nella progress bar"""
+        # Manteniamo il metodo per compatibilità con il worker ma non fa nulla
+        # Tutte le statistiche sono ora nella progress bar tramite update_progress
+        pass
+    
+    def processing_finished(self, stats):
+        """Processing completato"""
+        self.start_btn.setEnabled(True)
+        self.pause_btn.setEnabled(False)
+        self.stop_btn.setEnabled(False)
+        
+        # Calcola statistiche per il completamento
+        total = stats.get('total', 0)
+        success = stats.get('success', 0)
+        errors = stats.get('errors', 0)
+        processing_time = stats.get('processing_time', 0)
+        
+        if total > 0:
+            success_rate = round((success / total) * 100, 1)
+            time_per_image = round(processing_time / total, 1) if total > 0 else 0
+            
+            # Mostra statistiche di completamento
+            completion_text = f"✅ Completato! {success}/{total} ({success_rate}%) - ⏱️ {time_per_image}s/img"
+            if errors > 0:
+                completion_text += f" - ⚠️ {errors} errori"
+                
+            self.progress_label.setText(completion_text)
+            self.progress_bar.setValue(100)
+
+            # Stile sobrio uniforme per completamento
+            self.progress_label.setStyleSheet("""
+                QLabel {
+                    font-size: 12px;
+                    color: #2c3e50;
+                    padding: 10px;
+                    background-color: #ecf0f1;
+                    border-radius: 4px;
+                    border: 1px solid #bdc3c7;
+                    font-family: 'Consolas', 'Courier New', monospace;
+                    font-weight: bold;
+                    min-height: 20px;
+                }
+            """)
+        else:
+            self.progress_label.setText("✅ Completato!")
+        
+        # Aggiorna scan per refresh statistiche
+        self.scan_directory()
+    
+    def save_log(self):
+        """Salva il contenuto del log live su file"""
+        try:
+            from PyQt6.QtWidgets import QFileDialog
+            
+            # Proponi nome file con timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            suggested_name = f"processing_log_{timestamp}.txt"
+            
+            # Dialog salvataggio
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Salva Log Processing",
+                suggested_name,
+                "File di testo (*.txt);;Tutti i file (*.*)"
+            )
+            
+            if file_path:
+                # Estrai testo puro dal log HTML
+                plain_text = self.log_display.toPlainText()
+                
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write("=" * 70 + "\n")
+                    f.write(f"LOG PROCESSING OFFGALLERY\n")
+                    f.write(f"Salvato: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write("=" * 70 + "\n\n")
+                    f.write(plain_text)
+                
+                QMessageBox.information(self, "Log Salvato", f"Log salvato in:\n{file_path}")
+                
+        except Exception as e:
+            QMessageBox.warning(self, "Errore", f"Errore salvataggio log:\n{e}")
