@@ -1166,14 +1166,15 @@ class EmbeddingGenerator:
 
     def generate_llm_description(self, image_input, max_description_words: int = 100):
         """Genera descrizione LLM Vision"""
+        temp_image_path = None
         try:
             input_type = self._detect_input_type(image_input)
-        
+
             if input_type == 'path':
                 # Usa RAWProcessor per estrarre thumbnail ottimizzato
                 from raw_processor import RAWProcessor
                 raw_processor = RAWProcessor(self.config)
-            
+
                 # Estrai thumbnail JPEG embedded per Ollama
                 thumbnail = raw_processor.extract_thumbnail(Path(image_input), target_size=1024)
                 if thumbnail:
@@ -1182,31 +1183,40 @@ class EmbeddingGenerator:
                     with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
                         thumbnail.save(tmp.name, format='JPEG', quality=90)
                         image_path = tmp.name
+                        temp_image_path = tmp.name
                 else:
                     # Fallback se estrazione thumbnail fallisce
                     image_path = str(image_input)
-                
+
             elif input_type == 'pil':
                 # Salva PIL Image come JPEG temporaneo
                 import tempfile
                 with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
                     image_input.save(tmp.name, format='JPEG', quality=85)
                     image_path = tmp.name
+                    temp_image_path = tmp.name
             else:
                 logger.error("LLM Vision: tipo input non supportato")
                 return None
 
             return self._call_ollama_vision_api(image_path, mode='description', max_description_words=max_description_words)
-        
+
         except Exception as e:
             logger.error(f"Errore LLM description: {e}")
             return None
+        finally:
+            if temp_image_path:
+                try:
+                    os.unlink(temp_image_path)
+                except OSError:
+                    pass
 
     def generate_llm_tags(self, image_input, max_tags: int = 10) -> List[str]:
         """Genera tag LLM Vision"""
+        temp_image_path = None
         try:
             input_type = self._detect_input_type(image_input)
-            
+
             if input_type == 'path':
                 # Usa RAWProcessor per estrarre thumbnail ottimizzato
                 from raw_processor import RAWProcessor
@@ -1220,6 +1230,7 @@ class EmbeddingGenerator:
                     with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
                         thumbnail.save(tmp.name, format='JPEG', quality=90)
                         image_path = tmp.name
+                        temp_image_path = tmp.name
                 else:
                     # Fallback se estrazione thumbnail fallisce
                     image_path = str(image_input)
@@ -1229,6 +1240,7 @@ class EmbeddingGenerator:
                 with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
                     image_input.save(tmp.name, format='JPEG', quality=85)
                     image_path = tmp.name
+                    temp_image_path = tmp.name
             else:
                 logger.error("LLM Tags: tipo input non supportato per Ollama")
                 return []
@@ -1239,13 +1251,20 @@ class EmbeddingGenerator:
                 tags = self._parse_llm_tags_response(response, max_tags)
                 return tags[:max_tags]  # Max tags configurabile
             return []
-            
+
         except Exception as e:
             logger.error(f"Errore LLM tags: {e}")
             return []
+        finally:
+            if temp_image_path:
+                try:
+                    os.unlink(temp_image_path)
+                except OSError:
+                    pass
 
     def generate_llm_title(self, image_input, max_title_words: int = 5) -> Optional[str]:
         """Genera titolo LLM Vision"""
+        temp_image_path = None
         try:
             input_type = self._detect_input_type(image_input)
 
@@ -1262,6 +1281,7 @@ class EmbeddingGenerator:
                     with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
                         thumbnail.save(tmp.name, format='JPEG', quality=90)
                         image_path = tmp.name
+                        temp_image_path = tmp.name
                 else:
                     # Fallback se estrazione thumbnail fallisce
                     image_path = str(image_input)
@@ -1271,6 +1291,7 @@ class EmbeddingGenerator:
                 with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
                     image_input.save(tmp.name, format='JPEG', quality=85)
                     image_path = tmp.name
+                    temp_image_path = tmp.name
             else:
                 logger.error("LLM Title: tipo input non supportato per Ollama")
                 return None
@@ -1285,6 +1306,12 @@ class EmbeddingGenerator:
         except Exception as e:
             logger.error(f"Errore LLM title: {e}")
             return None
+        finally:
+            if temp_image_path:
+                try:
+                    os.unlink(temp_image_path)
+                except OSError:
+                    pass
 
     def generate_llm_content(self, image_input, mode='description', max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5):
         """Metodo unificato per contenuti LLM con parametri completi.
