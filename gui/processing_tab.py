@@ -296,12 +296,6 @@ class ProcessingWorker(QThread):
                                     stats['errors'] += 1
                                     success = False
                             else:
-                                # DEBUG: Log finale prima del salvataggio
-                                if 'is_monochrome' in result:
-                                    self.log_message.emit(f"🎨 DEBUG FINALE: Salvando is_monochrome = {result['is_monochrome']} per {image_path.name}", "info")
-                                else:
-                                    self.log_message.emit(f"❌ DEBUG FINALE: is_monochrome MANCANTE in result per {image_path.name}!", "error")
-                                
                                 # INSERISCI nuovo record
                                 try:
                                     image_id = db_manager.insert_image(result)
@@ -407,23 +401,7 @@ class ProcessingWorker(QThread):
         try:
             extracted_metadata = raw_processor.extract_raw_metadata(image_path)
             self.log_message.emit(f"✅ Metadata estratti: {len(extracted_metadata)} campi", "info")
-            
-            # DEBUG: Log principali campi XMP estratti
-            exif_fields = ['camera_make', 'camera_model', 'lens_model', 'focal_length', 'aperture', 'iso']
-            xmp_fields = ['tags', 'title', 'description', 'lr_rating']
-            
-            for key in exif_fields:
-                if key in extracted_metadata:
-                    value = extracted_metadata[key]
-                    if value:
-                        self.log_message.emit(f"  📷 {key}: {value}", "info")
-            
-            for key in xmp_fields:
-                if key in extracted_metadata:
-                    value = extracted_metadata[key]
-                    if value:
-                        self.log_message.emit(f"  🏷️ {key}: {value}", "info")
-            
+
         except Exception as e:
             self.log_message.emit(f"⚠️ Errore estrazione metadata: {e}", "warning")
             extracted_metadata = {}
@@ -449,22 +427,10 @@ class ProcessingWorker(QThread):
         # === MAPPING DIRETTO METADATA → DATABASE FIELDS ===
         # CORRETTO: Usa direttamente i campi mappati dal RAWProcessor
         if extracted_metadata:
-            # DEBUG: Log specifico per is_monochrome
-            if 'is_monochrome' in extracted_metadata:
-                self.log_message.emit(f"🎨 DEBUG: is_monochrome estratto = {extracted_metadata['is_monochrome']}", "info")
-            
             # Copia tutti i campi mappati direttamente
             for key, value in extracted_metadata.items():
                 if key not in ['is_raw', 'raw_info']:  # Skip campi interni
                     image_data[key] = value
-            
-            # DEBUG: Verifica che is_monochrome sia in image_data
-            if 'is_monochrome' in image_data:
-                self.log_message.emit(f"🎨 DEBUG: is_monochrome in image_data = {image_data['is_monochrome']}", "info")
-            else:
-                self.log_message.emit("❌ DEBUG: is_monochrome NON presente in image_data!", "warning")
-            
-            self.log_message.emit(f"✅ Mapping completato: {len(extracted_metadata)} campi mappati", "info")
             image_data['tags'] = json.dumps([], ensure_ascii=False)
         # === CACHE THUMBNAIL PER OTTIMIZZAZIONE ===
         # Estrae thumbnail una sola volta alla MAX size necessaria tra i modelli abilitati
@@ -532,19 +498,13 @@ class ProcessingWorker(QThread):
                             if np.any(np.isnan(clip_emb)):
                                 self.log_message.emit(f"🚨 CLIP embedding NaN per {image_path.name}!", "error")
                                 clip_emb = None
-                            else:
-                                shape_info = f"shape={clip_emb.shape}, range=[{clip_emb.min():.3f}, {clip_emb.max():.3f}]"
-                                self.log_message.emit(f"✅ CLIP embedding valido: {shape_info}", "info")
-                    
+
                     if dinov2_emb is not None:
                         import numpy as np
                         if isinstance(dinov2_emb, np.ndarray):
                             if np.any(np.isnan(dinov2_emb)):
                                 self.log_message.emit(f"🚨 DINOv2 embedding NaN per {image_path.name}!", "error")
                                 dinov2_emb = None
-                            else:
-                                shape_info = f"shape={dinov2_emb.shape}, range=[{dinov2_emb.min():.3f}, {dinov2_emb.max():.3f}]"
-                                self.log_message.emit(f"✅ DINOv2 embedding valido: {shape_info}", "info")
                         
                     # Salva embedding
                     image_data['clip_embedding'] = clip_emb
