@@ -789,7 +789,13 @@ class ProcessingTab(QWidget):
 
         self.main_window = main_window
         self.config_path = main_window.config_path
-        self.embedding_gen = None
+
+        # Riutilizza EmbeddingGenerator centralizzato da MainWindow
+        # (evita doppio caricamento modelli e doppio consumo VRAM)
+        if hasattr(main_window, 'ai_models') and main_window.ai_models.get('initialized'):
+            self.embedding_gen = main_window.ai_models.get('embedding_generator')
+        else:
+            self.embedding_gen = None
 
         self.worker = None
         self.images_to_process_count = 0
