@@ -659,9 +659,11 @@ class ProcessingWorker(QThread):
         # Calcola hash file per deduplicazione
         try:
             import hashlib
+            md5 = hashlib.md5()
             with open(image_path, 'rb') as f:
-                file_hash = hashlib.md5(f.read()).hexdigest()
-                image_data['file_hash'] = file_hash
+                for chunk in iter(lambda: f.read(8192), b''):
+                    md5.update(chunk)
+            image_data['file_hash'] = md5.hexdigest()
         except Exception as e:
             self.log_message.emit(f"⚠️ Errore calcolo hash per {image_path.name}: {e}", "warning")
 
