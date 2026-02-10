@@ -1,0 +1,418 @@
+================================================================================
+  OFFGALLERY - MANUALE UTENTE
+  Capitolo 5: Galleria
+================================================================================
+
+
+PANORAMICA
+──────────
+
+Il tab Galleria e' la quarta scheda dell'applicazione. E' dove vengono
+visualizzati i risultati delle tue ricerche: una griglia di miniature
+(thumbnail) che si adatta automaticamente alla larghezza della finestra.
+
+La galleria non e' solo un visualizzatore: e' anche il punto di
+partenza per molte operazioni sulle tue foto. Da qui puoi:
+
+  - Vedere le miniature con i punteggi AI e lo stato XMP.
+  - Selezionare una o piu' foto.
+  - Modificare titoli, tag e descrizioni direttamente.
+  - Assegnare rating (stelle) e etichette colore.
+  - Lanciare la generazione AI (LLM o BioCLIP) su foto specifiche.
+  - Cercare foto visivamente simili con DINOv2.
+  - Sincronizzare i dati con i file XMP.
+  - Aprire le foto in editor esterni (Lightroom, Photoshop, ecc.).
+  - Visualizzare i dati EXIF completi.
+  - Eliminare foto dal database.
+
+
+────────────────────────────────────────────────────────────────────────
+LA GRIGLIA DI IMMAGINI
+────────────────────────────────────────────────────────────────────────
+
+Quando esegui una ricerca dal tab Ricerca, i risultati appaiono
+automaticamente nella galleria sotto forma di "card" (schede), ciascuna
+larga 220 pixel. Le card si dispongono su piu' righe, riempiendo lo
+spazio disponibile. Se ridimensioni la finestra, le card si riorganizzano
+automaticamente.
+
+In cima alla galleria trovi una barra con:
+
+  - Il conteggio dei risultati (es. "85 immagini") oppure "Nessun
+    risultato" se la ricerca non ha trovato nulla.
+  - Il conteggio delle foto selezionate (es. "(3 selez.)").
+  - Il pulsante "Tutti": seleziona tutte le foto nella galleria.
+  - Il pulsante "Nessuno": deseleziona tutte le foto.
+
+Se non ci sono risultati, la galleria mostra la scritta "Nessun
+risultato trovato" al centro.
+
+
+────────────────────────────────────────────────────────────────────────
+ANATOMIA DI UNA CARD
+────────────────────────────────────────────────────────────────────────
+
+Ogni card nella galleria rappresenta una foto e contiene:
+
+  Intestazione
+    Una casella di selezione (checkbox) e il nome del file. Se il
+    nome e' troppo lungo, viene troncato con "..." alla fine.
+
+  Miniatura (Thumbnail)
+    Un'anteprima dell'immagine di 150x150 pixel, con le proporzioni
+    mantenute. Per i file RAW che non possono essere caricati
+    direttamente, OffGallery prova a estrarre la preview incorporata
+    usando ExifTool.
+
+    Se il file non e' raggiungibile (disco scollegato, cartella
+    spostata, file eliminato), la miniatura mostra un indicatore:
+      "NO DISK"  = il disco che conteneva la foto non e' collegato.
+      "NO PATH"  = la cartella non esiste piu'.
+      "NO FILE"  = il file specifico non e' stato trovato.
+
+  Badge punteggi (prima riga sotto la miniatura)
+    Piccole etichette colorate che mostrano:
+
+    AES: 6.8    Punteggio estetico (sfondo verde).
+    TEC: 23     Punteggio tecnico BRISQUE (sfondo blu petrolio).
+                Visibile solo per file non-RAW.
+    SEM: 0.87   Punteggio di similarita' DINOv2 (sfondo arancione).
+                Visibile solo dopo una ricerca "Trova simili".
+    RANK: 0.32  Punteggio di pertinenza dalla ricerca (sfondo marrone).
+                Visibile dopo una ricerca semantica o per tag.
+
+  Badge stato e metadati (seconda riga)
+    A sinistra, un badge XMP che indica lo stato di sincronizzazione
+    con i file sidecar (descritto in dettaglio nel Capitolo 7).
+
+    A destra, se presenti:
+    - Le stelle del rating Lightroom (in celeste chiaro).
+    - Un quadratino colorato che indica la color label Lightroom.
+
+
+────────────────────────────────────────────────────────────────────────
+TOOLTIP INFORMATIVO
+────────────────────────────────────────────────────────────────────────
+
+Passando il mouse sopra una card, appare un tooltip che mostra in
+modo compatto le informazioni semantiche della foto:
+
+  - Il titolo (generato dall'LLM oppure derivato dal nome del file).
+  - I tag (tutti i tipi: utente, AI, BioCLIP), ordinati e formattati
+    con a capo ogni 45 caratteri.
+  - La descrizione generata dall'LLM, se presente.
+
+Il tooltip si aggiorna automaticamente se modifichi titolo, tag o
+descrizione dalla galleria stessa.
+
+
+────────────────────────────────────────────────────────────────────────
+SELEZIONARE LE FOTO
+────────────────────────────────────────────────────────────────────────
+
+Puoi selezionare le foto in diversi modi:
+
+  Click singolo
+    Seleziona solo quella foto, deselezionando tutte le altre.
+    La card selezionata si evidenzia con un bordo ambra.
+
+  Ctrl + Click
+    Aggiunge (o rimuove) la foto dalla selezione corrente senza
+    toccare le altre. Utile per selezionare piu' foto sparse.
+
+  Checkbox
+    Puoi anche cliccare direttamente sulla casella di spunta
+    nell'intestazione della card.
+
+  Pulsante "Tutti"
+    Seleziona tutte le foto nella galleria.
+
+  Pulsante "Nessuno"
+    Deseleziona tutto. Disponibile solo se c'e' almeno una
+    foto selezionata.
+
+La selezione multipla e' importante perche' molte operazioni del
+menu contestuale (vedi sotto) possono essere eseguite su tutte le
+foto selezionate contemporaneamente.
+
+
+────────────────────────────────────────────────────────────────────────
+DOPPIO CLICK
+────────────────────────────────────────────────────────────────────────
+
+Un doppio click su una card apre la foto nel visualizzatore predefinito
+del sistema operativo. Su Windows, questo corrisponde all'app associata
+ai file immagine (Visualizzatore foto, Paint, ecc.).
+
+Se il file non e' raggiungibile, viene mostrato un messaggio che
+indica il motivo (disco non trovato, cartella non trovata o file
+non trovato) e il percorso completo.
+
+
+────────────────────────────────────────────────────────────────────────
+IL MENU CONTESTUALE (CLICK DESTRO)
+────────────────────────────────────────────────────────────────────────
+
+Il menu contestuale e' il modo principale per interagire con le foto
+nella galleria. Si apre facendo click destro su una card.
+
+Se hai selezionato piu' foto, il menu mostra il numero di elementi
+tra parentesi (es. "File (3)") e le operazioni si applicano a tutte
+le foto selezionate. Se non hai selezionato piu' foto, le operazioni
+si applicano solo alla foto su cui hai cliccato.
+
+Il menu e' organizzato in sezioni:
+
+
+  FILE
+  ────
+
+    Apri cartella
+      Apre in Esplora risorse la cartella che contiene la foto.
+      Se il file non e' raggiungibile, mostra un avviso con i dettagli.
+
+    Copia percorso
+      Copia il percorso completo del file negli appunti. Con piu'
+      foto selezionate, copia tutti i percorsi (uno per riga).
+
+    Apri con [nome editor]
+      Se hai configurato editor esterni nel tab Configurazione
+      (es. Lightroom, Photoshop, DxO PhotoLab), qui trovi le voci
+      per aprire la foto direttamente in quell'editor. Disponibile
+      solo per singola foto.
+
+      Quando apri una foto in un editor esterno, il nome del file
+      nella card diventa arancione con la scritta "EDITING" per
+      indicare che la foto e' in fase di modifica. Quando chiudi
+      l'editor, OffGallery rileva automaticamente se il file o il
+      sidecar XMP sono stati modificati. Se ci sono state modifiche,
+      reimporta i metadati aggiornati dal file XMP e il nome del
+      file diventa verde con un segno di spunta per 3 secondi.
+
+
+  MODIFICA
+  ────────
+
+    Edita titolo
+      Apre una finestra per modificare il titolo della foto. Il
+      titolo e' un breve testo che descrive l'immagine.
+      Per una singola foto, mostra il titolo attuale che puoi
+      modificare. Per piu' foto, il nuovo titolo viene applicato
+      a tutte.
+
+    Edita tag
+      Apre una finestra per modificare i tag della foto. I tag sono
+      mostrati come lista separata da virgole. Puoi aggiungere,
+      rimuovere o sostituire tag. Il pulsante "Rimuovi tutti i tag"
+      cancella tutti i tag.
+      Per una singola foto, mostra i tag attuali. Per piu' foto,
+      i nuovi tag vengono applicati a tutte.
+
+    Edita descrizione
+      Apre una finestra con un campo di testo ampio per modificare
+      la descrizione. Il pulsante "Rimuovi descrizione" cancella
+      la descrizione.
+      Per una singola foto, mostra la descrizione attuale. Per piu'
+      foto, la nuova descrizione viene applicata a tutte.
+
+    Rating (sottomenu)
+      Permette di assegnare un rating da 1 a 5 stelle, oppure
+      di rimuoverlo. Il rating viene salvato nel database e
+      visualizzato sulla card come stelle celesti.
+
+    Color Label (sottomenu)
+      Permette di assegnare un'etichetta colore (Rosso, Giallo,
+      Verde, Blu, Viola) oppure di rimuoverla. L'etichetta viene
+      salvata nel database e visualizzata come quadratino colorato
+      sulla card.
+
+    Elimina dal database
+      Rimuove la foto dal database di OffGallery. Il file originale
+      NON viene toccato: rimane sul disco. Viene chiesta conferma
+      prima di procedere. Per piu' foto, mostra il numero di
+      elementi che verranno rimossi.
+
+
+  GENERA CONTENUTI AI
+  ────────────────────
+
+    LLM (titolo, descrizione, tags)
+      Lancia la generazione AI tramite il modello LLM (Qwen3-VL
+      via Ollama) sulle foto selezionate. Si apre una finestra in
+      cui puoi scegliere cosa generare:
+
+        Titolo       Un breve titolo descrittivo.
+        Tag          Tag descrittivi per la ricerca.
+        Descrizione  Una descrizione testuale dell'immagine.
+
+      Puoi selezionare qualsiasi combinazione. I parametri (numero
+      massimo di tag, lunghezza della descrizione, ecc.) sono quelli
+      configurati nel tab Configurazione.
+
+      Una barra di avanzamento mostra il progresso. L'operazione
+      puo' essere annullata in qualsiasi momento.
+
+      I nuovi tag vengono aggiunti a quelli esistenti (senza
+      duplicati). Le nuove descrizioni e titoli sostituiscono quelli
+      precedenti.
+
+      Nota: Ollama deve essere in esecuzione perche' questa funzione
+      funzioni.
+
+    BioCLIP (classificazione natura)
+      Lancia BioCLIP sulle foto selezionate per identificare
+      specie di flora e fauna. I tag delle specie identificate
+      vengono aggiunti ai tag esistenti.
+
+      Una barra di avanzamento mostra il progresso.
+
+
+  TROVA SIMILI (DINOv2)
+  ─────────────────────
+
+    Disponibile solo per singola foto (non in multi-selezione).
+
+    Cerca nel database tutte le foto visivamente simili a quella
+    selezionata, usando gli embedding DINOv2. Il risultato sostituisce
+    la galleria corrente con le foto trovate, ordinate per
+    similarita' decrescente.
+
+    Una barra di avanzamento mostra il confronto con tutte le foto
+    nel database. L'operazione puo' essere annullata.
+
+    La soglia di similarita' e il numero massimo di risultati sono
+    configurabili nel file di configurazione.
+
+    Se la foto non ha un embedding DINOv2 (ad esempio perche' il
+    modello era disabilitato durante l'elaborazione), viene mostrato
+    un messaggio di errore.
+
+
+  SINCRONIZZAZIONE XMP
+  ────────────────────
+
+    Questo sottomenu e' disponibile solo se il supporto XMP e' attivo.
+    Permette di gestire la sincronizzazione tra il database di
+    OffGallery e i file XMP sidecar (o i metadati XMP incorporati
+    nei file). Per una spiegazione completa, vedi il Capitolo 7.
+
+    Confronta XMP vs DB
+      Mostra un report dettagliato delle differenze tra i dati nel
+      database e quelli nei file XMP (sidecar e/o incorporati).
+      Per ogni foto, mostra lo stato di sincronizzazione di titolo,
+      descrizione e tag, indicando cosa e' presente dove e se ci
+      sono discrepanze.
+
+    Importa da XMP -> DB
+      Legge titolo, tag e descrizione dal file XMP sidecar (o dai
+      metadati XMP incorporati) e li importa nel database,
+      sovrascrivendo i dati esistenti. Viene chiesta conferma.
+
+    Esporta DB -> XMP
+      Scrive titolo, tag e descrizione dal database al file XMP
+      sidecar (o ai metadati XMP incorporati), sovrascrivendo i
+      dati esistenti. Viene chiesta conferma.
+
+    Mostra contenuto XMP
+      Mostra il contenuto completo dei metadati XMP del file
+      (keywords, titolo, descrizione, rating). Disponibile solo
+      per singola foto. Indica anche la sorgente dei dati (sidecar
+      o embedded).
+
+
+  INFO EXIF
+  ─────────
+
+    Apre una finestra con tutti i dati EXIF della foto, inclusi:
+
+      - Informazioni file: percorso, dimensione, formato.
+      - Dimensioni: risoluzione in pixel e megapixel.
+      - Dati principali dal database: camera, obiettivo, apertura,
+        focale, tempo di posa, ISO, data di scatto, coordinate GPS.
+      - Dati EXIF completi dal file originale (se disponibili).
+      - Punteggi AI: estetico e tecnico.
+
+    Un pulsante "Copia negli appunti" permette di copiare tutti
+    i dati in formato testo.
+
+
+────────────────────────────────────────────────────────────────────────
+EDITOR ESTERNI
+────────────────────────────────────────────────────────────────────────
+
+OffGallery supporta l'integrazione con fino a 3 editor esterni
+(configurabili nel tab Configurazione). Quando apri una foto con
+un editor esterno dalla galleria:
+
+  1. OffGallery memorizza il timestamp del file e del sidecar XMP.
+  2. La foto viene aperta nell'editor scelto.
+  3. Il nome del file sulla card diventa arancione per indicare
+     che la foto e' in fase di editing.
+  4. OffGallery monitora il processo dell'editor in background.
+  5. Quando chiudi l'editor, OffGallery confronta i timestamp.
+  6. Se il file o il sidecar XMP sono stati modificati, OffGallery
+     reimporta automaticamente i metadati aggiornati e lo segnala
+     con un breve indicatore verde sulla card.
+
+Questo permette un flusso di lavoro fluido: cerchi le foto con
+OffGallery, le modifichi nell'editor, e al ritorno i metadati
+aggiornati vengono sincronizzati automaticamente.
+
+
+────────────────────────────────────────────────────────────────────────
+ASPETTO VISIVO
+────────────────────────────────────────────────────────────────────────
+
+La galleria usa un tema scuro (sfondo grafite #2A2A2A) per non
+affaticare la vista e per dare risalto alle miniature delle foto.
+
+  - Le card hanno un bordo blu petrolio normalmente.
+  - Le card selezionate hanno un bordo ambra.
+  - Passando il mouse sopra una card, il bordo si illumina.
+  - I pulsanti sono in blu petrolio e si illuminano al passaggio
+    del mouse.
+  - La barra di scorrimento verticale e' sottile e discreta.
+
+Le finestre di dialogo (modifica tag, modifica descrizione, EXIF,
+avanzamento BioCLIP/LLM, ecc.) usano uno stile coerente con sfondo
+blu-grigio scuro, testo chiaro e pulsanti blu.
+
+
+────────────────────────────────────────────────────────────────────────
+CONSIGLI PRATICI
+────────────────────────────────────────────────────────────────────────
+
+  - Usa Ctrl+Click per selezionare piu' foto non adiacenti su cui
+    vuoi eseguire la stessa operazione (ad esempio aggiungere lo
+    stesso tag a 5 foto sparse).
+
+  - Se vuoi generare tag o descrizioni AI solo per alcune foto
+    specifiche (e non per l'intero archivio), la galleria e' il
+    posto giusto: seleziona le foto e usa il menu contestuale.
+
+  - La funzione "Trova simili" e' utile per trovare scatti simili
+    della stessa scena, per individuare foto duplicate o quasi
+    duplicate, o semplicemente per esplorare il tuo archivio
+    partendo da una foto che ti piace.
+
+  - Se modifichi una foto in Lightroom e vuoi che OffGallery
+    aggiorni i tag, puoi usare "Importa da XMP -> DB" dal menu
+    contestuale oppure configurare la sincronizzazione automatica
+    tramite l'apertura con editor esterno.
+
+  - Il filtro "Solo out-of-sync" nel tab Ricerca ti aiuta a trovare
+    le foto che hanno dati AI nel database ma non ancora scritti
+    nei file XMP. Puoi poi selezionarle tutte dalla galleria e
+    usare "Esporta DB -> XMP" per sincronizzarle.
+
+  - Se una foto mostra "NO DISK" o "NO FILE" nella miniatura, non
+    significa che i dati sono persi: i metadati, i punteggi e gli
+    embedding sono nel database. Quando il disco sara' di nuovo
+    collegato o il file sara' di nuovo accessibile, la miniatura
+    riapparira' normalmente.
+
+
+================================================================================
+  Fine del Capitolo 5 - Galleria
+  Prossimo capitolo: 06 - Statistiche
+================================================================================

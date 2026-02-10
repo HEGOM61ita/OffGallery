@@ -1,0 +1,696 @@
+================================================================================
+  OFFGALLERY - MANUALE UTENTE
+  Capitolo 4: Ricerca
+================================================================================
+
+
+PANORAMICA
+──────────
+
+Il tab Ricerca e' il cuore di OffGallery: ti permette di trovare le
+tue foto usando il linguaggio naturale, i tag, o una combinazione di
+filtri fotografici. E' la terza scheda dell'applicazione.
+
+OffGallery offre due modalita' di ricerca fondamentalmente diverse:
+
+  Ricerca Semantica (CLIP)
+    Descrivi quello che cerchi con parole tue e l'AI trova le foto
+    che corrispondono al significato della tua descrizione, anche se
+    nessun tag contiene quelle parole.
+
+  Ricerca Tag/Testo
+    Cerca parole specifiche nei tag, nelle descrizioni e nei titoli
+    che sono stati generati dall'AI o che erano gia' presenti nelle
+    foto (tag XMP da Lightroom, DxO, ecc.).
+
+Entrambe le modalita' possono essere combinate con filtri EXIF
+(fotocamera, obiettivo, ISO, apertura, ecc.), filtri di qualita',
+filtri per data e altro ancora. I filtri restringono i risultati
+prima della ricerca, funzionando come un setaccio.
+
+Puoi anche usare solo i filtri, senza digitare alcuna query di
+ricerca. In quel caso, OffGallery ti restituira' tutte le foto che
+soddisfano i criteri impostati.
+
+
+────────────────────────────────────────────────────────────────────────
+SCEGLIERE LA MODALITA' DI RICERCA
+────────────────────────────────────────────────────────────────────────
+
+In cima al tab trovi due pulsanti radio:
+
+  Semantica     (selezionata di default)
+  Tag/Testo
+
+Cambiando modalita', cambiano anche:
+  - Il testo di aiuto sotto la barra di ricerca.
+  - Il testo segnaposto nella barra di ricerca.
+  - Le opzioni specifiche che si attivano o disattivano.
+
+
+────────────────────────────────────────────────────────────────────────
+LA BARRA DI RICERCA
+────────────────────────────────────────────────────────────────────────
+
+Sotto il selettore di modalita' c'e' la barra di ricerca: un campo
+di testo dove digiti la tua query. Puoi premere INVIO per avviare
+la ricerca oppure cliccare il pulsante CERCA in basso.
+
+In modalita' Semantica il testo di aiuto dice:
+  "Cerca con linguaggio naturale (es: 'montagna con neve al tramonto')"
+
+In modalita' Tag/Testo il testo di aiuto cambia a seconda che
+l'opzione "Includi Descrizione" sia attiva o meno:
+  Con descrizione: "Cerca nei tag + descrizioni (es: 'vacanza, famiglia'
+                     o 'tramonto sul mare')"
+  Senza descrizione: "Cerca nei tag utente + AI (es: 'vacanza, famiglia')"
+
+La barra di ricerca e' facoltativa: se non scrivi nulla ma hai
+impostato almeno un filtro, la ricerca funziona ugualmente e ti
+restituisce tutte le foto che rispettano quei filtri. Se invece non
+hai ne' query ne' filtri, OffGallery ti avvisa che serve almeno
+uno dei due.
+
+
+────────────────────────────────────────────────────────────────────────
+RICERCA SEMANTICA
+────────────────────────────────────────────────────────────────────────
+
+La ricerca semantica e' la funzione piu' potente di OffGallery. Non
+cerca parole nei tag: usa l'intelligenza artificiale (il modello CLIP)
+per capire il significato della tua richiesta e confrontarlo con il
+contenuto visivo di ogni foto.
+
+Questo significa che:
+
+  - Puoi scrivere "barca a vela sul lago" e trovare foto di barche
+    a vela su un lago, anche se nessun tag contiene quelle parole.
+
+  - Puoi cercare in italiano: OffGallery traduce automaticamente
+    la tua query in inglese (la lingua che CLIP capisce meglio)
+    usando il traduttore Argos integrato. La traduzione avviene
+    in modo trasparente, senza che tu debba fare nulla.
+
+  - Puoi cercare concetti astratti: "solitudine", "gioia",
+    "atmosfera invernale". CLIP ha una comprensione sorprendentemente
+    buona di concetti visivi anche astratti.
+
+Come funziona dietro le quinte:
+
+  1. La tua query viene tradotta in inglese.
+  2. Il testo tradotto viene convertito in un vettore numerico
+     (embedding) dallo stesso modello CLIP che ha analizzato le foto.
+  3. Questo vettore viene confrontato con l'embedding di ogni foto
+     nel database, calcolando la "similarita' del coseno": un numero
+     tra 0 e 1 che indica quanto la foto corrisponde alla query.
+  4. Le foto con similarita' superiore alla soglia impostata vengono
+     restituite, ordinate dalla piu' pertinente alla meno pertinente.
+
+
+OPZIONI DELLA RICERCA SEMANTICA
+────────────────────────────────
+
+Le opzioni specifiche della ricerca semantica si trovano nel riquadro
+"Ricerca Semantica" sotto la barra di ricerca.
+
+  Soglia (Threshold)
+
+    Un valore tra 0.10 e 0.90. Il valore predefinito e' 0.15.
+
+    La soglia determina quanto una foto deve essere "simile" alla tua
+    query per essere inclusa nei risultati. Valori piu' bassi sono
+    piu' permissivi (piu' risultati, ma meno precisi). Valori piu'
+    alti sono piu' restrittivi (meno risultati, ma piu' pertinenti).
+
+    Come orientarsi:
+      0.15 - 0.20  Permissivo. Molti risultati, utile per esplorare.
+      0.20 - 0.25  Bilanciato. Buon compromesso per la maggior parte
+                    delle ricerche.
+      0.25 - 0.35  Restrittivo. Solo foto molto pertinenti.
+      Sopra 0.35   Molto restrittivo. Potresti ottenere pochi risultati
+                    o nessuno.
+
+    Se la tua ricerca restituisce troppi risultati poco pertinenti,
+    alza la soglia. Se ne restituisce troppo pochi o nessuno, abbassala.
+
+  Deep Search (AI)
+
+    Una casella da spuntare. Disattivata di default.
+
+    Quando attivata, la ricerca semantica non si basa solo sulla
+    similarita' visiva CLIP, ma incrocia anche i risultati con i tag
+    e le descrizioni testuali presenti nel database. In pratica,
+    CLIP fornisce un punteggio visivo, e poi OffGallery verifica se
+    le parole della tua query compaiono anche nei tag o nella
+    descrizione della foto.
+
+    Se le parole corrispondono, il punteggio della foto viene
+    aumentato (bonus). Se non corrispondono, il punteggio viene
+    penalizzato. Questo aiuta a filtrare i falsi positivi (foto che
+    CLIP ritiene simili ma che in realta' non contengono quello che
+    cerchi) e a premiare le foto che hanno sia corrispondenza visiva
+    sia testuale.
+
+    La Deep Search e' particolarmente utile quando:
+      - La ricerca CLIP base restituisce troppo rumore.
+      - Cerchi soggetti specifici (nomi di specie, luoghi, ecc.)
+        per cui esistono tag generati dall'LLM o da BioCLIP.
+      - Vuoi il massimo della precisione.
+
+    Nota: la Deep Search funziona al meglio quando hai attivato la
+    generazione di tag e descrizioni tramite LLM durante l'elaborazione.
+    Se le foto hanno solo l'embedding CLIP e nessun tag testuale,
+    il beneficio sara' limitato.
+
+  Match Text (slider)
+
+    Un cursore che va da 0% a 100%. Il valore predefinito e' 40%.
+    Disponibile solo quando Deep Search e' attivata.
+
+    Questo slider controlla quanto peso dare alla corrispondenza
+    testuale rispetto a quella visiva.
+
+    Come funziona:
+      - Il valore dello slider determina la lunghezza della "radice"
+        delle parole che vengono cercate nei tag e nelle descrizioni.
+        Con valori bassi (es. 0%), vengono usate radici corte (4
+        caratteri), quindi il match e' piu' permissivo ("mont" corrisponde
+        a "montagna", "monte", "montanaro"). Con valori alti (es. 100%),
+        vengono usate radici piu' lunghe (fino a 9 caratteri), quindi
+        il match e' piu' preciso.
+
+      - Il valore influenza anche l'entita' del bonus e della penalty:
+        con strictness alta, il bonus per match completo e' maggiore
+        e la penalty per mancato match e' piu' severa.
+
+    In pratica:
+      0% - 20%    Molto permissivo. Basta una corrispondenza approssimativa.
+      30% - 50%   Bilanciato. Buon compromesso.
+      60% - 80%   Rigoroso. Richiede corrispondenze piu' precise.
+      80% - 100%  Molto rigoroso. Le parole devono corrispondere quasi
+                   esattamente.
+
+
+────────────────────────────────────────────────────────────────────────
+RICERCA TAG/TESTO
+────────────────────────────────────────────────────────────────────────
+
+La ricerca per tag cerca le parole che digiti all'interno dei
+tag, delle descrizioni e dei titoli salvati nel database per ogni
+foto. A differenza della ricerca semantica, qui non c'e' intelligenza
+artificiale che interpreta il significato: si cercano le parole stesse.
+
+I tag nel database possono provenire da piu' fonti:
+  - Tag XMP gia' presenti nella foto (da Lightroom, DxO, ecc.)
+  - Tag generati dall'AI (BioCLIP per flora/fauna, LLM per tutto
+    il resto)
+
+Le descrizioni e i titoli vengono generati dal modello LLM (se
+la funzione e' stata attivata durante l'elaborazione).
+
+Come funziona:
+
+  1. La tua query viene suddivisa in parole.
+  2. Ogni parola viene normalizzata (convertita in minuscolo,
+     rimossi accenti e caratteri speciali).
+  3. In modalita' fuzzy, le parole vengono ridotte alle loro
+     "radici" (i primi 4 caratteri per parole lunghe).
+  4. Per ogni foto, OffGallery controlla quante delle tue parole
+     (o radici) compaiono nei tag, nella descrizione e/o nel titolo.
+  5. Le foto vengono ordinate per punteggio: piu' parole trovate,
+     punteggio piu' alto.
+
+
+OPZIONI DELLA RICERCA TAG/TESTO
+────────────────────────────────
+
+Le opzioni specifiche si trovano nel riquadro "Ricerca Tag/Testo".
+
+  Includi Descrizione
+
+    Attivata di default. Se spuntata, la ricerca cerca le tue
+    parole anche nelle descrizioni generate dall'LLM, non solo
+    nei tag. Le descrizioni sono frasi complete che descrivono
+    il contenuto della foto, quindi possono contenere molte piu'
+    parole utili rispetto ai soli tag.
+
+  Fuzzy Matching
+
+    Attivata di default. Il fuzzy matching rende la ricerca piu'
+    tollerante:
+
+    - Invece di cercare la parola esatta, cerca la "radice" della
+      parola (i primi 4 caratteri). Cosi' "montagna" corrisponde
+      anche a "montagne", "montagnoso", "montanaro".
+
+    - Normalizza gli accenti: "citta'" corrisponde a "citta",
+      "città", ecc.
+
+    Quando disattivata, la ricerca e' esatta: la parola deve
+    comparire identica (senza considerare maiuscole/minuscole
+    e accenti) nel testo dei tag o della descrizione.
+
+  Includi Titolo
+
+    Attivata di default. Se spuntata, la ricerca cerca le tue
+    parole anche nei titoli generati dall'LLM. I titoli sono
+    frasi brevi che riassumono il contenuto della foto.
+
+
+────────────────────────────────────────────────────────────────────────
+OPZIONI COMUNI
+────────────────────────────────────────────────────────────────────────
+
+Nel riquadro "Comuni" trovi un'opzione condivisa tra le due
+modalita' di ricerca:
+
+  Max risultati
+
+    Il numero massimo di foto da restituire. Il valore predefinito
+    e' 100. Puoi impostarlo da 1 a 10000.
+
+    Questo limite viene applicato dopo il calcolo dei punteggi:
+    OffGallery analizza tutte le foto candidate, le ordina per
+    pertinenza, e poi restituisce solo le prime N.
+
+    Se hai migliaia di foto e cerchi qualcosa di generico (es.
+    "fiore"), potresti voler abbassare questo valore per evitare
+    di caricare troppi risultati nella galleria. Per ricerche
+    specifiche, il valore predefinito di 100 e' piu' che sufficiente.
+
+    Nota: il pulsante RESET riporta tutti i filtri ai valori
+    predefiniti, ma mantiene il valore di Max risultati che hai
+    impostato, per non farti perdere la tua preferenza.
+
+
+────────────────────────────────────────────────────────────────────────
+FILTRI FOTOGRAFICI (EXIF)
+────────────────────────────────────────────────────────────────────────
+
+Sotto la sezione di ricerca principale trovi una serie di filtri
+basati sui metadati EXIF delle foto. Questi filtri possono essere
+usati da soli (senza query di ricerca) oppure in combinazione
+con la ricerca semantica o per tag.
+
+I filtri vengono applicati prima della ricerca AI: restringono
+l'insieme delle foto su cui la ricerca opera. Questo rende la
+ricerca piu' veloce e piu' precisa.
+
+Ecco tutti i filtri disponibili:
+
+
+  CAMERA
+
+    Menu a tendina con tutte le fotocamere presenti nel tuo database.
+    OffGallery combina automaticamente marca e modello (es.
+    "NIKON CORPORATION NIKON D850") per ogni voce. L'opzione "Tutte"
+    (predefinita) non applica alcun filtro.
+
+    Le voci vengono caricate dal database all'apertura del tab.
+    Se aggiungi foto scattate con una nuova fotocamera, le voci
+    si aggiornano automaticamente.
+
+
+  LENS (Obiettivo)
+
+    Menu a tendina con tutti gli obiettivi presenti nel database.
+    L'opzione "Tutte" non applica alcun filtro.
+
+    Come per le fotocamere, le voci vengono caricate dal database.
+
+
+  TIPO FILE
+
+    Filtra per tipo di file:
+      Tutti          Nessun filtro (predefinito).
+      Solo RAW       Solo file RAW (CR2, NEF, ARW, DNG, ecc.).
+      Solo JPEG/PNG  Solo file non-RAW.
+
+
+  FORMATO RAW
+
+    Se presente, filtra per formato RAW specifico. Il menu mostra
+    i formati RAW effettivamente presenti nel tuo database, con il
+    numero di foto per ciascuno. Ad esempio:
+      "DNG (234)"
+      "CR2 (156)"
+      "NEF (89)"
+
+
+  FOCALE (Lunghezza focale)
+
+    Due campi numerici: minimo e massimo, in millimetri.
+    Range: 0 - 2000 mm.
+
+    Esempio: per trovare solo foto scattate con un teleobiettivo,
+    imposta il minimo a 200mm.
+
+    Questo e' il valore di focale reale dell'obiettivo, non
+    l'equivalente 35mm (vedi sotto).
+
+
+  ISO
+
+    Due campi numerici: minimo e massimo.
+    Range: 0 - 204800.
+
+    Esempio: per trovare foto scattate ad alti ISO (potenzialmente
+    rumorose), imposta il minimo a 6400.
+
+
+  APERTURA
+
+    Due campi numerici: minimo e massimo, in f-stop.
+    Range: f/0.0 - f/64.0.
+
+    Esempio: per trovare solo le foto scattate con apertura molto
+    ampia (sfondo sfocato), imposta il massimo a f/2.8.
+
+
+  FLASH
+
+    Menu a tendina con tre opzioni:
+      Tutti  Nessun filtro (predefinito).
+      Si'    Solo foto scattate con flash.
+      No     Solo foto scattate senza flash.
+
+
+  EXPOSURE MODE (Modalita' esposizione)
+
+    Menu a tendina:
+      Tutti              Nessun filtro (predefinito).
+      Auto               Esposizione automatica.
+      Manual             Esposizione manuale.
+      Aperture Priority  Priorita' di apertura (A/Av).
+      Shutter Priority   Priorita' di tempo (S/Tv).
+
+
+  ORIENTATION (Orientamento)
+
+    Menu a tendina:
+      Tutte      Nessun filtro (predefinito).
+      Portrait   Foto verticali (orientamento 6 o 8).
+      Landscape  Foto orizzontali (orientamento 1).
+      Rotated    Foto ruotate di 180 gradi (orientamento 3).
+
+
+  35mm eq (Equivalente 35mm)
+
+    Due campi numerici: minimo e massimo, in millimetri.
+    Range: 0 - 2000 mm.
+
+    Questo e' il valore di focale equivalente al formato 35mm
+    (full frame). Utile per confrontare foto scattate con sensori
+    di dimensioni diverse: un 50mm su APS-C equivale a circa 75mm
+    su full frame.
+
+
+  EV (Compensazione esposizione)
+
+    Due campi numerici: minimo e massimo, in stop EV.
+    Range: -5.0 - +5.0.
+
+    Filtra per la compensazione dell'esposizione impostata al
+    momento dello scatto. Valori negativi = sottoesposizione
+    intenzionale, positivi = sovraesposizione intenzionale.
+
+
+────────────────────────────────────────────────────────────────────────
+FILTRI QUALITA' E RATING
+────────────────────────────────────────────────────────────────────────
+
+Nel riquadro "Qualita' & Rating" trovi filtri basati sui punteggi
+calcolati dall'AI e sui metadati di valutazione delle foto.
+
+  RATING (Stelle)
+
+    Menu a tendina basato sul rating Lightroom (stelle da 1 a 5)
+    presente nei metadati XMP della foto:
+
+      Qualsiasi    Nessun filtro (predefinito).
+      >= 1 stella  Almeno una stella.
+      >= 2 stelle  Almeno due stelle.
+      >= 3 stelle  Almeno tre stelle.
+      >= 4 stelle  Almeno quattro stelle.
+      = 5 stelle   Esattamente cinque stelle.
+
+    Nota: il rating deve essere stato gia' presente nella foto
+    come metadato XMP (tipicamente assegnato in Lightroom o in
+    un altro editor). OffGallery lo legge ma non lo modifica.
+
+
+  COLORE (Color Label)
+
+    Menu a tendina basato sulle etichette colore Lightroom:
+
+      Tutti          Nessun filtro (predefinito).
+      Rosso
+      Giallo
+      Verde
+      Blu
+      Viola
+      Senza colore   Solo foto senza etichetta colore.
+
+    Come per il rating, le etichette colore vengono lette dai
+    metadati XMP della foto.
+
+
+  AESTHETIC (Punteggio estetico)
+
+    Due campi numerici: minimo e massimo.
+    Range: 0.0 - 10.0.
+
+    Filtra per il punteggio estetico calcolato dall'AI durante
+    l'elaborazione. Il punteggio va da 0 (molto basso) a 10
+    (eccellente) e valuta la qualita' artistica complessiva
+    dell'immagine (composizione, colori, illuminazione, ecc.).
+
+    Come orientarsi:
+      0.0 - 3.0   Punteggio basso.
+      3.0 - 5.0   Nella media.
+      5.0 - 7.0   Buono.
+      7.0 - 10.0  Eccellente.
+
+    Nota: questo filtro funziona solo se il punteggio estetico
+    e' stato abilitato durante l'elaborazione (lo e' di default).
+
+
+  TECHNICAL (Punteggio tecnico)
+
+    Due campi numerici: minimo e massimo.
+    Range: 0.0 - 100.0.
+
+    Filtra per il punteggio tecnico BRISQUE, che valuta la
+    nitidezza, il rumore e gli artefatti dell'immagine.
+
+    Attenzione: valori piu' bassi indicano qualita' migliore.
+    BRISQUE e' un indice di "disturbo": 0 = immagine perfetta,
+    100 = immagine molto degradata.
+
+    Nota: il punteggio tecnico e' disponibile solo per file
+    JPEG e PNG (non per file RAW).
+
+
+────────────────────────────────────────────────────────────────────────
+FILTRI GPS, COLORE, SYNC E DATA
+────────────────────────────────────────────────────────────────────────
+
+Nella parte inferiore del tab trovi altri quattro riquadri di filtri:
+
+
+  GPS & COLORE
+
+    Solo con GPS
+      Casella da spuntare. Se attivata, restituisce solo le foto
+      che hanno coordinate GPS nei metadati.
+
+    Foto (Bianco/Nero)
+      Menu a tendina:
+        Tutte    Nessun filtro (predefinito).
+        Colori   Solo foto a colori.
+        B/N      Solo foto in bianco e nero (monocromatiche).
+
+      Il rilevamento bianco/nero e' automatico ed e' stato fatto
+      durante l'elaborazione.
+
+
+  SYNC
+
+    Solo out-of-sync
+      Casella da spuntare. Se attivata, mostra solo le foto che
+      sono state modificate nel database dopo l'ultima sincronizzazione
+      XMP. Utile per trovare foto i cui tag o descrizioni AI non
+      sono ancora stati scritti nei file XMP sidecar.
+
+      Questo filtro ha senso solo se usi la funzione di esportazione
+      XMP (descritta nel Capitolo 7).
+
+
+  DATA
+
+    Filtra per data
+      Casella da spuntare. Quando attivata, abilita due selettori
+      di data (Da e A) che permettono di restringere la ricerca
+      a un intervallo temporale.
+
+      La data si riferisce alla data di scatto originale (il campo
+      EXIF "DateTimeOriginal"), non alla data di elaborazione.
+
+      I selettori hanno un calendario a comparsa per una selezione
+      comoda. Per impostazione predefinita, l'intervallo copre
+      l'ultimo mese fino a oggi.
+
+
+────────────────────────────────────────────────────────────────────────
+PULSANTI AZIONE
+────────────────────────────────────────────────────────────────────────
+
+In basso a destra del tab trovi due pulsanti:
+
+  CERCA
+
+    Avvia la ricerca. Puoi anche premere INVIO nella barra di
+    ricerca per ottenere lo stesso effetto.
+
+    Durante la ricerca appare un piccolo pannello al centro dello
+    schermo che indica cosa sta succedendo:
+      "Analisi CLIP..."     per la ricerca semantica.
+      "Ricerca nei Tag..."  per la ricerca per tag.
+      "Applicando Filtri..." se stai usando solo i filtri.
+
+    Al termine, il pannello mostra un riepilogo:
+      "Mostrate 85/847 immagini!"
+    oppure, se Deep Search e' attiva:
+      "Mostrate 42/847 (Smart Filter: -43)"
+    dove 43 e' il numero di foto scartate dal filtro intelligente.
+
+    I risultati vengono inviati automaticamente al tab Galleria
+    per la visualizzazione.
+
+
+  RESET
+
+    Riporta tutti i filtri ai valori predefiniti: cancella la query
+    di ricerca, riporta la modalita' a "Semantica", resetta tutti
+    i menu a tendina, i campi numerici, le caselle di spunta e le
+    date.
+
+    Come gia' detto, il valore di "Max risultati" viene mantenuto.
+
+
+────────────────────────────────────────────────────────────────────────
+COMBINARE QUERY E FILTRI
+────────────────────────────────────────────────────────────────────────
+
+I filtri e la query di ricerca lavorano insieme in questo ordine:
+
+  1. Prima vengono applicati i filtri SQL: OffGallery interroga il
+     database e recupera solo le foto che soddisfano tutti i filtri
+     impostati (fotocamera, ISO, data, ecc.).
+
+  2. Poi, su questo sottoinsieme gia' filtrato, viene eseguita la
+     ricerca (semantica o per tag).
+
+Questo approccio ha due vantaggi:
+  - E' piu' veloce, perche' l'AI deve analizzare meno foto.
+  - E' piu' preciso, perche' i risultati rispettano sia i criteri
+    tecnici che quelli di contenuto.
+
+Esempio pratico:
+
+  Vuoi trovare foto di fiori scattate con la tua Nikon D850,
+  con focale tra 85mm e 200mm, dal 2024 in poi.
+
+  1. Imposta il filtro Camera su "NIKON CORPORATION NIKON D850".
+  2. Imposta Focale minima a 85mm e massima a 200mm.
+  3. Attiva il filtro Data e imposta "Da" al 1 gennaio 2024.
+  4. Nella barra di ricerca, in modalita' Semantica, scrivi "fiori".
+  5. Clicca CERCA.
+
+  OffGallery prima recupera solo le foto della D850 con focale
+  85-200mm dal 2024, poi tra queste cerca quelle che CLIP
+  riconosce come "fiori".
+
+
+────────────────────────────────────────────────────────────────────────
+RICERCA SOLO CON FILTRI
+────────────────────────────────────────────────────────────────────────
+
+Puoi lasciare la barra di ricerca vuota e usare solo i filtri.
+In quel caso, OffGallery restituisce tutte le foto che soddisfano
+i filtri, senza alcun ordinamento per pertinenza (tutte ricevono
+lo stesso punteggio). I risultati sono limitati dal valore di
+"Max risultati".
+
+Questo e' utile per:
+  - Trovare tutte le foto scattate con un certo obiettivo.
+  - Selezionare le foto di un certo periodo.
+  - Isolare le foto ad alto ISO per controllarle.
+  - Trovare le foto con punteggio estetico sopra una certa soglia.
+  - Trovare le foto con GPS per una mappa.
+  - Trovare le foto in bianco e nero.
+  - E cosi' via.
+
+
+────────────────────────────────────────────────────────────────────────
+LA TRADUZIONE AUTOMATICA
+────────────────────────────────────────────────────────────────────────
+
+Il modello CLIP e' stato addestrato prevalentemente su testi in
+inglese. Per ottenere i migliori risultati, la tua query in italiano
+viene tradotta automaticamente in inglese prima di essere inviata
+a CLIP.
+
+La traduzione e' eseguita dal modello Argos Translate, che funziona
+completamente offline (nessun dato viene inviato a servizi esterni).
+
+Nella maggior parte dei casi la traduzione e' trasparente e non
+richiede attenzione. Tuttavia, per query molto specifiche o con
+termini tecnici, potresti ottenere risultati migliori scrivendo
+direttamente in inglese. Ad esempio:
+
+  "bokeh" funziona meglio di "sfocato dello sfondo"
+  "golden hour" funziona meglio di "ora d'oro"
+  "macro photography" funziona meglio di "fotografia macro"
+
+Detto questo, per la stragrande maggioranza delle ricerche, scrivere
+in italiano funziona benissimo.
+
+
+────────────────────────────────────────────────────────────────────────
+CONSIGLI PRATICI
+────────────────────────────────────────────────────────────────────────
+
+  - Inizia con la ricerca semantica e una soglia bassa (0.15-0.20).
+    Se i risultati contengono troppo rumore, alza gradualmente la
+    soglia oppure attiva Deep Search.
+
+  - Per ricerche molto specifiche (es. una specie di uccello, un
+    luogo preciso), la ricerca per Tag/Testo potrebbe funzionare
+    meglio della semantica, specialmente se hai generato tag con
+    l'LLM o se le foto hanno tag XMP accurati.
+
+  - Usa frasi descrittive per la ricerca semantica, non singole
+    parole. "gatto nero su divano rosso" funziona meglio di "gatto".
+
+  - Se cerchi un tipo di composizione o di luce, la ricerca semantica
+    e' la scelta migliore: "controluce al tramonto", "simmetria
+    architettonica", "riflessi sull'acqua".
+
+  - Combina sempre la ricerca con i filtri quando possibile. Se sai
+    con quale fotocamera o in che periodo hai scattato, impostare
+    quei filtri rende la ricerca piu' veloce e precisa.
+
+  - Il filtro "Solo out-of-sync" e' utile dopo aver elaborato
+    nuove foto: ti mostra quelle che hanno dati AI aggiornati
+    ma il cui file XMP sidecar non e' ancora stato scritto.
+
+  - Se cambi il contenuto del database (rielabori foto, aggiungi
+    nuove foto), i menu a tendina Camera, Lens e Formato RAW si
+    aggiornano automaticamente alla prossima apertura del tab Ricerca.
+
+
+================================================================================
+  Fine del Capitolo 4 - Ricerca
+  Prossimo capitolo: 05 - Galleria
+================================================================================

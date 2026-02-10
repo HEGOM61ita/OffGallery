@@ -1,0 +1,550 @@
+================================================================================
+  OFFGALLERY - MANUALE UTENTE
+  Capitolo 9: Risoluzione problemi
+================================================================================
+
+
+COME USARE QUESTO CAPITOLO
+───────────────────────────
+
+Questo capitolo raccoglie i problemi piu' comuni che puoi incontrare
+usando OffGallery, con le relative soluzioni. I problemi sono
+organizzati per area: installazione, avvio, elaborazione, ricerca,
+galleria, export, configurazione.
+
+Per ogni problema troverai:
+  - Una descrizione del sintomo (cosa vedi)
+  - La causa probabile
+  - La soluzione suggerita
+
+
+────────────────────────────────────────────────────────────────────────
+IL TAB LOG
+────────────────────────────────────────────────────────────────────────
+
+Prima di cercare la soluzione a un problema, controlla il tab Log.
+E' l'ultimo tab dell'applicazione e mostra tutti i messaggi interni
+in tempo reale, con colori diversi per livello:
+
+  Grigio     DEBUG  - Messaggi dettagliati per sviluppatori
+  Blu        INFO   - Informazioni normali
+  Ambra      WARNING - Avvisi (non bloccanti)
+  Rosso      ERROR  - Errori
+
+Puoi filtrare i messaggi per livello usando le caselle in alto.
+Il pulsante "Clear" svuota il log.
+
+Il tab Log mostra anche i messaggi della fase di avvio (caricamento
+modelli AI) che vengono copiati dalla splash screen.
+
+Se hai attivato i messaggi DEBUG nella configurazione, il log sara'
+molto verboso. Puoi disattivarli dal tab Configurazione > Logging.
+
+
+────────────────────────────────────────────────────────────────────────
+PROBLEMI DI INSTALLAZIONE
+────────────────────────────────────────────────────────────────────────
+
+  "Conda non trovato" dopo aver installato Miniconda
+
+    Causa: la casella "Add Miniconda3 to my PATH" non era spuntata
+    durante l'installazione.
+
+    Soluzione: disinstalla Miniconda (Impostazioni > App > Miniconda3),
+    poi reinstalla assicurandoti di spuntare ENTRAMBE le caselle nella
+    schermata "Advanced Options":
+      [x] Add Miniconda3 to my PATH environment variable
+      [x] Register Miniconda3 as my default Python 3.x
+
+    In alternativa, riavvia il computer e riprova.
+
+  ──────────────────────────────────────────────
+
+  L'installazione dei pacchetti (03_install_packages.bat) fallisce
+
+    Causa: connessione internet assente, spazio su disco insufficiente,
+    o timeout nella rete.
+
+    Soluzione:
+    - Verifica la connessione internet.
+    - Controlla di avere almeno 10 GB liberi su disco.
+    - Chiudi e riesegui lo script: pip riprende da dove si era
+      fermato, senza riscaricare i pacchetti gia' installati.
+
+  ──────────────────────────────────────────────
+
+  Ollama non si installa o non viene rilevato
+
+    Causa: Ollama non e' stato installato o non e' nel PATH.
+
+    Soluzione:
+    - Scarica e installa Ollama dal sito ufficiale (ollama.com).
+    - Dopo l'installazione, chiudi tutti i terminali e riesegui
+      lo script 06_setup_ollama.bat.
+    - Ollama deve essere in esecuzione (icona nella system tray)
+      perche' OffGallery possa usarlo.
+
+
+────────────────────────────────────────────────────────────────────────
+PROBLEMI DI AVVIO
+────────────────────────────────────────────────────────────────────────
+
+  L'applicazione non si avvia (nessuna finestra appare)
+
+    Cause possibili:
+    - L'ambiente Conda non e' attivato.
+    - PyQt6 non e' installato.
+
+    Soluzione:
+    - Usa il launcher: doppio click su OffGallery_Launcher.bat
+      nella cartella installer. Il launcher attiva automaticamente
+      l'ambiente corretto.
+    - Se avvii da terminale, assicurati di eseguire prima:
+        conda activate OffGallery
+
+  ──────────────────────────────────────────────
+
+  La splash screen rimane bloccata su "Caricamento modelli AI..."
+
+    Causa: il primo avvio scarica circa 7 GB di modelli AI. Se la
+    connessione e' lenta, puo' richiedere tempo.
+
+    Soluzione:
+    - Attendi. La barra di avanzamento e il log nella splash screen
+      mostrano cosa sta succedendo.
+    - Se il download si interrompe (errore di rete), chiudi e
+      riavvia l'applicazione. I file gia' scaricati non vengono
+      riscaricati.
+    - Se il problema persiste, verifica la connessione internet.
+      Dopo il primo avvio, non servira' piu' internet.
+
+  ──────────────────────────────────────────────
+
+  Errore "Configurazione incoerente: chiave mancante"
+
+    Causa: il file config_new.yaml e' stato modificato manualmente
+    e manca una chiave richiesta, oppure e' stato corrotto.
+
+    Soluzione:
+    - Apri il tab Configurazione e clicca "Reset Default" per
+      ripristinare tutti i valori originali.
+    - Se l'applicazione non si avvia affatto, elimina il file
+      config_new.yaml e riavvia: verra' ricreato con i default.
+    - I backup automatici (file con _BACKUP_ nel nome) possono
+      essere rinominati in config_new.yaml per ripristinare una
+      versione precedente.
+
+  ──────────────────────────────────────────────
+
+  Errore "PyTorch non installato" o "Nessuna GPU rilevata"
+
+    Causa: PyTorch non e' stato installato correttamente o i
+    driver NVIDIA non sono aggiornati.
+
+    Soluzione:
+    - Riesegui lo script 03_install_packages.bat.
+    - Se hai una GPU NVIDIA, aggiorna i driver dal sito NVIDIA.
+    - Se non hai una GPU NVIDIA, e' normale: OffGallery funziona
+      comunque sulla CPU. Ignora l'avviso e imposta il device su
+      "Forza CPU" nella configurazione.
+
+
+────────────────────────────────────────────────────────────────────────
+PROBLEMI DI ELABORAZIONE (PROCESSING)
+────────────────────────────────────────────────────────────────────────
+
+  Il pulsante "Avvia" e' disattivato
+
+    Causa: non hai selezionato una cartella, oppure tutte le foto
+    nella cartella sono gia' state elaborate.
+
+    Soluzione:
+    - Seleziona una cartella con il pulsante "Seleziona Directory".
+    - Se tutte le foto sono gia' elaborate e vuoi rielaborarle,
+      cambia modalita' in "Riprocessa tutte".
+
+  ──────────────────────────────────────────────
+
+  L'elaborazione e' molto lenta
+
+    Cause possibili:
+    - La GPU non e' utilizzata (elaborazione su CPU).
+    - La generazione LLM (tag/descrizione) e' attiva e rallenta
+      tutto di 8-15 secondi per foto.
+    - La strategia RAW e' impostata su "full" invece di "embedded".
+
+    Soluzione:
+    - Verifica nel tab Configurazione > Device che la GPU sia
+      rilevata (messaggio verde). Se e' giallo, installa o
+      aggiorna i driver NVIDIA.
+    - Se non ti serve la generazione LLM durante il batch,
+      disattiva Tags, Descrizione e Titolo nella sezione
+      "Generazione durante Import Batch" della configurazione.
+    - Cambia la strategia RAW da "full" a "embedded" o "preview".
+
+  ──────────────────────────────────────────────
+
+  Molte foto danno errore durante l'elaborazione
+
+    Cause possibili:
+    - File corrotti o non supportati.
+    - Timeout sull'estrazione RAW (file molto grandi).
+    - Memoria GPU insufficiente.
+
+    Soluzione:
+    - Controlla il log di elaborazione (terminale nel tab
+      Processing) per vedere gli errori specifici.
+    - Se l'errore e' un timeout, aumenta il "Timeout" nella
+      sezione Processing RAW della configurazione (default: 30s).
+    - Se l'errore e' "CUDA out of memory", riduci la dimensione
+      delle immagini o passa al device CPU.
+    - Rilancia con "Nuove + errori precedenti" per riprovare
+      i file che hanno dato errore.
+
+  ──────────────────────────────────────────────
+
+  L'elaborazione si interrompe con crash dell'applicazione
+
+    Causa: probabilmente un esaurimento della memoria GPU (VRAM)
+    o della RAM di sistema.
+
+    Soluzione:
+    - Riavvia l'applicazione. Le foto gia' elaborate sono salve
+      nel database. Rilancia con "Solo nuove immagini" e le foto
+      gia' fatte verranno saltate.
+    - Chiudi altri programmi che usano la GPU (giochi, browser
+      con accelerazione hardware, altri software AI).
+    - Se il problema si ripete, imposta il device su "Forza CPU"
+      nella configurazione. E' piu' lento ma piu' stabile.
+
+  ──────────────────────────────────────────────
+
+  Le descrizioni LLM non vengono generate
+
+    Causa: Ollama non e' in esecuzione o il modello non e'
+    installato.
+
+    Soluzione:
+    - Verifica che Ollama sia in esecuzione (icona nella system
+      tray, vicino all'orologio).
+    - Nel tab Configurazione, clicca il pulsante "Test" nella
+      sezione LLM Vision. Se il test fallisce, Ollama non e'
+      raggiungibile.
+    - Se Ollama e' attivo ma il modello non c'e', installalo:
+      apri un terminale e digita:
+        ollama pull qwen3-vl:4b-instruct
+    - Verifica che nella configurazione sia attivata almeno una
+      delle tre opzioni di generazione (Tags, Descrizione, Titolo).
+
+
+────────────────────────────────────────────────────────────────────────
+PROBLEMI DI RICERCA
+────────────────────────────────────────────────────────────────────────
+
+  La ricerca semantica non trova nulla
+
+    Cause possibili:
+    - Le foto non hanno embedding CLIP (non sono state elaborate).
+    - La soglia e' troppo alta.
+    - La query e' troppo specifica o in una lingua non supportata.
+
+    Soluzione:
+    - Verifica che le foto siano state elaborate (tab Processing).
+      La statistica "Con embedding" deve essere > 0.
+    - Abbassa la soglia nel campo "Threshold" del tab Ricerca
+      (prova 0.10 o anche 0.05).
+    - CLIP funziona meglio con query semplici in inglese. La
+      traduzione automatica italiano-inglese e' attiva, ma
+      query complesse possono perdere sfumature.
+    - Prova query diverse: "sunset" invece di "tramonto luminoso
+      sopra il mare con riflessi dorati".
+
+  ──────────────────────────────────────────────
+
+  La ricerca per tag non trova risultati che dovrebbero esserci
+
+    Causa: il tag potrebbe essere scritto in modo leggermente
+    diverso da come lo cerchi.
+
+    Soluzione:
+    - Attiva "Fuzzy matching" nel tab Ricerca. Questo permette
+      di trovare risultati anche con errori di battitura.
+    - Attiva "Includi descrizione" e "Includi titolo" per cercare
+      anche in quei campi, non solo nei tag.
+    - Prova a cercare una parte del tag (ad esempio "land" invece
+      di "landscape").
+
+  ──────────────────────────────────────────────
+
+  I filtri EXIF non funzionano
+
+    Causa: i dati EXIF non sono stati estratti o non sono presenti
+    nelle foto.
+
+    Soluzione:
+    - Verifica che "Estrai EXIF" sia attiva nella configurazione.
+    - Controlla nel tab Statistiche se le foto hanno dati EXIF
+      (sezione Attrezzatura). Se e' vuota, i file potrebbero
+      non contenere metadati EXIF (ad esempio screenshot o foto
+      scaricate da internet).
+    - Per i filtri fotocamera e obiettivo, ricorda che OffGallery
+      li popola solo con i valori presenti nel database. Se non
+      vedi una fotocamera nella lista, nessuna foto nel database
+      e' stata scattata con quella fotocamera.
+
+
+────────────────────────────────────────────────────────────────────────
+PROBLEMI NELLA GALLERIA
+────────────────────────────────────────────────────────────────────────
+
+  Le miniature non si vedono (quadrati grigi)
+
+    Causa: i file originali sono stati spostati o rinominati dopo
+    l'elaborazione, oppure il percorso contiene caratteri speciali.
+
+    Soluzione:
+    - OffGallery usa il percorso originale del file per caricare
+      la miniatura. Se hai spostato le foto, i percorsi nel
+      database non corrispondono piu'.
+    - Rielabora le foto dalla nuova posizione.
+
+  ──────────────────────────────────────────────
+
+  "Trova simili" non restituisce risultati
+
+    Causa: le foto non hanno embedding DINOv2, o la soglia e'
+    troppo alta.
+
+    Soluzione:
+    - Verifica che le foto siano state elaborate con DINOv2
+      (DINOv2 e' sempre attivo, quindi se l'elaborazione e'
+      stata completata, gli embedding dovrebbero esserci).
+    - Abbassa la soglia DINOv2 nella configurazione (default:
+      0.25). Un valore piu' basso mostra piu' risultati.
+
+  ──────────────────────────────────────────────
+
+  L'editor esterno non si apre
+
+    Causa: il percorso dell'editor non e' corretto o l'editor
+    non e' abilitato.
+
+    Soluzione:
+    - Vai al tab Configurazione > Editor Esterni.
+    - Verifica che la casella "Attivo" sia spuntata.
+    - Verifica che il percorso punti al file .exe corretto. Il
+      campo deve essere verde (percorso valido). Se e' rosso,
+      il file non esiste in quella posizione.
+    - Salva la configurazione dopo le modifiche.
+
+  ──────────────────────────────────────────────
+
+  Il badge XMP mostra sempre "DB" (ciano)
+
+    Causa: i dati sono solo nel database e non sono stati ancora
+    esportati in formato XMP.
+
+    Soluzione:
+    - Questo e' il comportamento normale dopo l'elaborazione.
+      Per creare i file XMP, usa il tab Export o il menu
+      contestuale > Sync XMP > Esporta database in XMP.
+    - Una volta esportati, il badge cambiera' in "SYNC" (verde).
+
+
+────────────────────────────────────────────────────────────────────────
+PROBLEMI DI EXPORT
+────────────────────────────────────────────────────────────────────────
+
+  Il pulsante "Avvia Export" e' disattivato
+
+    Causa: nessuna foto e' selezionata nella Galleria.
+
+    Soluzione:
+    - Torna al tab Galleria, seleziona le foto, poi torna al tab
+      Export. Il conteggio delle foto selezionate deve apparire.
+
+  ──────────────────────────────────────────────
+
+  I file XMP non vengono letti da Lightroom
+
+    Cause possibili:
+    - I sidecar XMP non sono nella stessa cartella delle foto.
+    - Lightroom non e' stato istruito a leggere i metadati dai
+      file.
+
+    Soluzione:
+    - Assicurati di aver scelto "Directory originali delle
+      immagini" come destinazione dell'export. I sidecar devono
+      essere accanto alle foto.
+    - In Lightroom, seleziona le foto, clicca con il tasto destro
+      e scegli "Metadati > Leggi metadati da file".
+    - Verifica che il nome del sidecar corrisponda alla foto:
+      IMG_1234.CR2 richiede IMG_1234.xmp (non IMG_1234.CR2.xmp).
+
+  ──────────────────────────────────────────────
+
+  Errore "ExifTool embedded errore" durante l'export embedded
+
+    Causa: il tipo di file non supporta la scrittura embedded
+    (ad esempio un file RAW proprietario).
+
+    Soluzione:
+    - I file RAW (CR2, NEF, ARW, ecc.) non supportano la
+      scrittura embedded. Usa il sidecar per questi formati.
+    - Se il file e' un JPG o DNG e l'errore persiste, potrebbe
+      essere un problema di permessi: verifica di avere i diritti
+      di scrittura sulla cartella.
+
+  ──────────────────────────────────────────────
+
+  Il CSV e' vuoto o ha dati mancanti
+
+    Causa: le foto selezionate potrebbero non avere i dati che
+    ti aspetti (ad esempio nessun GPS, nessun rating).
+
+    Soluzione:
+    - Il CSV esporta esattamente cio' che e' nel database. Se
+      un campo e' vuoto nel CSV, e' vuoto anche nel database.
+    - Verifica nel tab Statistiche > Workflow quanto sono completi
+      i metadati delle tue foto.
+
+
+────────────────────────────────────────────────────────────────────────
+PROBLEMI DI PRESTAZIONI
+────────────────────────────────────────────────────────────────────────
+
+  L'applicazione usa troppa RAM
+
+    Causa: i modelli AI occupano memoria. CLIP, DINOv2, BioCLIP
+    e il modello estetico possono richiedere 4-6 GB di RAM.
+
+    Soluzione:
+    - Chiudi altri programmi pesanti durante l'elaborazione.
+    - Se hai solo 8 GB di RAM, disabilita BioCLIP e il punteggio
+      tecnico nella configurazione per ridurre l'uso di memoria.
+
+  ──────────────────────────────────────────────
+
+  La GPU va in "out of memory" (errore CUDA)
+
+    Causa: la VRAM della GPU non e' sufficiente per il modello
+    che sta elaborando.
+
+    Soluzione:
+    - Chiudi altri programmi che usano la GPU.
+    - Riduci la dimensione delle immagini nei profili di
+      ottimizzazione (tab Configurazione > Profili Ottimizzazione
+      AI). Ad esempio, riduci il target_size di LLM Vision da
+      1024 a 512.
+    - Se il problema persiste, imposta il device su "Forza CPU".
+    - GPU con meno di 4 GB di VRAM possono avere problemi con
+      alcuni modelli. La CPU e' piu' lenta ma non ha limiti
+      di memoria.
+
+  ──────────────────────────────────────────────
+
+  La temperatura della GPU sale troppo
+
+    Causa: l'elaborazione intensiva di molte foto surriscalda la
+    scheda video, soprattutto su portatili.
+
+    Soluzione:
+    - Fai pause durante le elaborazioni lunghe (usa il pulsante
+      Pausa nel tab Processing).
+    - Migliora la ventilazione del computer (alza il portatile,
+      usa una base con ventole).
+    - Riduci "Max Workers" nella configurazione per rallentare
+      l'elaborazione e dare tempo alla GPU di raffreddarsi.
+
+
+────────────────────────────────────────────────────────────────────────
+PROBLEMI CON OLLAMA E LLM
+────────────────────────────────────────────────────────────────────────
+
+  Ollama non risponde (timeout)
+
+    Causa: Ollama non e' avviato, o il modello non e' stato
+    scaricato, o il timeout e' troppo breve.
+
+    Soluzione:
+    - Verifica che l'icona di Ollama sia nella system tray.
+    - Se non c'e', avvia Ollama manualmente.
+    - Testa la connessione: tab Configurazione > LLM Vision >
+      pulsante "Test".
+    - Aumenta il timeout nella configurazione (default: 240s).
+      Per computer lenti, prova 360s o 480s.
+
+  ──────────────────────────────────────────────
+
+  Le descrizioni generate sono di bassa qualita'
+
+    Causa: il modello LLM potrebbe non avere abbastanza contesto
+    o i parametri non sono ottimali.
+
+    Soluzione:
+    - Aumenta "Max Parole" per la descrizione (da 100 a 150-200).
+    - Assicurati che il target_size per LLM Vision nei profili
+      di ottimizzazione sia almeno 512px (meglio 1024px). Se
+      l'immagine passata al modello e' troppo piccola, perde
+      dettagli importanti.
+    - Per foto specifiche, usa la generazione manuale dalla
+      Galleria (menu contestuale > Genera AI > LLM) che e'
+      piu' flessibile dell'elaborazione batch.
+
+
+────────────────────────────────────────────────────────────────────────
+PROBLEMI CON IL DATABASE
+────────────────────────────────────────────────────────────────────────
+
+  Il database diventa molto grande
+
+    Causa: ogni foto elaborata occupa spazio nel database per
+    gli embedding (vettori numerici). Con migliaia di foto, il
+    database puo' raggiungere centinaia di MB.
+
+    Soluzione:
+    - Questo e' normale. Un database con 10.000 foto occupa
+      tipicamente 200-400 MB.
+    - Se vuoi ridurre lo spazio, puoi eliminare dal database
+      le foto che non ti interessano piu' (menu contestuale >
+      Modifica > Elimina dal database).
+
+  ──────────────────────────────────────────────
+
+  Ho spostato le foto e ora non le trovo piu'
+
+    Causa: il database memorizza il percorso completo di ogni
+    foto. Se sposti i file, i percorsi non corrispondono piu'.
+
+    Soluzione:
+    - Rielabora le foto dalla nuova posizione. Le foto verranno
+      aggiunte come nuovi record.
+    - I vecchi record con i percorsi non validi possono essere
+      eliminati dal menu contestuale della Galleria.
+
+
+────────────────────────────────────────────────────────────────────────
+DOVE CHIEDERE AIUTO
+────────────────────────────────────────────────────────────────────────
+
+Se il tuo problema non e' elencato qui:
+
+  1. Controlla il tab Log per messaggi di errore dettagliati.
+
+  2. Se hai attivato il log su file durante l'elaborazione,
+     consulta il file nella cartella dei log.
+
+  3. Apri un issue sulla pagina GitHub del progetto:
+     https://github.com/HEGOM61ita/OffGallery
+
+     Quando descrivi il problema, includi:
+     - Cosa stavi facendo quando si e' verificato l'errore.
+     - Il messaggio di errore dal tab Log.
+     - Il tuo sistema operativo e le specifiche hardware
+       (specialmente RAM e scheda video).
+
+
+================================================================================
+  Fine del Capitolo 9 - Risoluzione problemi
+  Fine del Manuale Utente
+================================================================================

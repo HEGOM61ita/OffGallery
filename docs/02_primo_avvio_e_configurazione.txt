@@ -1,0 +1,416 @@
+================================================================================
+  OFFGALLERY - MANUALE UTENTE
+  Capitolo 2: Primo avvio e configurazione iniziale
+================================================================================
+
+
+COSA SUCCEDE AL PRIMO AVVIO
+────────────────────────────
+
+Quando avvii OffGallery per la prima volta (tramite il launcher o da
+terminale), l'applicazione rileva che i modelli AI non sono ancora
+presenti sul tuo computer e avvia il download automatico.
+
+Vedrai una finestra scura con il logo OffGallery, una barra di
+avanzamento e un'area di log che mostra in tempo reale cosa sta
+succedendo. Non devi fare nulla: resta in attesa.
+
+Il download comprende sei componenti:
+
+  - CLIP (per la ricerca semantica)
+  - DINOv2 (per la similarita' visiva tra immagini)
+  - Aesthetic Predictor (per la valutazione estetica)
+  - BioCLIP + TreeOfLife (per l'identificazione di flora e fauna)
+  - Argos Translate (per la traduzione italiano-inglese delle query)
+
+I modelli vengono scaricati da un repository controllato su
+HuggingFace (HEGOM/OffGallery-models), cosi' che le versioni siano
+sempre quelle testate e compatibili.
+
+Una volta completato il download, l'applicazione passa in modalita'
+completamente offline. Da quel momento non avra' piu' bisogno di
+internet per nessuna operazione.
+
+Se il download si interrompe per qualsiasi motivo, riavvia
+l'applicazione: riprendera' da dove si era fermato.
+
+
+AVVII SUCCESSIVI
+─────────────────
+
+Dopo il primo avvio, ogni volta che apri OffGallery vedrai la stessa
+schermata di caricamento, ma molto piu' breve (di solito 10-30
+secondi). In questa fase l'applicazione carica in memoria i modelli
+AI dal disco locale. Nessun download viene effettuato.
+
+Al termine del caricamento, la schermata si chiude e appare la
+finestra principale dell'applicazione.
+
+
+L'INTERFACCIA PRINCIPALE
+─────────────────────────
+
+La finestra di OffGallery e' composta da tre zone:
+
+  1. Header (in alto)
+     Mostra il logo, il nome del progetto e la lista dei modelli AI
+     attivi con le rispettive versioni. E' sempre visibile.
+
+  2. Area tab (al centro, occupa quasi tutto lo spazio)
+     Contiene le sette schede dell'applicazione. Si passa da una
+     all'altra cliccando sulle linguette in alto.
+
+  3. Status bar (in basso)
+     Una riga di testo che mostra lo stato corrente dell'applicazione
+     (ad esempio "Pronto", "Mostrati 42 risultati", ecc.).
+
+Le sette schede (tab) sono:
+
+  Scheda              Cosa fa
+  ──────────────────  ──────────────────────────────────────────────
+  Configurazione      Imposta percorsi, modelli, editor, parametri
+  Processing          Elabora nuove immagini con i modelli AI
+  Ricerca             Cerca foto per testo, tag, filtri EXIF
+  Gallery             Visualizza i risultati con anteprime e badge
+  Export              Esporta metadati su file XMP o CSV, copia foto
+  Statistiche         Analisi del database e pattern di scatto
+  Log                 Monitoraggio delle operazioni in tempo reale
+
+L'interfaccia usa un tema scuro (sfondo grafite, testo chiaro,
+accenti ambra e blu petrolio). La finestra e' ridimensionabile e
+ricorda la posizione e le dimensioni tra una sessione e l'altra.
+
+
+IL TAB CONFIGURAZIONE
+─────────────────────
+
+Il tab Configurazione e' il primo che vedi quando apri l'applicazione.
+E' il posto dove imposti tutti i parametri di funzionamento. La
+schermata e' organizzata in sezioni, navigabili scorrendo verso il
+basso.
+
+In fondo alla pagina trovi due pulsanti:
+
+  - "Reset Default": riporta tutti i parametri ai valori consigliati.
+    Prima di resettare, crea automaticamente un backup del file di
+    configurazione corrente.
+
+  - "Salva Configurazione": scrive le impostazioni su disco. Anche
+    qui, viene creato un backup automatico prima del salvataggio.
+
+Tutte le impostazioni sono salvate nel file config_new.yaml nella
+cartella principale di OffGallery. Se per qualche motivo la
+configurazione si corrompe, puoi sempre trovare i backup nella
+stessa cartella (hanno il nome config_new.yaml_BACKUP_data_ora.yaml).
+
+
+────────────────────────────────────────────────────────────────────────
+SEZIONE: PERCORSI & DATABASE
+────────────────────────────────────────────────────────────────────────
+
+Qui definisci due percorsi fondamentali:
+
+  Database
+    Il file dove OffGallery salva tutti i dati delle tue foto
+    (embedding, tag, metadati EXIF, punteggi). E' un file SQLite.
+    Il valore predefinito e': database/offgallery.sqlite
+    Il file viene creato automaticamente se non esiste.
+
+  Dir Log
+    La cartella dove vengono salvati i file di log delle elaborazioni.
+    Il valore predefinito e': logs
+
+Per ogni campo, puoi digitare il percorso direttamente oppure usare
+il pulsante a forma di cartella per selezionarlo con una finestra
+di navigazione.
+
+
+────────────────────────────────────────────────────────────────────────
+SEZIONE: EDITOR ESTERNI
+────────────────────────────────────────────────────────────────────────
+
+OffGallery puo' aprire le tue foto direttamente in un editor esterno
+(come Adobe Lightroom, DxO PhotoLab, o qualsiasi altro programma).
+Questa funzione e' accessibile dal menu contestuale nella Gallery.
+
+Puoi configurare fino a tre editor:
+
+  Per ciascuno, devi specificare:
+
+  - Attivo: spunta per abilitare l'editor.
+  - Nome Editor: il nome che apparira' nel menu (es. "Lightroom").
+  - Percorso Eseguibile: il percorso completo del file .exe
+    dell'editor. Usa il pulsante di sfoglia per trovarlo.
+  - Argomenti Comando: parametri opzionali da passare al programma
+    quando viene avviato (ad esempio "nosplash" per DxO PhotoLab).
+
+Il bordo del campo percorso diventa verde se il file .exe esiste,
+rosso se non viene trovato.
+
+
+────────────────────────────────────────────────────────────────────────
+SEZIONE: DEVICE ELABORAZIONE
+────────────────────────────────────────────────────────────────────────
+
+Qui scegli quale hardware usare per l'elaborazione AI.
+Le opzioni sono:
+
+  Auto-detect (consigliato)
+    Rileva automaticamente se hai una GPU NVIDIA con CUDA. Se la
+    trova, la usa; altrimenti passa alla CPU. E' l'opzione migliore
+    nella maggior parte dei casi.
+
+  Forza GPU (CUDA)
+    Usa esclusivamente la GPU NVIDIA. Se la GPU non e' disponibile,
+    cade sulla CPU come fallback.
+
+  Forza CPU
+    Disabilita completamente la GPU e usa solo il processore.
+    Utile per diagnostica o se la GPU crea problemi.
+
+Sotto il menu a tendina, una riga di stato ti dice se una GPU e'
+stata rilevata, con il nome del modello e la quantita' di memoria
+video (VRAM) disponibile.
+
+
+────────────────────────────────────────────────────────────────────────
+SEZIONE: MODELLI DI EMBEDDING (CORE)
+────────────────────────────────────────────────────────────────────────
+
+Questa sezione raggruppa i due modelli sempre attivi, necessari per
+le funzionalita' fondamentali di OffGallery.
+
+  Modello DINOv2 (Similarita' Visiva)
+
+    DINOv2 analizza la composizione, la texture e la forma delle
+    immagini. E' il modello che permette la funzione "Trova simili"
+    nella Gallery.
+
+    - Nome Modello: l'identificativo del modello su HuggingFace.
+      Valore predefinito: facebook/dinov2-base
+    - Dimensione Embedding: la dimensione del vettore numerico che
+      rappresenta ogni immagine. Per dinov2-base e' 768.
+    - Soglia Similarita': quanto devono essere "simili" due immagini
+      per comparire nei risultati. Valori bassi = piu' risultati
+      (ma meno precisi); valori alti = meno risultati (ma piu'
+      pertinenti). Il campo cambia colore per segnalare valori
+      estremi.
+
+  Modello CLIP (Ricerca Semantica)
+
+    CLIP e' il modello che permette di cercare le foto con testo
+    libero in italiano (ad esempio "tramonto sul mare"). Converte
+    sia le immagini che il testo in vettori numerici confrontabili.
+
+    - Nome Modello: l'identificativo del modello.
+      Valore predefinito: laion/CLIP-ViT-B-32-laion2B-s34B-b79K
+    - Dimensione Embedding: per CLIP-ViT-B-32 e' 512.
+
+  Nota: questi due modelli non possono essere disabilitati perche'
+  sono alla base della ricerca e della similarita'. Puoi pero'
+  modificare i parametri se sai cosa fai.
+
+
+────────────────────────────────────────────────────────────────────────
+SEZIONE: MODELLI DI CLASSIFICAZIONE E ANALISI
+────────────────────────────────────────────────────────────────────────
+
+  Quality Scores (Punteggi di Qualita')
+
+    Due punteggi indipendenti:
+
+    - Aesthetic Score (qualita' artistica): un valore da 0 a 10 che
+      valuta la composizione, l'appeal visivo e la qualita' artistica
+      dell'immagine. Basato su un modello AI addestrato su milioni
+      di valutazioni umane.
+
+    - Technical Score (qualita' tecnica): un valore che analizza
+      nitidezza, rumore e artefatti di compressione. Usa il metodo
+      BRISQUE tramite OpenCV. Funziona solo su immagini non-RAW.
+
+    Puoi abilitare o disabilitare ciascuno con la relativa casella.
+
+  BioCLIP Tagging (Classificazione Flora/Fauna)
+
+    BioCLIP e' un modello specializzato che riconosce circa 450.000
+    specie di flora e fauna. Se la tua foto contiene un animale o
+    una pianta, BioCLIP prova a identificarne la specie.
+
+    - Usa BioCLIP nel processing batch: se attivato, BioCLIP viene
+      eseguito su ogni foto durante l'elaborazione di massa. Se
+      disattivato, puoi comunque usarlo manualmente dalla Gallery
+      su singole foto.
+    - Soglia di Rilevanza: quanto deve essere "sicuro" il modello
+      per proporre un tag. Valori bassi = piu' tag (ma meno certi).
+    - Max Tag per Immagine: quanti tag specie al massimo.
+
+  Generazione AI (Tags / Descrizione / Titolo)
+
+    Questa sezione controlla la generazione automatica di testo
+    tramite il modello LLM (Qwen3-VL su Ollama). Il modello "guarda"
+    la tua foto e produce tag descrittivi, una descrizione testuale
+    e/o un titolo.
+
+    Impostazioni di connessione:
+
+    - Endpoint: l'indirizzo di Ollama. Se e' installato sullo
+      stesso computer, il valore e': http://localhost:11434
+      Il pulsante "Test" verifica la connessione e mostra i modelli
+      disponibili.
+    - Modello LLM: il nome del modello da usare.
+      Valore predefinito: qwen3-vl:4b-instruct
+    - Timeout: quanti secondi attendere prima di considerare la
+      richiesta fallita (utile per computer lenti).
+
+    Generazione durante Import Batch:
+
+    Per ciascuna delle tre funzioni (Tags, Descrizione, Titolo)
+    puoi controllare separatamente:
+
+    - Genera: se attivare la generazione automatica durante
+      l'elaborazione di massa.
+    - Sovrascrivi esistente: se sovrascrivere i dati gia' presenti
+      nei metadati della foto (XMP/EXIF). Se disattivato, la foto
+      mantiene i tag o la descrizione originali.
+    - Parametri: numero massimo di tag o di parole.
+
+    Quando "Sovrascrivi" e' disattivato, i dati gia' presenti nelle
+    tue foto vengono rispettati. Questo e' utile se hai gia' taggato
+    manualmente in Lightroom e non vuoi perdere quel lavoro.
+
+
+────────────────────────────────────────────────────────────────────────
+SEZIONE: ELABORAZIONE IMMAGINI & PERFORMANCE
+────────────────────────────────────────────────────────────────────────
+
+  Elaborazione Immagini
+
+    - Converti RAW: se attivo, i file RAW vengono processati
+      estraendo un'immagine leggibile dalla thumbnail o preview
+      incorporata nel file.
+    - Qualita' JPEG: la qualita' di compressione per le immagini
+      generate internamente (50-100%). 95% e' un buon valore.
+    - Max Dimensione: la dimensione massima in pixel del lato
+      piu' lungo (usata solo se "Resize Automatico" e' attivo).
+    - Max Workers: il numero di thread paralleli per l'elaborazione.
+      4 e' un buon compromesso. Valori piu' alti possono velocizzare
+      su computer potenti, ma consumano piu' RAM.
+    - Resize Automatico: se attivo, le immagini troppo grandi
+      vengono ridimensionate prima dell'elaborazione.
+
+    Sotto-sezione Processing RAW:
+    - Cache Thumb: salva le thumbnail estratte dai RAW in una cache
+      locale per velocizzare le operazioni future.
+    - Dir Cache: la cartella per la cache.
+    - Timeout: quanti secondi dedicare all'estrazione di un singolo
+      file RAW prima di rinunciare.
+    - Fallback Size: dimensione in pixel per la thumbnail di
+      fallback se l'estrazione principale fallisce.
+    - Strategia: "embedded" usa la thumbnail incorporata nel RAW
+      (veloce), "preview" usa la preview a media risoluzione,
+      "full" estrae l'immagine completa (lenta ma massima qualita').
+    - Fallback Thumb: se l'estrazione fallisce, genera comunque
+      una thumbnail di dimensioni ridotte.
+
+    Sotto-sezione Formati Supportati:
+    Lista dei formati file che OffGallery accetta. Puoi modificarla
+    manualmente o usare i pulsanti preimpostati:
+    - Basic: solo JPEG, PNG, TIFF, BMP, WebP
+    - Extended: aggiunge i RAW piu' comuni (Canon, Nikon, Sony,
+      Fuji, Panasonic, Olympus, DNG)
+    - Completo: tutti i formati supportati inclusi quelli rari
+
+  Profili Ottimizzazione AI
+
+    Ogni modello AI ha bisogno di immagini con dimensioni e qualita'
+    specifiche. Questa tabella mostra i profili usati internamente
+    quando OffGallery prepara un'immagine per ciascun modello:
+
+    - Size: dimensione target in pixel del lato piu' lungo.
+    - Quality: qualita' JPEG per la conversione interna.
+    - Method: come estrarre l'immagine dal file originale.
+    - Resampling: algoritmo di ridimensionamento (LANCZOS e'
+      il piu' preciso, BILINEAR il piu' veloce).
+
+    Se non hai esigenze particolari, lascia i valori predefiniti.
+
+
+────────────────────────────────────────────────────────────────────────
+SEZIONE: RICERCA & METADATI
+────────────────────────────────────────────────────────────────────────
+
+  Ricerca Avanzata
+
+    - Ricerca Fuzzy: se attivata, tollera piccoli errori di
+      digitazione (ad esempio "paesagio" trovera' "paesaggio").
+    - Max Risultati: il numero massimo di foto restituite da una
+      ricerca testuale.
+    - Soglia Semantica: il livello minimo di corrispondenza per la
+      ricerca con testo libero (CLIP). Valori bassi = piu' risultati
+      ma meno pertinenti; valori alti = meno risultati ma piu'
+      precisi. Il campo cambia colore per segnalare valori estremi.
+
+  Estrazione Metadati
+
+    - Estrai EXIF: legge i metadati tecnici dalle foto (modello
+      fotocamera, obiettivo, ISO, apertura, tempo di posa, ecc.).
+    - Estrai GPS: legge le coordinate geografiche se presenti.
+      Nota: questa opzione e' sensibile alla privacy. Se non vuoi
+      che le coordinate GPS vengano archiviate, disattivala.
+
+  Ricerca (Semantica + Tag)
+
+    - Max Risultati: il numero massimo di risultati mostrati nel
+      tab Ricerca per le ricerche combinate (semantica + tag).
+
+
+────────────────────────────────────────────────────────────────────────
+SEZIONE: LOGGING & DEBUG
+────────────────────────────────────────────────────────────────────────
+
+  - Mostra messaggi DEBUG nel log: se attivato, il tab Log mostra
+    anche i messaggi di livello debug, che sono molto dettagliati.
+    Utile quando qualcosa non funziona e vuoi capire perche'.
+    Per l'uso quotidiano puoi disattivarlo per avere un log piu'
+    pulito.
+
+
+CONFIGURAZIONE INIZIALE CONSIGLIATA
+────────────────────────────────────
+
+Se stai usando OffGallery per la prima volta, ecco i passaggi
+consigliati per partire:
+
+  1. Verifica il device.
+     Nella sezione "Device Elaborazione", controlla che la tua GPU
+     sia stata rilevata (vedrai un messaggio verde con il nome della
+     scheda). Se usi "Auto-detect" non devi fare nulla.
+
+  2. Configura gli editor esterni (se li usi).
+     Se lavori con Lightroom, DxO PhotoLab o un altro editor,
+     inserisci il percorso del file .exe nella sezione "Editor
+     Esterni". Cosi' potrai aprire le foto direttamente dalla
+     Gallery di OffGallery.
+
+  3. Decidi cosa generare con l'AI durante l'import.
+     Nella sezione "Generazione AI", attiva le funzioni che ti
+     interessano (tag, descrizione, titolo). Se non hai Ollama
+     installato, lascia tutto disattivato: potrai generare tag
+     e descrizioni manualmente dalla Gallery in un secondo momento.
+
+  4. Controlla l'estrazione GPS.
+     Se non vuoi che le coordinate geografiche vengano memorizzate,
+     disattiva "Estrai GPS" nella sezione Metadati.
+
+  5. Salva.
+     Clicca "Salva Configurazione" in fondo alla pagina.
+
+Tutti gli altri parametri hanno gia' valori ragionevoli di default.
+Potrai sempre modificarli in seguito man mano che prendi confidenza
+con l'applicazione.
+
+
+================================================================================
+  Fine del Capitolo 2 - Primo avvio e configurazione iniziale
+  Prossimo capitolo: 03 - Elaborazione delle immagini
+================================================================================

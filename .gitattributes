@@ -1,0 +1,34 @@
+# OffGallery - GitHub Linguist Configuration
+# Corregge la classificazione del linguaggio su GitHub
+
+# =============================================================================
+# VENDOR: ExifTool (distribuzione Perl embedded) - escluso dalle statistiche
+# =============================================================================
+exiftool_files/** linguist-vendored
+
+# =============================================================================
+# FILE BINARI
+# =============================================================================
+*.dll binary
+*.exe binary
+*.dat binary
+*.zip binary
+*.jpg binary
+*.png binary
+*.ico binary
+
+# =============================================================================
+# DOCUMENTAZIONE - esclusa dalle statistiche linguaggio
+# =============================================================================
+*.md linguist-documentation
+*.pod linguist-documentation
+
+# =============================================================================
+# MODELLI ML - non sono codice
+# =============================================================================
+brisque_models/** linguist-vendored
+
+# =============================================================================
+# LINGUAGGIO PROGETTO
+# =============================================================================
+*.py linguist-language=Python

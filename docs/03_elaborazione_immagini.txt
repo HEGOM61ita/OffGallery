@@ -1,0 +1,372 @@
+================================================================================
+  OFFGALLERY - MANUALE UTENTE
+  Capitolo 3: Elaborazione delle immagini
+================================================================================
+
+
+A COSA SERVE L'ELABORAZIONE
+────────────────────────────
+
+L'elaborazione (o "processing") e' il processo con cui OffGallery
+analizza le tue foto usando i modelli AI. Per ogni immagine vengono
+estratti e salvati nel database:
+
+  - I metadati EXIF (fotocamera, obiettivo, ISO, apertura, ecc.)
+  - Le coordinate GPS (se presenti e se l'opzione e' attiva)
+  - I tag XMP gia' presenti nella foto (da Lightroom, DxO, ecc.)
+  - L'embedding CLIP (per la ricerca con testo libero)
+  - L'embedding DINOv2 (per la ricerca di immagini simili)
+  - Il punteggio estetico (se abilitato)
+  - Il punteggio tecnico BRISQUE (se abilitato, solo per non-RAW)
+  - I tag BioCLIP per flora e fauna (se abilitato)
+  - Tag, descrizione e titolo generati dall'LLM (se abilitato)
+  - Un hash del file per il rilevamento di duplicati
+
+Tutto questo viene fatto una volta sola per ogni foto. Una volta
+elaborata, la foto e' ricercabile, confrontabile e catalogata.
+
+
+IL TAB PROCESSING
+─────────────────
+
+Il tab Processing e' la seconda scheda dell'applicazione. E' diviso
+in sei zone, dall'alto verso il basso:
+
+  1. Directory Input
+  2. Status
+  3. Modalita' Processing
+  4. Controlli
+  5. Progresso
+  6. Terminal Log
+
+
+────────────────────────────────────────────────────────────────────────
+SELEZIONARE LA DIRECTORY DELLE FOTO
+────────────────────────────────────────────────────────────────────────
+
+In cima al tab trovi la sezione "Directory Input" con quattro elementi:
+
+  - Una barra che mostra il percorso della cartella selezionata.
+  - Il pulsante "Seleziona Directory": apre una finestra per
+    scegliere la cartella che contiene le foto da elaborare.
+  - Il pulsante "Refresh": riscansiona la cartella e aggiorna
+    le statistiche (utile se nel frattempo hai aggiunto foto).
+  - Il checkbox "Includi sotto-cartelle": se attivato, la scansione
+    cercara' le immagini anche in tutte le sotto-cartelle della
+    directory selezionata (ricorsivamente).
+
+Quando selezioni una cartella, OffGallery la scansiona
+immediatamente e ti mostra nella sezione "Status":
+
+  - Il percorso del database in uso.
+  - Quante immagini ha trovato nella cartella, quante sono gia'
+    state elaborate e quante restano da elaborare.
+
+    Esempio:
+      "Trovate 847 immagini, 123 da processare (724 gia' processate)"
+
+La cartella selezionata viene salvata automaticamente nella
+configurazione. Al prossimo avvio, OffGallery la ricordera'.
+
+  Nota: Per default OffGallery cerca le foto solo nella cartella
+  selezionata. Attiva "Includi sotto-cartelle" se le tue foto sono
+  organizzate in sotto-cartelle (es. per data o progetto).
+
+
+────────────────────────────────────────────────────────────────────────
+MODALITA' DI ELABORAZIONE
+────────────────────────────────────────────────────────────────────────
+
+Prima di avviare l'elaborazione, puoi scegliere tra tre modalita':
+
+  Solo nuove immagini (selezionata di default)
+
+    Elabora solo le foto che non sono ancora presenti nel database.
+    Se una foto e' gia' stata elaborata in precedenza, viene
+    saltata. E' la modalita' piu' comune e la piu' veloce.
+
+  Nuove + errori precedenti
+
+    Come sopra, ma riprova anche le foto che in una elaborazione
+    precedente avevano dato errore (ad esempio un file RAW
+    corrotto che nel frattempo e' stato sostituito).
+
+  Riprocessa tutte
+
+    Rielabora tutte le foto presenti nella cartella, anche quelle
+    gia' nel database. I dati esistenti vengono aggiornati.
+    Utile se hai cambiato modelli AI o parametri di configurazione
+    e vuoi rigenerare tutti gli embedding e i punteggi.
+
+    Questa opzione e' evidenziata in arancione perche' e'
+    potenzialmente lunga: rielabora tutto da zero.
+
+Sotto le modalita' trovi anche una casella:
+
+  Salva log completo su file
+
+    Se attivata, tutto il log dell'elaborazione viene scritto
+    anche su un file di testo nella cartella dei log (configurata
+    nel tab Configurazione). Il file avra' un nome come
+    processing_log_20260209_143000.txt. Utile per tenere traccia
+    delle elaborazioni o per diagnosticare problemi.
+
+
+────────────────────────────────────────────────────────────────────────
+AVVIARE, METTERE IN PAUSA E FERMARE
+────────────────────────────────────────────────────────────────────────
+
+La sezione "Controlli" ha quattro pulsanti:
+
+  AVVIA
+    Avvia l'elaborazione. Il pulsante si disattiva durante
+    l'esecuzione per evitare doppi avvii. Si riattiva al termine.
+
+    In modalita' "Solo nuove immagini", il pulsante resta
+    disattivato se non ci sono nuove foto da elaborare (tutte
+    gia' processate). Per forzare una rielaborazione, cambia
+    modalita'.
+
+  PAUSA
+    Mette in pausa l'elaborazione. L'immagine corrente viene
+    completata, poi il sistema si ferma. Cliccando di nuovo
+    (il pulsante diventa "RIPRENDI"), l'elaborazione riprende
+    da dove si era interrotta.
+
+  STOP
+    Ferma definitivamente l'elaborazione. Le immagini gia'
+    elaborate fino a quel punto sono regolarmente salvate nel
+    database. L'elaborazione non puo' essere ripresa: dovrai
+    riavviarla (le immagini gia' fatte verranno saltate se sei
+    in modalita' "Solo nuove").
+
+  SALVA LOG
+    Salva il contenuto attuale del terminale di log su un file
+    di testo a tua scelta.
+
+
+────────────────────────────────────────────────────────────────────────
+SEGUIRE L'AVANZAMENTO
+────────────────────────────────────────────────────────────────────────
+
+Durante l'elaborazione, due elementi ti mostrano cosa sta succedendo:
+
+  Barra di avanzamento
+
+    Una barra grafica ambra che va da 0% a 100%, con sotto una
+    riga di testo che indica l'immagine corrente sul totale:
+      "128/847 (15%)"
+
+    Al termine, mostra un riepilogo:
+      "Completato! 845/847 (99.8%) - 2.3s/img - 2 errori"
+
+  Terminal Log
+
+    Un'area nera con testo verde (stile terminale) che mostra in
+    tempo reale ogni operazione eseguita:
+
+    - Quale file sta elaborando
+    - Se il file e' RAW e come viene estratto
+    - Quali metadati sono stati trovati
+    - La dimensione del thumbnail generato per l'AI
+    - Quali embedding sono stati calcolati
+    - Se BioCLIP ha identificato specie
+    - Se l'LLM ha generato tag o descrizioni
+    - Se il salvataggio nel database e' riuscito
+    - Eventuali errori o avvisi
+
+    I messaggi sono colorati per livello:
+      Verde        = informazioni normali
+      Giallo       = avvisi (non bloccanti)
+      Arancione    = errori (l'immagine viene saltata)
+
+    Il terminale mostra le ultime 500 righe e scorre
+    automaticamente verso il basso.
+
+
+────────────────────────────────────────────────────────────────────────
+COSA SUCCEDE PER OGNI FOTO
+────────────────────────────────────────────────────────────────────────
+
+Ecco, nel dettaglio, cosa fa OffGallery per ogni singola immagine
+durante l'elaborazione:
+
+  1. Controllo nel database
+     Verifica se la foto e' gia' presente (in base alla modalita'
+     scelta). Se deve essere saltata, passa alla successiva.
+
+  2. Estrazione metadati
+     Usa ExifTool per leggere tutti i metadati EXIF, XMP e IPTC
+     dal file: fotocamera, obiettivo, ISO, apertura, tempo di posa,
+     data dello scatto, coordinate GPS, tag gia' presenti, rating
+     Lightroom, ecc.
+
+  3. Preparazione thumbnail per l'AI
+     Crea una versione ridimensionata dell'immagine ottimizzata
+     per i modelli AI. La dimensione viene calcolata automaticamente
+     in base ai profili dei modelli attivi (ad esempio, se CLIP
+     richiede 512px e DINOv2 richiede 518px, estrae a 518px).
+     Per i file RAW, il thumbnail viene estratto dalla preview
+     incorporata nel file (veloce) oppure generato con rawpy
+     (qualita' massima ma piu' lento), secondo la strategia
+     configurata.
+
+  4. Generazione embedding CLIP
+     Calcola un vettore di 512 numeri che rappresenta il contenuto
+     semantico dell'immagine. Questo vettore e' quello che permette
+     la ricerca con testo libero ("tramonto sul mare", "cane che
+     corre", ecc.).
+
+  5. Generazione embedding DINOv2
+     Calcola un vettore di 768 numeri che rappresenta le
+     caratteristiche visive dell'immagine (composizione, texture,
+     forme). Questo vettore serve per la funzione "Trova simili".
+
+  6. Calcolo punteggio estetico (se abilitato)
+     Un modello AI valuta la qualita' artistica dell'immagine e
+     assegna un punteggio da 0 a 10.
+
+  7. Calcolo punteggio tecnico (se abilitato, solo per non-RAW)
+     L'algoritmo BRISQUE analizza la nitidezza, il rumore e gli
+     artefatti dell'immagine originale (non del thumbnail).
+
+  8. Classificazione BioCLIP (se abilitato)
+     Il modello identifica eventuali specie di flora o fauna
+     nell'immagine e aggiunge i tag corrispondenti.
+
+  9. Generazione LLM (se abilitata)
+     Il modello Qwen3-VL (tramite Ollama) guarda l'immagine e
+     genera tag descrittivi, una descrizione testuale e/o un
+     titolo, secondo le impostazioni. Se sono attive piu'
+     generazioni contemporaneamente (ad esempio tag + descrizione),
+     vengono eseguite in parallelo per velocizzare.
+
+  10. Calcolo hash file
+      Calcola un codice univoco (MD5) del file per permettere
+      il rilevamento di duplicati.
+
+  11. Salvataggio nel database
+      Tutti i dati vengono scritti nel database SQLite. Se la
+      foto era gia' presente (modalita' "Riprocessa tutte"),
+      il record viene aggiornato.
+
+  12. Pulizia memoria GPU
+      Dopo ogni immagine, la memoria della scheda video viene
+      liberata per evitare accumuli.
+
+
+────────────────────────────────────────────────────────────────────────
+STATISTICHE DI FINE ELABORAZIONE
+────────────────────────────────────────────────────────────────────────
+
+Al termine dell'elaborazione, il terminale mostra un riepilogo:
+
+  PROCESSING COMPLETATO
+  Totali: 847
+  Processate: 845
+  Successi: 843
+  Gia' esistenti: 724
+  Errori: 2
+  Con embedding: 843
+  Con tag: 412
+  Tempo totale: 34:12
+
+  Totali: quante immagini erano nella cartella.
+  Processate: quante sono state esaminate.
+  Successi: quante sono state elaborate senza errori.
+  Gia' esistenti: quante erano gia' nel database e sono state
+    saltate (o aggiornate, a seconda della modalita').
+  Errori: quante hanno dato problemi.
+  Con embedding: quante hanno ricevuto un embedding valido.
+  Con tag: quante hanno tag (BioCLIP o LLM).
+  Tempo totale: durata complessiva dell'elaborazione.
+
+
+────────────────────────────────────────────────────────────────────────
+TEMPI DI ELABORAZIONE INDICATIVI
+────────────────────────────────────────────────────────────────────────
+
+Il tempo per foto dipende dal tuo hardware, dai modelli attivi e
+dal tipo di file (RAW richiede piu' tempo per l'estrazione).
+
+Come riferimento, su un sistema con GPU NVIDIA:
+
+  Solo embedding (CLIP + DINOv2 + Aesthetic)
+    Circa 1-3 secondi per foto.
+
+  Embedding + BioCLIP
+    Circa 2-4 secondi per foto.
+
+  Embedding + BioCLIP + LLM (tag + descrizione)
+    Circa 8-15 secondi per foto (il modello LLM e' il piu' lento).
+
+  Su CPU senza GPU
+    I tempi si moltiplicano di 3-5 volte.
+
+L'elaborazione e' pensata per funzionare in modo non presidiato:
+puoi avviarla e lasciarla lavorare mentre fai altro.
+
+
+────────────────────────────────────────────────────────────────────────
+GESTIONE DEI FILE RAW
+────────────────────────────────────────────────────────────────────────
+
+OffGallery supporta oltre 25 formati RAW. Quando incontra un file
+RAW, il processo e' leggermente diverso:
+
+  - L'estrazione dei metadati avviene normalmente tramite ExifTool
+    (che supporta nativamente tutti i formati RAW).
+
+  - Per l'analisi AI, il file RAW non puo' essere usato
+    direttamente. OffGallery estrae un'immagine leggibile usando
+    una delle tre strategie configurabili:
+
+    "embedded": usa la thumbnail JPEG incorporata nel file RAW
+    dalla fotocamera. E' il metodo piu' veloce.
+
+    "preview": usa la preview a media risoluzione incorporata
+    nel file. Buon compromesso tra velocita' e qualita'.
+
+    "full" (rawpy): decodifica il file RAW completo con rawpy.
+    Massima qualita' ma significativamente piu' lento.
+
+  - Il thumbnail estratto viene memorizzato in cache (se l'opzione
+    e' attiva) per velocizzare eventuali rielaborazioni future.
+
+  - Il punteggio tecnico BRISQUE non viene calcolato per i file
+    RAW perche' richiede l'immagine nel formato originale (JPEG/PNG).
+
+
+────────────────────────────────────────────────────────────────────────
+CONSIGLI PRATICI
+────────────────────────────────────────────────────────────────────────
+
+  - Per la prima volta, prova con una cartella piccola (50-100 foto)
+    per verificare che tutto funzioni correttamente prima di
+    lanciare l'elaborazione su migliaia di immagini.
+
+  - Se l'elaborazione si interrompe (crash, spegnimento del computer,
+    ecc.), le foto gia' elaborate sono salve nel database. Riavvia
+    e rilancia: verranno saltate automaticamente.
+
+  - Se cambi parametri nella configurazione (ad esempio disabiliti
+    BioCLIP o cambi modello LLM), le foto gia' elaborate non
+    vengono aggiornate automaticamente. Per applicare le nuove
+    impostazioni, usa la modalita' "Riprocessa tutte".
+
+  - Attiva il log su file per le elaborazioni lunghe. Se qualcosa
+    va storto, avrai un registro completo da consultare.
+
+  - Tieni d'occhio la temperatura della GPU durante le elaborazioni
+    lunghe, soprattutto d'estate o con portatili poco ventilati.
+
+  - Se usi Ollama per la generazione LLM e noti che l'elaborazione
+    diventa molto lenta, verifica che Ollama sia in esecuzione
+    (icona nella system tray). Se non lo e', le chiamate al modello
+    andranno in timeout dopo il numero di secondi configurato.
+
+
+================================================================================
+  Fine del Capitolo 3 - Elaborazione delle immagini
+  Prossimo capitolo: 04 - Ricerca
+================================================================================

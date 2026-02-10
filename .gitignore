@@ -1,0 +1,88 @@
+# Ignora tutto
+*
+
+# Eccezioni: traccia solo questi file/cartelle
+!.gitignore
+!.gitattributes
+!README.md
+!CONFIGURATION.md
+!TRADEMARK.md
+!THIRD_PARTY.md
+!HUGGINGFACE_SETUP.md
+!LICENSE
+!OffGallery.spec
+!requirements_frozen.txt
+
+# Codice Python
+!*.py
+!gui/
+!gui/*.py
+!utils/
+!utils/*.py
+
+# Configurazione
+!*.yaml
+!*.yml
+
+# Installer
+!installer/
+!installer/*.py
+!installer/*.bat
+!installer/*.md
+!installer/*.txt
+
+# Documentazione (manuale utente)
+!docs/
+!docs/*.txt
+
+# ESSENZIALI PER L'APP - Includere nel repo
+!brisque_models/
+!brisque_models/*.yml
+!assets/
+!assets/*
+!assets/**/*
+!exiftool_files/
+!exiftool_files/*
+!exiftool_files/**/*
+
+# Cartelle da ignorare (grandi o generate)
+aesthetic/
+bioclip/
+treeoflife/
+database/
+INPUT/
+dist/
+build/
+
+# File di backup
+*_BACKUP_*
+*_OLD*
+*_OLD.py
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Virtual environment
+venv/
+env/
+.venv/
+.env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Windows system files
+desktop.ini
+Thumbs.db
+
+# Log files
+*.log
+processing_log*.txt
+tagging_log.txt
+
+# Temp files
+*.tmp

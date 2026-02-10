@@ -1,0 +1,232 @@
+embedding:
+  brisque_enabled: true
+  device: auto
+  enabled: true
+  models:
+    aesthetic:
+      description: Punteggio estetico (qualità artistica)
+      enabled: true
+      model_name: aesthetic-predictor
+      returns_score: true
+    bioclip:
+      description: Classificazione flora/fauna TreeOfLife (~450k specie)
+      enabled: true
+      max_tags: 3
+      threshold: 0.05
+    clip:
+      description: Ricerca semantica (query naturali)
+      dimension: 512
+      enabled: true
+      model_name: laion/CLIP-ViT-B-32-laion2B-s34B-b79K
+    dinov2:
+      description: Similarità visiva (composizione, texture, forma)
+      dimension: 768
+      enabled: true
+      model_name: facebook/dinov2-base
+      similarity_threshold: 0.25
+    llm_vision:
+      auto_import:
+        description:
+          enabled: true
+          max_words: 50
+          overwrite: true
+        tags:
+          enabled: true
+          max_tags: 10
+          overwrite: false
+        title:
+          enabled: false
+          max_words: 5
+          overwrite: false
+      description: Genera tag, descrizioni e titoli con LLM vision (richiede Ollama)
+      enabled: true
+      endpoint: http://localhost:11434
+      generation:
+        temperature: 0.2
+        top_k: 20
+        top_p: 0.8
+      model: qwen3-vl:4b-instruct
+      timeout: 240
+    technical:
+      description: Punteggio tecnico qualità MUSIQ offline
+      enabled: true
+      model_name: musiq
+external_editors:
+  editor_1:
+    command_args: ''
+    enabled: true
+    name: Lightroom
+    path: C:/Program Files/Adobe/Adobe Lightroom Classic/Lightroom.exe
+  editor_2:
+    command_args: nosplash
+    enabled: true
+    name: PhotoLab
+    path: C:/Program Files/DxO/DxO PhotoLab 8/DxO.PhotoLab.exe
+  editor_3:
+    command_args: ''
+    enabled: false
+    name: ''
+    path: ''
+image_optimization:
+  enabled: true
+  extraction_methods:
+    fast_thumbnail: Veloce con thumbnail embedded
+    high_quality: Alta qualità con preview/JPEG embedded
+    preview_optimized: Bilanciato qualità/velocità
+    rawpy_full: Estrazione RAW completa con rawpy (massima qualità)
+  profiles:
+    aesthetic_score:
+      method: preview_optimized
+      quality: 85
+      resampling: BILINEAR
+      target_size: 336
+      upscale: false
+    ai_processing:
+      method: preview_optimized
+      quality: 85
+      resampling: LANCZOS
+      target_size: 512
+      upscale: false
+    bioclip_classification:
+      method: high_quality
+      quality: 90
+      resampling: LANCZOS
+      target_size: 384
+      upscale: false
+    clip_embedding:
+      method: high_quality
+      quality: 90
+      resampling: LANCZOS
+      target_size: 512
+      upscale: false
+    default:
+      description: Default fallback
+      method: preview_optimized
+      quality: 85
+      resampling: LANCZOS
+      target_size: 512
+      upscale: false
+    dinov2_embedding:
+      method: high_quality
+      quality: 90
+      resampling: LANCZOS
+      target_size: 518
+      upscale: false
+    gallery_display:
+      description: Gallery - Visualizzazione veloce
+      method: fast_thumbnail
+      quality: 75
+      resampling: BILINEAR
+      target_size: 256
+      upscale: false
+    llm_vision:
+      method: preview_optimized
+      quality: 95
+      resampling: LANCZOS
+      target_size: 512
+      upscale: false
+    metadata_extraction:
+      description: Metadata - Estrazione metadati veloce
+      method: fast_thumbnail
+      quality: 75
+      resampling: BILINEAR
+      target_size: 256
+      upscale: false
+    technical_score:
+      description: BRISQUE - Analisi qualità tecnica (solo non-RAW)
+      enabled: true
+      max_size: 1024
+      mode: optimized
+  resampling_methods:
+    BICUBIC: Qualità media
+    BILINEAR: Buona qualità (veloce)
+    LANCZOS: Migliore qualità (più lento)
+    NEAREST: Velocissimo (qualità base)
+  supported_formats:
+  - .jpg
+  - .jpeg
+  - .png
+  - .bmp
+  - .tiff
+  - .tif
+  - .webp
+  - .heic
+  - .cr2
+  - .cr3
+  - .crw
+  - .nef
+  - .nrw
+  - .arw
+  - .srf
+  - .sr2
+  - .raf
+  - .orf
+  - .rw2
+  - .raw
+  - .pef
+  - .ptx
+  - .dng
+  - .rwl
+  - .3fr
+  - .iiq
+  - .x3f
+image_processing:
+  convert_raw: true
+  jpeg_quality: 95
+  max_dimension: 2048
+  max_workers: 4
+  raw_processing:
+    cache_dir: thumbnails_cache
+    cache_thumbnails: true
+    enabled: true
+    fallback_size: 512
+    fallback_thumbnail: true
+    processing_timeout: 30
+    thumbnail_strategy: embedded
+  resize_images: false
+  supported_formats:
+  - .jpg
+  - .jpeg
+  - .png
+  - .bmp
+  - .tiff
+  - .tif
+  - .webp
+  - .heic
+  - .cr2
+  - .cr3
+  - .nef
+  - .nrw
+  - .arw
+  - .srf
+  - .sr2
+  - .raf
+  - .orf
+  - .rw2
+  - .dng
+logging:
+  show_debug: true
+metadata:
+  extract_exif: true
+  gps_enabled: true
+models_repository:
+  auto_download: true
+  download_on_first_run: true
+  huggingface_repo: HEGOM/OffGallery-models
+  models:
+    aesthetic: aesthetic
+    argos_it_en: argos-it-en
+    bioclip: bioclip
+    clip: clip
+    dinov2: dinov2
+    treeoflife: treeoflife
+paths:
+  database: database/offgallery.sqlite
+  input_dir: D:\AI\Scripts\Descrittore\INPUT
+  log_dir: logs
+search:
+  fuzzy_enabled: true
+  max_results: 100
+  semantic_threshold: 0.2
+similarity:
+  max_results: 20

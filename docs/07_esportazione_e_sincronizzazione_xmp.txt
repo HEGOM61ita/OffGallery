@@ -1,0 +1,526 @@
+================================================================================
+  OFFGALLERY - MANUALE UTENTE
+  Capitolo 7: Esportazione e sincronizzazione XMP
+================================================================================
+
+
+A COSA SERVE L'EXPORT
+─────────────────────
+
+Il tab Export ti permette di portare fuori da OffGallery i dati che hai
+raccolto e generato: tag, descrizioni, titoli, punteggi, metadati EXIF.
+
+Puoi esportare in diversi formati, anche combinandoli tra loro:
+
+  - File sidecar XMP (.xmp): file separati con i metadati, leggibili
+    da Lightroom, DxO, Capture One e altri editor fotografici.
+
+  - Metadati embedded: scritti direttamente dentro i file JPG, TIFF
+    e DNG (non dentro i RAW proprietari).
+
+  - CSV completo: una tabella con tutti i campi del database, apribile
+    con Excel, Google Sheets o qualsiasi foglio di calcolo.
+
+  - Copia delle foto: copia i file originali in una cartella a scelta.
+
+L'export e' pensato per due scenari principali:
+
+  1. Integrazione con Lightroom e altri editor: scrivi i tag e le
+     descrizioni generate dall'AI direttamente nei file XMP, cosi'
+     il tuo editor preferito puo' leggerli.
+
+  2. Archiviazione e analisi: esporta l'intero catalogo in CSV per
+     analisi statistiche, backup dei metadati o condivisione.
+
+
+────────────────────────────────────────────────────────────────────────
+COME FUNZIONA LA SELEZIONE
+────────────────────────────────────────────────────────────────────────
+
+L'export lavora sulle immagini selezionate nella Galleria. Prima di
+passare al tab Export, seleziona le foto che vuoi esportare:
+
+  - Seleziona le foto nel tab Galleria (con click, Ctrl+click o la
+    casella di selezione sulla card).
+  - Poi passa al tab Export.
+
+In cima alla sezione "Selezione" vedrai quante immagini sono pronte:
+
+    "3 immagine/i selezionate per export"
+
+Se non hai selezionato nulla, il pulsante di export resta disattivato.
+
+
+────────────────────────────────────────────────────────────────────────
+FORMATI DI EXPORT
+────────────────────────────────────────────────────────────────────────
+
+La prima sezione del tab mostra quattro caselle, tutte combinabili
+tra loro. Puoi attivarne una o piu' contemporaneamente.
+
+  Scrivi sidecar XMP (.xmp)
+
+    Crea un file .xmp per ogni foto selezionata. Il file sidecar
+    contiene: tag (Subject), titolo (Title), descrizione (Description)
+    e rating (stelle).
+
+    Questo e' il formato standard per i file RAW: Lightroom, DxO e
+    altri editor cercano automaticamente un file con lo stesso nome
+    dell'immagine ma estensione .xmp.
+
+    Esempio: se la foto si chiama IMG_1234.CR2, il sidecar sara'
+    IMG_1234.xmp.
+
+    Il sidecar XMP e' selezionato per default.
+
+  Scrivi metadati nel file (JPG/DNG)
+
+    Scrive i metadati direttamente dentro il file immagine, nel suo
+    header XMP embedded. Funziona con:
+
+      - JPG e JPEG: si'
+      - TIFF: si'
+      - DNG: si', ma richiede conferma esplicita (vedi sotto)
+      - RAW proprietari (CR2, NEF, ARW, ecc.): no, vengono saltati
+        automaticamente. I RAW usano il sidecar.
+
+  Export CSV completo
+
+    Genera un file CSV con tutti i metadati del database per le foto
+    selezionate. Il file contiene oltre 60 colonne (vedi sezione
+    dettagliata piu' avanti).
+
+  Copia foto originali
+
+    Copia i file originali nella directory di destinazione. Le copie
+    vengono rinominate aggiungendo " Ofglry" al nome per distinguerle
+    dagli originali:
+
+      IMG_1234.CR2  -->  IMG_1234 Ofglry.CR2
+
+    Se esiste gia' un file con lo stesso nome nella destinazione,
+    viene aggiunto un numero progressivo:
+
+      IMG_1234 Ofglry_2.CR2
+
+    Nota: attivando la copia foto, la destinazione viene forzata
+    su "Directory unica" (non e' possibile copiare nelle directory
+    originali).
+
+
+────────────────────────────────────────────────────────────────────────
+DESTINAZIONE
+────────────────────────────────────────────────────────────────────────
+
+La sezione "Destinazione Export" offre due opzioni per i file XMP:
+
+  Directory originali delle immagini
+
+    I file XMP vengono creati accanto alle foto originali, nella
+    stessa cartella. Questo e' il metodo raccomandato per l'uso
+    con Lightroom, perche' Lightroom cerca i sidecar .xmp nella
+    stessa directory dell'immagine.
+
+  Directory unica
+
+    Tutti i file XMP esportati vengono messi in un'unica cartella
+    a tua scelta. Clicca il pulsante con l'icona della cartella per
+    selezionarla.
+
+    Utile per raggruppare tutti gli export in un posto solo, oppure
+    per non toccare le cartelle delle foto originali.
+
+  Directory CSV
+
+    Il file CSV ha un campo dedicato per la directory di
+    destinazione, indipendente dalla scelta XMP. Il campo appare
+    quando attivi il checkbox "Export CSV completo" nella sezione
+    formati. Seleziona la cartella dove vuoi salvare il CSV usando
+    il pulsante con l'icona della cartella.
+
+
+────────────────────────────────────────────────────────────────────────
+OPZIONI METADATI XMP
+────────────────────────────────────────────────────────────────────────
+
+La sezione "Metadati XMP" controlla cosa viene scritto nei file:
+
+  Includi metadati dal database
+
+    Se attiva (default), i tag, la descrizione, il titolo e il
+    rating vengono presi dal database di OffGallery. Se disattivata,
+    non vengono scritti metadati (l'export XMP non avrebbe effetto).
+
+  Scrivi XMP embedded (se supportato)
+
+    Abilita la scrittura dei metadati dentro il file stesso. Ha
+    effetto solo sui formati che lo supportano (JPG, TIFF, DNG).
+
+  Scrivi XMP sidecar (.xmp)
+
+    Abilita la creazione di file sidecar separati.
+
+  Consenti embedded per DNG
+
+    I file DNG sono un caso speciale: sono tecnicamente RAW ma
+    supportano i metadati embedded. Tuttavia, scrivere dentro un
+    DNG modifica il file originale, quindi questa opzione e'
+    disattivata per default e richiede una scelta esplicita.
+
+  Nota: per i file RAW proprietari (CR2, NEF, ARW, ORF, ecc.),
+  la scrittura embedded non e' mai consentita. Viene sempre usato
+  il sidecar. Questo e' un comportamento di sicurezza: OffGallery
+  non modifica mai i tuoi file RAW originali.
+
+
+────────────────────────────────────────────────────────────────────────
+OPZIONI AVANZATE
+────────────────────────────────────────────────────────────────────────
+
+La sezione "Opzioni Avanzate" e' divisa in tre aree:
+
+  Export CSV
+
+    Includi dati GPS completi: se attiva (default), il CSV include
+    le colonne con latitudine, longitudine, altitudine, direzione,
+    citta', stato, paese e localita'. Se hai foto con coordinate
+    GPS e non vuoi esportarle (ad esempio per privacy), disattiva
+    questa opzione.
+
+  Export XMP
+
+    Preserva metadati XMP esistenti: se attiva (default), quando
+    scrivi un sidecar XMP che gia' esiste, OffGallery legge prima
+    i tag presenti nel file e li unisce a quelli del database.
+    I tag esistenti non vengono eliminati, solo aggiunti quelli
+    nuovi.
+
+    Se disattivi questa opzione, i tag nel sidecar vengono
+    completamente sostituiti con quelli del database.
+
+    Nota: la compatibilita' con Lightroom e' sempre attiva per
+    default (non e' un'opzione disattivabile). I file XMP vengono
+    scritti nel formato standard Dublin Core (dc:Subject, dc:Title,
+    dc:Description, xmp:Rating) che Lightroom riconosce nativamente.
+
+  Performance
+
+    Elaborazione batch: processa piu' file insieme per ridurre
+    le operazioni di I/O. Attiva per default.
+
+    Verifica integrita' dopo export: dopo aver scritto un file
+    XMP, lo rilegge per verificare che i dati siano stati scritti
+    correttamente. Rallenta l'export ma garantisce l'integrita'.
+    Disattiva per default.
+
+
+────────────────────────────────────────────────────────────────────────
+AVVIARE L'EXPORT
+────────────────────────────────────────────────────────────────────────
+
+  1. Seleziona le foto nella Galleria.
+  2. Passa al tab Export.
+  3. Scegli i formati desiderati.
+  4. Scegli la destinazione.
+  5. Configura le opzioni (se necessario).
+  6. Clicca "Avvia Export".
+
+OffGallery ti chiede una conferma prima di procedere, mostrando
+un riepilogo:
+
+    "Esportare XMP sidecar + CSV per 47 immagini?
+     Destinazione: directory originali"
+
+Clicca "Si'" per procedere.
+
+Durante l'export, una barra di avanzamento mostra il progresso e
+il nome del file corrente. Puoi annullare l'operazione in qualsiasi
+momento.
+
+
+────────────────────────────────────────────────────────────────────────
+REPORT DI FINE EXPORT
+────────────────────────────────────────────────────────────────────────
+
+Al termine, OffGallery mostra un riepilogo dettagliato:
+
+    Export completato!
+
+    Risultati:
+    XMP creati: 45
+    Errori XMP: 2
+    File saltati (embedded non supportato): 12
+    CSV creato
+    Foto copiate: 47
+
+    Destinazione: directory originali
+
+I "file saltati" sono file RAW per cui e' stato richiesto
+l'embedded ma non e' supportato (non e' un errore, e' il
+comportamento normale).
+
+
+────────────────────────────────────────────────────────────────────────
+COSA VIENE SCRITTO NEI FILE XMP
+────────────────────────────────────────────────────────────────────────
+
+Quando esporti in formato XMP (sidecar o embedded), OffGallery
+scrive i seguenti campi:
+
+  Campo XMP                Contenuto
+  ───────────────────────  ─────────────────────────────────────
+  dc:Subject (Keywords)    Tutti i tag unificati: tag Lightroom,
+                           tag utente, tag AI (LLM), tag BioCLIP
+  dc:Title                 Titolo (dal database, o il nome file
+                           senza estensione come fallback)
+  dc:Description           Descrizione (generata dall'LLM o
+                           inserita manualmente)
+  xmp:Rating               Valutazione in stelle (1-5)
+
+I tag vengono scritti come keywords separate, nel formato standard
+che Lightroom, Bridge e altri software riconoscono.
+
+
+────────────────────────────────────────────────────────────────────────
+EXPORT CSV: TUTTI I CAMPI
+────────────────────────────────────────────────────────────────────────
+
+Il file CSV contiene una riga per ogni foto e oltre 60 colonne,
+raggruppate per categoria:
+
+  Informazioni file
+    Filename, Filepath, File_Size_MB, Format, Is_RAW, RAW_Format
+
+  Dimensioni
+    Width, Height, Aspect_Ratio, Megapixels
+
+  Fotocamera e obiettivo
+    Camera_Make, Camera_Model, Lens_Model
+
+  Impostazioni di scatto
+    Focal_Length, Focal_Length_35mm, Aperture, Shutter_Speed, ISO
+
+  EXIF avanzato
+    Exposure_Mode, Exposure_Bias, Metering_Mode, White_Balance,
+    Flash_Used, Flash_Mode, Color_Space, Orientation
+
+  Date
+    Date_Original, Date_Digitized, Date_Modified
+
+  GPS (se incluso)
+    GPS_Latitude, GPS_Longitude, GPS_Altitude, GPS_Direction,
+    GPS_City, GPS_State, GPS_Country, GPS_Location
+
+  Autore
+    Artist, Copyright, Software
+
+  Metadati Lightroom/XMP
+    Title, Description, Rating, Color_Label, Instructions
+
+  Tag e AI
+    Tags (tutti i tag unificati, separati da punto e virgola),
+    Aesthetic_Score, Technical_Score, Is_Monochrome,
+    AI_Description, Model_Used
+
+  Elaborazione
+    Processed_Date, Processing_Time, Embedding_Generated,
+    LLM_Generated
+
+Il file viene salvato con codifica UTF-8 e separatore virgola.
+Il nome segue il formato:
+    metadata_export_20260209_143000.csv
+
+Il CSV e' utile per:
+  - Analisi statistiche del tuo archivio (Excel, Python, R)
+  - Backup completo dei metadati
+  - Condivisione dei dati senza il database SQLite
+  - Inventario del tuo equipaggiamento fotografico
+
+
+────────────────────────────────────────────────────────────────────────
+LA SINCRONIZZAZIONE XMP
+────────────────────────────────────────────────────────────────────────
+
+Oltre all'export dal tab dedicato, OffGallery ha un sistema di
+sincronizzazione XMP integrato nella Galleria. Questo sistema
+tiene traccia della corrispondenza tra i dati nel database e
+quelli nei file XMP delle foto.
+
+La sincronizzazione XMP funziona in modo diverso a seconda del
+tipo di file:
+
+  File standard (JPG, TIFF, PNG)
+    Usa i metadati embedded (scritti dentro il file stesso).
+    Non viene creato un sidecar.
+
+  File RAW proprietari (CR2, NEF, ARW, ORF, ecc.)
+    Usa solo il file sidecar .xmp. OffGallery non legge e non
+    scrive mai metadati embedded nei RAW (per sicurezza).
+
+  File DNG
+    Caso speciale: supporta sia l'embedded che il sidecar.
+    OffGallery puo' leggere e confrontare entrambi.
+
+
+────────────────────────────────────────────────────────────────────────
+STATI DI SINCRONIZZAZIONE
+────────────────────────────────────────────────────────────────────────
+
+Nella Galleria, ogni card mostra un badge XMP colorato che indica
+lo stato di sincronizzazione tra il database e i file fisici.
+
+  Badge    Stato           Significato
+  ──────  ───────────────  ─────────────────────────────────────
+
+  SYNC     Perfect Sync    Database e file coincidono
+  (verde)                  perfettamente. Tutto allineato.
+
+  MIX      Mixed State     Per file DNG: sia l'embedded che il
+  (viola)                  sidecar sono sincronizzati con il DB.
+
+  EMB      Embedded Dirty  I metadati dentro il file sono diversi
+  (giallo)                 da quelli nel database. Serve un
+                           aggiornamento.
+
+  XMP      Sidecar Dirty   Il file sidecar .xmp e' diverso dal
+  (arancio)                database. Probabilmente hai modificato
+                           i tag in Lightroom.
+
+  MIX      Mixed Dirty     Per file DNG: c'e' una discrepanza tra
+  (giallo)                 database, sidecar e/o embedded.
+
+  DB       DB Only         I dati sono solo nel database. Non e'
+  (ciano)                  stato ancora scritto nessun file XMP.
+                           Questo e' lo stato iniziale dopo
+                           l'elaborazione.
+
+  NO       No XMP          Nessun metadato trovato (ne' nel file
+  (grigio)                 ne' nel database).
+
+  ERR      Error           Errore durante la lettura dei metadati.
+  (rosso)
+
+Il badge mostra anche un tooltip dettagliato con il numero di
+tag presenti in ogni fonte (Embedded, Sidecar, Database) e la
+categoria del file (RAW, STANDARD, DNG).
+
+
+────────────────────────────────────────────────────────────────────────
+OPERAZIONI XMP DAL MENU CONTESTUALE
+────────────────────────────────────────────────────────────────────────
+
+Nella Galleria, cliccando con il tasto destro su una foto trovi
+il sottomenu "Sync XMP" con quattro operazioni:
+
+  Analizza stato sync (3-way)
+
+    Confronta i dati del database con quelli del file embedded e
+    del sidecar (confronto a tre vie). Mostra un report dettagliato
+    con lo stato risultante e le differenze trovate.
+
+    Il confronto verifica: keywords (tag), descrizione, titolo e
+    rating. Se tutti coincidono, lo stato e' "Perfect Sync".
+
+  Importa XMP nel database
+
+    Legge i metadati dal file XMP (sidecar o embedded, secondo il
+    tipo di file) e li importa nel database, aggiornando i tag,
+    la descrizione e il titolo nel database.
+
+    Utile quando hai modificato i tag in Lightroom e vuoi che
+    OffGallery li riconosca.
+
+  Esporta database in XMP
+
+    Scrive i dati del database nel file XMP (sidecar o embedded,
+    secondo il tipo di file). E' l'equivalente dell'export dal
+    tab dedicato, ma per una singola foto.
+
+  Mostra contenuto XMP
+
+    Mostra il contenuto grezzo del file XMP in una finestra di
+    dialogo. Utile per debug e verifica.
+
+
+────────────────────────────────────────────────────────────────────────
+IL FLUSSO DI LAVORO CONSIGLIATO CON LIGHTROOM
+────────────────────────────────────────────────────────────────────────
+
+Ecco il flusso tipico per integrare OffGallery con Lightroom:
+
+  1. Importa le foto in Lightroom come fai normalmente.
+
+  2. Elabora le foto con OffGallery (tab Processing). OffGallery
+     genera tag, descrizioni e punteggi per ogni foto.
+
+  3. Nella Galleria, seleziona le foto che vuoi esportare.
+
+  4. Vai al tab Export, attiva "Scrivi sidecar XMP" e scegli
+     "Directory originali delle immagini".
+
+  5. Avvia l'export. OffGallery crea un file .xmp accanto a ogni
+     foto con tutti i tag e le descrizioni generate dall'AI.
+
+  6. In Lightroom, seleziona le foto corrispondenti, clicca con
+     il tasto destro e scegli "Metadati > Leggi metadati da file"
+     (oppure "Metadata > Read Metadata from File" nella versione
+     inglese).
+
+  7. Lightroom importa i tag, la descrizione e il titolo dai file
+     .xmp. Ora puoi cercare le tue foto in Lightroom usando i tag
+     generati da OffGallery.
+
+  Se hai aggiornato i tag in Lightroom e vuoi riportarli in
+  OffGallery:
+
+  1. In Lightroom, salva i metadati su file (Ctrl+S o "Metadati >
+     Salva metadati su file").
+
+  2. In OffGallery, seleziona le foto nella Galleria.
+
+  3. Usa il menu contestuale "Sync XMP > Importa XMP nel database".
+
+  4. I tag aggiornati da Lightroom vengono importati nel database
+     di OffGallery.
+
+
+────────────────────────────────────────────────────────────────────────
+CONSIGLI PRATICI
+────────────────────────────────────────────────────────────────────────
+
+  - Per l'uso con Lightroom, scegli sempre "Directory originali"
+    come destinazione. Lightroom cerca i sidecar .xmp nella stessa
+    cartella dell'immagine.
+
+  - Tieni attiva l'opzione "Preserva metadati XMP esistenti" se
+    usi tag sia in Lightroom che in OffGallery. In questo modo i
+    tag non vengono mai persi, solo aggiunti.
+
+  - Il CSV e' comodo per tenere un backup dei metadati. Se dovessi
+    perdere il database SQLite, hai comunque una copia di tutti i
+    dati in un formato universale.
+
+  - Per i file DNG: se hai dei DNG originali (non generati da
+    conversione), valuta se attivare l'opzione "Consenti embedded
+    per DNG". Se i DNG sono tuoi negativi digitali, potrebbe essere
+    preferibile usare solo il sidecar per non modificarli.
+
+  - Il badge XMP nella Galleria ti aiuta a capire al volo quali
+    foto sono sincronizzate e quali no. Il badge "DB" (ciano)
+    indica che i dati sono solo nel database e non sono ancora
+    stati esportati in XMP.
+
+  - Se apri una foto con un editor esterno (dal menu contestuale
+    della Galleria) e modifichi i metadati, OffGallery rileva
+    automaticamente la modifica e ti propone di reimportare i dati.
+
+  - La copia delle foto non copia i file sidecar .xmp, solo i
+    file immagine originali. Se vuoi esportare foto + sidecar,
+    attiva sia "Copia foto originali" che "Scrivi sidecar XMP"
+    e usa la stessa directory unica come destinazione.
+
+
+================================================================================
+  Fine del Capitolo 7 - Esportazione e sincronizzazione XMP
+  Prossimo capitolo: 06 - Statistiche
+================================================================================

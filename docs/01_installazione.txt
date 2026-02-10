@@ -1,0 +1,419 @@
+================================================================================
+  OFFGALLERY - MANUALE UTENTE
+  Capitolo 1: Installazione
+================================================================================
+
+
+PANORAMICA
+──────────
+
+Per funzionare, OffGallery ha bisogno di alcuni componenti software che
+probabilmente non sono ancora presenti sul tuo computer. Non preoccuparti:
+l'installazione e' guidata da script automatici che fanno quasi tutto da soli.
+
+L'intera procedura richiede circa 30-40 minuti, di cui la maggior parte
+e' tempo di download. Serve una connessione internet.
+
+Ecco cosa installerai:
+
+  1. Miniconda     - un gestore di ambienti Python (gratuito, sicuro)
+  2. Ambiente Python e librerie - il "motore" dell'applicazione
+  3. Ollama        - per generare descrizioni e tag con AI (facoltativo)
+
+Al primo avvio, OffGallery scarichera' anche i modelli AI (~7 GB).
+Da quel momento in poi, l'applicazione funzionera' completamente offline.
+
+
+REQUISITI DEL COMPUTER
+──────────────────────
+
+  Componente         Minimo               Consigliato
+  ─────────────────  ───────────────────  ─────────────────────
+  Sistema operativo  Windows 10 64-bit    Windows 11
+  RAM                8 GB                 16 GB o piu'
+  Spazio su disco    15 GB liberi         25 GB liberi
+  Scheda video       non richiesta        NVIDIA con 4+ GB VRAM
+  Internet           si (solo per setup)  --
+
+  Note importanti:
+
+  - Se hai una scheda video NVIDIA (anche una entry-level come la T1000
+    o una GTX 1650), l'elaborazione delle foto sara' molto piu' veloce.
+    Se non hai una NVIDIA, l'applicazione funziona lo stesso usando
+    il processore (CPU), solo con tempi piu' lunghi.
+
+  - Lo spazio su disco serve per: librerie Python (~6 GB), modelli AI
+    (~7 GB), Ollama + modello LLM (~3.5 GB, se installato), piu' il
+    database delle tue foto che crescera' con l'uso.
+
+  - La connessione internet serve solo durante l'installazione e al
+    primo avvio. Dopo, non servira' mai piu'.
+
+
+SCARICARE OFFGALLERY
+────────────────────
+
+  Metodo A - Download ZIP (il piu' semplice):
+
+    1. Vai alla pagina del progetto su GitHub:
+       https://github.com/HEGOM61ita/OffGallery
+
+    2. Clicca sul pulsante verde "<> Code" in alto a destra.
+
+    3. Seleziona "Download ZIP".
+
+    4. Una volta scaricato, apri il file ZIP e estrai la cartella
+       dove preferisci. Ad esempio:
+         C:\OffGallery
+       oppure:
+         D:\Programmi\OffGallery
+
+       Scegli un percorso semplice, senza spazi nel nome se possibile.
+
+  Metodo B - Con Git (per chi lo usa gia'):
+
+    Apri un terminale e digita:
+      git clone https://github.com/HEGOM61ita/OffGallery.git
+
+
+STRUTTURA DELLA CARTELLA
+─────────────────────────
+
+Dopo aver estratto il file ZIP, dentro la cartella OffGallery troverai
+una sottocartella "installer" con gli script di installazione:
+
+  OffGallery/
+    installer/
+      01_install_miniconda.bat    <-- Step 1
+      02_create_env.bat           <-- Step 2
+      03_install_packages.bat     <-- Step 3
+      06_setup_ollama.bat         <-- Step 4 (facoltativo)
+      07_verify_installation.py   <-- Verifica finale
+      OffGallery_Launcher.bat     <-- Per avviare l'app
+      INSTALL_GUIDE.md            <-- Guida di riferimento
+
+Gli step vanno eseguiti in ordine, uno dopo l'altro.
+
+
+────────────────────────────────────────────────────────────────────────
+STEP 1 - INSTALLARE MINICONDA
+────────────────────────────────────────────────────────────────────────
+
+Miniconda e' un piccolo programma gratuito che permette di installare
+Python e le librerie necessarie in modo isolato, senza interferire
+con altri programmi sul tuo computer. E' ampiamente usato nel mondo
+scientifico e dell'intelligenza artificiale.
+
+  1. Apri la cartella "installer" e fai doppio click su:
+       01_install_miniconda.bat
+
+  2. Si apre una finestra nera (il terminale). Leggi il messaggio:
+
+     - Se vedi "[OK] Conda gia' installato" significa che Miniconda
+       e' gia' presente sul tuo computer. Puoi passare allo Step 2.
+
+     - Se vedi "[!!] Conda non trovato", devi installarlo.
+       Continua a leggere.
+
+  3. Lo script ti chiedera':
+       "Vuoi aprire la pagina di download ora? (S/N):"
+     Digita S e premi INVIO. Si aprira' il browser.
+
+  4. Nella pagina web, cerca la sezione Windows e scarica:
+       "Miniconda3 Windows 64-bit"
+     Il file pesa circa 80 MB.
+
+  5. Una volta scaricato, vai nella cartella Download e fai
+     doppio click sul file (il nome sara' qualcosa come
+     Miniconda3-latest-Windows-x86_64.exe).
+
+  6. Si avvia l'installazione guidata. Segui questi passaggi:
+
+     Schermata "Welcome"
+       Clicca Next.
+
+     Schermata "License Agreement"
+       Clicca I Agree.
+
+     Schermata "Select Installation Type"
+       Seleziona "Just Me (recommended)" e clicca Next.
+
+     Schermata "Choose Install Location"
+       Lascia il percorso proposto e clicca Next.
+
+     Schermata "Advanced Options"   *** IMPORTANTE ***
+       Qui devi spuntare DUE caselle:
+         [x] Add Miniconda3 to my PATH environment variable
+         [x] Register Miniconda3 as my default Python 3.x
+       Poi clicca Install.
+
+       Se dimentichi di spuntare "Add to PATH", gli script dei
+       passaggi successivi non funzioneranno. In quel caso dovrai
+       disinstallare Miniconda e rifarlo.
+
+     Schermata "Installing"
+       Attendi 1-2 minuti.
+
+     Schermata "Completed"
+       Clicca Next e poi Finish.
+
+  7. CHIUDI tutte le finestre del terminale che avevi aperto.
+     Questo e' necessario perche' il sistema riconosca la nuova
+     installazione.
+
+  8. Per verificare che tutto sia andato bene, fai di nuovo doppio
+     click su 01_install_miniconda.bat. Questa volta dovresti vedere:
+
+       [OK] Conda gia' installato nel sistema
+       conda 24.x.x
+
+     Se lo vedi, Miniconda e' installato. Passa allo Step 2.
+
+  Se qualcosa non va:
+
+    Problema: "Conda non trovato" anche dopo l'installazione.
+    Soluzione: riavvia il computer e riprova.
+
+    Problema: la casella "Add to PATH" era grigia e non selezionabile.
+    Soluzione: disinstalla Miniconda (da Impostazioni > App), poi
+    reinstalla selezionando "Just Me" come tipo di installazione.
+
+    Problema: errore generico durante l'installazione.
+    Soluzione: disabilita temporaneamente l'antivirus e riprova.
+
+
+────────────────────────────────────────────────────────────────────────
+STEP 2 - CREARE L'AMBIENTE OFFGALLERY
+────────────────────────────────────────────────────────────────────────
+
+Questo passaggio crea un "contenitore" isolato in cui verranno
+installate tutte le librerie di OffGallery, senza toccare nient'altro
+sul tuo computer. Dura circa 2 minuti.
+
+  1. Fai doppio click su:
+       02_create_env.bat
+
+  2. Lo script verifica che Miniconda sia presente, poi crea
+     l'ambiente "OffGallery" con Python 3.11.
+
+  3. Attendi il messaggio:
+       [OK] Ambiente "OffGallery" creato con successo!
+
+  4. Passa allo Step 3.
+
+  Se l'ambiente esisteva gia' (ad esempio da un tentativo precedente),
+  lo script ti chiedera' se vuoi eliminarlo e ricrearlo. Rispondi S
+  se vuoi ripartire da zero, oppure N per tenerlo e andare avanti.
+
+
+────────────────────────────────────────────────────────────────────────
+STEP 3 - INSTALLARE LE LIBRERIE PYTHON
+────────────────────────────────────────────────────────────────────────
+
+Questo e' il passaggio piu' lungo: scarica e installa circa 3 GB di
+librerie (PyTorch, Transformers, OpenCV, PyQt6 e altre). Richiede
+15-20 minuti a seconda della velocita' della tua connessione.
+
+  1. Fai doppio click su:
+       03_install_packages.bat
+
+  2. Lo script attiva l'ambiente OffGallery, aggiorna pip (il gestore
+     pacchetti di Python), e installa tutte le dipendenze.
+
+  3. Vedrai scorrere molte righe di testo. E' normale. Non chiudere
+     la finestra.
+
+  4. Al termine vedrai:
+       [OK] Tutti i pacchetti installati con successo!
+
+  Se l'installazione fallisce:
+    - Verifica di avere una connessione internet attiva.
+    - Controlla di avere abbastanza spazio su disco.
+    - Chiudi e riesegui lo script: ripartira' da dove si era fermato,
+      senza riscaricare cio' che ha gia' installato.
+
+
+────────────────────────────────────────────────────────────────────────
+STEP 4 - INSTALLARE OLLAMA (FACOLTATIVO)
+────────────────────────────────────────────────────────────────────────
+
+Ollama e' un programma che permette di eseguire modelli di linguaggio
+(LLM) direttamente sul tuo computer. OffGallery lo usa per generare
+automaticamente descrizioni testuali e tag per le tue foto, tramite
+il modello Qwen3-VL (un modello "vision" che capisce le immagini).
+
+Se non ti interessa questa funzionalita', puoi saltare questo
+passaggio. Tutte le altre funzioni di OffGallery (ricerca semantica,
+similarita' visiva, valutazione estetica, classificazione specie)
+funzioneranno comunque.
+
+Puoi sempre installare Ollama in un secondo momento.
+
+  1. Fai doppio click su:
+       06_setup_ollama.bat
+
+  2. Se Ollama non e' presente sul computer:
+     - Lo script ti chiede se vuoi aprire la pagina di download.
+       Rispondi S.
+     - Scarica e installa "Ollama for Windows" dal sito ufficiale.
+     - Dopo l'installazione, chiudi e riesegui lo script.
+
+  3. Se Ollama e' gia' installato, lo script verifica se il modello
+     qwen3-vl:4b-instruct e' presente.
+
+  4. Se il modello non c'e', lo script ti chiede:
+       "Vuoi scaricare il modello ora? (S/N):"
+     Rispondi S. Il download e' di circa 3.3 GB e richiede 5-15 minuti.
+
+  5. Al termine vedrai:
+       [OK] Ollama configurato con successo!
+       Modello installato: qwen3-vl:4b-instruct (3.3 GB)
+
+  Nota: quando usi OffGallery con la generazione di descrizioni attiva,
+  Ollama deve essere in esecuzione in background. Di solito si avvia
+  automaticamente con Windows e appare come icona nella system tray
+  (l'area delle icone in basso a destra, vicino all'orologio).
+
+
+────────────────────────────────────────────────────────────────────────
+VERIFICA DELL'INSTALLAZIONE (FACOLTATIVO)
+────────────────────────────────────────────────────────────────────────
+
+Se vuoi controllare che tutto sia installato correttamente, puoi
+eseguire lo script di verifica. Questo passaggio non e' obbligatorio,
+ma ti da' una visione completa dello stato del sistema.
+
+  1. Apri un terminale (Prompt dei comandi o PowerShell).
+
+  2. Digita questi comandi:
+       conda activate OffGallery
+       cd C:\percorso\di\OffGallery\installer
+       python 07_verify_installation.py
+
+     (sostituisci il percorso con quello reale della tua cartella)
+
+  3. Lo script verifica ogni componente e mostra un riepilogo:
+
+       [OK] Python 3.11.x
+       [OK] PyTorch x.x.x + GPU (nome scheda video)
+       [OK] Transformers x.x.x
+       [OK] PyQt6 x.x.x
+       [OK] OpenCV x.x.x + BRISQUE
+       ...
+
+     I componenti segnati come [OK] funzionano.
+     Quelli segnati come [!!] non sono disponibili.
+
+  4. Se Python, PyTorch, Transformers e PyQt6 sono tutti [OK],
+     l'installazione base e' completa e l'applicazione funzionera'.
+
+     Gli altri componenti (CLIP, DINOv2, Aesthetic, BioCLIP, Argos)
+     verranno scaricati automaticamente al primo avvio, quindi e'
+     normale se risultano [!!] in questa fase.
+
+
+────────────────────────────────────────────────────────────────────────
+AVVIARE OFFGALLERY
+────────────────────────────────────────────────────────────────────────
+
+  Metodo 1 - Doppio click (consigliato per l'uso quotidiano):
+
+    Nella cartella "installer" c'e' il file:
+      OffGallery_Launcher.bat
+
+    Puoi copiarlo sul Desktop per averlo sempre a portata di mano.
+    Fai doppio click per avviare l'applicazione.
+
+    Il launcher attiva automaticamente l'ambiente Python corretto
+    e avvia OffGallery.
+
+  Metodo 2 - Da terminale:
+
+    Apri un terminale e digita:
+      conda activate OffGallery
+      cd C:\percorso\di\OffGallery
+      python gui_launcher.py
+
+
+────────────────────────────────────────────────────────────────────────
+PRIMO AVVIO
+────────────────────────────────────────────────────────────────────────
+
+La prima volta che avvii OffGallery, l'applicazione scarica
+automaticamente i modelli AI necessari. Questo avviene una sola volta.
+
+Vedrai una schermata di caricamento con una barra di avanzamento e
+un log che mostra cosa sta succedendo. Il download comprende:
+
+  Modello                   Funzione                      Dimensione
+  ────────────────────────  ────────────────────────────  ──────────
+  CLIP                      Ricerca semantica             ~580 MB
+  DINOv2                    Similarita' visiva            ~330 MB
+  Aesthetic Predictor       Valutazione estetica          ~1.6 GB
+  BioCLIP + TreeOfLife      Classificazione flora/fauna   ~4.2 GB
+  Argos Translate           Traduzione IT → EN            ~92 MB
+
+  Totale: circa 7 GB
+
+I modelli vengono scaricati da un repository controllato
+(HEGOM/OffGallery-models su HuggingFace) per garantire che le
+versioni siano sempre compatibili.
+
+Il tempo necessario dipende dalla velocita' della tua connessione.
+Con una connessione domestica tipica, circa 10-20 minuti.
+
+Se il download si interrompe (ad esempio per un problema di rete),
+riavvia l'applicazione: ripartira' da dove si era fermato, senza
+riscaricare cio' che ha gia' ottenuto.
+
+Una volta completato il download, OffGallery funzionera' in modo
+completamente offline. Non avra' piu' bisogno di internet per nulla.
+
+
+────────────────────────────────────────────────────────────────────────
+SPAZIO SU DISCO OCCUPATO (RIEPILOGO)
+────────────────────────────────────────────────────────────────────────
+
+Dopo l'installazione completa, ecco quanto spazio occupa ogni
+componente e dove si trova:
+
+  Componente              Posizione                            Dimensione
+  ──────────────────────  ───────────────────────────────────  ──────────
+  Miniconda               %USERPROFILE%\miniconda3             ~400 MB
+  Ambiente OffGallery     %USERPROFILE%\miniconda3\envs\...    ~6 GB
+  Modelli HuggingFace     %USERPROFILE%\.cache\huggingface     ~6.7 GB
+  Argos Translate         %USERPROFILE%\.local\share\argos...  ~92 MB
+  Ollama + modello LLM    %LOCALAPPDATA%\Ollama                ~3.5 GB
+
+  Totale approssimativo: circa 17 GB
+
+  (%USERPROFILE% e' la cartella del tuo utente Windows, ad esempio
+   C:\Users\Mario)
+
+
+────────────────────────────────────────────────────────────────────────
+DISINSTALLAZIONE
+────────────────────────────────────────────────────────────────────────
+
+Se vuoi rimuovere OffGallery dal computer:
+
+  1. Elimina la cartella OffGallery (quella che hai estratto dallo ZIP).
+
+  2. Rimuovi l'ambiente Conda:
+     Apri un terminale e digita:
+       conda env remove -n OffGallery -y
+
+  3. Se vuoi liberare tutto lo spazio, elimina anche:
+     - La cache dei modelli: %USERPROFILE%\.cache\huggingface
+     - Argos Translate: %USERPROFILE%\.local\share\argos-translate
+
+  4. Se hai installato Ollama e non lo usi per altro:
+     - Disinstallalo da Impostazioni > App > Ollama
+
+  5. Se hai installato Miniconda solo per OffGallery:
+     - Disinstallalo da Impostazioni > App > Miniconda3
+
+================================================================================
+  Fine del Capitolo 1 - Installazione
+  Prossimo capitolo: 02 - Primo avvio e configurazione iniziale
+================================================================================

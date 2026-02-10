@@ -1,0 +1,532 @@
+================================================================================
+  OFFGALLERY - MANUALE UTENTE
+  Capitolo 8: Configurazione avanzata
+================================================================================
+
+
+PANORAMICA
+──────────
+
+Il tab Configurazione e' la prima scheda dell'applicazione. Contiene
+tutte le impostazioni di OffGallery, dai percorsi del database ai
+parametri dei modelli AI, dagli editor esterni alle ottimizzazioni
+delle immagini.
+
+La configurazione viene salvata nel file config_new.yaml nella
+cartella principale di OffGallery. Ogni volta che salvi, viene
+creato automaticamente un backup del file precedente con un
+timestamp nel nome (ad esempio config_new.yaml_BACKUP_20260209_143000.yaml).
+
+Il tab e' organizzato in sezioni raggruppate per funzione. In fondo
+trovi due pulsanti:
+
+  Reset Default     Ripristina tutti i parametri ai valori originali.
+                    Chiede conferma prima di procedere e crea un
+                    backup della configurazione corrente.
+
+  Salva Configurazione    Salva tutte le impostazioni su file.
+
+Importante: le modifiche alla configurazione hanno effetto solo
+dopo aver cliccato "Salva Configurazione". Se cambi un parametro
+e poi cambi tab senza salvare, la modifica viene persa.
+
+
+────────────────────────────────────────────────────────────────────────
+PERCORSI E DATABASE
+────────────────────────────────────────────────────────────────────────
+
+La prima sezione configura i percorsi fondamentali.
+
+  Database
+
+    Il percorso del file database SQLite dove OffGallery salva
+    tutti i dati delle foto elaborate. Il valore di default e':
+      database/offgallery.sqlite
+
+    Il file viene creato automaticamente se non esiste. Puoi
+    cambiarlo se vuoi tenere il database in una posizione diversa.
+
+  Dir Log
+
+    La directory dove vengono salvati i file di log. Il valore
+    di default e' "logs". I file di log dell'elaborazione vengono
+    salvati qui quando attivi l'opzione nel tab Processing.
+
+Entrambi i campi hanno un pulsante di sfoglia per selezionare
+il percorso con una finestra di dialogo.
+
+
+────────────────────────────────────────────────────────────────────────
+EDITOR ESTERNI
+────────────────────────────────────────────────────────────────────────
+
+Puoi configurare fino a 3 editor esterni per aprire e modificare
+le foto direttamente dalla Galleria (menu contestuale > File >
+Apri con...).
+
+Per ogni editor puoi specificare:
+
+  Attivo       Casella di spunta per abilitare o disabilitare
+               l'editor. Solo gli editor attivi appaiono nel menu.
+
+  Nome Editor  Un nome a tua scelta (ad esempio "Lightroom",
+               "PhotoLab", "Photoshop"). Massimo 30 caratteri.
+
+  Percorso Eseguibile   Il percorso completo del file .exe
+               dell'editor. Puoi digitarlo manualmente o usare
+               il pulsante di sfoglia.
+
+               Esempio:
+               C:/Program Files/Adobe/Adobe Lightroom Classic/Lightroom.exe
+
+               Il campo si colora di verde se il percorso e' valido,
+               di rosso se non lo e'.
+
+  Argomenti Comando   Parametri aggiuntivi da passare all'editor
+               quando viene aperto. Facoltativo.
+
+               Esempio: "nosplash" per DxO PhotoLab evita la
+               schermata di avvio.
+
+Quando apri una foto con un editor esterno dalla Galleria,
+OffGallery monitora il processo. Se l'editor modifica il file
+o il suo sidecar XMP, OffGallery rileva la modifica e propone
+automaticamente di reimportare i metadati nel database.
+
+
+────────────────────────────────────────────────────────────────────────
+DEVICE DI ELABORAZIONE
+────────────────────────────────────────────────────────────────────────
+
+Questa sezione controlla quale dispositivo hardware viene usato
+per i calcoli AI.
+
+  Auto-detect (consigliato)
+
+    OffGallery rileva automaticamente se hai una GPU NVIDIA con
+    supporto CUDA. Se la trova, la usa. Altrimenti usa la CPU.
+    Questa e' l'opzione di default e funziona nella maggior parte
+    dei casi.
+
+  Forza GPU (CUDA)
+
+    Forza l'uso della GPU. Se la GPU non e' disponibile, ricade
+    automaticamente sulla CPU. Utile se vuoi essere sicuro che
+    la GPU venga usata.
+
+  Forza CPU
+
+    Disabilita completamente la GPU e usa solo il processore.
+    Utile se la GPU da' problemi (errori di memoria, crash) o
+    se vuoi liberare la scheda video per altri programmi.
+
+Sotto la selezione, una riga mostra lo stato della GPU rilevata:
+
+  Verde:  GPU disponibile con nome e VRAM.
+  Giallo: nessuna GPU rilevata, verra' usata la CPU.
+  Rosso:  errore nel rilevamento.
+
+
+────────────────────────────────────────────────────────────────────────
+MODELLI DI EMBEDDING (CORE)
+────────────────────────────────────────────────────────────────────────
+
+Questa sezione raggruppa i due modelli fondamentali che sono sempre
+attivi: CLIP e DINOv2. Non possono essere disabilitati perche' sono
+necessari per la ricerca semantica e la similarita' visiva.
+
+  DINOv2 (Similarita' Visiva)
+
+    Nome Modello          Il modello DINOv2 da usare.
+                          Default: facebook/dinov2-base
+
+    Dimensione Embedding  La dimensione del vettore generato.
+                          Default: 768 (DINOv2-base)
+                          Valori validi: 64-1024
+
+    Soglia Similarita'    La soglia per la funzione "Trova simili"
+                          nella Galleria. Piu' basso il valore, piu'
+                          risultati vengono mostrati (anche meno
+                          simili). Piu' alto, solo risultati molto
+                          simili.
+                          Default: 0.25
+                          Range: 0.00-1.00
+
+                          Il campo si colora di rosso se il valore
+                          e' troppo basso (< 0.25) o di giallo se
+                          troppo alto (> 0.80).
+
+  CLIP (Ricerca Semantica)
+
+    Nome Modello          Il modello CLIP da usare.
+                          Default: laion/CLIP-ViT-B-32-laion2B-s34B-b79K
+
+    Dimensione Embedding  La dimensione del vettore generato.
+                          Default: 512 (CLIP-ViT-B-32)
+                          Valori validi: 64-1024
+
+  Nota: cambiare il modello CLIP o DINOv2 richiede di rielaborare
+  tutte le foto (modalita' "Riprocessa tutte" nel tab Processing),
+  perche' gli embedding esistenti non sono compatibili con un modello
+  diverso.
+
+
+────────────────────────────────────────────────────────────────────────
+MODELLI DI CLASSIFICAZIONE E ANALISI
+────────────────────────────────────────────────────────────────────────
+
+Questa sezione raggruppa i modelli opzionali che possono essere
+abilitati o disabilitati.
+
+
+QUALITY SCORES
+──────────────
+
+  Genera Aesthetic Score
+
+    Abilita o disabilita il punteggio estetico (0-10). Questo
+    modello valuta la qualita' artistica dell'immagine: composizione,
+    appeal visivo, bilanciamento.
+
+    Attivo per default.
+
+  Genera Technical Score
+
+    Abilita o disabilita il punteggio tecnico BRISQUE (0-100).
+    Questo algoritmo analizza la nitidezza, il rumore e gli artefatti
+    dell'immagine. Funziona solo su file non-RAW (JPG, PNG, TIFF).
+
+    Attivo per default.
+
+
+BIOCLIP TAGGING
+───────────────
+
+BioCLIP classifica automaticamente le specie di flora e fauna
+nelle tue foto, usando un database di circa 450.000 specie
+(TreeOfLife).
+
+  Usa BioCLIP nel processing batch
+
+    Se attiva, BioCLIP viene eseguito automaticamente durante
+    l'elaborazione di massa (tab Processing). Se disattivata,
+    BioCLIP e' comunque disponibile manualmente dalla Galleria
+    (menu contestuale > Genera AI > BioCLIP).
+
+  Soglia di Rilevanza
+
+    La confidenza minima perche' un tag venga accettato.
+    Default: 0.12
+    Range: 0.01-1.00
+
+    Piu' basso il valore, piu' tag vengono generati (ma con
+    meno certezza). Piu' alto, solo classificazioni molto sicure.
+
+  Max Tag per Immagine
+
+    Numero massimo di tag BioCLIP per foto.
+    Default: 5
+    Range: 1-20
+
+
+GENERAZIONE AI (TAGS / DESCRIZIONE / TITOLO)
+─────────────────────────────────────────────
+
+Questa sezione configura la generazione automatica tramite il
+modello LLM vision (Qwen3-VL via Ollama).
+
+  Connessione
+
+    Endpoint         L'indirizzo di Ollama.
+                     Default: http://localhost:11434
+
+                     Il pulsante "Test" verifica la connessione e
+                     mostra i modelli disponibili. Il pulsante si
+                     colora di verde (connessione riuscita) o rosso
+                     (fallita) per 3 secondi dopo il test.
+
+    Modello LLM      Il nome del modello da usare.
+                     Default: qwen3-vl:4b-instruct
+
+    Timeout          Secondi di attesa massima per una risposta.
+                     Default: 240 secondi
+                     Range: 30-600 secondi
+
+  Generazione durante Import Batch
+
+    Per ciascuno dei tre tipi di generazione (Tags, Descrizione,
+    Titolo), puoi configurare:
+
+    Genera       Se attiva, la generazione viene eseguita
+                 automaticamente durante l'elaborazione di massa
+                 (tab Processing).
+
+    Sovrascrivi  Se attiva, i dati generati dall'LLM sovrascrivono
+    esistente    quelli gia' presenti nel file (tag XMP, descrizione
+                 IPTC, ecc.). Se disattiva, i dati esistenti vengono
+                 preservati e l'LLM genera solo dove manca.
+
+    Parametri    Valori specifici per ogni tipo:
+                   Tags:         Max Tags (default: 10, range: 1-20)
+                   Descrizione:  Max Parole (default: 100, range: 20-300)
+                   Titolo:       Max Parole (default: 5, range: 1-10)
+
+  Nota: la generazione LLM puo' essere eseguita anche manualmente
+  dalla Galleria (menu contestuale > Genera AI > LLM) indipendentemente
+  da queste impostazioni. Le opzioni qui riguardano solo l'elaborazione
+  automatica nel tab Processing.
+
+
+────────────────────────────────────────────────────────────────────────
+ELABORAZIONE IMMAGINI E PERFORMANCE
+────────────────────────────────────────────────────────────────────────
+
+
+ELABORAZIONE IMMAGINI
+─────────────────────
+
+  Converti RAW            Se attiva, i file RAW vengono convertiti
+                          internamente per l'elaborazione AI.
+                          Default: attiva.
+
+  Qualita' JPEG           Qualita' di compressione per le conversioni
+                          interne. Default: 95%. Range: 50-100%.
+
+  Max Dimensione          Dimensione massima in pixel per le immagini
+                          elaborate. Default: 2048px. Range: 512-8192px.
+
+  Max Workers             Numero di thread paralleli per l'elaborazione.
+                          Default: 4. Range: 1-16.
+
+                          Aumenta se hai molti core CPU. Riduci se
+                          l'elaborazione causa problemi di stabilita'.
+
+  Resize Automatico       Se attiva, ridimensiona automaticamente le
+                          immagini troppo grandi. Default: disattiva.
+
+
+PROCESSING RAW
+──────────────
+
+Sotto-sezione dedicata all'elaborazione dei file RAW.
+
+  Cache Thumb             Salva i thumbnail estratti dai RAW in una
+                          cache locale. Velocizza le rielaborazioni.
+                          Default: attiva.
+
+  Dir Cache               La cartella dove vengono salvati i thumbnail.
+                          Default: thumbnails_cache
+
+  Timeout                 Secondi di attesa massima per l'estrazione
+                          di un singolo file RAW. Default: 30s.
+                          Range: 10-300s.
+
+  Fallback Size           Dimensione del thumbnail di fallback se
+                          l'estrazione fallisce. Default: 512px.
+                          Range: 256-2048px.
+
+  Strategia               Come viene estratta l'immagine dal file RAW:
+
+                          embedded   Usa il thumbnail JPEG incorporato
+                                     dalla fotocamera. Il piu' veloce.
+
+                          preview    Usa la preview a media risoluzione.
+                                     Buon compromesso.
+
+                          full       Decodifica l'intero RAW con rawpy.
+                                     Massima qualita', piu' lento.
+
+                          Default: embedded
+
+  Fallback Thumb          Se attiva, usa un thumbnail generico quando
+                          l'estrazione del RAW fallisce completamente.
+                          Default: attiva.
+
+
+FORMATI FILE SUPPORTATI
+───────────────────────
+
+Un'area di testo che elenca tutti i formati file che OffGallery
+riconosce, uno per riga. Puoi modificarla manualmente o usare
+uno dei tre preset:
+
+  Basic       Solo formati standard: JPG, JPEG, PNG, BMP, TIFF,
+              TIF, WEBP.
+
+  Extended    Standard + RAW comuni: CR2, CR3, NEF, NRW, ARW,
+              SRF, SR2, RAF, ORF, RW2, DNG, HEIC.
+
+  Completo    Tutti i formati supportati, compresi RAW meno comuni:
+              CRW, RAW, PEF, PTX, RWL, 3FR, IIQ, X3F.
+
+Il preset "Extended" e' il default.
+
+
+PROFILI OTTIMIZZAZIONE AI
+─────────────────────────
+
+Ogni modello AI lavora con una dimensione ottimale di immagine.
+Questa sezione permette di configurare i parametri di estrazione
+per ogni modello:
+
+  Profilo         Size     Quality  Method              Resampling
+  ──────────────  ───────  ───────  ──────────────────  ──────────
+  LLM Vision      1024px   95%      rawpy_full          LANCZOS
+  CLIP            512px    90%      high_quality        LANCZOS
+  DINOv2          518px    90%      high_quality        LANCZOS
+  BioCLIP         384px    90%      high_quality        LANCZOS
+  Aesthetic       336px    85%      preview_optimized   BILINEAR
+  AI Generic      512px    85%      preview_optimized   LANCZOS
+
+I parametri:
+
+  Size            Dimensione target del thumbnail per il modello.
+  Quality         Qualita' di compressione (%).
+  Method          Metodo di estrazione dal RAW:
+                    rawpy_full         = massima qualita'
+                    high_quality       = alta qualita' con preview
+                    preview_optimized  = bilanciato
+                    fast_thumbnail     = veloce con thumbnail embedded
+  Resampling      Algoritmo di ridimensionamento:
+                    LANCZOS   = migliore qualita' (piu' lento)
+                    BICUBIC   = qualita' media
+                    BILINEAR  = buona qualita' (veloce)
+                    NEAREST   = velocissimo (qualita' base)
+
+Questi valori sono gia' ottimizzati per un buon equilibrio tra
+qualita' e velocita'. Modificali solo se sai cosa stai facendo.
+
+
+────────────────────────────────────────────────────────────────────────
+RICERCA E METADATI
+────────────────────────────────────────────────────────────────────────
+
+
+RICERCA AVANZATA
+────────────────
+
+  Ricerca Fuzzy           Abilita la corrispondenza approssimativa
+                          nella ricerca per tag. Permette di trovare
+                          risultati anche con errori di battitura.
+                          Default: attiva.
+
+  Max Risultati           Numero massimo di risultati per la ricerca
+                          testuale. Default: 100. Range: 10-1000.
+
+  Soglia Semantica        La soglia minima di similarita' per la
+                          ricerca semantica CLIP. Piu' basso il
+                          valore, piu' risultati (meno precisi).
+                          Default: 0.15
+                          Range: 0.05-0.50
+
+                          Il campo si colora di rosso (< 0.10) o
+                          giallo (> 0.30) se il valore e' fuori
+                          dall'intervallo consigliato.
+
+
+ESTRAZIONE METADATI
+───────────────────
+
+  Estrai EXIF             Estrae i metadati tecnici dalle foto
+                          (ISO, apertura, modello fotocamera, ecc.).
+                          Default: attiva.
+
+  Estrai GPS              Estrae le coordinate GPS dalle foto.
+                          Default: attiva.
+
+                          Se hai preoccupazioni sulla privacy (ad
+                          esempio non vuoi che le coordinate della
+                          tua casa vengano salvate nel database),
+                          puoi disattivare questa opzione.
+
+
+RICERCA (SEMANTICA + TAG)
+─────────────────────────
+
+  Max Risultati           Numero massimo di risultati mostrati
+                          nel tab Ricerca. Default: 20.
+                          Range: 10-500.
+
+
+────────────────────────────────────────────────────────────────────────
+LOGGING E DEBUG
+────────────────────────────────────────────────────────────────────────
+
+  Mostra messaggi DEBUG
+
+    Abilita o disabilita i messaggi di debug nel tab Log
+    dell'applicazione. Quando attiva, il log e' molto piu'
+    verboso e mostra ogni operazione interna. Utile per
+    diagnosticare problemi, ma puo' rendere il log difficile
+    da leggere durante l'uso normale.
+
+    Default: attiva.
+
+
+────────────────────────────────────────────────────────────────────────
+IL FILE DI CONFIGURAZIONE (config_new.yaml)
+────────────────────────────────────────────────────────────────────────
+
+Tutte le impostazioni sono salvate nel file config_new.yaml
+nella cartella principale di OffGallery. Il file e' in formato
+YAML, un formato di testo leggibile. Puoi modificarlo anche
+manualmente con un editor di testo, ma e' consigliato usare
+l'interfaccia grafica.
+
+Il file contiene anche sezioni non visibili nell'interfaccia:
+
+  models_repository       Configurazione del repository HuggingFace
+                          da cui vengono scaricati i modelli AI al
+                          primo avvio. Non c'e' motivo di modificarlo.
+
+  image_optimization      Oltre ai profili visibili nell'interfaccia,
+  (sezioni extra)         contiene profili interni come gallery_display,
+                          metadata_extraction e technical_score che
+                          vengono gestiti automaticamente.
+
+
+────────────────────────────────────────────────────────────────────────
+CONSIGLI PRATICI
+────────────────────────────────────────────────────────────────────────
+
+  - Se non sai cosa modificare, lascia tutto ai valori di default.
+    Sono gia' ottimizzati per la maggior parte dei casi.
+
+  - Il parametro che ha piu' impatto sulla velocita' e' il Device:
+    se hai una GPU NVIDIA, assicurati che sia impostato su "Auto"
+    o "Forza GPU".
+
+  - Se l'elaborazione e' lenta e hai una CPU con molti core,
+    prova ad aumentare "Max Workers" da 4 a 8.
+
+  - La strategia RAW "embedded" e' la piu' veloce ma a volte
+    il thumbnail incorporato dalla fotocamera e' di bassa qualita'.
+    Se noti che le ricerche sui file RAW danno risultati peggiori,
+    prova a cambiare la strategia in "preview" o "full" e rielabora.
+
+  - Non modificare i nomi dei modelli (CLIP, DINOv2) a meno che
+    tu non sappia esattamente cosa stai facendo. Un modello diverso
+    richiede una rielaborazione completa e potrebbe non funzionare.
+
+  - Dopo un reset ai valori di default, ricordati di riconfigurare
+    gli editor esterni e di salvare.
+
+  - Se hai problemi con Ollama, usa il pulsante "Test" nella
+    sezione LLM Vision per verificare che sia raggiungibile.
+    Il modello deve essere installato (vedi Capitolo 1).
+
+  - Disattivare BioCLIP e il punteggio tecnico riduce il tempo
+    di elaborazione di 1-2 secondi per foto. Se non ti interessano
+    le classificazioni di flora/fauna o la qualita' tecnica, puoi
+    disattivarli per velocizzare.
+
+  - Le soglie di ricerca (semantica e similarita') sono un
+    compromesso tra quantita' e qualita' dei risultati. Inizia
+    con i valori di default e aggiustali in base alla tua
+    esperienza.
+
+
+================================================================================
+  Fine del Capitolo 8 - Configurazione avanzata
+  Prossimo capitolo: 09 - Risoluzione problemi
+================================================================================

@@ -1,0 +1,338 @@
+================================================================================
+  OFFGALLERY - MANUALE UTENTE
+  Capitolo 6: Statistiche
+================================================================================
+
+
+A COSA SERVE IL DASHBOARD
+─────────────────────────
+
+Il tab Statistiche mostra un dashboard fotografico completo che
+analizza il tuo archivio sotto diversi aspetti: quante foto hai,
+con quale attrezzatura le hai scattate, come esponi, quanto sono
+completi i metadati, dove hai fotografato.
+
+I dati vengono calcolati direttamente dal database e si aggiornano
+automaticamente ogni volta che apri il tab. Non devi fare nulla:
+basta cliccare sulla scheda "Statistiche" e i numeri si aggiornano.
+
+Il dashboard e' pensato per fotografi che vogliono capire le proprie
+abitudini di scatto, verificare la copertura dei metadati e tenere
+sotto controllo lo stato dell'archivio.
+
+
+────────────────────────────────────────────────────────────────────────
+I TRE KPI PRINCIPALI
+────────────────────────────────────────────────────────────────────────
+
+In cima al dashboard trovi tre card grandi con i numeri piu'
+importanti:
+
+  Archivio Totale
+
+    Il numero totale di immagini presenti nel database. Questo
+    conteggio include tutte le foto elaborate, indipendentemente
+    dal formato (RAW, JPG, TIFF, DNG, ecc.).
+
+  Processing AI
+
+    La percentuale di foto che hanno ricevuto almeno un'elaborazione
+    AI (embedding CLIP o generazione LLM). Se e' al 100%, tutte le
+    foto sono state elaborate. Se e' inferiore, ci sono foto che
+    non hanno ancora embedding o descrizioni.
+
+  Metadata
+
+    La percentuale di foto che hanno almeno un metadato tra: tag,
+    descrizione o rating (stelle). Indica quanto e' "ricco" il tuo
+    catalogo. Una foto con solo l'embedding CLIP ma senza tag ne'
+    descrizione non viene contata qui.
+
+
+────────────────────────────────────────────────────────────────────────
+LE QUATTRO SEZIONI
+────────────────────────────────────────────────────────────────────────
+
+Sotto i KPI, il dashboard e' organizzato in quattro schede:
+
+  1. Database
+  2. Attrezzatura
+  3. Shooting
+  4. Workflow
+
+Ogni scheda mostra grafici a barre orizzontali e tabelle di
+metriche con righe alternate (zebra striping) per facilitare
+la lettura.
+
+
+────────────────────────────────────────────────────────────────────────
+SCHEDA "DATABASE"
+────────────────────────────────────────────────────────────────────────
+
+Questa scheda mostra lo stato del database e dell'elaborazione AI.
+E' divisa in tre aree:
+
+  Riepilogo Database
+
+    Total Records      Numero totale di record nel database.
+    File Size          Dimensione complessiva di tutti i file
+                       originali (sommati dal database, in GB).
+    RAW Files          Quanti file sono in formato RAW.
+    Standard Files     Quanti file sono in formato standard
+                       (JPG, TIFF, PNG, ecc.).
+    Duplicati (hash)   Quanti file hanno lo stesso hash MD5.
+                       Se questo numero e' alto, potresti avere
+                       copie duplicate delle stesse foto.
+
+  Processing AI
+
+    CLIP Embeddings    Quante foto hanno ricevuto un embedding
+                       CLIP (necessario per la ricerca semantica).
+    LLM Descriptions   Quante foto hanno ricevuto una descrizione
+                       generata dall'LLM (Qwen3-VL tramite Ollama).
+    Errori Processing  Quante foto hanno dato errore durante
+                       l'elaborazione.
+    Avg Processing Time  Tempo medio di elaborazione per foto
+                       (in secondi).
+
+  Distribuzione Temporale
+
+    Un grafico a barre orizzontali che mostra quante foto sono
+    state scattate per ogni anno. La data viene presa dal campo
+    EXIF "Date Original" della foto. Se non disponibile, usa la
+    data di digitalizzazione, di modifica o di elaborazione come
+    fallback.
+
+    Questo grafico ti aiuta a capire come si distribuisce il tuo
+    archivio nel tempo: se hai foto dal 2010 al 2026, vedrai una
+    barra per ogni anno con il conteggio.
+
+
+────────────────────────────────────────────────────────────────────────
+SCHEDA "ATTREZZATURA"
+────────────────────────────────────────────────────────────────────────
+
+Questa scheda analizza l'equipaggiamento fotografico utilizzato
+nelle tue foto, basandosi sui dati EXIF.
+
+  Fotocamere
+
+    Grafico a barre che mostra le fotocamere piu' usate (fino a 8),
+    ordinate per numero di scatti. Ogni barra rappresenta un modello
+    di fotocamera e il numero di foto scattate con essa.
+
+  Obiettivi
+
+    Grafico a barre che mostra gli obiettivi piu' usati (fino a 8),
+    ordinate per numero di scatti. I nomi degli obiettivi possono
+    essere lunghi (ad esempio "OLYMPUS M.14-150mm F4.0-5.6 II"):
+    il grafico gestisce automaticamente i nomi su piu' righe.
+
+  Focali
+
+    Grafico a barre che mostra la distribuzione delle lunghezze
+    focali, raggruppate in fasce:
+
+      <20mm          Ultra-grandangolo
+      20-35mm        Grandangolo
+      35-50mm        Normale
+      50-85mm        Medio tele
+      85-135mm       Tele corto
+      135-200mm      Tele
+      >200mm         Super tele
+
+  Summary (riepilogo)
+
+    Una riga compatta in fondo con quattro metriche:
+
+      Fotocamere     Numero di modelli diversi usati.
+      Obiettivi      Numero di obiettivi diversi usati.
+      Focale Top     La lunghezza focale piu' usata in assoluto.
+      Range          Il range focale coperto (da minimo a massimo).
+
+
+────────────────────────────────────────────────────────────────────────
+SCHEDA "SHOOTING"
+────────────────────────────────────────────────────────────────────────
+
+Questa scheda analizza le impostazioni di scatto e la qualita'
+delle tue foto.
+
+  Impostazioni Esposizione
+
+    Due grafici a barre affiancati:
+
+    Aperture piu' usate: mostra i valori di diaframma piu'
+    frequenti (f/2.8, f/4, f/5.6, ecc.). Ti aiuta a capire
+    se tendi a scattare con diaframmi aperti (ritratti, sfocato)
+    o chiusi (paesaggi, nitidezza).
+
+    Tempi di scatto: mostra i tempi di posa piu' usati, raggruppati
+    in fasce (>=1s, 1/2s, 1/10s, 1/50s, 1/125s, 1/250s, 1/500s,
+    >=1/1000s).
+
+  Analisi ISO
+
+    Grafico a barre che mostra la distribuzione degli ISO usati,
+    raggruppati in fasce:
+
+      <=100           ISO base
+      101-200         Basso
+      201-400         Medio-basso
+      401-800         Medio
+      801-1600        Medio-alto
+      1601-3200       Alto
+      3201-6400       Molto alto
+      >6400           Estremo
+
+    Ti aiuta a capire in che condizioni di luce fotografi di piu'.
+
+  Pattern di Scatto
+
+    Tre metriche sintetiche:
+
+      ISO Range            Range ISO usato (da minimo a massimo).
+      Apertura Preferita   Il diaframma piu' frequente.
+      Flash Detection      Percentuale di foto con flash attivato.
+
+  Metriche Qualita'
+
+    Quattro metriche sulla qualita' e completezza:
+
+      Rating Medio LR      Media delle stelle Lightroom (solo
+                           foto con rating > 0).
+      Foto 4-5 Stelle      Quante foto hanno 4 o 5 stelle.
+      Con Color Label      Quante foto hanno un'etichetta colore.
+      Foto GPS             Quante foto hanno coordinate GPS.
+
+
+────────────────────────────────────────────────────────────────────────
+SCHEDA "WORKFLOW"
+────────────────────────────────────────────────────────────────────────
+
+Questa scheda analizza la completezza dei metadati, i tag piu'
+usati e la distribuzione geografica.
+
+  Completezza Metadata
+
+    Cinque metriche espresse in percentuale:
+
+      Con Titolo         % di foto con un titolo nel database.
+      Con Descrizione    % di foto con una descrizione.
+      Con Tags           % di foto con almeno un tag.
+      Con Rating LR      % di foto con un rating in stelle.
+      Con GPS            % di foto con coordinate GPS.
+
+    Queste percentuali ti danno un quadro chiaro di quanto e'
+    completo il tuo catalogo. L'obiettivo ideale e' avere tutti
+    i valori il piu' vicino possibile al 100%.
+
+  Analisi Tags
+
+    Grafico a barre che mostra i 10 tag piu' frequenti nel tuo
+    archivio. I tag vengono estratti dal campo unificato del
+    database (che include tag Lightroom, tag utente, tag AI e
+    tag BioCLIP). Se usi spesso tag come "landscape", "portrait"
+    o "architecture", li vedrai qui con il conteggio.
+
+  Distribuzione Geografica
+
+    Quattro metriche:
+
+      Paesi Visitati        Numero di paesi diversi nelle foto.
+      Citta' Fotografate    Numero di citta' diverse.
+      GPS Coverage          Percentuale di foto con GPS.
+      Location Principale   La citta' con piu' foto. Se non c'e'
+                           il nome della citta', mostra le
+                           coordinate della prima foto con GPS.
+
+    Queste metriche funzionano solo se le tue foto contengono
+    dati GPS nei metadati EXIF. Se la tua fotocamera non registra
+    il GPS (o se l'hai disabilitato), queste sezioni mostreranno
+    valori a zero.
+
+  Gestione File
+
+    Quattro metriche:
+
+      Dimensione Archivio   Spazio totale occupato dai file
+                           originali (in GB).
+      Dimensione Media      Dimensione media per file (in MB).
+      File RAW              Percentuale di file in formato RAW.
+      Formati Unici         Quanti formati diversi sono presenti
+                           (ad esempio: CR2, JPG, ORF, DNG).
+
+
+────────────────────────────────────────────────────────────────────────
+COME LEGGERE I GRAFICI
+────────────────────────────────────────────────────────────────────────
+
+Tutti i grafici nel dashboard sono barre orizzontali:
+
+  - A sinistra c'e' l'etichetta (nome fotocamera, valore ISO,
+    anno, tag, ecc.).
+  - La barra colorata rappresenta il conteggio.
+  - A destra della barra c'e' il numero esatto.
+
+La barra piu' lunga corrisponde al valore massimo. Le altre
+sono proporzionate. I colori cambiano per sezione:
+
+  Verde      Fotocamere
+  Ambra      Obiettivi, tempi di scatto
+  Viola      Focali, tag
+  Rosso      ISO
+  Blu        Timeline
+
+Se una sezione non ha dati (ad esempio nessuna foto con GPS),
+il grafico mostra la scritta "Nessun dato".
+
+
+────────────────────────────────────────────────────────────────────────
+AGGIORNAMENTO AUTOMATICO
+────────────────────────────────────────────────────────────────────────
+
+Le statistiche si aggiornano automaticamente ogni volta che apri
+il tab. Non c'e' un pulsante di refresh: basta passare a un altro
+tab e tornare su Statistiche per avere i dati aggiornati.
+
+Se hai appena elaborato nuove foto (tab Processing) e vuoi vedere
+le statistiche aggiornate, passa a un'altra scheda e poi torna
+su Statistiche.
+
+
+────────────────────────────────────────────────────────────────────────
+CONSIGLI PRATICI
+────────────────────────────────────────────────────────────────────────
+
+  - Il dashboard e' utile dopo aver elaborato un buon numero di
+    foto (almeno qualche centinaio). Con poche foto i grafici
+    non sono molto significativi.
+
+  - Se "Errori Processing" mostra un numero alto, torna al tab
+    Processing, seleziona la modalita' "Nuove + errori precedenti"
+    e rilancia l'elaborazione per riprovare i file problematici.
+
+  - Il confronto tra "CLIP Embeddings" e "LLM Descriptions"
+    ti dice quante foto hanno la ricerca semantica attiva (CLIP)
+    e quante hanno anche una descrizione testuale (LLM). Se hai
+    molti CLIP ma pochi LLM, significa che Ollama non era attivo
+    durante l'elaborazione.
+
+  - Le metriche "Completezza Metadata" nel tab Workflow sono il
+    modo migliore per capire quanto lavoro resta da fare. Se
+    "Con Tags" e' al 30%, significa che il 70% delle foto non ha
+    ancora tag.
+
+  - I grafici "Attrezzatura" sono utili per capire quale
+    equipaggiamento usi di piu'. Se un obiettivo non compare mai,
+    forse non vale la pena tenerlo nel corredo.
+
+  - Le fasce ISO ti dicono in che condizioni di luce fotografi
+    di solito. Molte foto sopra ISO 3200? Forse ti servono
+    obiettivi piu' luminosi.
+
+
+================================================================================
+  Fine del Capitolo 6 - Statistiche
+  Prossimo capitolo: 08 - Configurazione avanzata
+================================================================================

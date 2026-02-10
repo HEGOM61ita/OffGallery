@@ -1,0 +1,55 @@
+================================================================================
+                     OFFGALLERY - MANUALE UTENTE
+              Sistema di catalogazione fotografica con AI locale
+================================================================================
+
+  Versione manuale: 1.0
+  Applicazione: OffGallery
+  Licenza: AGPL-3.0
+
+
+  INDICE DEI CAPITOLI
+  ───────────────────
+
+  01 - Installazione
+       Requisiti, download, Miniconda, ambiente Python, librerie, Ollama.
+
+  02 - Primo avvio e configurazione iniziale
+       Download automatico dei modelli AI, splash screen, impostazioni base.
+
+  03 - Elaborazione delle immagini
+       Tab Processing, modalita' di elaborazione, pipeline AI completa,
+       gestione RAW, statistiche di fine elaborazione.
+
+  04 - Ricerca
+       Ricerca semantica CLIP, ricerca per tag, Deep Search, filtri EXIF,
+       filtri qualita' e rating, traduzione automatica IT-EN.
+
+  05 - Galleria
+       Griglia responsive, card con badge e punteggi, tooltip, selezione,
+       menu contestuale, editor esterni, generazione AI manuale.
+
+  06 - Statistiche
+       Dashboard KPI, analisi attrezzatura, pattern di scatto, distribuzione
+       ISO/aperture/tempi, completezza metadati, distribuzione geografica.
+
+  07 - Esportazione e sincronizzazione XMP
+       Export XMP sidecar e embedded, export CSV completo, copia foto,
+       stati di sincronizzazione, flusso di lavoro con Lightroom.
+
+  08 - Configurazione avanzata
+       Percorsi, editor esterni, device GPU/CPU, modelli AI, BioCLIP, LLM,
+       profili ottimizzazione, soglie di ricerca, formati supportati.
+
+  09 - Risoluzione problemi
+       Problemi comuni e soluzioni per installazione, avvio, elaborazione,
+       ricerca, galleria, export, prestazioni, Ollama, database.
+
+
+  NOTE
+  ────
+  Questo manuale descrive le funzionalita' presenti nella versione corrente
+  di OffGallery. Nuovi capitoli verranno aggiunti con le future versioni
+  dell'applicazione.
+
+================================================================================
