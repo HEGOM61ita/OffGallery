@@ -553,6 +553,12 @@ class EmbeddingGenerator:
                         np.load(treeoflife_dir / 'txt_emb_species.npy')
                     ).to(self.device)
 
+                    # Normalizza shape: il file può essere (dim, N_specie) o (N_specie, dim)
+                    # Deve essere (N_specie, dim) per matmul con image_features (1, dim)
+                    if txt_emb.ndim == 2 and txt_emb.shape[0] < txt_emb.shape[1]:
+                        txt_emb = txt_emb.T
+                        logger.info(f"TreeOfLife: embeddings trasposti → {txt_emb.shape}")
+
                     with open(treeoflife_dir / 'txt_emb_species.json', 'r') as f:
                         txt_names = json.load(f)
 
@@ -612,20 +618,32 @@ class EmbeddingGenerator:
                                     if prob_val < min_prob:
                                         continue
 
-                                    # Estrai nome specie e parsing tassonomico
-                                    species_name = self.txt_names[idx.item()]
+                                    # Parsing tassonomico da TreeOfLife
+                                    entry = self.txt_names[idx.item()]
 
-                                    # Il formato TreeOfLife è tipicamente "genus_species" o simile
-                                    # Parsing base per estrarre genus/species
-                                    parts = species_name.replace('_', ' ').split()
-                                    genus = parts[0] if parts else 'Unknown'
-                                    species = ' '.join(parts[:2]) if len(parts) >= 2 else species_name
+                                    # Formato lista: [[kingdom,phylum,class,order,family,genus,species], common_name]
+                                    if isinstance(entry, list) and len(entry) >= 2:
+                                        taxon = entry[0] if isinstance(entry[0], list) else []
+                                        common_name = entry[1] if isinstance(entry[1], str) else ''
+                                        genus = taxon[5] if len(taxon) > 5 else 'Unknown'
+                                        species_epithet = taxon[6] if len(taxon) > 6 else ''
+                                        family = taxon[4] if len(taxon) > 4 else 'Unknown'
+                                        species = f"{genus} {species_epithet}".strip() if species_epithet else genus
+                                    elif isinstance(entry, str):
+                                        # Formato stringa semplice (vecchio formato)
+                                        parts = entry.replace('_', ' ').split()
+                                        genus = parts[0] if parts else 'Unknown'
+                                        species = ' '.join(parts[:2]) if len(parts) >= 2 else entry
+                                        family = 'Unknown'
+                                        common_name = ''
+                                    else:
+                                        continue
 
                                     results.append({
                                         'species': species,
                                         'genus': genus,
-                                        'family': 'Unknown',  # Non disponibile in TreeOfLife base
-                                        'common_name': '',
+                                        'family': family,
+                                        'common_name': common_name,
                                         'score': prob_val
                                     })
 
