@@ -44,16 +44,18 @@ class LLMWorkerThread(QThread):
         self.tag_categories = ''
         self.description_style = ''
         self.user_hints = []
+        self.bioclip_context = None
         
         # Risultati accumulati in memoria (rollback-safe)
         self.results = []  # lista di {image_id, tags, description}
     
-    def set_parameters(self, mode, tag_categories, description_style, user_hints):
+    def set_parameters(self, mode, tag_categories, description_style, user_hints, bioclip_context=None):
         """Imposta parametri generazione prima di start()"""
         self.mode = mode
         self.tag_categories = tag_categories
         self.description_style = description_style
         self.user_hints = user_hints
+        self.bioclip_context = bioclip_context
     
     def run(self):
         """Esegue elaborazione (thread worker)"""
@@ -82,9 +84,7 @@ class LLMWorkerThread(QThread):
                 result = self.embedding_gen.generate_llm_content(
                     filepath,
                     mode=self.mode,
-                    tag_categories=self.tag_categories,
-                    description_style=self.description_style,
-                    user_hints=self.user_hints
+                    bioclip_context=self.bioclip_context
                 )
                 
                 if result:

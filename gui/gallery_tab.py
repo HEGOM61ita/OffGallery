@@ -623,8 +623,10 @@ class GalleryTab(QWidget):
                         except:
                             existing_tags = []
                     
-                    # Aggiungi tag BioCLIP evitando duplicati
-                    updated_tags = list(set(existing_tags + tags))
+                    # BioCLIP SEMPRE prima, poi altri tag senza duplicati (preserva ordine)
+                    bioclip_lower = {t.lower() for t in tags}
+                    other_tags = [t for t in existing_tags if t.lower() not in bioclip_lower]
+                    updated_tags = tags + other_tags
                     tags_json = json.dumps(updated_tags, ensure_ascii=False)
                     
                     db_manager.cursor.execute(
@@ -756,21 +758,37 @@ class GalleryTab(QWidget):
                 title_cfg = auto_import.get('title', {})
                 max_title_words = title_cfg.get('max_words', title_cfg.get('max', 5))
 
+                # Estrai contesto BioCLIP dai tag esistenti nel DB
+                bioclip_context = None
+                existing_tags_for_ctx = []
+                if 'tags' in item.image_data and item.image_data['tags']:
+                    try:
+                        existing_tags_for_ctx = json.loads(item.image_data['tags'])
+                    except:
+                        existing_tags_for_ctx = []
+
+                bioclip_prefixes = ("Specie: ", "Genere: ", "Famiglia: ", "Confidenza: ", "Nome comune: ",
+                                    "Species: ", "Genus: ", "Family: ", "Confidence: ", "Common name: ")
+                bioclip_tags_from_db = [t for t in existing_tags_for_ctx if any(t.startswith(p) for p in bioclip_prefixes)]
+                if bioclip_tags_from_db:
+                    from embedding_generator import EmbeddingGenerator
+                    bioclip_context = EmbeddingGenerator.extract_bioclip_context(bioclip_tags_from_db)
+
                 # Genera contenuti in base alle selezioni
                 result = {}
 
                 if gen_options.get('title'):
-                    title = embedding_gen.generate_llm_title(llm_input, max_title_words)
+                    title = embedding_gen.generate_llm_title(llm_input, max_title_words, bioclip_context=bioclip_context)
                     if title:
                         result['title'] = title
 
                 if gen_options.get('tags'):
-                    tags = embedding_gen.generate_llm_tags(llm_input, max_tags)
+                    tags = embedding_gen.generate_llm_tags(llm_input, max_tags, bioclip_context=bioclip_context)
                     if tags:
                         result['tags'] = tags
 
                 if gen_options.get('description'):
-                    description = embedding_gen.generate_llm_description(llm_input, max_words)
+                    description = embedding_gen.generate_llm_description(llm_input, max_words, bioclip_context=bioclip_context)
                     if description:
                         result['description'] = description
                 #-------------------------------------------
@@ -796,11 +814,15 @@ class GalleryTab(QWidget):
                         except:
                             existing_tags = []
 
-                    # Metti tag LLM PRIMA dei BioCLIP
-                    merged = result['tags'][:]  # Inizia con LLM
-                    for tag in existing_tags:
-                        if tag not in merged:
-                            merged.append(tag)
+                    # BioCLIP SEMPRE prima, poi LLM nuovi, poi altri esistenti
+                    bioclip_prefixes = ("Specie: ", "Genere: ", "Famiglia: ", "Confidenza: ", "Nome comune: ",
+                                        "Species: ", "Genus: ", "Family: ", "Confidence: ", "Common name: ")
+                    bioclip_existing = [t for t in existing_tags if any(t.startswith(p) for p in bioclip_prefixes)]
+                    non_bioclip_existing = [t for t in existing_tags if not any(t.startswith(p) for p in bioclip_prefixes)]
+
+                    existing_lower = {t.lower() for t in existing_tags}
+                    new_llm = [t for t in result['tags'] if t.lower() not in existing_lower]
+                    merged = bioclip_existing + new_llm + non_bioclip_existing
                     tags_json = json.dumps(merged, ensure_ascii=False)
 
                     db_manager.cursor.execute(

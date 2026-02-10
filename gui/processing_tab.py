@@ -406,6 +406,9 @@ class ProcessingWorker(QThread):
                 if key not in ['is_raw', 'raw_info']:  # Skip campi interni
                     image_data[key] = value
             image_data['tags'] = json.dumps([], ensure_ascii=False)
+        # Contesto BioCLIP per LLM (inizializzato qui, valorizzato dopo BioCLIP)
+        bioclip_context = None
+
         # === CACHE THUMBNAIL PER OTTIMIZZAZIONE ===
         # Estrae thumbnail una sola volta alla MAX size necessaria tra i modelli abilitati
         cached_thumbnail = None
@@ -506,8 +509,15 @@ class ProcessingWorker(QThread):
                         unified_tags = bioclip_tags + other_tags
                         image_data['tags'] = json.dumps(unified_tags, ensure_ascii=False)
                         self.log_message.emit(f"🌿 BioCLIP tags: {len(bioclip_tags)} specie identificate", "info")
-                    
-                    
+
+                    # Estrai contesto BioCLIP per LLM (approccio B: EN + traduzione)
+                    from embedding_generator import EmbeddingGenerator
+                    bioclip_context = EmbeddingGenerator.extract_bioclip_context(
+                        bioclip_tags if (bioclip_tags and isinstance(bioclip_tags, list)) else []
+                    )
+                    if bioclip_context:
+                        self.log_message.emit(f"🔗 Contesto BioCLIP per LLM: {bioclip_context}", "info")
+
                     # Flag embedding generato
                     has_embedding = any([clip_emb is not None, dinov2_emb is not None])
                     image_data['embedding_generated'] = has_embedding
@@ -569,21 +579,24 @@ class ProcessingWorker(QThread):
                         llm_futures['tags'] = executor.submit(
                             embedding_generator.generate_llm_tags,
                             llm_input,
-                            gen_tags_cfg.get('max_tags', 10)
+                            gen_tags_cfg.get('max_tags', 10),
+                            bioclip_context
                         )
 
                     if should_gen_desc:
                         llm_futures['description'] = executor.submit(
                             embedding_generator.generate_llm_description,
                             llm_input,
-                            gen_desc_cfg.get('max', 100)
+                            gen_desc_cfg.get('max', 100),
+                            bioclip_context
                         )
 
                     if should_gen_title:
                         llm_futures['title'] = executor.submit(
                             embedding_generator.generate_llm_title,
                             llm_input,
-                            gen_title_cfg.get('max', 5)
+                            gen_title_cfg.get('max', 5),
+                            bioclip_context
                         )
 
                     # Raccogli risultati
