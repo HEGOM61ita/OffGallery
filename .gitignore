@@ -54,6 +54,10 @@ INPUT/
 dist/
 build/
 
+# Script di test sperimentali
+test_bioclip_llm.py
+INPUT_TEST/
+
 # File di backup
 *_BACKUP_*
 *_OLD*
