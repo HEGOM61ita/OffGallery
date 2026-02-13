@@ -609,13 +609,22 @@ class ProcessingWorker(QThread):
                 # === APPLICA RISULTATI TAGS ===
                 if llm_results['tags']:
                     llm_tags = llm_results['tags']
+
+                    # BioCLIP SEMPRE prima, poi LLM nuovi, poi altri esistenti
+                    bioclip_prefixes = ("Specie: ", "Genere: ", "Famiglia: ", "Confidenza: ", "Nome comune: ",
+                                        "Species: ", "Genus: ", "Family: ", "Confidence: ", "Common name: ")
+                    bioclip_existing = [t for t in existing_tags if any(t.startswith(p) for p in bioclip_prefixes)]
+                    non_bioclip_existing = [t for t in existing_tags if not any(t.startswith(p) for p in bioclip_prefixes)]
+
                     if gen_tags_cfg.get('overwrite'):
-                        image_data['tags'] = json.dumps(llm_tags, ensure_ascii=False)
-                        self.log_message.emit(f"🏷️ LLM tags (sovrascritti): {len(llm_tags)} tag", "info")
+                        # Sovrascrivi solo tag non-BioCLIP, preserva BioCLIP
+                        unified_tags = bioclip_existing + llm_tags
+                        image_data['tags'] = json.dumps(unified_tags, ensure_ascii=False)
+                        self.log_message.emit(f"🏷️ LLM tags (sovrascritti): {len(llm_tags)} tag, BioCLIP preservati: {len(bioclip_existing)}", "info")
                     else:
                         existing_lower = {t.lower() for t in existing_tags}
                         new_llm_tags = [t for t in llm_tags if t.lower() not in existing_lower]
-                        unified_tags = existing_tags + new_llm_tags
+                        unified_tags = bioclip_existing + new_llm_tags + non_bioclip_existing
                         image_data['tags'] = json.dumps(unified_tags, ensure_ascii=False)
                         self.log_message.emit(f"🏷️ LLM tags aggiunti: {len(new_llm_tags)} nuovi tag", "info")
 
