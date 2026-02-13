@@ -176,7 +176,38 @@ class ProcessingWorker(QThread):
                 return
             
             self.log_message.emit(f"🔍 Trovate {len(all_images)} immagini uniche da processare", "info")
-            
+
+            # Pre-filtra immagini da processare basandosi sulla modalità
+            processing_mode = self.options.get('processing_mode', 'new_only')
+            images_to_process = []
+
+            for image_path in all_images:
+                should_process = False
+
+                if processing_mode == 'new_only':
+                    should_process = not db_manager.image_exists(image_path.name)
+                elif processing_mode == 'reprocess_all':
+                    should_process = True
+                elif processing_mode == 'new_plus_errors':
+                    has_errors = False
+                    if hasattr(db_manager, 'had_processing_errors'):
+                        has_errors = db_manager.had_processing_errors(image_path.name)
+                    should_process = not db_manager.image_exists(image_path.name) or has_errors
+
+                if should_process:
+                    images_to_process.append(image_path)
+
+            total_to_process = len(images_to_process)
+            skipped_count = len(all_images) - total_to_process
+
+            if skipped_count > 0:
+                self.log_message.emit(f"⏭️ {skipped_count} immagini già processate (skip), {total_to_process} da elaborare", "info")
+
+            if total_to_process == 0:
+                self.log_message.emit("✅ Tutte le immagini sono già state processate", "info")
+                self.finished.emit({'total': len(all_images), 'processed': len(all_images), 'errors': 0, 'skipped_existing': len(all_images)})
+                return
+
             # Stats
             stats = {
                 'total': len(all_images),
@@ -185,58 +216,31 @@ class ProcessingWorker(QThread):
                 'errors': 0,
                 'with_embedding': 0,
                 'with_tags': 0,
-                'skipped_existing': 0
+                'skipped_existing': skipped_count
             }
-            
+
             start_time = time.time()
-            
-            # Processa ogni immagine
-            for i, image_path in enumerate(all_images, 1):
+
+            # Processa ogni immagine (solo quelle filtrate)
+            for i, image_path in enumerate(images_to_process, 1):
                 if not self.is_running:
                     break
-                
+
                 # Pausa se richiesta
                 while self.is_paused and self.is_running:
                     time.sleep(0.1)
-                
+
                 self.log_message.emit(f"📂 Processing: {image_path.name}", "info")
-                self.progress.emit(i, len(all_images))
+                self.progress.emit(i, total_to_process)
                 
                 try:
-                    # Controlla modalità processing 
-                    processing_mode = self.options.get('processing_mode', 'new_only')
-                    
-                    if processing_mode == 'new_only' and db_manager.image_exists(image_path.name):
-                        # Modalità 1: Skip immagini già processate
-                        self.log_message.emit(f"⏭️ Già processata: {image_path.name}", "info")
-                        stats['skipped_existing'] += 1
-                        stats['processed'] += 1
-                        continue
-                    elif processing_mode == 'reprocess_all':
-                        # Modalità 2: Riprocessa tutto
-                        if db_manager.image_exists(image_path.name):
+                    # Log modalità se riprocesso immagine esistente
+                    if db_manager.image_exists(image_path.name):
+                        if processing_mode == 'reprocess_all':
                             self.log_message.emit(f"🔄 Riprocesso: {image_path.name}", "info")
-                            stats['skipped_existing'] += 1  # Era già presente, la riprocessiamo
-                    elif processing_mode == 'new_plus_errors':
-                        # Modalità 3: Skip solo se processata senza errori
-                        try:
-                            # Controlla se il metodo esiste prima di usarlo
-                            has_errors = False
-                            if hasattr(db_manager, 'had_processing_errors'):
-                                has_errors = db_manager.had_processing_errors(image_path.name)
-                            
-                            if db_manager.image_exists(image_path.name) and not has_errors:
-                                self.log_message.emit(f"⏭️ Già processata senza errori: {image_path.name}", "info")
-                                stats['skipped_existing'] += 1
-                                stats['processed'] += 1
-                                continue
-                            elif db_manager.image_exists(image_path.name):
-                                self.log_message.emit(f"🔄 Riprovo (errori precedenti): {image_path.name}", "info")
-                                stats['skipped_existing'] += 1  # Era già presente, la riprocessiamo per errori
-                        except Exception as e:
-                            # Fallback: tratta come nuova immagine
-                            self.log_message.emit(f"⚠️ Errore controllo errori per {image_path.name}, processo come nuova", "warning")
-                    
+                        elif processing_mode == 'new_plus_errors':
+                            self.log_message.emit(f"🔄 Riprovo (errori precedenti): {image_path.name}", "info")
+
                     # PROCESSING COMPLETO E CORRETTO
                     result = self._process_image_complete_corrected(
                         image_path, raw_processor, embedding_generator, embedding_enabled,
