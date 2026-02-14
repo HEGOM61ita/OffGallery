@@ -790,8 +790,24 @@ class ConfigTab(QWidget):
         self.llm_top_p.setToolTip("Nucleus sampling. 0.8 = considera l'80%% dei token piu' probabili")
         adv_layout.addWidget(self.llm_top_p, 0, 5)
 
+        adv_layout.addWidget(QLabel("Num Ctx:"), 1, 0)
+        self.llm_num_ctx = NoWheelSpinBox()
+        self.llm_num_ctx.setRange(512, 32768)
+        self.llm_num_ctx.setSingleStep(512)
+        self.llm_num_ctx.setValue(2048)
+        self.llm_num_ctx.setToolTip("Dimensione finestra di contesto in token. Valori alti = piu' contesto ma piu' RAM")
+        adv_layout.addWidget(self.llm_num_ctx, 1, 1)
+
+        adv_layout.addWidget(QLabel("Num Batch:"), 1, 2)
+        self.llm_num_batch = NoWheelSpinBox()
+        self.llm_num_batch.setRange(128, 4096)
+        self.llm_num_batch.setSingleStep(128)
+        self.llm_num_batch.setValue(1024)
+        self.llm_num_batch.setToolTip("Dimensione batch per elaborazione prompt. Valori alti = piu' veloce ma piu' RAM")
+        adv_layout.addWidget(self.llm_num_batch, 1, 3)
+
         adv_group.setLayout(adv_layout)
-        adv_group.toggled.connect(lambda checked: [w.setVisible(checked) for w in [self.llm_temperature, self.llm_top_k, self.llm_top_p]])
+        adv_group.toggled.connect(lambda checked: [w.setVisible(checked) for w in [self.llm_temperature, self.llm_top_k, self.llm_top_p, self.llm_num_ctx, self.llm_num_batch]])
         layout.addWidget(adv_group)
 
         # Info
@@ -1251,6 +1267,8 @@ class ConfigTab(QWidget):
             self.llm_temperature.setValue(gen_params.get('temperature', 0.2))
             self.llm_top_k.setValue(gen_params.get('top_k', 20))
             self.llm_top_p.setValue(gen_params.get('top_p', 0.8))
+            self.llm_num_ctx.setValue(gen_params.get('num_ctx', 2048))
+            self.llm_num_batch.setValue(gen_params.get('num_batch', 1024))
 
             # Parametri auto_import granulari (nuova struttura)
             auto_import = llm.get('auto_import', {})
@@ -1419,6 +1437,8 @@ class ConfigTab(QWidget):
             self.llm_temperature.setValue(0.2)
             self.llm_top_k.setValue(20)
             self.llm_top_p.setValue(0.8)
+            self.llm_num_ctx.setValue(2048)
+            self.llm_num_batch.setValue(1024)
 
             # Generazione Auto-Import (default: tutto disabilitato, no sovrascrittura)
             self.gen_tags_check.setChecked(False)
@@ -1574,6 +1594,8 @@ class ConfigTab(QWidget):
                     'temperature': self.llm_temperature.value(),
                     'top_k': self.llm_top_k.value(),
                     'top_p': self.llm_top_p.value(),
+                    'num_ctx': self.llm_num_ctx.value(),
+                    'num_batch': self.llm_num_batch.value(),
                 },
                 'auto_import': {
                     'tags': {

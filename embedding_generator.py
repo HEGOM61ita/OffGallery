@@ -1413,21 +1413,24 @@ class EmbeddingGenerator:
             endpoint = llm_config.get('endpoint', 'http://localhost:11434')
             model = llm_config.get('model', 'qwen3-vl:4b-instruct')
             timeout = llm_config.get('timeout', 180)
-            # Calcolo dinamico max_tokens in base alla modalità
+            # Calcolo num_predict stretto: parole attese * ~1.3 token/parola + margine minimo
             if mode == "description":
-                max_tokens = int(max_description_words * 1.33) + 50
+                max_tokens = int(max_description_words * 1.3) + 10
             elif mode == "tags":
-                max_tokens = (max_tags * 3) + 50
+                # ~2 token per tag (parola + virgola)
+                max_tokens = (max_tags * 2) + 5
             elif mode == "title":
-                max_tokens = (max_title_words * 3) + 20
+                max_tokens = int(max_title_words * 1.3) + 5
             else:
-                max_tokens = int(max_description_words * 1.33) + (max_tags * 3) + 100
+                max_tokens = int(max_description_words * 1.3) + (max_tags * 2) + 15
 
             generation = llm_config.get('generation', {})
             temperature = generation.get('temperature', 0.7)
             top_p = generation.get('top_p', 0.8)
             top_k = generation.get('top_k', 20)
             min_p = generation.get('min_p', 0.0)
+            num_ctx = generation.get('num_ctx', 2048)
+            num_batch = generation.get('num_batch', 1024)
 
             # --- Base64 immagine ---
             with open(image_path, 'rb') as f:
@@ -1542,7 +1545,9 @@ class EmbeddingGenerator:
                     "temperature": temperature,
                     "top_p": top_p,
                     "top_k": top_k,
-                    "min_p": min_p
+                    "min_p": min_p,
+                    "num_ctx": num_ctx,
+                    "num_batch": num_batch,
                 }
             }
 
@@ -1592,6 +1597,9 @@ class EmbeddingGenerator:
             endpoint = llm_config.get('endpoint', 'http://localhost:11434')
             model = llm_config.get('model', 'qwen3-vl:4b-instruct')
             timeout = llm_config.get('timeout', 180)
+            generation = llm_config.get('generation', {})
+            num_ctx = generation.get('num_ctx', 2048)
+            num_batch = generation.get('num_batch', 1024)
 
             payload = {
                 "model": model,
@@ -1602,6 +1610,8 @@ class EmbeddingGenerator:
                     "temperature": 0.1,
                     "top_p": 0.8,
                     "top_k": 20,
+                    "num_ctx": num_ctx,
+                    "num_batch": num_batch,
                 }
             }
 

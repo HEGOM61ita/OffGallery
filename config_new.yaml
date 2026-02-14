@@ -27,15 +27,15 @@ embedding:
     llm_vision:
       auto_import:
         description:
-          enabled: true
+          enabled: false
           max_words: 50
-          overwrite: true
+          overwrite: false
         tags:
-          enabled: true
+          enabled: false
           max_tags: 10
           overwrite: true
         title:
-          enabled: true
+          enabled: false
           max_words: 5
           overwrite: true
       description: Genera tag, descrizioni e titoli con LLM vision (richiede Ollama)
@@ -45,6 +45,8 @@ embedding:
         temperature: 0.2
         top_k: 20
         top_p: 0.8
+        num_ctx: 2048
+        num_batch: 1024
       model: qwen3-vl:4b-instruct
       timeout: 240
     technical:
@@ -195,6 +197,7 @@ image_processing:
   - .heic
   - .cr2
   - .cr3
+  - .crw
   - .nef
   - .nrw
   - .arw
@@ -203,7 +206,14 @@ image_processing:
   - .raf
   - .orf
   - .rw2
+  - .raw
+  - .pef
+  - .ptx
   - .dng
+  - .rwl
+  - .3fr
+  - .iiq
+  - .x3f
 logging:
   show_debug: true
 metadata:
@@ -229,4 +239,4 @@ search:
   max_results: 100
   semantic_threshold: 0.2
 similarity:
-  max_results: 20
+  max_results: 50
