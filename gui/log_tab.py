@@ -51,6 +51,9 @@ class LogTab(QWidget):
         super().__init__(parent)
         self.parent_window = parent
         self.log_handler = None
+        self._log_entries = []  # Lista di (timestamp, level, message) per filtraggio
+        self._max_entries = 500  # Limite massimo entry in memoria e display
+        self._is_filtering = False  # Guard per evitare ricorsione durante filter
         self.init_ui()
         self.setup_logging()
         
@@ -209,43 +212,85 @@ class LogTab(QWidget):
         # Log iniziale
         self.log_info("Log tab initialized - Session started")
         
-    def append_log(self, timestamp, level, message):
-        """Aggiunge un nuovo log entry"""
-        # Colore basato su livello
+    def _format_log_entry(self, timestamp, level, message):
+        """Formatta un singolo log entry in HTML"""
         colors = {
             "DEBUG": COLORS['grigio_medio'],
-            "INFO": COLORS['blu_petrolio'], 
+            "INFO": COLORS['blu_petrolio'],
             "WARNING": COLORS['ambra'],
             "ERROR": COLORS['rosso'],
             "CRITICAL": COLORS['rosso']
         }
-        
         color = colors.get(level, COLORS['grigio_chiaro'])
-        
-        # Formato: [HH:MM:SS] LEVEL - message
-        formatted = f'<span style="color: {COLORS["grigio_medio"]}">[{timestamp}]</span> ' \
-                   f'<span style="color: {color}; font-weight: bold;">{level:8}</span> - ' \
-                   f'<span style="color: {COLORS["grigio_chiaro"]}">{message}</span>'
-        
+        return (f'<span style="color: {COLORS["grigio_medio"]}">[{timestamp}]</span> '
+                f'<span style="color: {color}; font-weight: bold;">{level:8}</span> - '
+                f'<span style="color: {COLORS["grigio_chiaro"]}">{message}</span>')
+
+    def _is_level_visible(self, level):
+        """Controlla se un livello log e' visibile in base ai filtri"""
+        # CRITICAL segue il filtro ERROR
+        check_level = "ERROR" if level == "CRITICAL" else level
+        cb = self.level_filters.get(check_level)
+        return cb.isChecked() if cb else True
+
+    def append_log(self, timestamp, level, message):
+        """Aggiunge un nuovo log entry"""
+        # Salva in lista per filtraggio, con limite memoria
+        self._log_entries.append((timestamp, level, message))
+        if len(self._log_entries) > self._max_entries:
+            self._log_entries = self._log_entries[-self._max_entries:]
+
+        # Mostra solo se il livello e' attivo nei filtri
+        if not self._is_level_visible(level):
+            return
+
+        formatted = self._format_log_entry(timestamp, level, message)
+
         # Aggiungi al display
         cursor = self.log_display.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
         cursor.insertHtml(formatted + "<br>")
-        
+
+        # Limita buffer display a max_entries righe per evitare degrado GUI
+        doc = self.log_display.document()
+        if doc.blockCount() > self._max_entries:
+            cursor = self.log_display.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.Start)
+            cursor.movePosition(QTextCursor.MoveOperation.Down,
+                                QTextCursor.MoveMode.KeepAnchor,
+                                doc.blockCount() - self._max_entries)
+            cursor.removeSelectedText()
+            cursor.deleteChar()
+
         # Auto-scroll verso il basso
         scrollbar = self.log_display.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
-        
+
         # Aggiorna contatore
         self.update_info()
         
     def filter_logs(self):
-        """Filtra log per livello (placeholder)"""
-        # TODO: Implementare filtro per livello se necessario
-        pass
+        """Ri-renderizza i log in base ai filtri livello attivi"""
+        if self._is_filtering:
+            return
+        self._is_filtering = True
+        try:
+            self.log_display.clear()
+            for timestamp, level, message in self._log_entries:
+                if self._is_level_visible(level):
+                    formatted = self._format_log_entry(timestamp, level, message)
+                    cursor = self.log_display.textCursor()
+                    cursor.movePosition(QTextCursor.MoveOperation.End)
+                    cursor.insertHtml(formatted + "<br>")
+            # Scroll in fondo
+            scrollbar = self.log_display.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+        finally:
+            self._is_filtering = False
         
     def clear_logs(self):
         """Cancella tutti i log"""
+        self._log_entries.clear()
         self.log_display.clear()
         self.log_info("Log cleared by user")
         
