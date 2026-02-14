@@ -100,6 +100,7 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 - **Export XMP**: Scrive modifiche compatibili con editor esterni
 - **Sync State**: Traccia stato sincronizzazione (PERFECT_SYNC, DIRTY, etc.)
 - **Badge Visivi**: Score, rating, ranking e stato colore nella gallery
+- **Ordinamento Gallery**: 7 criteri (rilevanza, data, nome, rating, score estetico/tecnico/composito) con direzione ASC/DESC
 - **Menu contestuale**: Per ogni immagine nella Gallery, basta un click per editarla su Lightroom o altro editor, gestire metadati, creare tags e descrizioni, etc.
 
 ---
@@ -167,7 +168,7 @@ L'applicazione presenta 7 tab principali:
 |-----|----------|
 | **Elaborazione** | Processa nuove immagini con tutti i modelli AI |
 | **Ricerca** | Query semantica e filtri avanzati |
-| **Galleria** | Visualizza risultati con badge e preview |
+| **Galleria** | Visualizza risultati con badge, preview e ordinamento intelligente |
 | **Statistiche** | Analisi del database e pattern di scatto |
 | **Esportazione** | Export metadati su XMP e CSV |
 | **Configurazione** | Impostazioni modelli, parametri ed editor esterni |

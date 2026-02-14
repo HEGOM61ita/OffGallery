@@ -618,9 +618,12 @@ RICERCA SOLO CON FILTRI
 
 Puoi lasciare la barra di ricerca vuota e usare solo i filtri.
 In quel caso, OffGallery restituisce tutte le foto che soddisfano
-i filtri, senza alcun ordinamento per pertinenza (tutte ricevono
-lo stesso punteggio). I risultati sono limitati dal valore di
-"Max risultati".
+i filtri, ordinate automaticamente con un criterio intelligente:
+prima per rating stelle (le piu' votate), poi per score composito
+AI (70% estetico + 30% tecnico), infine per data di scatto (le
+piu' recenti). I risultati sono limitati dal valore di "Max
+risultati". L'ordinamento puo' essere cambiato dalla galleria
+tramite il selettore "Ordina" (vedi Capitolo 5).
 
 Questo e' utile per:
   - Trovare tutte le foto scattate con un certo obiettivo.

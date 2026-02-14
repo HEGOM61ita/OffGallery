@@ -41,11 +41,62 @@ In cima alla galleria trovi una barra con:
   - Il conteggio dei risultati (es. "85 immagini") oppure "Nessun
     risultato" se la ricerca non ha trovato nulla.
   - Il conteggio delle foto selezionate (es. "(3 selez.)").
+  - Il selettore di ordinamento (vedi sezione dedicata sotto).
   - Il pulsante "Tutti": seleziona tutte le foto nella galleria.
   - Il pulsante "Nessuno": deseleziona tutte le foto.
 
 Se non ci sono risultati, la galleria mostra la scritta "Nessun
 risultato trovato" al centro.
+
+
+────────────────────────────────────────────────────────────────────────
+ORDINAMENTO DEI RISULTATI
+────────────────────────────────────────────────────────────────────────
+
+Nella barra superiore della galleria, accanto al conteggio immagini,
+trovi un menu a tendina "Ordina" e un pulsante freccia per la
+direzione (decrescente o crescente).
+
+Le opzioni di ordinamento disponibili sono:
+
+  Rilevanza (predefinita)
+    Mantiene l'ordine originale dei risultati. Per ricerche semantiche
+    o per tag, questo corrisponde al punteggio di pertinenza (le foto
+    piu' rilevanti appaiono prima). Per ricerche con soli filtri, viene
+    applicato un ordinamento automatico intelligente:
+      1. Rating stelle (le piu' votate prima)
+      2. Score composito AI (70% estetico + 30% tecnico)
+      3. Data di scatto (le piu' recenti prima)
+
+  Data scatto
+    Ordina per data di scatto originale (EXIF DateTimeOriginal). Se
+    questa non e' disponibile, usa come fallback la data di
+    digitalizzazione, la data di modifica, e infine la data di
+    importazione nel database.
+
+  Nome file
+    Ordine alfabetico per nome del file.
+
+  Rating
+    Ordina per rating stelle (1-5, assegnato in Lightroom o da
+    OffGallery). Le foto senza rating vanno in fondo.
+
+  Score estetico
+    Ordina per punteggio estetico AI (0-10). Le foto senza score
+    vanno in fondo.
+
+  Score tecnico
+    Ordina per punteggio tecnico MUSIQ. Le foto senza score vanno
+    in fondo.
+
+  Score composito
+    Ordina per una combinazione pesata: 70% score estetico + 30%
+    score tecnico. Utile per trovare le foto migliori in assoluto.
+
+Il pulsante freccia alterna tra ordine decrescente (freccia giu',
+predefinito) e crescente (freccia su'). Il cambio di ordinamento
+riposiziona le card nella griglia senza ricaricarle, preservando
+i badge XMP e gli altri dati gia' calcolati.
 
 
 ────────────────────────────────────────────────────────────────────────
