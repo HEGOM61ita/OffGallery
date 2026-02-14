@@ -29,15 +29,23 @@ embedding:
       enabled: true
     llm_vision:
       enabled: true
-      model: "qwen3-vl"
-      temperature: 0.7
-
-auto_import:
-  tags:
-    max_tags: 20
-  description:
-    enabled: true
-    max_length: 500
+      model: "qwen3-vl:4b-instruct"
+      endpoint: "http://localhost:11434"
+      timeout: 240
+      generation:
+        temperature: 0.2
+        top_k: 20
+        top_p: 0.8
+      auto_import:
+        tags:
+          enabled: true
+          max_tags: 10
+        description:
+          enabled: true
+          max_words: 50
+        title:
+          enabled: false
+          max_words: 5
 
 search:
   semantic_threshold: 0.25
@@ -71,7 +79,11 @@ Configura i modelli AI per l'analisi delle immagini.
 | `technical.enabled` | bool | Abilita valutazione qualità tecnica |
 | `llm_vision.enabled` | bool | Abilita generazione tag/descrizioni via LLM |
 | `llm_vision.model` | string | Modello Ollama da usare |
-| `llm_vision.temperature` | float | Creatività LLM (0.0-1.0) |
+| `llm_vision.endpoint` | string | Indirizzo endpoint Ollama |
+| `llm_vision.timeout` | int | Timeout in secondi per risposta LLM |
+| `llm_vision.generation.temperature` | float | Creativita' LLM (0.0-2.0). Bassi (0.1-0.3): preciso. Alti (0.7+): creativo |
+| `llm_vision.generation.top_k` | int | Numero token candidati per step (1-100) |
+| `llm_vision.generation.top_p` | float | Nucleus sampling (0.0-1.0) |
 
 ### Auto Import
 
@@ -111,7 +123,7 @@ La maggior parte delle impostazioni è accessibile dal tab **Configurazione** de
 1. **Modelli AI**: Abilita/disabilita singoli modelli
 2. **Soglie**: Regola threshold per ricerca e classificazione
 3. **Editor esterni**: Configura percorsi applicazioni
-4. **Parametri LLM**: Temperatura, max token, modello
+4. **Parametri LLM**: Modello, endpoint, temperature, top_k, top_p (sezione avanzata collassabile)
 
 Le modifiche dalla GUI vengono salvate automaticamente in `config_new.yaml`.
 

@@ -271,6 +271,29 @@ modello LLM vision (Qwen3-VL via Ollama).
                    Descrizione:  Max Parole (default: 100, range: 20-300)
                    Titolo:       Max Parole (default: 5, range: 1-10)
 
+  Parametri LLM Avanzati
+
+    Sotto la sezione di generazione c'e' un pannello collassabile
+    "Parametri LLM Avanzati". Clicca sul titolo per espanderlo.
+
+    Questi parametri controllano il comportamento del modello LLM
+    e normalmente non vanno modificati. Sono utili se cambi modello
+    LLM e vuoi riadattare la qualita' dell'output.
+
+    Temperature      Controlla la "creativita'" del modello.
+                     Valori bassi (0.1-0.3): output preciso e ripetibile.
+                     Valori alti (0.7+): output piu' vario ma meno prevedibile.
+                     Default: 0.2  |  Range: 0.0-2.0
+
+    Top-K            Numero di token candidati ad ogni step di generazione.
+                     Valori bassi = output piu' focalizzato.
+                     Default: 20  |  Range: 1-100
+
+    Top-P            Nucleus sampling. Il modello considera solo i token
+                     la cui probabilita' cumulativa rientra in questa soglia.
+                     0.8 = considera l'80% dei token piu' probabili.
+                     Default: 0.8  |  Range: 0.0-1.0
+
   Nota: la generazione LLM puo' essere eseguita anche manualmente
   dalla Galleria (menu contestuale > Genera AI > LLM) indipendentemente
   da queste impostazioni. Le opzioni qui riguardano solo l'elaborazione

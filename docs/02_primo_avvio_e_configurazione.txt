@@ -278,6 +278,16 @@ SEZIONE: MODELLI DI CLASSIFICAZIONE E ANALISI
     tue foto vengono rispettati. Questo e' utile se hai gia' taggato
     manualmente in Lightroom e non vuoi perdere quel lavoro.
 
+    Parametri LLM Avanzati:
+
+    Sotto la sezione di generazione c'e' un pannello collassabile
+    "Parametri LLM Avanzati" (clicca per espandere). Contiene:
+    - Temperature (default 0.2): quanto e' "creativo" il modello
+    - Top-K (default 20): quanti token candidati per step
+    - Top-P (default 0.8): soglia di probabilita' cumulativa
+    Normalmente i valori predefiniti vanno bene. Modificali solo
+    se cambi modello LLM e vuoi riadattare la qualita' dell'output.
+
 
 ────────────────────────────────────────────────────────────────────────
 SEZIONE: ELABORAZIONE IMMAGINI & PERFORMANCE
