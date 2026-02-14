@@ -58,11 +58,19 @@ class ImageRetrieval:
             SELECT id, filepath, filename, clip_embedding, tags, description, title,
                    camera_make, camera_model, lens_model, focal_length, aperture,
                    iso, shutter_speed, width, height, datetime_original,
+                   datetime_digitized, datetime_modified, processed_date,
                    aesthetic_score, technical_score, lr_rating, color_label
             FROM images
             """
             if filters_sql:
                 base_sql += f" WHERE {filters_sql}"
+            # Ordinamento intelligente: stelle > score composito AI > data scatto
+            base_sql += """
+            ORDER BY
+              COALESCE(lr_rating, 0) DESC,
+              (COALESCE(aesthetic_score, 0) * 0.7 + COALESCE(technical_score, 0) * 0.3) DESC,
+              COALESCE(datetime_original, datetime_digitized, datetime_modified, processed_date) DESC
+            """
             base_sql += f" LIMIT {effective_limit}"
             
             try:
@@ -87,6 +95,7 @@ class ImageRetrieval:
         SELECT id, filepath, filename, clip_embedding, tags, description, title,
                camera_make, camera_model, lens_model, focal_length, aperture,
                iso, shutter_speed, width, height, datetime_original,
+               datetime_digitized, datetime_modified, processed_date,
                aesthetic_score, technical_score, lr_rating, color_label
         FROM images
         WHERE clip_embedding IS NOT NULL

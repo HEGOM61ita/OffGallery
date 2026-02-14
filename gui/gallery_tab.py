@@ -6,8 +6,8 @@ Logica principale: ricerca, BioCLIP, gestione tag, XMP Sync
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QScrollArea, QPushButton, QMessageBox, 
-    QApplication, QProgressDialog, QSizePolicy
+    QScrollArea, QPushButton, QMessageBox,
+    QApplication, QProgressDialog, QSizePolicy, QComboBox
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap
@@ -246,7 +246,66 @@ class GalleryTab(QWidget):
         action_bar.addWidget(self.selection_label)
         
         action_bar.addStretch()
-        
+
+        # Ordinamento risultati
+        sort_label = QLabel("Ordina:")
+        sort_label.setStyleSheet(f"font-size: 11px; color: {COLORS['grigio_medio']};")
+        action_bar.addWidget(sort_label)
+
+        self.sort_combo = QComboBox()
+        self.sort_combo.addItems([
+            "Rilevanza",
+            "Data scatto",
+            "Nome file",
+            "Rating",
+            "Score estetico",
+            "Score tecnico",
+            "Score composito"
+        ])
+        self.sort_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {COLORS['grafite_light']};
+                color: {COLORS['grigio_chiaro']};
+                border: 1px solid {COLORS['grigio_medio']};
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 11px;
+                min-width: 120px;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {COLORS['grafite_light']};
+                color: {COLORS['grigio_chiaro']};
+                selection-background-color: {COLORS['blu_petrolio']};
+            }}
+        """)
+        self.sort_combo.currentIndexChanged.connect(self._apply_sort)
+        action_bar.addWidget(self.sort_combo)
+
+        self.sort_dir_btn = QPushButton("↓")
+        self.sort_dir_btn.setToolTip("Decrescente")
+        self.sort_dir_btn.setFixedWidth(30)
+        self.sort_dir_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['grafite_light']};
+                color: {COLORS['grigio_chiaro']};
+                border: 1px solid {COLORS['grigio_medio']};
+                border-radius: 4px;
+                padding: 4px;
+                font-size: 13px;
+            }}
+            QPushButton:hover {{
+                background-color: {COLORS['blu_petrolio']};
+            }}
+        """)
+        self.sort_dir_btn.clicked.connect(self._toggle_sort_direction)
+        action_bar.addWidget(self.sort_dir_btn)
+
+        self._sort_descending = True
+        self._original_results = []
+
         self.select_all_btn = QPushButton("✓ Tutti")
         self.select_all_btn.clicked.connect(self.select_all)
         self.select_all_btn.setEnabled(False)
@@ -307,14 +366,102 @@ class GalleryTab(QWidget):
         # Forza il ricalcolo del layout
         self.flow_layout.invalidate()
         self.flow_layout.activate()
-    
+
+    def _toggle_sort_direction(self):
+        """Inverte la direzione di ordinamento"""
+        self._sort_descending = not self._sort_descending
+        if self._sort_descending:
+            self.sort_dir_btn.setText("↓")
+            self.sort_dir_btn.setToolTip("Decrescente")
+        else:
+            self.sort_dir_btn.setText("↑")
+            self.sort_dir_btn.setToolTip("Crescente")
+        self._apply_sort()
+
+    def _apply_sort(self):
+        """Riordina le card nel layout SENZA ricrearle (preserva badge XMP)"""
+        if not self.cards:
+            return
+
+        idx = self.sort_combo.currentIndex()
+        reverse = self._sort_descending
+
+        # Costruisci lista card ordinata
+        if idx == 0:
+            # Rilevanza: ripristina ordine originale
+            order_map = {id(img): i for i, img in enumerate(self._original_results)}
+            sorted_cards = sorted(self.cards, key=lambda c: order_map.get(id(c.image_data), 0))
+            if not reverse:
+                sorted_cards = list(reversed(sorted_cards))
+        else:
+            # Funzioni di ordinamento per campo
+            def _date_key(card):
+                img = card.image_data
+                return (img.get('datetime_original')
+                        or img.get('datetime_digitized')
+                        or img.get('datetime_modified')
+                        or img.get('processed_date')
+                        or '')
+
+            def _composite_key(card):
+                img = card.image_data
+                ae = img.get('aesthetic_score') or 0
+                te = img.get('technical_score') or 0
+                return ae * 0.7 + te * 0.3
+
+            sort_map = {
+                1: _date_key,
+                2: lambda c: (c.image_data.get('filename') or '').lower(),
+                3: lambda c: c.image_data.get('lr_rating') or 0,
+                4: lambda c: c.image_data.get('aesthetic_score') or 0,
+                5: lambda c: c.image_data.get('technical_score') or 0,
+                6: _composite_key,
+            }
+
+            key_fn = sort_map.get(idx)
+            if key_fn is None:
+                return
+            sorted_cards = sorted(self.cards, key=key_fn, reverse=reverse)
+
+        # Riordina _items nel FlowLayout senza distruggere i widget
+        item_map = {}
+        for item in self.flow_layout._items:
+            w = item.widget()
+            if w:
+                item_map[id(w)] = item
+
+        new_items = []
+        for card in sorted_cards:
+            item = item_map.get(id(card))
+            if item:
+                new_items.append(item)
+
+        self.flow_layout._items = new_items
+        self.cards = sorted_cards
+        self.current_results = [c.image_data for c in sorted_cards]
+
+        # Ricalcola geometria senza ricreare widget
+        self.flow_layout.invalidate()
+        self.flow_layout.activate()
+        QTimer.singleShot(10, self._do_relayout)
+
+        # Accoda al worker XMP le card senza badge (ora potrebbero essere visibili)
+        uncached = [c for c in sorted_cards if getattr(c, '_xmp_state_cache', None) is None]
+        if uncached:
+            QTimer.singleShot(100, lambda: refresh_xmp_badges(uncached, "sort_reorder"))
+
     def display_results(self, results):
         """Mostra risultati come griglia di card"""
         self.flow_layout.clear_items()
         self.cards.clear()
         self.selected_items.clear()
-        
+
         self.current_results = results
+        self._original_results = list(results)
+        # Reset ordinamento a "Rilevanza" senza triggerare _apply_sort
+        self.sort_combo.blockSignals(True)
+        self.sort_combo.setCurrentIndex(0)
+        self.sort_combo.blockSignals(False)
         count = len(results)
         import time
         start_time = time.time()
