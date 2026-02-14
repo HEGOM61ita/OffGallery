@@ -1183,9 +1183,8 @@ class EmbeddingGenerator:
     # ===== LLM VISION METHODS =====
 
     def generate_llm_description(self, image_input, max_description_words: int = 100, bioclip_context: Optional[str] = None):
-        """Genera descrizione LLM Vision.
-        Con bioclip_context: genera in EN poi traduce in IT.
-        Senza: genera direttamente in IT.
+        """Genera descrizione LLM Vision direttamente in italiano.
+        Con bioclip_context: include contesto specie nel prompt.
         """
         temp_image_path = None
         try:
@@ -1222,11 +1221,6 @@ class EmbeddingGenerator:
 
             response = self._call_ollama_vision_api(image_path, mode='description', max_description_words=max_description_words, bioclip_context=bioclip_context)
 
-            # Con BioCLIP: risposta in EN, traduci in IT
-            if bioclip_context and response:
-                translated = self._translate_to_italian(desc_en=response, bioclip_context=bioclip_context)
-                return translated.get('description', response)
-
             return response
 
         except Exception as e:
@@ -1240,9 +1234,8 @@ class EmbeddingGenerator:
                     pass
 
     def generate_llm_tags(self, image_input, max_tags: int = 10, bioclip_context: Optional[str] = None) -> List[str]:
-        """Genera tag LLM Vision.
-        Con bioclip_context: genera in EN poi traduce in IT.
-        Senza: genera direttamente in IT.
+        """Genera tag LLM Vision direttamente in italiano.
+        Con bioclip_context: include contesto specie nel prompt.
         """
         temp_image_path = None
         try:
@@ -1278,16 +1271,9 @@ class EmbeddingGenerator:
 
             response = self._call_ollama_vision_api(image_path, mode='tags', max_tags=max_tags, bioclip_context=bioclip_context)
             if response:
-                # Parse tags da risposta
+                # Parse tags da risposta (gia' in italiano grazie al prompt)
                 tags = self._parse_llm_tags_response(response, max_tags)
-                tags = tags[:max_tags]
-
-                # Con BioCLIP: risposta in EN, traduci in IT
-                if bioclip_context and tags:
-                    translated = self._translate_to_italian(tags_en=tags, bioclip_context=bioclip_context)
-                    return translated.get('tags', tags)[:max_tags]
-
-                return tags
+                return tags[:max_tags]
             return []
 
         except Exception as e:
@@ -1301,9 +1287,8 @@ class EmbeddingGenerator:
                     pass
 
     def generate_llm_title(self, image_input, max_title_words: int = 5, bioclip_context: Optional[str] = None) -> Optional[str]:
-        """Genera titolo LLM Vision.
-        Con bioclip_context: genera in EN poi traduce in IT.
-        Senza: genera direttamente in IT.
+        """Genera titolo LLM Vision direttamente in italiano.
+        Con bioclip_context: include contesto specie nel prompt.
         """
         temp_image_path = None
         try:
@@ -1341,12 +1326,6 @@ class EmbeddingGenerator:
             if response:
                 # Pulisci il titolo da eventuali virgolette o punteggiatura finale
                 title = response.strip().strip('"').strip("'").rstrip('.').rstrip(',').strip()
-
-                # Con BioCLIP: risposta in EN, traduci in IT
-                if bioclip_context and title:
-                    translated = self._translate_to_italian(title_en=title, bioclip_context=bioclip_context)
-                    return translated.get('title', title)
-
                 return title
             return None
 
@@ -1370,7 +1349,7 @@ class EmbeddingGenerator:
         - 'tags_and_description': tag + descrizione
         - 'all': tag + descrizione + titolo
 
-        Con bioclip_context: ogni sotto-metodo genera EN e traduce individualmente.
+        Con bioclip_context: ogni sotto-metodo include il contesto specie nel prompt.
         """
         import logging
         logger = logging.getLogger(__name__)
@@ -1401,8 +1380,7 @@ class EmbeddingGenerator:
     def _call_ollama_vision_api(self, image_path: str, mode: str, max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5, bioclip_context: Optional[str] = None) -> Optional[str]:
         """Chiama API Ollama Vision (Qwen3-VL) e ritorna SOLO il contenuto finale.
 
-        Con bioclip_context: genera in INGLESE con nomi scientifici (Latino)
-        Senza bioclip_context: genera in ITALIANO (comportamento originale)
+        Genera sempre in ITALIANO. Con bioclip_context include il contesto specie.
         """
         try:
             import requests
@@ -1435,20 +1413,22 @@ class EmbeddingGenerator:
 
             # --- Prompt condizionali: con BioCLIP → EN + nomi Latini, senza → IT diretto ---
             if bioclip_context:
-                # Approccio B: genera in inglese con nomi scientifici
+                # Genera direttamente in ITALIANO con contesto specie BioCLIP
                 species_block = (
                     f"SPECIES ID: {bioclip_context}\n"
                     "If this species is the MAIN SUBJECT, use its name. If background, use generic terms.\n"
                 )
-                latin_rule = "- Use the SCIENTIFIC (Latin) name for species, NOT common English names\n"
+                latin_rule = "- Per le specie usa il nome comune ITALIANO se lo conosci, altrimenti il nome scientifico (Latino)\n"
+                italian_warning = "IMPORTANT: Output MUST be in ITALIAN language. Translate any English words to Italian.\n"
 
                 if mode == "description":
                     prompt = (
                         "You are a professional photography captioning system.\n"
                         f"{species_block}"
                         "Task: describe the image.\n\n"
+                        f"{italian_warning}"
                         "STRICT RULES:\n"
-                        "- Output ONLY the final description text\n"
+                        "- Output ONLY the final description text IN ITALIAN\n"
                         f"{latin_rule}"
                         "- Include: subject, environment, colors, composition, atmosphere\n"
                         f"- Concise, informative, max {max_description_words} words\n"
@@ -1459,10 +1439,11 @@ class EmbeddingGenerator:
                         f"{species_block}"
                         "Task: generate photo tags, format \"tag1,tag2,tag3\".\n"
                         "Priority: 1) subjects, 2) scene, 3) actions, 4) objects, 5) weather, 6) mood, 7) colors\n\n"
+                        f"{italian_warning}"
                         "STRICT RULES:\n"
-                        f"- Maximum {max_tags} tags, in English\n"
+                        f"- Maximum {max_tags} tags, ALL IN ITALIAN\n"
                         f"{latin_rule}"
-                        "- If the species is the main subject, include its name and habitat/behavior tags\n"
+                        "- If the species is the main subject, include its Italian common name and habitat/behavior tags\n"
                         "- lowercase, singular form\n"
                     )
                 elif mode == "title":
@@ -1470,8 +1451,9 @@ class EmbeddingGenerator:
                         "You are a professional photo archiving system.\n"
                         f"{species_block}"
                         "Task: generate a factual, descriptive title.\n\n"
+                        f"{italian_warning}"
                         "STRICT RULES:\n"
-                        "- Output ONLY the title text, nothing else\n"
+                        "- Output ONLY the title text IN ITALIAN, nothing else\n"
                         "- NO quotes, NO punctuation at the end\n"
                         f"- Maximum {max_title_words} words\n"
                         "- Be DESCRIPTIVE, not poetic or creative\n"
