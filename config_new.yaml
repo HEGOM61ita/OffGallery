@@ -33,11 +33,11 @@ embedding:
         tags:
           enabled: true
           max_tags: 10
-          overwrite: false
+          overwrite: true
         title:
-          enabled: false
+          enabled: true
           max_words: 5
-          overwrite: false
+          overwrite: true
       description: Genera tag, descrizioni e titoli con LLM vision (richiede Ollama)
       enabled: true
       endpoint: http://localhost:11434
