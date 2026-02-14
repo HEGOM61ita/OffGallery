@@ -1559,12 +1559,29 @@ class EmbeddingGenerator:
             result = response.json()
             final_response = result.get("response", "").strip()
 
+            # Rimuovi blocchi <think>...</think> da modelli qwen3
+            final_response = self._strip_think_blocks(final_response)
+
             return final_response
 
         except Exception as e:
             logger.error(f"Errore chiamata Ollama Vision: {e}")
             return None
 
+    @staticmethod
+    def _strip_think_blocks(text: str) -> str:
+        """Rimuovi blocchi <think>...</think> dalla risposta LLM (qwen3)."""
+        import re
+        if '<think>' in text:
+            cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+            if cleaned:
+                return cleaned
+            # Se dopo la rimozione non resta nulla, potrebbe essere un blocco non chiuso
+            if '</think>' not in text:
+                # Blocco <think> non chiuso: prendi tutto dopo <think>
+                # (il modello ha usato tutti i token per il thinking)
+                return ''
+        return text
 
     def _call_ollama_text_api(self, prompt: str, max_tokens: int = 300) -> Optional[str]:
         """Chiama Ollama API text-only (senza immagine) per traduzione EN→IT"""
@@ -1598,7 +1615,12 @@ class EmbeddingGenerator:
                 logger.error(f"Ollama text API error: {response.status_code}")
                 return None
 
-            return response.json().get("response", "").strip()
+            raw = response.json().get("response", "").strip()
+            # Rimuovi blocchi <think>...</think> da modelli qwen3
+            cleaned = self._strip_think_blocks(raw)
+            logger.debug(f"Ollama text API raw: {raw[:200]}...")
+            logger.debug(f"Ollama text API cleaned: {cleaned[:200]}...")
+            return cleaned
 
         except Exception as e:
             logger.error(f"Errore chiamata Ollama text: {e}")
@@ -1620,30 +1642,33 @@ class EmbeddingGenerator:
         desc_for_translate = desc_en or ''
         title_for_translate = title_en or ''
 
-        # Sostituzione programmatica: common name EN → nome Latino
+        # Gestione nomi specie con bioclip_context
         if bioclip_context:
             ctx_match = re.match(r'^(.+?)\s*\((.+?)\)', bioclip_context)
             if ctx_match:
                 latin_name = ctx_match.group(1).strip()
                 common_name_en = ctx_match.group(2).strip()
                 if common_name_en and latin_name:
+                    # Per descrizione/titolo: sostituisci nome comune EN → nome Latino
                     pattern = re.compile(re.escape(common_name_en), re.IGNORECASE)
-                    tags_for_translate = [pattern.sub(latin_name, t) for t in tags_for_translate]
                     if desc_for_translate:
                         desc_for_translate = pattern.sub(latin_name, desc_for_translate)
                     if title_for_translate:
                         title_for_translate = pattern.sub(latin_name, title_for_translate)
 
-        # Componi blocco da tradurre (solo item presenti)
-        translate_block = ""
-        if tags_for_translate:
-            translate_block += f"TAGS: {', '.join(tags_for_translate)}\n"
-        if desc_for_translate:
-            translate_block += f"DESCRIPTION: {desc_for_translate}\n"
-        if title_for_translate:
-            translate_block += f"TITLE: {title_for_translate}\n"
+                    # Per tags: RIMUOVI il nome specie (BioCLIP lo fornisce gia')
+                    latin_lower = latin_name.lower()
+                    common_lower = common_name_en.lower()
+                    tags_before = len(tags_for_translate)
+                    tags_for_translate = [
+                        t for t in tags_for_translate
+                        if t.lower().strip() not in (latin_lower, common_lower)
+                    ]
+                    removed = tags_before - len(tags_for_translate)
+                    if removed:
+                        logger.info(f"Traduzione: rimossi {removed} tag nome specie (BioCLIP li fornisce gia')")
 
-        if not translate_block:
+        if not tags_for_translate and not desc_for_translate and not title_for_translate:
             return {'tags': tags_en or [], 'description': desc_en, 'title': title_en}
 
         # Contesto specie per aiutare la traduzione
@@ -1654,32 +1679,74 @@ class EmbeddingGenerator:
                 "Use the correct Italian common name for this species.\n"
             )
 
-        translate_prompt = (
-            "Translate the following to Italian.\n"
-            f"{species_hint}"
-            "For Latin species names: use the correct Italian common name if you know it, "
-            "otherwise keep the Latin name as-is.\n"
-            "Keep the TAGS:/DESCRIPTION:/TITLE: labels. Output ONLY the translation.\n\n"
-            f"{translate_block}"
-        )
+        # Prompt separati per tags (servono esempi espliciti) e testo libero
+        if tags_for_translate:
+            tags_prompt = (
+                "Translate EVERY tag from English to Italian. Do NOT keep any English word.\n"
+                "IMPORTANT: NEVER translate Latin/scientific species names. Keep them exactly as-is.\n"
+                f"{species_hint}"
+                "Examples: forest→foresta, close up→primo piano, staring→sguardo fisso, "
+                "white→bianco, yellow eyes→occhi gialli, fluffy→soffice, daytime→diurno, "
+                "surprised→sorpreso, open beak→becco aperto, perched→appollaiato, "
+                "bubo scandiacus→bubo scandiacus, passer domesticus→passer domesticus\n"
+                "Output ONLY: TAGS: tag1, tag2, tag3\n\n"
+                f"TAGS: {', '.join(tags_for_translate)}\n"
+            )
+            translated_tags = self._call_ollama_text_api(tags_prompt, max_tokens=300)
+        else:
+            translated_tags = None
 
-        translated = self._call_ollama_text_api(translate_prompt)
+        # Descrizione e titolo insieme (il modello traduce bene il testo libero)
+        text_block = ""
+        if desc_for_translate:
+            text_block += f"DESCRIPTION: {desc_for_translate}\n"
+        if title_for_translate:
+            text_block += f"TITLE: {title_for_translate}\n"
+
+        if text_block:
+            text_prompt = (
+                "Translate the following to Italian.\n"
+                f"{species_hint}"
+                "For Latin species names: use the correct Italian common name if you know it, "
+                "otherwise keep the Latin name as-is.\n"
+                "Keep the DESCRIPTION:/TITLE: labels. Output ONLY the translation.\n\n"
+                f"{text_block}"
+            )
+            translated_text = self._call_ollama_text_api(text_prompt, max_tokens=500)
+        else:
+            translated_text = None
 
         result = {'tags': tags_en or [], 'description': desc_en, 'title': title_en}
 
-        if translated:
-            for line in translated.split('\n'):
+        # Parse risposta tags
+        if translated_tags:
+            logger.info(f"Traduzione TAGS risposta: {translated_tags[:200]}")
+            for line in translated_tags.split('\n'):
                 line = line.strip()
                 if line.upper().startswith('TAGS:'):
                     tags_it = line[5:].strip()
                     parsed = self._parse_llm_tags_response(tags_it, max_tags=50)
                     if parsed:
                         result['tags'] = parsed
-                elif line.upper().startswith(('DESCRIPTION:', 'DESCRIZIONE:')):
+                        logger.info(f"Traduzione TAGS parsed: {parsed}")
+                    break
+        elif tags_for_translate:
+            logger.warning("Traduzione TAGS: _call_ollama_text_api ha restituito None!")
+
+        # Parse risposta descrizione/titolo
+        if translated_text:
+            logger.info(f"Traduzione TEXT risposta: {translated_text[:200]}")
+            for line in translated_text.split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                if line.upper().startswith(('DESCRIPTION:', 'DESCRIZIONE:')):
                     result['description'] = line.split(':', 1)[1].strip()
+                    logger.info(f"Traduzione DESC parsed: {result['description'][:100]}")
                 elif line.upper().startswith(('TITLE:', 'TITOLO:')):
                     title = line.split(':', 1)[1].strip()
                     result['title'] = title.strip('"').strip("'").rstrip('.').rstrip(',').strip()
+                    logger.info(f"Traduzione TITLE parsed: {result['title']}")
 
         logger.info(f"Traduzione EN→IT completata (bioclip: {bioclip_context is not None})")
         return result
