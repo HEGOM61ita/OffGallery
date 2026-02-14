@@ -133,27 +133,23 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 git clone https://github.com/HEGOM61ita/OffGallery.git
 ```
 
-### 2. Installa dipendenze
+### 2. Installa con il Wizard (consigliato)
 
-1. **Installa Miniconda** (se non presente)
-   - Esegui `installer/01_install_miniconda.bat` per verificare/installare
-   - Oppure scarica da [miniconda.io](https://docs.conda.io/en/latest/miniconda.html)
+1. Apri la cartella `installer`
+2. **Doppio click** su **`INSTALLA_OffGallery.bat`**
+3. Segui le istruzioni a schermo
 
-2. **Crea ambiente e installa pacchetti**
-   - Esegui `installer/02_create_env.bat`
-   - Esegui `installer/03_install_packages.bat`
+Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Python, librerie, e opzionalmente Ollama per le descrizioni AI. Al termine crea un collegamento sul Desktop.
 
-### 3. Avvia l'applicazione
+> **Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarica automaticamente i modelli AI (~7 GB). Gli avvii successivi saranno completamente offline.
 
-- Doppio click su `installer/OffGallery_Launcher.bat`
-- (Consiglio: copia il launcher sul Desktop)
+### Installazione manuale (alternativa)
 
-> **Download automatico**: Al primo avvio, OffGallery scarica automaticamente i modelli AI (~7 GB) dal repository HuggingFace congelato. Gli avvii successivi saranno completamente offline.
-
-### Ollama (opzionale, per descrizioni AI)
-
-Per generare descrizioni e tag automatici con LLM:
-- Esegui `installer/06_setup_ollama.bat` per installare Ollama + modello Qwen3-VL
+Se preferisci installare i componenti singolarmente:
+1. `installer/01_install_miniconda.bat` - Verifica/installa Miniconda
+2. `installer/02_create_env.bat` - Crea ambiente Python
+3. `installer/03_install_packages.bat` - Installa librerie
+4. `installer/06_setup_ollama.bat` - Ollama + LLM Vision (opzionale)
 
 ### Istruzioni Dettagliate
 

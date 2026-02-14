@@ -9,12 +9,12 @@ PANORAMICA
 
 Per funzionare, OffGallery ha bisogno di alcuni componenti software che
 probabilmente non sono ancora presenti sul tuo computer. Non preoccuparti:
-l'installazione e' guidata da script automatici che fanno quasi tutto da soli.
+l'installazione e' completamente automatizzata.
 
-L'intera procedura richiede circa 30-40 minuti, di cui la maggior parte
+L'intera procedura richiede circa 20-40 minuti, di cui la maggior parte
 e' tempo di download. Serve una connessione internet.
 
-Ecco cosa installerai:
+Ecco cosa verra' installato:
 
   1. Miniconda     - un gestore di ambienti Python (gratuito, sicuro)
   2. Ambiente Python e librerie - il "motore" dell'applicazione
@@ -22,6 +22,42 @@ Ecco cosa installerai:
 
 Al primo avvio, OffGallery scarichera' anche i modelli AI (~7 GB).
 Da quel momento in poi, l'applicazione funzionera' completamente offline.
+
+
+INSTALLAZIONE RAPIDA (CONSIGLIATA)
+──────────────────────────────────
+
+Il modo piu' semplice per installare tutto e' usare il wizard unificato:
+
+  1. Apri la cartella "installer".
+  2. Fai doppio click su INSTALLA_OffGallery.bat
+  3. Segui le istruzioni a schermo (rispondi S o N alle domande).
+
+Il wizard fa tutto automaticamente:
+  - Scarica e installa Miniconda (se non presente)
+  - Crea l'ambiente Python e installa tutte le librerie
+  - Offre l'installazione opzionale di Ollama (per descrizioni AI)
+  - Crea un collegamento sul Desktop per avviare l'app
+
+Tempo stimato: 20-40 minuti.
+Al termine, troverai l'icona "OffGallery" sul Desktop.
+
+Se il wizard viene interrotto per qualsiasi motivo (errore di rete,
+spazio disco, etc.), puoi semplicemente rieseguirlo: gli step gia'
+completati verranno rilevati e saltati automaticamente.
+
+Dopo l'installazione, al primo avvio l'app scarichera' circa 7 GB
+di modelli AI. Poi funzionera' completamente offline.
+
+Se preferisci installare i componenti uno per uno (utenti avanzati),
+continua a leggere la sezione "INSTALLAZIONE MANUALE" qui sotto.
+
+
+INSTALLAZIONE MANUALE (ALTERNATIVA)
+───────────────────────────────────
+
+Se preferisci controllare ogni singolo passaggio, puoi usare gli script
+separati invece del wizard. Gli step vanno eseguiti in ordine.
 
 
 REQUISITI DEL COMPUTER
@@ -84,15 +120,18 @@ una sottocartella "installer" con gli script di installazione:
 
   OffGallery/
     installer/
-      01_install_miniconda.bat    <-- Step 1
-      02_create_env.bat           <-- Step 2
-      03_install_packages.bat     <-- Step 3
-      06_setup_ollama.bat         <-- Step 4 (facoltativo)
+      INSTALLA_OffGallery.bat     <-- WIZARD UNICO (consigliato)
+      01_install_miniconda.bat    <-- Step manuale 1
+      02_create_env.bat           <-- Step manuale 2
+      03_install_packages.bat     <-- Step manuale 3
+      06_setup_ollama.bat         <-- Step manuale 4 (facoltativo)
       07_verify_installation.py   <-- Verifica finale
       OffGallery_Launcher.bat     <-- Per avviare l'app
       INSTALL_GUIDE.md            <-- Guida di riferimento
 
-Gli step vanno eseguiti in ordine, uno dopo l'altro.
+Se usi il wizard (INSTALLA_OffGallery.bat), non serve eseguire gli
+altri script separatamente. Se preferisci il metodo manuale, gli step
+vanno eseguiti in ordine, uno dopo l'altro.
 
 
 ────────────────────────────────────────────────────────────────────────

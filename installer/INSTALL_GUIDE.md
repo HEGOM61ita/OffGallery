@@ -14,9 +14,29 @@
 
 ---
 
-## Panoramica Installazione
+## Installazione Rapida (Consigliata)
 
-L'installazione è semplice e veloce. I modelli AI vengono scaricati **automaticamente al primo avvio**.
+Il modo piu' semplice per installare OffGallery e' usare il **wizard di installazione unificato**:
+
+1. Apri la cartella `installer`
+2. **Doppio click** su **`INSTALLA_OffGallery.bat`**
+3. Segui le istruzioni a schermo (rispondi S/N alle domande)
+
+Il wizard:
+- Scarica e installa Miniconda automaticamente (se non presente)
+- Crea l'ambiente Python e installa tutte le librerie
+- Offre l'installazione opzionale di Ollama (per descrizioni AI)
+- Crea un collegamento sul Desktop
+
+**Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarichera' automaticamente ~7 GB di modelli AI. Gli avvii successivi saranno completamente offline.
+
+> **Rieseguibile**: Se il wizard viene interrotto, puoi rieseguirlo. Gli step gia' completati verranno rilevati e saltati automaticamente.
+
+---
+
+## Installazione Manuale (Alternativa)
+
+Se preferisci installare i componenti singolarmente, segui gli step qui sotto.
 
 | Step | Script | Cosa fa | Tempo |
 |------|--------|---------|-------|
@@ -25,12 +45,6 @@ L'installazione è semplice e veloce. I modelli AI vengono scaricati **automatic
 | 3 | `03_install_packages.bat` | Installa librerie Python | 15-20 min |
 | 4 | `06_setup_ollama.bat` | Installa LLM locale (opzionale) | 5-10 min |
 | - | **Primo avvio app** | Download automatico modelli AI | 10-20 min |
-
-> **Nota**: Al primo avvio, OffGallery scarica automaticamente ~7 GB di modelli AI dal repository HuggingFace. Gli avvii successivi saranno completamente offline.
-
----
-
-## Istruzioni Passo-Passo
 
 ### Step 1: Installa Miniconda
 
