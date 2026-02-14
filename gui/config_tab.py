@@ -757,6 +757,43 @@ class ConfigTab(QWidget):
         gen_group.setLayout(gen_layout)
         layout.addWidget(gen_group)
 
+        # --- SEZIONE PARAMETRI LLM AVANZATI ---
+        adv_group = QGroupBox("🎛️ Parametri LLM Avanzati")
+        adv_group.setStyleSheet(f"QGroupBox {{ color: {COLORS['grigio_medio']}; font-size: 12px; }}")
+        adv_group.setCheckable(True)
+        adv_group.setChecked(False)
+        adv_group.setToolTip("Espandi per modificare temperature, top_k e top_p del modello LLM")
+        adv_layout = QGridLayout()
+
+        adv_layout.addWidget(QLabel("Temperature:"), 0, 0)
+        self.llm_temperature = NoWheelDoubleSpinBox()
+        self.llm_temperature.setRange(0.0, 2.0)
+        self.llm_temperature.setSingleStep(0.1)
+        self.llm_temperature.setDecimals(2)
+        self.llm_temperature.setValue(0.2)
+        self.llm_temperature.setToolTip("Valori bassi (0.1-0.3): preciso e ripetibile. Valori alti (0.7+): creativo ma meno prevedibile")
+        adv_layout.addWidget(self.llm_temperature, 0, 1)
+
+        adv_layout.addWidget(QLabel("Top-K:"), 0, 2)
+        self.llm_top_k = NoWheelSpinBox()
+        self.llm_top_k.setRange(1, 100)
+        self.llm_top_k.setValue(20)
+        self.llm_top_k.setToolTip("Numero di token candidati ad ogni step. Valori bassi = piu' focalizzato")
+        adv_layout.addWidget(self.llm_top_k, 0, 3)
+
+        adv_layout.addWidget(QLabel("Top-P:"), 0, 4)
+        self.llm_top_p = NoWheelDoubleSpinBox()
+        self.llm_top_p.setRange(0.0, 1.0)
+        self.llm_top_p.setSingleStep(0.05)
+        self.llm_top_p.setDecimals(2)
+        self.llm_top_p.setValue(0.8)
+        self.llm_top_p.setToolTip("Nucleus sampling. 0.8 = considera l'80%% dei token piu' probabili")
+        adv_layout.addWidget(self.llm_top_p, 0, 5)
+
+        adv_group.setLayout(adv_layout)
+        adv_group.toggled.connect(lambda checked: [w.setVisible(checked) for w in [self.llm_temperature, self.llm_top_k, self.llm_top_p]])
+        layout.addWidget(adv_group)
+
         # Info
         info_label = QLabel("ℹ️ Quando 'Sovrascrivi' è disattivo, i dati esistenti in XMP/Embedded vengono preservati")
         info_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; font-style: italic; padding: 5px;")
@@ -1209,6 +1246,12 @@ class ConfigTab(QWidget):
             self.llm_vision_model.setText(llm['model'])
             self.llm_vision_timeout.setValue(llm['timeout'])
 
+            # Parametri generation LLM
+            gen_params = llm.get('generation', {})
+            self.llm_temperature.setValue(gen_params.get('temperature', 0.2))
+            self.llm_top_k.setValue(gen_params.get('top_k', 20))
+            self.llm_top_p.setValue(gen_params.get('top_p', 0.8))
+
             # Parametri auto_import granulari (nuova struttura)
             auto_import = llm.get('auto_import', {})
 
@@ -1372,6 +1415,11 @@ class ConfigTab(QWidget):
             self.llm_vision_model.setText('qwen3-vl:4b-instruct')
             self.llm_vision_timeout.setValue(240)
 
+            # Parametri generation LLM
+            self.llm_temperature.setValue(0.2)
+            self.llm_top_k.setValue(20)
+            self.llm_top_p.setValue(0.8)
+
             # Generazione Auto-Import (default: tutto disabilitato, no sovrascrittura)
             self.gen_tags_check.setChecked(False)
             self.gen_tags_overwrite.setChecked(False)
@@ -1522,6 +1570,11 @@ class ConfigTab(QWidget):
                 'endpoint': self.llm_vision_endpoint.text(),
                 'model': self.llm_vision_model.text(),
                 'timeout': self.llm_vision_timeout.value(),
+                'generation': {
+                    'temperature': self.llm_temperature.value(),
+                    'top_k': self.llm_top_k.value(),
+                    'top_p': self.llm_top_p.value(),
+                },
                 'auto_import': {
                     'tags': {
                         'enabled': self.gen_tags_check.isChecked(),
