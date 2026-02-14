@@ -317,22 +317,26 @@ class DatabaseManager:
             return None
     
     def _serialize_embedding(self, embedding) -> Optional[bytes]:
-        """Serializza embedding numpy per storage database"""
+        """Serializza embedding numpy come raw float32 bytes per storage database"""
         if embedding is None:
             return None
-        try:
-            if isinstance(embedding, np.ndarray):
-                return pickle.dumps(embedding)
-        except Exception as e:
-            logger.debug(f"Errore serializzazione embedding: {e}")
+        if isinstance(embedding, np.ndarray):
+            return embedding.astype(np.float32).tobytes()
         return None
     
     def _deserialize_embedding(self, embedding_blob) -> Optional[np.ndarray]:
-        """Deserializza embedding dal database"""
+        """Deserializza embedding dal database (raw float32 bytes o pickle legacy)"""
         if embedding_blob is None:
             return None
         try:
-            return pickle.loads(embedding_blob)
+            if isinstance(embedding_blob, bytes):
+                # Pickle protocol 2-5: header \x80 + byte protocollo (0x02-0x05)
+                if len(embedding_blob) >= 2 and embedding_blob[0] == 0x80 and embedding_blob[1] in (2, 3, 4, 5):
+                    return pickle.loads(embedding_blob)
+                # Raw float32 bytes: qualsiasi dimensione multipla di 4
+                if len(embedding_blob) >= 4 and len(embedding_blob) % 4 == 0:
+                    return np.frombuffer(embedding_blob, dtype=np.float32).copy()
+            return None
         except Exception as e:
             logger.debug(f"Errore deserializzazione embedding: {e}")
             return None
@@ -522,6 +526,9 @@ class DatabaseManager:
                 if field == 'tags' and isinstance(value, list):
                     fields.append("tags = ?")
                     values.append(json.dumps(value))
+                elif field in ('clip_embedding', 'dinov2_embedding'):
+                    fields.append(f"{field} = ?")
+                    values.append(self._serialize_embedding(value))
                 else:
                     fields.append(f"{field} = ?")
                     values.append(value)

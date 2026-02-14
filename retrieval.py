@@ -157,13 +157,15 @@ class ImageRetrieval:
                 # Deserializza embedding: può essere raw bytes (float32) o pickle
                 raw_data = img['clip_embedding']
                 if isinstance(raw_data, bytes):
-                    # Prova prima come raw float32 (2048 bytes = 512 floats)
-                    if len(raw_data) == 2048:
-                        img_emb = np.frombuffer(raw_data, dtype=np.float32)
-                    else:
-                        # Fallback a pickle per vecchi formati
+                    # Pickle protocol 2-5: header \x80 + byte protocollo (0x02-0x05)
+                    if len(raw_data) >= 2 and raw_data[0] == 0x80 and raw_data[1] in (2, 3, 4, 5):
                         img_emb_raw = pickle.loads(raw_data)
                         img_emb = np.array(img_emb_raw.get('image_embedding') if isinstance(img_emb_raw, dict) else img_emb_raw)
+                    # Raw float32 bytes: qualsiasi dimensione multipla di 4
+                    elif len(raw_data) >= 4 and len(raw_data) % 4 == 0:
+                        img_emb = np.frombuffer(raw_data, dtype=np.float32).copy()
+                    else:
+                        raise ValueError(f"Formato embedding non riconosciuto ({len(raw_data)} bytes)")
                 else:
                     img_emb = np.array(raw_data)
 
