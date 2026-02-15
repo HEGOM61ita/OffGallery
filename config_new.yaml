@@ -42,11 +42,12 @@ embedding:
       enabled: true
       endpoint: http://localhost:11434
       generation:
+        keep_alive: -1
+        num_batch: 1024
+        num_ctx: 2048
         temperature: 0.2
         top_k: 20
         top_p: 0.8
-        num_ctx: 2048
-        num_batch: 1024
       model: qwen3-vl:4b-instruct
       timeout: 240
     technical:

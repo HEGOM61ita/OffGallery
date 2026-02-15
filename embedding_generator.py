@@ -40,6 +40,9 @@ class EmbeddingGenerator:
         self.brisque_range_path = None
         self.bioclip_classifier = None
 
+        # Cache immagine LLM: evita estrazione/base64 ripetute per la stessa immagine
+        self._llm_image_cache = {'source': None, 'base64': None, 'temp_path': None}
+
         # Device
         self.device = self._get_device()
 
@@ -73,6 +76,37 @@ class EmbeddingGenerator:
             self._init_bioclip()
             self.bioclip_enabled = hasattr(self, 'bioclip_classifier') and self.bioclip_classifier is not   None
     
+    def warmup_ollama(self):
+        """Pre-carica il modello LLM in VRAM di Ollama (metodo ufficiale preload)."""
+        try:
+            import requests
+            llm_config = self.embedding_config.get('models', {}).get('llm_vision', {})
+            if not llm_config.get('enabled', False):
+                return
+            endpoint = llm_config.get('endpoint', 'http://localhost:11434')
+            model = llm_config.get('model', 'qwen3-vl:4b-instruct')
+            generation = llm_config.get('generation', {})
+            keep_alive = generation.get('keep_alive', -1)
+            # Metodo ufficiale Ollama: invia solo il nome modello per forzare il preload
+            payload = {
+                "model": model,
+                "keep_alive": keep_alive,
+            }
+            logger.info(f"Warmup Ollama: preload {model} in VRAM...")
+            response = requests.post(
+                f"{endpoint}/api/generate",
+                json=payload,
+                timeout=120
+            )
+            if response.status_code == 200:
+                logger.info(f"✅ Ollama warmup completato: {model} pronto in VRAM (keep_alive={keep_alive})")
+            else:
+                logger.warning(f"⚠️ Ollama warmup fallito: HTTP {response.status_code} - {response.text[:200]}")
+        except requests.exceptions.ConnectionError:
+            logger.warning("⚠️ Ollama non raggiungibile - warmup saltato (Ollama è avviato?)")
+        except Exception as e:
+            logger.warning(f"⚠️ Ollama warmup errore: {e}")
+
     def _get_device(self):
         """Determina device"""
         try:
@@ -1182,45 +1216,89 @@ class EmbeddingGenerator:
 
     # ===== LLM VISION METHODS =====
 
+    def _prepare_llm_image(self, image_input) -> Optional[str]:
+        """Prepara immagine per LLM: estrae thumbnail, converte in base64.
+        Usa cache interna per evitare elaborazioni ripetute sulla stessa immagine."""
+        import base64
+
+        input_type = self._detect_input_type(image_input)
+
+        # Chiave cache: path stringa o id oggetto PIL
+        if input_type == 'path':
+            cache_key = str(image_input)
+        elif input_type == 'pil':
+            cache_key = id(image_input)
+        else:
+            logger.error("LLM Vision: tipo input non supportato")
+            return None
+
+        # Se già in cache, ritorna base64 cachato
+        if self._llm_image_cache['source'] == cache_key:
+            return self._llm_image_cache['base64']
+
+        # Pulisci cache precedente
+        self._cleanup_llm_image_cache()
+
+        temp_path = None
+        try:
+            if input_type == 'path':
+                from raw_processor import RAWProcessor
+                raw_processor = RAWProcessor(self.config)
+                thumbnail = raw_processor.extract_thumbnail(Path(image_input), target_size=1024)
+                if thumbnail:
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+                        thumbnail.save(tmp.name, format='JPEG', quality=90)
+                        temp_path = tmp.name
+                else:
+                    temp_path = str(image_input)
+            elif input_type == 'pil':
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+                    image_input.save(tmp.name, format='JPEG', quality=85)
+                    temp_path = tmp.name
+
+            # Leggi e converti in base64
+            with open(temp_path, 'rb') as f:
+                image_b64 = base64.b64encode(f.read()).decode('utf-8')
+
+            # Salva in cache
+            self._llm_image_cache = {
+                'source': cache_key,
+                'base64': image_b64,
+                'temp_path': temp_path if temp_path != str(image_input) else None
+            }
+            return image_b64
+
+        except Exception as e:
+            logger.error(f"Errore preparazione immagine LLM: {e}")
+            if temp_path and temp_path != str(image_input):
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+            return None
+
+    def _cleanup_llm_image_cache(self):
+        """Pulisce il file temporaneo della cache immagine LLM."""
+        if self._llm_image_cache['temp_path']:
+            try:
+                os.unlink(self._llm_image_cache['temp_path'])
+            except OSError:
+                pass
+        self._llm_image_cache = {'source': None, 'base64': None, 'temp_path': None}
+
     def generate_llm_description(self, image_input, max_description_words: int = 100, bioclip_context: Optional[str] = None):
         """Genera descrizione LLM Vision.
         Con bioclip_context: genera in EN poi traduce in IT.
         Senza: genera direttamente in IT.
         """
-        temp_image_path = None
         try:
-            input_type = self._detect_input_type(image_input)
-
-            if input_type == 'path':
-                # Usa RAWProcessor per estrarre thumbnail ottimizzato
-                from raw_processor import RAWProcessor
-                raw_processor = RAWProcessor(self.config)
-
-                # Estrai thumbnail JPEG embedded per Ollama
-                thumbnail = raw_processor.extract_thumbnail(Path(image_input), target_size=1024)
-                if thumbnail:
-                    # Salva thumbnail come JPEG temporaneo
-                    import tempfile
-                    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                        thumbnail.save(tmp.name, format='JPEG', quality=90)
-                        image_path = tmp.name
-                        temp_image_path = tmp.name
-                else:
-                    # Fallback se estrazione thumbnail fallisce
-                    image_path = str(image_input)
-
-            elif input_type == 'pil':
-                # Salva PIL Image come JPEG temporaneo
-                import tempfile
-                with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                    image_input.save(tmp.name, format='JPEG', quality=85)
-                    image_path = tmp.name
-                    temp_image_path = tmp.name
-            else:
-                logger.error("LLM Vision: tipo input non supportato")
+            image_b64 = self._prepare_llm_image(image_input)
+            if not image_b64:
                 return None
 
-            response = self._call_ollama_vision_api(image_path, mode='description', max_description_words=max_description_words, bioclip_context=bioclip_context)
+            response = self._call_ollama_vision_api(image_b64, mode='description', max_description_words=max_description_words, bioclip_context=bioclip_context)
 
             # Con BioCLIP: risposta in EN, traduci in IT
             if bioclip_context and response:
@@ -1232,51 +1310,18 @@ class EmbeddingGenerator:
         except Exception as e:
             logger.error(f"Errore LLM description: {e}")
             return None
-        finally:
-            if temp_image_path:
-                try:
-                    os.unlink(temp_image_path)
-                except OSError:
-                    pass
 
     def generate_llm_tags(self, image_input, max_tags: int = 10, bioclip_context: Optional[str] = None) -> List[str]:
         """Genera tag LLM Vision.
         Con bioclip_context: genera in EN poi traduce in IT.
         Senza: genera direttamente in IT.
         """
-        temp_image_path = None
         try:
-            input_type = self._detect_input_type(image_input)
-
-            if input_type == 'path':
-                # Usa RAWProcessor per estrarre thumbnail ottimizzato
-                from raw_processor import RAWProcessor
-                raw_processor = RAWProcessor(self.config)
-
-                # Estrai thumbnail JPEG embedded per Ollama
-                thumbnail = raw_processor.extract_thumbnail(Path(image_input), target_size=1024)
-                if thumbnail:
-                    # Salva thumbnail come JPEG temporaneo
-                    import tempfile
-                    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                        thumbnail.save(tmp.name, format='JPEG', quality=90)
-                        image_path = tmp.name
-                        temp_image_path = tmp.name
-                else:
-                    # Fallback se estrazione thumbnail fallisce
-                    image_path = str(image_input)
-            elif input_type == 'pil':
-                # Salva temporaneamente
-                import tempfile
-                with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                    image_input.save(tmp.name, format='JPEG', quality=85)
-                    image_path = tmp.name
-                    temp_image_path = tmp.name
-            else:
-                logger.error("LLM Tags: tipo input non supportato per Ollama")
+            image_b64 = self._prepare_llm_image(image_input)
+            if not image_b64:
                 return []
 
-            response = self._call_ollama_vision_api(image_path, mode='tags', max_tags=max_tags, bioclip_context=bioclip_context)
+            response = self._call_ollama_vision_api(image_b64, mode='tags', max_tags=max_tags, bioclip_context=bioclip_context)
             if response:
                 # Parse tags da risposta
                 tags = self._parse_llm_tags_response(response, max_tags)
@@ -1293,51 +1338,18 @@ class EmbeddingGenerator:
         except Exception as e:
             logger.error(f"Errore LLM tags: {e}")
             return []
-        finally:
-            if temp_image_path:
-                try:
-                    os.unlink(temp_image_path)
-                except OSError:
-                    pass
 
     def generate_llm_title(self, image_input, max_title_words: int = 5, bioclip_context: Optional[str] = None) -> Optional[str]:
         """Genera titolo LLM Vision.
         Con bioclip_context: genera in EN poi traduce in IT.
         Senza: genera direttamente in IT.
         """
-        temp_image_path = None
         try:
-            input_type = self._detect_input_type(image_input)
-
-            if input_type == 'path':
-                # Usa RAWProcessor per estrarre thumbnail ottimizzato
-                from raw_processor import RAWProcessor
-                raw_processor = RAWProcessor(self.config)
-
-                # Estrai thumbnail JPEG embedded per Ollama
-                thumbnail = raw_processor.extract_thumbnail(Path(image_input), target_size=1024)
-                if thumbnail:
-                    # Salva thumbnail come JPEG temporaneo
-                    import tempfile
-                    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                        thumbnail.save(tmp.name, format='JPEG', quality=90)
-                        image_path = tmp.name
-                        temp_image_path = tmp.name
-                else:
-                    # Fallback se estrazione thumbnail fallisce
-                    image_path = str(image_input)
-            elif input_type == 'pil':
-                # Salva temporaneamente
-                import tempfile
-                with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                    image_input.save(tmp.name, format='JPEG', quality=85)
-                    image_path = tmp.name
-                    temp_image_path = tmp.name
-            else:
-                logger.error("LLM Title: tipo input non supportato per Ollama")
+            image_b64 = self._prepare_llm_image(image_input)
+            if not image_b64:
                 return None
 
-            response = self._call_ollama_vision_api(image_path, mode='title', max_title_words=max_title_words, bioclip_context=bioclip_context)
+            response = self._call_ollama_vision_api(image_b64, mode='title', max_title_words=max_title_words, bioclip_context=bioclip_context)
             if response:
                 # Pulisci il titolo da eventuali virgolette o punteggiatura finale
                 title = response.strip().strip('"').strip("'").rstrip('.').rstrip(',').strip()
@@ -1353,12 +1365,6 @@ class EmbeddingGenerator:
         except Exception as e:
             logger.error(f"Errore LLM title: {e}")
             return None
-        finally:
-            if temp_image_path:
-                try:
-                    os.unlink(temp_image_path)
-                except OSError:
-                    pass
 
     def generate_llm_content(self, image_input, mode='description', max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5, bioclip_context: Optional[str] = None):
         """Metodo unificato per contenuti LLM con parametri completi.
@@ -1398,31 +1404,34 @@ class EmbeddingGenerator:
             logger.error(f"Errore LLM content generation: {e}")
             return None
 
-    def _call_ollama_vision_api(self, image_path: str, mode: str, max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5, bioclip_context: Optional[str] = None) -> Optional[str]:
+    def _call_ollama_vision_api(self, image_data_b64: str, mode: str, max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5, bioclip_context: Optional[str] = None) -> Optional[str]:
         """Chiama API Ollama Vision (Qwen3-VL) e ritorna SOLO il contenuto finale.
+
+        Args:
+            image_data_b64: immagine già codificata in base64
+            mode: 'title', 'tags', 'description'
 
         Con bioclip_context: genera in INGLESE con nomi scientifici (Latino)
         Senza bioclip_context: genera in ITALIANO (comportamento originale)
         """
         try:
             import requests
-            import base64
 
             llm_config = self.embedding_config.get('models', {}).get('llm_vision', {})
 
             endpoint = llm_config.get('endpoint', 'http://localhost:11434')
             model = llm_config.get('model', 'qwen3-vl:4b-instruct')
             timeout = llm_config.get('timeout', 180)
-            # Calcolo num_predict stretto: parole attese * ~1.3 token/parola + margine minimo
+            # Calcolo num_predict: ~3 token/tag, ~1.3 token/parola + margine
             if mode == "description":
-                max_tokens = int(max_description_words * 1.3) + 10
+                max_tokens = int(max_description_words * 1.5) + 20
             elif mode == "tags":
-                # ~2 token per tag (parola + virgola)
-                max_tokens = (max_tags * 2) + 5
+                # ~3 token per tag (parola + virgola + spazio)
+                max_tokens = (max_tags * 3) + 10
             elif mode == "title":
-                max_tokens = int(max_title_words * 1.3) + 5
+                max_tokens = int(max_title_words * 2) + 10
             else:
-                max_tokens = int(max_description_words * 1.3) + (max_tags * 2) + 15
+                max_tokens = int(max_description_words * 1.3) + (max_tags * 2) + 20
 
             generation = llm_config.get('generation', {})
             temperature = generation.get('temperature', 0.7)
@@ -1431,10 +1440,6 @@ class EmbeddingGenerator:
             min_p = generation.get('min_p', 0.0)
             num_ctx = generation.get('num_ctx', 2048)
             num_batch = generation.get('num_batch', 1024)
-
-            # --- Base64 immagine ---
-            with open(image_path, 'rb') as f:
-                image_data = base64.b64encode(f.read()).decode('utf-8')
 
             # --- Prompt condizionali: con BioCLIP → EN + nomi Latini, senza → IT diretto ---
             if bioclip_context:
@@ -1535,11 +1540,14 @@ class EmbeddingGenerator:
                     return None
 
             # --- Payload Ollama ---
+            keep_alive = generation.get('keep_alive', -1)
             payload = {
                 "model": model,
                 "prompt": prompt,
-                "images": [image_data],
+                "images": [image_data_b64],
                 "stream": False,
+                "think": False,
+                "keep_alive": keep_alive,
                 "options": {
                     "num_predict": max_tokens,
                     "temperature": temperature,
@@ -1600,11 +1608,14 @@ class EmbeddingGenerator:
             generation = llm_config.get('generation', {})
             num_ctx = generation.get('num_ctx', 2048)
             num_batch = generation.get('num_batch', 1024)
+            keep_alive = generation.get('keep_alive', -1)
 
             payload = {
                 "model": model,
                 "prompt": prompt,
                 "stream": False,
+                "think": False,
+                "keep_alive": keep_alive,
                 "options": {
                     "num_predict": max_tokens,
                     "temperature": 0.1,

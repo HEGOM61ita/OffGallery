@@ -244,6 +244,15 @@ class MainWindow(QMainWindow):
 
         print("✅ Modelli AI centralizzati inizializzati")
 
+        # Warmup Ollama in background (pre-carica LLM in VRAM)
+        import threading
+        def _ollama_warmup():
+            try:
+                self.ai_models['embedding_generator'].warmup_ollama()
+            except Exception as e:
+                print(f"⚠️ Ollama warmup fallito: {e}")
+        threading.Thread(target=_ollama_warmup, daemon=True).start()
+
         # === INIZIALIZZAZIONE DATABASE CENTRALIZZATA ===
         from db_manager_new import DatabaseManager
         

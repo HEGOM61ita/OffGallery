@@ -610,6 +610,9 @@ class ProcessingWorker(QThread):
                         except Exception as e:
                             self.log_message.emit(f"⚠️ LLM {key} timeout/errore: {e}", "warning")
 
+                # Pulisci cache immagine LLM (libera memoria e file temp)
+                embedding_generator._cleanup_llm_image_cache()
+
                 # === APPLICA RISULTATI TAGS ===
                 if llm_results['tags']:
                     llm_tags = llm_results['tags']

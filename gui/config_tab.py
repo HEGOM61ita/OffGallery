@@ -806,8 +806,13 @@ class ConfigTab(QWidget):
         self.llm_num_batch.setToolTip("Dimensione batch per elaborazione prompt. Valori alti = piu' veloce ma piu' RAM")
         adv_layout.addWidget(self.llm_num_batch, 1, 3)
 
+        self.llm_keep_alive = QCheckBox("Keep Alive (modello sempre in VRAM)")
+        self.llm_keep_alive.setChecked(True)
+        self.llm_keep_alive.setToolTip("Se attivo, Ollama tiene il modello in VRAM permanentemente. Disattiva se hai poca memoria GPU")
+        adv_layout.addWidget(self.llm_keep_alive, 1, 4, 1, 2)
+
         adv_group.setLayout(adv_layout)
-        adv_group.toggled.connect(lambda checked: [w.setVisible(checked) for w in [self.llm_temperature, self.llm_top_k, self.llm_top_p, self.llm_num_ctx, self.llm_num_batch]])
+        adv_group.toggled.connect(lambda checked: [w.setVisible(checked) for w in [self.llm_temperature, self.llm_top_k, self.llm_top_p, self.llm_num_ctx, self.llm_num_batch, self.llm_keep_alive]])
         layout.addWidget(adv_group)
 
         # Info
@@ -1269,6 +1274,7 @@ class ConfigTab(QWidget):
             self.llm_top_p.setValue(gen_params.get('top_p', 0.8))
             self.llm_num_ctx.setValue(gen_params.get('num_ctx', 2048))
             self.llm_num_batch.setValue(gen_params.get('num_batch', 1024))
+            self.llm_keep_alive.setChecked(gen_params.get('keep_alive', -1) == -1)
 
             # Parametri auto_import granulari (nuova struttura)
             auto_import = llm.get('auto_import', {})
@@ -1439,6 +1445,7 @@ class ConfigTab(QWidget):
             self.llm_top_p.setValue(0.8)
             self.llm_num_ctx.setValue(2048)
             self.llm_num_batch.setValue(1024)
+            self.llm_keep_alive.setChecked(True)
 
             # Generazione Auto-Import (default: tutto disabilitato, no sovrascrittura)
             self.gen_tags_check.setChecked(False)
@@ -1596,6 +1603,7 @@ class ConfigTab(QWidget):
                     'top_p': self.llm_top_p.value(),
                     'num_ctx': self.llm_num_ctx.value(),
                     'num_batch': self.llm_num_batch.value(),
+                    'keep_alive': -1 if self.llm_keep_alive.isChecked() else 300,
                 },
                 'auto_import': {
                     'tags': {
