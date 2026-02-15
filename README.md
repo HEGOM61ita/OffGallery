@@ -25,6 +25,8 @@
 
 ## Ultime Novità
 
+> Per approfondimenti su ogni versione, visita le [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions) del progetto.
+
 ### v0.4 — 15 febbraio 2025
 - **Ottimizzazione LLM Ollama**: keep_alive permanente in VRAM, warmup allo startup, cache immagine tra chiamate multiple
 - **Parametri LLM configurabili da UI**: num_ctx, num_batch, keep_alive, temperature, top_k, top_p
@@ -274,11 +276,12 @@ Questo progetto è in sviluppo attivo. Tutte le funzionalità e migliorie sono a
 
 ---
 
-## Contributi
+## Contributi e Feedback
 
 Questo progetto segue un modello di sviluppo centralizzato.
 Attualmente, non sono accettati contributi di codice esterno (pull requests).
-Anche se non posso garantire una risposta, tutte le segnalazioni di bug, idee e suggerimenti per nuove funzionalità sono benvenuti e apprezzati e saranno presi in considerazione per futuri sviluppi.
+
+Segnalazioni di bug, idee e suggerimenti per nuove funzionalità sono benvenuti nelle [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions) del progetto. In particolare, sono apprezzati feedback sulle prestazioni con la descrizione dell'hardware utilizzato (GPU, RAM, modello Ollama) per migliorare l'ottimizzazione su diverse configurazioni.
 
 ---
 
