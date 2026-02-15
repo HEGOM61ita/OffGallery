@@ -23,6 +23,28 @@
 
 ---
 
+## Ultime Novità
+
+### v0.4 — 15 febbraio 2025
+- **Ottimizzazione LLM Ollama**: keep_alive permanente in VRAM, warmup allo startup, cache immagine tra chiamate multiple
+- **Parametri LLM configurabili da UI**: num_ctx, num_batch, keep_alive, temperature, top_k, top_p
+- **Profili immagine corretti**: dimensioni adattate ai modelli AI reali (CLIP 224px, BioCLIP 224px, LLM 512px)
+- **Prompt LLM migliorati**: identificazione specie prudente senza BioCLIP, niente più allucinazioni
+
+### v0.3 — 14 febbraio 2025
+- **Serializzazione embedding**: migrazione da pickle a raw float32 per robustezza e performance
+- **Ordinamento gallery**: 7 criteri con selettore UI (rilevanza, data, nome, rating, score)
+- **Log tab**: filtri per livello e limite 500 entry
+- **Fix traduzione LLM**: strip think blocks, prompt esplicito IT, rimozione nomi specie
+
+### v0.2 — 13-14 febbraio 2025
+- **BioCLIP → LLM feedback loop**: identificazione specie guida la generazione di tag e descrizioni
+- **Parametri LLM avanzati** nella config tab (temperature, top_k, top_p)
+- **Wizard di installazione** unificato (INSTALLA_OffGallery.bat)
+- **Fix processing**: progress bar accurata, ordine tag BioCLIP preservato
+
+---
+
 ## Perché OffGallery?
 
 Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a servizi cloud? Vuoi cercare le tue foto con linguaggio naturale ("tramonto con montagne") mantenendo tutto sul tuo PC? **OffGallery è la risposta.**
