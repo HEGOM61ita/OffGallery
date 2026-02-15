@@ -128,12 +128,12 @@ class EmbeddingGenerator:
 
         # Profili di default (fallback)
         default_profiles = {
-            'clip_embedding': {'target_size': 1024, 'resampling': Image.Resampling.LANCZOS},
-            'dinov2_embedding': {'target_size': 518, 'resampling': Image.Resampling.LANCZOS},
-            'bioclip_classification': {'target_size': 384, 'resampling': Image.Resampling.LANCZOS},
-            'aesthetic_score': {'target_size': 336, 'resampling': Image.Resampling.BILINEAR},
-            'technical_score': {'target_size': 512, 'resampling': Image.Resampling.LANCZOS},  # BRISQUE
-            'llm_vision': {'target_size': 512, 'resampling': Image.Resampling.LANCZOS},
+            'clip_embedding': {'target_size': 224, 'resampling': Image.Resampling.LANCZOS},  # ViT-B/32 input 224x224
+            'dinov2_embedding': {'target_size': 518, 'resampling': Image.Resampling.LANCZOS},  # DINOv2 input 518x518 (14x37)
+            'bioclip_classification': {'target_size': 224, 'resampling': Image.Resampling.LANCZOS},  # ViT-B/16 input 224x224
+            'aesthetic_score': {'target_size': 224, 'resampling': Image.Resampling.BILINEAR},  # CLIP-based input 224x224
+            'technical_score': {'target_size': 512, 'resampling': Image.Resampling.LANCZOS},  # BRISQUE/MUSIQ
+            'llm_vision': {'target_size': 512, 'resampling': Image.Resampling.LANCZOS},  # Qwen3-VL 448-512px
             'default': {'target_size': 512, 'resampling': Image.Resampling.LANCZOS}
         }
 
@@ -1244,7 +1244,10 @@ class EmbeddingGenerator:
             if input_type == 'path':
                 from raw_processor import RAWProcessor
                 raw_processor = RAWProcessor(self.config)
-                thumbnail = raw_processor.extract_thumbnail(Path(image_input), target_size=1024)
+                # Leggi target_size dal profilo llm_vision
+                llm_profile = self.optimization_profiles.get('llm_vision', {})
+                llm_target_size = llm_profile.get('target_size', 512)
+                thumbnail = raw_processor.extract_thumbnail(Path(image_input), target_size=llm_target_size)
                 if thumbnail:
                     import tempfile
                     with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:

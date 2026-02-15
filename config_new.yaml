@@ -27,15 +27,15 @@ embedding:
     llm_vision:
       auto_import:
         description:
-          enabled: false
-          max_words: 50
-          overwrite: false
+          enabled: true
+          max_words: 30
+          overwrite: true
         tags:
-          enabled: false
-          max_tags: 10
+          enabled: true
+          max_tags: 5
           overwrite: true
         title:
-          enabled: false
+          enabled: true
           max_words: 5
           overwrite: true
       description: Genera tag, descrizioni e titoli con LLM vision (richiede Ollama)
@@ -82,7 +82,7 @@ image_optimization:
       method: preview_optimized
       quality: 85
       resampling: BILINEAR
-      target_size: 336
+      target_size: 224
       upscale: false
     ai_processing:
       method: preview_optimized
@@ -91,16 +91,16 @@ image_optimization:
       target_size: 512
       upscale: false
     bioclip_classification:
-      method: high_quality
-      quality: 90
+      method: preview_optimized
+      quality: 85
       resampling: LANCZOS
-      target_size: 384
+      target_size: 224
       upscale: false
     clip_embedding:
-      method: high_quality
-      quality: 90
+      method: preview_optimized
+      quality: 85
       resampling: LANCZOS
-      target_size: 512
+      target_size: 224
       upscale: false
     default:
       description: Default fallback
@@ -124,7 +124,7 @@ image_optimization:
       upscale: false
     llm_vision:
       method: preview_optimized
-      quality: 95
+      quality: 85
       resampling: LANCZOS
       target_size: 512
       upscale: false
