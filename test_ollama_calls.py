@@ -39,28 +39,68 @@ MAX_TITLE_WORDS = 5
 MAX_DESC_WORDS = 50
 THINK_MARGIN = 10
 
-# --- Trova prima immagine in INPUT ---
+# --- Immagine da processare ---
 input_dir = os.path.join(os.path.dirname(__file__), "INPUT")
-extensions = ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tiff", "*.webp")
-image_path = None
-for ext in extensions:
-    found = glob.glob(os.path.join(input_dir, ext))
-    if found:
-        image_path = found[0]
-        break
+# Specifica il file da testare (None = cerca la prima immagine)
+TARGET_FILE = "_OMX0627.ORF"
 
-if not image_path:
-    print(f"❌ Nessuna immagine trovata in {input_dir}")
-    sys.exit(1)
+if TARGET_FILE:
+    image_path = os.path.join(input_dir, TARGET_FILE)
+    if not os.path.exists(image_path):
+        print(f"❌ File non trovato: {image_path}")
+        sys.exit(1)
+else:
+    extensions = ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tiff", "*.webp",
+                  "*.cr2", "*.cr3", "*.nef", "*.arw", "*.orf", "*.raf", "*.rw2", "*.dng")
+    image_path = None
+    for ext in extensions:
+        found = glob.glob(os.path.join(input_dir, ext))
+        if found:
+            image_path = found[0]
+            break
+    if not image_path:
+        print(f"❌ Nessuna immagine trovata in {input_dir}")
+        sys.exit(1)
 
 print(f"📷 Immagine: {os.path.basename(image_path)}")
 print(f"🤖 Modello: {MODEL}")
 print(f"⚙️  Params: temp={TEMPERATURE}, top_k={TOP_K}, top_p={TOP_P}, num_ctx={NUM_CTX}, num_batch={NUM_BATCH}, keep_alive={KEEP_ALIVE}")
 print(f"{'='*70}")
 
-# --- Carica immagine in base64 ---
-with open(image_path, "rb") as f:
-    image_b64 = base64.b64encode(f.read()).decode("utf-8")
+# --- Ridimensiona immagine come fa l'app (profilo llm_vision) ---
+from PIL import Image
+LLM_TARGET_SIZE = config.get("image_optimization", {}).get("profiles", {}).get("llm_vision", {}).get("target_size", 512)
+
+# Estrai immagine (supporta RAW via RAWProcessor)
+RAW_EXTENSIONS = {'.cr2', '.cr3', '.crw', '.nef', '.nrw', '.arw', '.srf', '.sr2',
+                  '.raf', '.orf', '.rw2', '.raw', '.pef', '.ptx', '.dng', '.rwl',
+                  '.3fr', '.iiq', '.x3f'}
+ext = os.path.splitext(image_path)[1].lower()
+
+if ext in RAW_EXTENSIONS:
+    from pathlib import Path
+    from raw_processor import RAWProcessor
+    raw_proc = RAWProcessor(config)
+    img = raw_proc.extract_thumbnail(Path(image_path), target_size=LLM_TARGET_SIZE)
+    if not img:
+        print(f"❌ Impossibile estrarre thumbnail da {image_path}")
+        sys.exit(1)
+    orig_size = img.size
+else:
+    img = Image.open(image_path)
+    orig_size = img.size
+    max_side = max(img.size)
+    if max_side > LLM_TARGET_SIZE:
+        scale = LLM_TARGET_SIZE / max_side
+        new_size = (int(img.size[0] * scale), int(img.size[1] * scale))
+        img = img.resize(new_size, Image.Resampling.LANCZOS)
+
+# Converti in JPEG base64
+import io
+buf = io.BytesIO()
+img.save(buf, format="JPEG", quality=85)
+image_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+print(f"📐 Immagine: {orig_size[0]}x{orig_size[1]} → {img.size[0]}x{img.size[1]} (target: {LLM_TARGET_SIZE}px)")
 
 
 def strip_think_blocks(text):
@@ -135,27 +175,29 @@ r = requests.post(f"{ENDPOINT}/api/generate", json={"model": MODEL, "keep_alive"
 print(f"   Warmup completato in {time.time() - t0:.1f}s (HTTP {r.status_code})")
 print(f"{'='*70}")
 
-# === PROMPT: identici a embedding_generator.py (senza bioclip_context) ===
-species_warning = (
-    "- NEVER try to identify species of animals, plants, flowers, or minerals\n"
-    "- Use generic terms like 'uccello', 'fiore', 'albero', 'roccia' instead of exact species names\n"
+# === PROMPT: approccio intermedio (identifica se sicuro, altrimenti generico) ===
+italian_rules = (
+    "LANGUAGE: ALL output MUST be in ITALIAN. NEVER use English words.\n"
+    "ANIMAL/PLANT IDENTIFICATION:\n"
+    "- If you clearly recognize the species, use its common Italian name (e.g. cervo, delfino, girasole)\n"
+    "- If you are NOT sure, use a generic Italian term (uccello, animale, fiore, albero, pesce)\n"
+    "- NEVER guess a species name. A generic term is ALWAYS better than a wrong name\n"
+    "- Do NOT use scientific/Latin names\n"
 )
-italian_warning = "IMPORTANT: Output MUST be in ITALIAN language. Translate any English words to Italian.\n"
 
 PROMPTS = {
     "title": {
         "prompt": (
             "You are a professional photo archiving system.\n"
             "Task: generate a factual, descriptive title for this photo.\n\n"
-            f"{italian_warning}"
-            "STRICT RULES:\n"
-            "- Output ONLY the title text IN ITALIAN, nothing else\n"
+            f"{italian_rules}"
+            "\nSTRICT RULES:\n"
+            "- Output ONLY the title text, nothing else\n"
             "- NO quotes, NO punctuation at the end\n"
             f"- Maximum {MAX_TITLE_WORDS} words\n"
             "- Be DESCRIPTIVE, not poetic or creative\n"
             "- Focus on: main subject, location type, action (if any)\n"
-            "- Example: 'Uccello in volo sul mare' (NOT English, NOT species names)\n"
-            f"{species_warning}"
+            "- For animals/plants: prefer generic terms if unsure (e.g. 'Uccello bianco' not a wrong species)\n"
         ),
         "max_tokens": int(MAX_TITLE_WORDS * 2) + THINK_MARGIN,
     },
@@ -164,25 +206,21 @@ PROMPTS = {
             "You are a professional photographic tagging system.\n"
             "Task: observe the scene and generate photo tags, in format \"tag1,tag2,tag3\".\n"
             "Priority: 1) subjects, 2) scene, 3) actions, 4) objects, 5) weather, 6) mood, 7) colors\n\n"
-            f"{italian_warning}"
-            "STRICT RULES:\n"
-            f"- Maximum {MAX_TAGS} tags, ALL IN ITALIAN\n"
-            "- Generic photographic concepts only, NO scientific classifications\n"
+            f"{italian_rules}"
+            "\nSTRICT RULES:\n"
+            f"- Maximum {MAX_TAGS} tags\n"
             "- lowercase, singular form\n"
-            f"{species_warning}"
+            "- Only tag what you clearly see in the image\n"
         ),
         "max_tokens": (MAX_TAGS * 3) + THINK_MARGIN,
     },
     "description": {
         "prompt": (
             "You are a professional photography captioning system.\n"
-            "Task: describe the image following these steps:\n"
-            "1. FIRST: Identify the MAIN SUBJECT using GENERIC terms (dog not breed, flower not species, bird not species)\n"
-            "2. THEN: Build the description around that subject\n\n"
-            f"{italian_warning}"
-            "STRICT RULES:\n"
-            "- Output ONLY the final description text IN ITALIAN\n"
-            "- Use GENERIC category names, NOT specific species/breeds/varieties\n"
+            "Task: describe the image.\n\n"
+            f"{italian_rules}"
+            "\nSTRICT RULES:\n"
+            "- Output ONLY the description text, nothing else\n"
             "- Include: subject, environment, colors, composition, atmosphere\n"
             f"- Concise, informative, max {MAX_DESC_WORDS} words\n"
         ),

@@ -1492,23 +1492,23 @@ class EmbeddingGenerator:
                     logger.error(f"Modalità non supportata: {mode}")
                     return None
             else:
-                # Comportamento originale: genera in italiano senza contesto specie
-                species_warning = (
-                    "- NEVER try to identify species of animals, plants, flowers, or minerals\n"
-                    "- Use generic terms like 'uccello', 'fiore', 'albero', 'roccia' instead of species names\n"
+                # Senza BioCLIP: genera in italiano, identifica specie solo se sicuro
+                italian_rules = (
+                    "LANGUAGE: ALL output MUST be in ITALIAN. NEVER use English words.\n"
+                    "ANIMAL/PLANT IDENTIFICATION:\n"
+                    "- If you clearly recognize the species, use its common Italian name (e.g. cervo, delfino, girasole)\n"
+                    "- If you are NOT sure, use a generic Italian term (uccello, animale, fiore, albero, pesce)\n"
+                    "- NEVER guess a species name. A generic term is ALWAYS better than a wrong name\n"
+                    "- Do NOT use scientific/Latin names\n"
                 )
-                italian_warning = "IMPORTANT: Output MUST be in ITALIAN language. Translate any English words to Italian.\n"
 
                 if mode == "description":
                     prompt = (
                         "You are a professional photography captioning system.\n"
-                        "Task: describe the image following these steps:\n"
-                        "1. FIRST: Identify the MAIN SUBJECT using GENERIC terms (dog not breed, flower not species, bird not species)\n"
-                        "2. THEN: Build the description around that subject\n\n"
-                        f"{italian_warning}"
-                        "STRICT RULES:\n"
-                        "- Output ONLY the final description text IN ITALIAN\n"
-                        "- Use GENERIC category names, NOT specific species/breeds/varieties\n"
+                        "Task: describe the image.\n\n"
+                        f"{italian_rules}"
+                        "\nSTRICT RULES:\n"
+                        "- Output ONLY the description text, nothing else\n"
                         "- Include: subject, environment, colors, composition, atmosphere\n"
                         f"- Concise, informative, max {max_description_words} words\n"
                     )
@@ -1517,26 +1517,24 @@ class EmbeddingGenerator:
                         "You are a professional photographic tagging system.\n"
                         "Task: observe the scene and generate photo tags, in format \"tag1,tag2,tag3\".\n"
                         "Priority: 1) subjects, 2) scene, 3) actions, 4) objects, 5) weather, 6) mood, 7) colors\n\n"
-                        f"{italian_warning}"
-                        "STRICT RULES:\n"
-                        f"- Maximum {max_tags} tags, ALL IN ITALIAN\n"
-                        "- Generic photographic concepts only, NO scientific classifications\n"
+                        f"{italian_rules}"
+                        "\nSTRICT RULES:\n"
+                        f"- Maximum {max_tags} tags\n"
                         "- lowercase, singular form\n"
-                        f"{species_warning}"
+                        "- Only tag what you clearly see in the image\n"
                     )
                 elif mode == "title":
                     prompt = (
                         "You are a professional photo archiving system.\n"
                         "Task: generate a factual, descriptive title for this photo.\n\n"
-                        f"{italian_warning}"
-                        "STRICT RULES:\n"
-                        "- Output ONLY the title text IN ITALIAN, nothing else\n"
+                        f"{italian_rules}"
+                        "\nSTRICT RULES:\n"
+                        "- Output ONLY the title text, nothing else\n"
                         "- NO quotes, NO punctuation at the end\n"
                         f"- Maximum {max_title_words} words\n"
                         "- Be DESCRIPTIVE, not poetic or creative\n"
                         "- Focus on: main subject, location type, action (if any)\n"
-                        "- Example: 'Uccello in volo sul mare' (NOT English, NOT species names)\n"
-                        f"{species_warning}"
+                        "- For animals/plants: prefer generic terms if unsure (e.g. 'Uccello bianco' not a wrong species)\n"
                     )
                 else:
                     logger.error(f"Modalità non supportata: {mode}")
