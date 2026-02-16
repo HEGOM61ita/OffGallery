@@ -1,6 +1,6 @@
 # ============================================
 # OffGallery - Dipendenze Python
-# Ambiente: OffGallery (Python 3.11)
+# Ambiente: OffGallery (Python 3.12)
 # ============================================
 
 # === CORE AI / DEEP LEARNING ===

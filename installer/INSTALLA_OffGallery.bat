@@ -13,7 +13,7 @@ set "APP_ROOT=%~dp0.."
 set "REQUIREMENTS=%SCRIPT_DIR%requirements_offgallery.txt"
 set "LAUNCHER=%SCRIPT_DIR%OffGallery_Launcher.bat"
 set "ENV_NAME=OffGallery"
-set "PYTHON_VER=3.11"
+set "PYTHON_VER=3.12"
 set "MINICONDA_URL=https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe"
 set "MINICONDA_INSTALLER=%TEMP%\miniconda_installer.exe"
 set "MINICONDA_DIR=%USERPROFILE%\miniconda3"
@@ -136,14 +136,7 @@ echo.
 
 start /wait "" "!MINICONDA_INSTALLER!" /InstallationType=JustMe /RegisterPython=0 /AddToPath=1 /S /D=!MINICONDA_DIR!
 
-if !ERRORLEVEL! NEQ 0 (
-    echo   [ERRORE] Installazione Miniconda fallita.
-    echo   Prova a eseguire manualmente l'installer:
-    echo   !MINICONDA_INSTALLER!
-    goto :END_ERROR
-)
-
-:: Verifica post-installazione
+:: Verifica post-installazione (check concreto invece di ERRORLEVEL)
 if not exist "!CONDA_BAT!" (
     echo   [ERRORE] Installazione completata ma conda.bat non trovato.
     echo   Percorso atteso: !CONDA_BAT!
@@ -173,8 +166,11 @@ echo  ================================================================
 echo.
 
 :: Verifica se l'ambiente esiste gia'
-call "!CONDA_CMD!" env list 2>nul | findstr /C:"!ENV_NAME!" >nul 2>&1
-if !ERRORLEVEL! EQU 0 (
+call "!CONDA_CMD!" env list > "%TEMP%\og_envlist.tmp" 2>nul
+findstr /C:"!ENV_NAME!" "%TEMP%\og_envlist.tmp" >nul 2>&1
+set "ENV_EXISTS=!ERRORLEVEL!"
+del /f /q "%TEMP%\og_envlist.tmp" 2>nul
+if !ENV_EXISTS! EQU 0 (
     echo   [OK] Ambiente "!ENV_NAME!" gia' presente.
     echo.
     set /p "RECREATE_ENV=  Vuoi eliminarlo e ricrearlo da zero? (S/N): "
@@ -201,7 +197,12 @@ echo.
 
 call "!CONDA_CMD!" create -n !ENV_NAME! python=!PYTHON_VER! -y
 
-if !ERRORLEVEL! NEQ 0 (
+:: Verifica concreta che l'ambiente sia stato creato
+call "!CONDA_CMD!" env list > "%TEMP%\og_envlist.tmp" 2>nul
+findstr /C:"!ENV_NAME!" "%TEMP%\og_envlist.tmp" >nul 2>&1
+set "ENV_CREATED=!ERRORLEVEL!"
+del /f /q "%TEMP%\og_envlist.tmp" 2>nul
+if !ENV_CREATED! NEQ 0 (
     echo.
     echo   [ERRORE] Creazione ambiente fallita.
     echo   Possibili cause:
@@ -251,27 +252,23 @@ echo.
 echo  ----------------------------------------------------------------
 echo.
 
-:: Attiva ambiente
-call "!CONDA_CMD!" activate !ENV_NAME!
-if !ERRORLEVEL! NEQ 0 (
-    echo   [ERRORE] Impossibile attivare l'ambiente !ENV_NAME!.
-    echo   Verifica con: conda env list
-    goto :END_ERROR
-)
-
-:: Aggiorna pip
+:: Aggiorna pip (usa conda run per evitare problemi con conda activate in batch)
 echo   [1/2] Aggiornamento pip...
-python -m pip install --upgrade pip -q 2>nul
+call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -m pip install --upgrade pip -q 2>nul
 
 :: Installa requirements
 echo   [2/2] Installazione dipendenze in corso...
 echo.
 
-pip install -r "!REQUIREMENTS!"
+call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner pip install -r "!REQUIREMENTS!"
 
+:: Verifica concreta: controlla che torch sia importabile
+echo.
+echo   Verifica installazione...
+call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import torch; print('  [OK] PyTorch', torch.__version__, '- CUDA:', 'SI' if torch.cuda.is_available() else 'NO (solo CPU)')" 2>nul
 if !ERRORLEVEL! NEQ 0 (
     echo.
-    echo   [ERRORE] Installazione pacchetti fallita.
+    echo   [ERRORE] Installazione pacchetti fallita o incompleta.
     echo.
     echo   Possibili cause:
     echo     - Connessione internet instabile
@@ -283,15 +280,7 @@ if !ERRORLEVEL! NEQ 0 (
     goto :END_ERROR
 )
 
-:: Verifica rapida
-echo.
-echo   Verifica installazione...
-python -c "import torch; print('  [OK] PyTorch', torch.__version__, '- CUDA:', 'SI' if torch.cuda.is_available() else 'NO (solo CPU)')" 2>nul
-if !ERRORLEVEL! NEQ 0 (
-    echo   [!!] Attenzione: verifica PyTorch fallita. L'installazione potrebbe essere incompleta.
-)
-
-python -c "from PyQt6.QtWidgets import QApplication; print('  [OK] PyQt6 funzionante')" 2>nul
+call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "from PyQt6.QtWidgets import QApplication; print('  [OK] PyQt6 funzionante')" 2>nul
 if !ERRORLEVEL! NEQ 0 (
     echo   [!!] Attenzione: PyQt6 non trovato. L'interfaccia potrebbe non avviarsi.
 )
@@ -341,7 +330,8 @@ echo.
 
 powershell -Command "& { try { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '!OLLAMA_URL!' -OutFile '!OLLAMA_INSTALLER!' -UseBasicParsing; Write-Host '  [OK] Download completato.' } catch { Write-Host '  [ERRORE] Download fallito:' $_.Exception.Message; exit 1 } }"
 
-if !ERRORLEVEL! NEQ 0 (
+:: Verifica concreta che il file sia stato scaricato
+if not exist "!OLLAMA_INSTALLER!" (
     echo.
     echo   [!!] Download Ollama fallito. Puoi installarlo manualmente da:
     echo       https://ollama.com/download
@@ -358,11 +348,15 @@ echo   Installazione Ollama...
 echo   (Potrebbe apparire una finestra di installazione)
 echo.
 
-start /wait "" "!OLLAMA_INSTALLER!" /VERYSILENT /NORESTART 2>nul
+:: Ollama usa installer NSIS: il flag silenzioso standard e' /S
+start /wait "" "!OLLAMA_INSTALLER!" /S 2>nul
+:: Se il silent install fallisce, prova installazione interattiva
+where ollama >nul 2>&1
 if !ERRORLEVEL! NEQ 0 (
-    :: Fallback: installazione interattiva
-    echo   Avvio installazione interattiva...
-    start /wait "" "!OLLAMA_INSTALLER!"
+    if not exist "%LOCALAPPDATA%\Programs\Ollama\ollama.exe" (
+        echo   Avvio installazione interattiva...
+        start /wait "" "!OLLAMA_INSTALLER!"
+    )
 )
 
 :: Pulizia
@@ -391,8 +385,14 @@ echo   [OK] Ollama installato!
 echo.
 echo   Verifica modello !OLLAMA_MODEL!...
 
-:: Attendi avvio servizio Ollama
-timeout /t 3 /nobreak >nul 2>&1
+:: Attendi avvio servizio Ollama (retry con attesa crescente)
+set "OLLAMA_READY=0"
+for %%t in (8 5 5) do (
+    if !OLLAMA_READY! EQU 0 (
+        timeout /t %%t /nobreak >nul 2>&1
+        ollama list >nul 2>&1 && set "OLLAMA_READY=1"
+    )
+)
 
 ollama list 2>nul | findstr /C:"!OLLAMA_MODEL!" >nul 2>&1
 if !ERRORLEVEL! EQU 0 (
@@ -418,7 +418,7 @@ echo.
 echo   Download modello in corso (5-15 minuti)...
 echo.
 
-ollama pull !OLLAMA_MODEL!
+ollama pull "!OLLAMA_MODEL!"
 
 if !ERRORLEVEL! NEQ 0 (
     echo.
@@ -465,7 +465,7 @@ if not exist "!LAUNCHER!" (
 echo   Creazione collegamento "!SHORTCUT_NAME!" sul Desktop...
 echo.
 
-powershell -Command "& { try { $ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('!DESKTOP!\!SHORTCUT_NAME!.lnk'); $s.TargetPath = '!LAUNCHER!'; $s.WorkingDirectory = '!SCRIPT_DIR!'; $s.Description = 'Avvia OffGallery - Catalogazione foto AI offline'; $s.Save(); Write-Host '  [OK] Collegamento creato sul Desktop.' } catch { Write-Host '  [ERRORE]' $_.Exception.Message; exit 1 } }"
+powershell -Command "& { try { $ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('!DESKTOP!\!SHORTCUT_NAME!.lnk'); $s.TargetPath = '!LAUNCHER!'; $s.WorkingDirectory = '!APP_ROOT!'; $s.Description = 'Avvia OffGallery - Catalogazione foto AI offline'; $s.Save(); Write-Host '  [OK] Collegamento creato sul Desktop.' } catch { Write-Host '  [ERRORE]' $_.Exception.Message; exit 1 } }"
 
 if !ERRORLEVEL! NEQ 0 (
     echo.

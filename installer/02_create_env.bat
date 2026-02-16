@@ -8,28 +8,51 @@ echo ║       OFFGALLERY INSTALLER - STEP 2: CREA AMBIENTE           ║
 echo ╚══════════════════════════════════════════════════════════════╝
 echo.
 
-:: Verifica conda
+:: --- Cerca conda in piu' posizioni ---
+set "CONDA_CMD="
+
 where conda >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERRORE] Conda non trovato. Esegui prima 01_install_miniconda.bat
-    pause
-    exit /b 1
+if !ERRORLEVEL! EQU 0 (
+    set "CONDA_CMD=conda"
+    goto :CONDA_FOUND
 )
 
+for %%P in (
+    "%USERPROFILE%\miniconda3\condabin\conda.bat"
+    "%USERPROFILE%\Miniconda3\condabin\conda.bat"
+    "%LOCALAPPDATA%\miniconda3\condabin\conda.bat"
+    "%USERPROFILE%\anaconda3\condabin\conda.bat"
+    "%USERPROFILE%\Anaconda3\condabin\conda.bat"
+) do (
+    if exist %%P (
+        set "CONDA_CMD=%%~P"
+        goto :CONDA_FOUND
+    )
+)
+
+echo [ERRORE] Conda non trovato. Esegui prima 01_install_miniconda.bat
+pause
+exit /b 1
+
+:CONDA_FOUND
 echo [OK] Conda trovato
-conda --version
+call "!CONDA_CMD!" --version
 echo.
 
 :: Verifica se l'ambiente esiste già
-conda env list | findstr /C:"OffGallery" >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
+call "!CONDA_CMD!" env list > "%TEMP%\og_envlist.tmp" 2>nul
+findstr /C:"OffGallery" "%TEMP%\og_envlist.tmp" >nul 2>&1
+set "ENV_EXISTS=!ERRORLEVEL!"
+del /f /q "%TEMP%\og_envlist.tmp" 2>nul
+
+if !ENV_EXISTS! EQU 0 (
     echo [!!] L'ambiente "OffGallery" esiste già.
     echo.
     set /p RECREATE="Vuoi eliminarlo e ricrearlo? (S/N): "
     if /i "!RECREATE!"=="S" (
         echo.
         echo Rimozione ambiente esistente...
-        conda env remove -n OffGallery -y >nul 2>&1
+        call "!CONDA_CMD!" env remove -n OffGallery -y >nul 2>&1
         echo [OK] Ambiente rimosso
     ) else (
         echo.
@@ -40,13 +63,19 @@ if %ERRORLEVEL% EQU 0 (
 )
 
 echo.
-echo Creazione ambiente "OffGallery" con Python 3.11...
+echo Creazione ambiente "OffGallery" con Python 3.12...
 echo Questo potrebbe richiedere qualche minuto...
 echo.
 
-conda create -n OffGallery python=3.11 -y
+call "!CONDA_CMD!" create -n OffGallery python=3.12 -y
 
-if %ERRORLEVEL% NEQ 0 (
+:: Verifica concreta
+call "!CONDA_CMD!" env list > "%TEMP%\og_envlist.tmp" 2>nul
+findstr /C:"OffGallery" "%TEMP%\og_envlist.tmp" >nul 2>&1
+set "ENV_CREATED=!ERRORLEVEL!"
+del /f /q "%TEMP%\og_envlist.tmp" 2>nul
+
+if !ENV_CREATED! NEQ 0 (
     echo.
     echo [ERRORE] Creazione ambiente fallita.
     pause
