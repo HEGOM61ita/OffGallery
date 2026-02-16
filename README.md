@@ -27,6 +27,14 @@
 
 > Per approfondimenti su ogni versione, visita le [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions) del progetto.
 
+### v0.5 — 16 febbraio 2025
+- **BioCLIP tassonomia completa**: 7 livelli (Kingdom, Phylum, Class, Order, Family, Genus, Species) nel campo DB dedicato `bioclip_taxonomy`
+- **Separazione BioCLIP dai tag**: campo `tags` contiene solo LLM + user tags, BioCLIP ha storage e UI dedicati
+- **Export XMP gerarchico**: tassonomia BioCLIP scritta in `HierarchicalSubject` con prefisso `AI|Taxonomy|...`, compatibile Lightroom
+- **Edit BioCLIP da gallery**: nuovo dialog nel menu contestuale per modificare i 7 livelli tassonomici
+- **Tooltip BioCLIP separato**: sezione dedicata nell'hover con gerarchia compatta (Kingdom > ... > Species)
+- **Protezione dati**: i dati BioCLIP non vengono importati da XMP (gestione solo interna a OffGallery)
+
 ### v0.4 — 15 febbraio 2025
 - **Ottimizzazione LLM Ollama**: keep_alive permanente in VRAM, warmup allo startup, cache immagine tra chiamate multiple
 - **Parametri LLM configurabili da UI**: num_ctx, num_batch, keep_alive, temperature, top_k, top_p
@@ -61,7 +69,7 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 | **Ricerca similarità visiva** | Un semplice click per trovare immagini simili, doppioni, etc. |
 | **Integrazione Lightroom** | Sincronizzazione/edit bidirezionale XMP con rating, tag e metadati. Nessun dato proprietario viene modificato |
 | **Valutazione Estetica** | Score automatico della qualità artistica (0-10) |
-| **Identificazione Specie** | BioCLIP2 riconosce ~450.000 specie di flora e fauna |
+| **Identificazione Specie** | BioCLIP2 riconosce ~450.000 specie con tassonomia completa a 7 livelli |
 | **Statistiche** | Tipologia, Date, Metadati, Attributi, Strumentazione usata, Tempi di posa, Ratings etc. |
 
 <p align="center">
@@ -113,7 +121,7 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 
 - **Embedding CLIP**: 512 dimensioni per ricerca semantica
 - **Embedding DINOv2**: 768 dimensioni per similarità visiva
-- **Tag BioCLIP**: Identificazione automatica specie naturali
+- **Tassonomia BioCLIP**: Classificazione automatica specie con 7 livelli tassonomici (campo dedicato, separato dai tag)
 - **Tag LLM**: Descrizioni e tag generati da modelli linguistici locali parametrizzabili
 - **Score Estetico**: Valutazione artistica automatica
 - **Score Tecnico**: Analisi qualità (nitidezza, rumore, esposizione, solo per non RAW)
@@ -121,7 +129,8 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 ### Workflow Fotografico
 
 - **Import XMP**: Legge tag e rating da Lightroom/DxO/etc.
-- **Export XMP**: Scrive modifiche compatibili con editor esterni
+- **Export XMP**: Scrive modifiche compatibili con editor esterni, inclusa tassonomia BioCLIP in `HierarchicalSubject`
+- **Export gerarchico**: BioCLIP esportato con prefisso `AI|Taxonomy|...` senza interferire con keyword utente
 - **Sync State**: Traccia stato sincronizzazione (PERFECT_SYNC, DIRTY, etc.)
 - **Badge Visivi**: Score, rating, ranking e stato colore nella gallery
 - **Ordinamento Gallery**: 7 criteri (rilevanza, data, nome, rating, score estetico/tecnico/composito) con direzione ASC/DESC

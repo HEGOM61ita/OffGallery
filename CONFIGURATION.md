@@ -195,7 +195,7 @@ Controlla cosa viene generato automaticamente durante l'elaborazione delle immag
 | `auto_import.title.max_words` | int | Lunghezza massima titolo in parole (default: 5) |
 | `auto_import.title.overwrite` | bool | Sovrascrive titolo esistente alla rielaborazione |
 
-> **Nota**: I tag BioCLIP vengono sempre posizionati all'inizio del campo tags, seguiti dai tag LLM. La deduplicazione è case-insensitive e preserva l'ordine.
+> **Nota**: I tag BioCLIP sono gestiti in un campo DB dedicato (`bioclip_taxonomy`) separato dai tag LLM/utente. La tassonomia BioCLIP (7 livelli: Kingdom, Phylum, Class, Order, Family, Genus, Species) è visibile nell'hover della gallery e modificabile dal menu contestuale "Edita tag BioCLIP". In export XMP, viene scritta in `HierarchicalSubject` con prefisso `AI|Taxonomy|...`. I dati BioCLIP NON vengono importati da XMP — sono gestiti esclusivamente dentro OffGallery.
 
 ### Search
 

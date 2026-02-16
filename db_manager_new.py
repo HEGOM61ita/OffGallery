@@ -1,7 +1,7 @@
 """
-Database Manager - Schema definitivo con campo tags unificato
+Database Manager - Schema definitivo con campi separati
 Versione pulita senza migrazioni - richiede database ricreato da zero
-UNIFIED: Campo tags unico per user/ai/bioclip tags
+UNIFIED: Campo tags per user/ai tags, bioclip_taxonomy separato per tassonomia BioCLIP
 """
 
 import sqlite3
@@ -118,8 +118,9 @@ class DatabaseManager:
                 technical_score REAL,
                 is_monochrome BOOLEAN DEFAULT 0,  -- Rilevamento automatico B/N
                 
-                -- ===== TAGGING UNIFICATO =====
-                tags TEXT,                     -- Unified tags (user + ai + bioclip) JSON
+                -- ===== TAGGING =====
+                tags TEXT,                     -- Tags LLM + user (JSON array, NO bioclip)
+                bioclip_taxonomy TEXT,          -- Tassonomia BioCLIP completa JSON [kingdom,phylum,class,order,family,genus,species]
                 
                 -- ===== LLM VISION =====
                 ai_description_hash TEXT,
@@ -198,11 +199,11 @@ class DatabaseManager:
                     gps_city, gps_state, gps_country, gps_location,
                     exif_json,
                     clip_embedding, dinov2_embedding, aesthetic_score, technical_score, is_monochrome,
-                    tags,
+                    tags, bioclip_taxonomy,
                     ai_description_hash, model_used,
                     processing_time, embedding_generated, llm_generated, success, error_message, app_version,
                     sync_state, last_xmp_mtime, last_sync_at, last_sync_check_at, last_import_mtime, processed_date
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 # File base
                 image_data.get('filename'),
@@ -282,9 +283,11 @@ class DatabaseManager:
                 image_data.get('technical_score'),
                 image_data.get('is_monochrome', 0),  # Campo aggiunto
                 
-                # Tags unificati (JSON)
+                # Tags LLM + user (JSON)
                 image_data.get('tags'),
-                
+                # Tassonomia BioCLIP completa (JSON)
+                image_data.get('bioclip_taxonomy'),
+
                 # LLM
                 image_data.get('ai_description_hash'),
                 image_data.get('model_used'),
@@ -439,6 +442,41 @@ class DatabaseManager:
             self.conn.rollback()
             return False
     
+    def update_bioclip_taxonomy(self, image_id: int, taxonomy: List[str]) -> bool:
+        """Aggiorna tassonomia BioCLIP per un'immagine"""
+        try:
+            taxonomy_json = json.dumps(taxonomy) if taxonomy else None
+            self.cursor.execute(
+                "UPDATE images SET bioclip_taxonomy = ? WHERE id = ?",
+                (taxonomy_json, image_id)
+            )
+            self.conn.commit()
+            if self.cursor.rowcount > 0:
+                logger.info(f"BioCLIP taxonomy aggiornata per image_id {image_id}")
+                return True
+            else:
+                logger.warning(f"Nessuna immagine trovata con id {image_id}")
+                return False
+        except Exception as e:
+            logger.error(f"Errore update_bioclip_taxonomy: {e}")
+            self.conn.rollback()
+            return False
+
+    def get_bioclip_taxonomy(self, image_id: int) -> Optional[List[str]]:
+        """Ottieni tassonomia BioCLIP per un'immagine"""
+        try:
+            self.cursor.execute(
+                "SELECT bioclip_taxonomy FROM images WHERE id = ?",
+                (image_id,)
+            )
+            result = self.cursor.fetchone()
+            if result and result[0]:
+                return json.loads(result[0])
+            return None
+        except Exception as e:
+            logger.error(f"Errore get_bioclip_taxonomy: {e}")
+            return None
+
     def update_image_description(self, image_id: int, description: str) -> bool:
         """Aggiorna descrizione per un'immagine specifica"""
         try:

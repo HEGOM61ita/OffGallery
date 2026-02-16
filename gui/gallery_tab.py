@@ -759,29 +759,36 @@ class GalleryTab(QWidget):
                 if not filepath.exists():
                     continue
                 
-                tags = embedding_gen.generate_bioclip_tags(filepath)
-                
-                if tags:
-                    # Ottieni tag esistenti unificati
+                flat_tags, taxonomy = embedding_gen.generate_bioclip_tags(filepath)
+
+                if taxonomy:
+                    # Salva tassonomia BioCLIP nel campo dedicato
+                    taxonomy_json = json.dumps(taxonomy, ensure_ascii=False)
+                    db_manager.cursor.execute(
+                        "UPDATE images SET bioclip_taxonomy = ? WHERE id = ?",
+                        (taxonomy_json, item.image_id)
+                    )
+
+                    # Rimuovi eventuali vecchi tag BioCLIP dal campo tags
+                    bioclip_prefixes = ("Specie: ", "Genere: ", "Famiglia: ", "Confidenza: ", "Nome comune: ")
                     existing_tags = []
                     if 'tags' in item.image_data and item.image_data['tags']:
                         try:
                             existing_tags = json.loads(item.image_data['tags'])
                         except:
                             existing_tags = []
-                    
-                    # BioCLIP SEMPRE prima, poi altri tag senza duplicati (preserva ordine)
-                    bioclip_lower = {t.lower() for t in tags}
-                    other_tags = [t for t in existing_tags if t.lower() not in bioclip_lower]
-                    updated_tags = tags + other_tags
-                    tags_json = json.dumps(updated_tags, ensure_ascii=False)
-                    
-                    db_manager.cursor.execute(
-                        "UPDATE images SET tags = ? WHERE id = ?",
-                        (tags_json, item.image_id)
-                    )
+
+                    clean_tags = [t for t in existing_tags if not any(t.startswith(p) for p in bioclip_prefixes)]
+                    if clean_tags != existing_tags:
+                        clean_json = json.dumps(clean_tags, ensure_ascii=False) if clean_tags else None
+                        db_manager.cursor.execute(
+                            "UPDATE images SET tags = ? WHERE id = ?",
+                            (clean_json, item.image_id)
+                        )
+                        item.image_data['tags'] = clean_json or '[]'
+
                     db_manager.conn.commit()
-                    item.image_data['tags'] = tags_json
+                    item.image_data['bioclip_taxonomy'] = taxonomy_json
                     updated += 1
             
             progress.setValue(len(items) + 1)

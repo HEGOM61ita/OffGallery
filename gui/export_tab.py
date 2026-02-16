@@ -825,6 +825,39 @@ class ExportTab(QWidget):
             if rating is not None and 1 <= int(rating) <= 5:
                 cmd.append(f"-XMP-xmp:Rating={int(rating)}")
 
+            # BIOCLIP HIERARCHICAL TAXONOMY → HierarchicalSubject
+            bioclip_taxonomy_raw = image_item.image_data.get('bioclip_taxonomy', '')
+            if bioclip_taxonomy_raw:
+                try:
+                    from embedding_generator import EmbeddingGenerator
+                    taxonomy = json.loads(bioclip_taxonomy_raw) if isinstance(bioclip_taxonomy_raw, str) else bioclip_taxonomy_raw
+                    if taxonomy and isinstance(taxonomy, list):
+                        hierarchical_path = EmbeddingGenerator.build_hierarchical_taxonomy(taxonomy, prefix="AI|Taxonomy")
+                        if hierarchical_path:
+                            # Leggi HierarchicalSubject esistenti, preserva non-AI
+                            existing_hier = []
+                            try:
+                                hier_result = subprocess.run(
+                                    ['exiftool', '-j', '-XMP-lr:HierarchicalSubject', str(image_file)],
+                                    capture_output=True, text=True, timeout=10
+                                )
+                                if hier_result.returncode == 0 and hier_result.stdout.strip():
+                                    hier_data = json.loads(hier_result.stdout)
+                                    if hier_data:
+                                        hs = hier_data[0].get('HierarchicalSubject', [])
+                                        if isinstance(hs, str):
+                                            hs = [hs]
+                                        existing_hier = [s for s in hs if not s.startswith('AI|Taxonomy')]
+                            except Exception:
+                                pass
+
+                            cmd.append("-XMP-lr:HierarchicalSubject=")
+                            for subject in existing_hier:
+                                cmd.append(f"-XMP-lr:HierarchicalSubject+={subject}")
+                            cmd.append(f"-XMP-lr:HierarchicalSubject+={hierarchical_path}")
+                except Exception as e:
+                    print(f"⚠️ Errore scrittura BioCLIP HierarchicalSubject embedded: {e}")
+
             cmd.append(str(image_file))
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
@@ -919,6 +952,41 @@ class ExportTab(QWidget):
             rating = image_item.image_data.get('lr_rating') or image_item.image_data.get('rating')
             if rating is not None and 1 <= int(rating) <= 5:
                 cmd.append(f"-XMP-xmp:Rating={int(rating)}")
+
+            # BIOCLIP HIERARCHICAL TAXONOMY → HierarchicalSubject
+            bioclip_taxonomy_raw = image_item.image_data.get('bioclip_taxonomy', '')
+            if bioclip_taxonomy_raw:
+                try:
+                    from embedding_generator import EmbeddingGenerator
+                    taxonomy = json.loads(bioclip_taxonomy_raw) if isinstance(bioclip_taxonomy_raw, str) else bioclip_taxonomy_raw
+                    if taxonomy and isinstance(taxonomy, list):
+                        hierarchical_path = EmbeddingGenerator.build_hierarchical_taxonomy(taxonomy, prefix="AI|Taxonomy")
+                        if hierarchical_path:
+                            # Leggi HierarchicalSubject esistenti, preserva quelli non-AI
+                            existing_hier = []
+                            if sidecar_path.exists():
+                                try:
+                                    hier_result = subprocess.run(
+                                        ['exiftool', '-j', '-XMP-lr:HierarchicalSubject', str(sidecar_path)],
+                                        capture_output=True, text=True, timeout=10
+                                    )
+                                    if hier_result.returncode == 0 and hier_result.stdout.strip():
+                                        hier_data = json.loads(hier_result.stdout)
+                                        if hier_data:
+                                            hs = hier_data[0].get('HierarchicalSubject', [])
+                                            if isinstance(hs, str):
+                                                hs = [hs]
+                                            existing_hier = [s for s in hs if not s.startswith('AI|Taxonomy')]
+                                except Exception:
+                                    pass
+
+                            # Cancella e riscrivi HierarchicalSubject
+                            cmd.append("-XMP-lr:HierarchicalSubject=")
+                            for subject in existing_hier:
+                                cmd.append(f"-XMP-lr:HierarchicalSubject+={subject}")
+                            cmd.append(f"-XMP-lr:HierarchicalSubject+={hierarchical_path}")
+                except Exception as e:
+                    print(f"⚠️ Errore scrittura BioCLIP HierarchicalSubject: {e}")
 
             cmd.append(str(sidecar_path))
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)

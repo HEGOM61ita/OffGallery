@@ -496,23 +496,12 @@ class ProcessingWorker(QThread):
                     if not is_raw:
                         image_data['technical_score'] = embeddings.get('technical_score')
                     
-                    # BioCLIP tags nel campo unificato - SEMPRE ALL'INIZIO
+                    # BioCLIP tassonomia nel campo dedicato (separato dai tags)
                     bioclip_tags = embeddings.get('bioclip_tags')
-                    if bioclip_tags and isinstance(bioclip_tags, list):
-                        # Ottieni tag esistenti dal campo unificato
-                        existing_tags = []
-                        if 'tags' in image_data and image_data['tags']:
-                            try:
-                                existing_tags = json.loads(image_data['tags'])
-                            except:
-                                existing_tags = []
-
-                        # BioCLIP prima, poi altri tag senza duplicati (preserva ordine)
-                        bioclip_lower = {t.lower() for t in bioclip_tags}
-                        other_tags = [t for t in existing_tags if t.lower() not in bioclip_lower]
-                        unified_tags = bioclip_tags + other_tags
-                        image_data['tags'] = json.dumps(unified_tags, ensure_ascii=False)
-                        self.log_message.emit(f"🌿 BioCLIP tags: {len(bioclip_tags)} specie identificate", "info")
+                    bioclip_taxonomy = embeddings.get('bioclip_taxonomy')
+                    if bioclip_taxonomy and isinstance(bioclip_taxonomy, list):
+                        image_data['bioclip_taxonomy'] = json.dumps(bioclip_taxonomy, ensure_ascii=False)
+                        self.log_message.emit(f"🌿 BioCLIP taxonomy: {len([l for l in bioclip_taxonomy if l])} livelli", "info")
 
                     # Estrai contesto BioCLIP per LLM (approccio B: EN + traduzione)
                     from embedding_generator import EmbeddingGenerator
@@ -613,25 +602,18 @@ class ProcessingWorker(QThread):
                 # Pulisci cache immagine LLM (libera memoria e file temp)
                 embedding_generator._cleanup_llm_image_cache()
 
-                # === APPLICA RISULTATI TAGS ===
+                # === APPLICA RISULTATI TAGS (solo LLM + user, NO BioCLIP) ===
                 if llm_results['tags']:
                     llm_tags = llm_results['tags']
 
-                    # BioCLIP SEMPRE prima, poi LLM nuovi, poi altri esistenti
-                    bioclip_prefixes = ("Specie: ", "Genere: ", "Famiglia: ", "Confidenza: ", "Nome comune: ",
-                                        "Species: ", "Genus: ", "Family: ", "Confidence: ", "Common name: ")
-                    bioclip_existing = [t for t in existing_tags if any(t.startswith(p) for p in bioclip_prefixes)]
-                    non_bioclip_existing = [t for t in existing_tags if not any(t.startswith(p) for p in bioclip_prefixes)]
-
                     if gen_tags_cfg.get('overwrite'):
-                        # Sovrascrivi solo tag non-BioCLIP, preserva BioCLIP
-                        unified_tags = bioclip_existing + llm_tags
-                        image_data['tags'] = json.dumps(unified_tags, ensure_ascii=False)
-                        self.log_message.emit(f"🏷️ LLM tags (sovrascritti): {len(llm_tags)} tag, BioCLIP preservati: {len(bioclip_existing)}", "info")
+                        # Sovrascrivi tutti i tag con i nuovi LLM
+                        image_data['tags'] = json.dumps(llm_tags, ensure_ascii=False)
+                        self.log_message.emit(f"🏷️ LLM tags (sovrascritti): {len(llm_tags)} tag", "info")
                     else:
                         existing_lower = {t.lower() for t in existing_tags}
                         new_llm_tags = [t for t in llm_tags if t.lower() not in existing_lower]
-                        unified_tags = bioclip_existing + new_llm_tags + non_bioclip_existing
+                        unified_tags = existing_tags + new_llm_tags
                         image_data['tags'] = json.dumps(unified_tags, ensure_ascii=False)
                         self.log_message.emit(f"🏷️ LLM tags aggiunti: {len(new_llm_tags)} nuovi tag", "info")
 

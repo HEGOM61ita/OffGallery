@@ -59,7 +59,8 @@ class ImageRetrieval:
                    camera_make, camera_model, lens_model, focal_length, aperture,
                    iso, shutter_speed, width, height, datetime_original,
                    datetime_digitized, datetime_modified, processed_date,
-                   aesthetic_score, technical_score, lr_rating, color_label
+                   aesthetic_score, technical_score, lr_rating, color_label,
+                   bioclip_taxonomy
             FROM images
             """
             if filters_sql:

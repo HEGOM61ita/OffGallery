@@ -685,15 +685,15 @@ class ImageCard(QFrame):
 
             lines.append("")
 
-            # Tag unificati (USER + AI + BioCLIP insieme) - USA CACHE
-            unified_tags = self.get_unified_tags()  # Questo ora usa cache invalidabile
-            if unified_tags and len(unified_tags) > 0:  # ← FIX: Controlla prima se esiste E non è vuoto
+            # Tag (solo LLM + user, NO BioCLIP) - USA CACHE
+            unified_tags = self.get_unified_tags()
+            if unified_tags and len(unified_tags) > 0:
                 lines.append("🏷️ TAGS")
                 tag_text = ", ".join(sorted(unified_tags))
                 # Wrappa tag a 45 caratteri
                 if tag_text and len(tag_text) <= 45:
                     lines.append(tag_text)
-                elif tag_text:  # Solo se esiste
+                elif tag_text:
                     words = tag_text.split(', ')
                     current_line = ""
                     for word in words:
@@ -706,7 +706,37 @@ class ImageCard(QFrame):
                     if current_line:
                         lines.append(current_line.rstrip(', '))
                 lines.append("")
-        
+
+            # Sezione BioCLIP separata (tassonomia completa, compatta)
+            bioclip_raw = self.image_data.get('bioclip_taxonomy', '')
+            if bioclip_raw:
+                try:
+                    taxonomy = json.loads(bioclip_raw) if isinstance(bioclip_raw, str) else bioclip_raw
+                    if taxonomy and isinstance(taxonomy, list):
+                        # Livelli non-vuoti separati da " > "
+                        hierarchy = " > ".join([l for l in taxonomy if l and l.strip()])
+                        if hierarchy:
+                            lines.append("🌿 BIOCLIP")
+                            # Wrappa gerarchia a 45 caratteri
+                            if len(hierarchy) <= 45:
+                                lines.append(hierarchy)
+                            else:
+                                parts = hierarchy.split(" > ")
+                                current_line = ""
+                                for part in parts:
+                                    candidate = (current_line + " > " + part) if current_line else part
+                                    if len(candidate) <= 45:
+                                        current_line = candidate
+                                    else:
+                                        if current_line:
+                                            lines.append(current_line)
+                                        current_line = part
+                                if current_line:
+                                    lines.append(current_line)
+                            lines.append("")
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
             # Descrizione
             description = self.image_data.get('description', '')
             if description and len(description) > 0:  # ← FIX: Controlla che esista E non sia vuoto
@@ -929,6 +959,10 @@ class ImageCard(QFrame):
             tag_action = QAction("🏷️ Edita tag", self)
             tag_action.triggered.connect(lambda: self._edit_tags(target_items))
             edit_menu.addAction(tag_action)
+
+            bioclip_edit_action = QAction("🌿 Edita tag BioCLIP", self)
+            bioclip_edit_action.triggered.connect(lambda: self._edit_bioclip_taxonomy(target_items))
+            edit_menu.addAction(bioclip_edit_action)
 
             desc_action = QAction("📝 Edita descrizione", self)
             desc_action.triggered.connect(lambda: self._edit_description(target_items))
@@ -1455,6 +1489,40 @@ class ImageCard(QFrame):
         except Exception as e:
             print(f"Errore gestione tag: {e}")
     
+    def _edit_bioclip_taxonomy(self, items):
+        """Edita tassonomia BioCLIP - dialog dedicato con 7 livelli"""
+        try:
+            dialog = BioCLIPTaxonomyDialog(items, self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                taxonomy = dialog.get_taxonomy()
+
+                db_manager = self._get_database_manager()
+                if not db_manager:
+                    print("❌ ERRORE: DatabaseManager non disponibile")
+                    return
+
+                db_success = 0
+                for item in items:
+                    if hasattr(item, 'image_id') and item.image_id:
+                        try:
+                            if db_manager.update_bioclip_taxonomy(item.image_id, taxonomy):
+                                item.image_data['bioclip_taxonomy'] = json.dumps(taxonomy)
+                                db_success += 1
+                        except Exception as e:
+                            print(f"Errore scrittura BioCLIP taxonomy: {e}")
+
+                if db_success > 0:
+                    # Invalida cache tooltip e refresh
+                    for item in items:
+                        if hasattr(item, '_invalidate_tooltip_cache'):
+                            item._invalidate_tooltip_cache()
+                    self._refresh_after_database_operation(
+                        [item for item in items if hasattr(item, 'image_id') and item.image_id],
+                        "bioclip_taxonomy"
+                    )
+        except Exception as e:
+            print(f"Errore gestione BioCLIP taxonomy: {e}")
+
     def _edit_description(self, items):
         """Edita descrizione - SOLO database reale, nessun fallback"""
         try:
@@ -2093,7 +2161,7 @@ class ImageCard(QFrame):
                         no_xmp_count += 1
                         continue
                     
-                    # Check 6: Estrai dati XMP
+                    # Check 6: Estrai dati XMP (NO BioCLIP — gestiti solo internamente)
                     new_tags = []
                     keyword_fields = ['Keywords', 'Subject', 'HierarchicalSubject']
 
@@ -2105,7 +2173,8 @@ class ImageCard(QFrame):
                                 for item_val in value:
                                     if item_val is not None:
                                         item_str = str(item_val).strip()
-                                        if item_str and item_str not in new_tags:
+                                        # Filtra via rami AI|Taxonomy (BioCLIP gestito internamente)
+                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|Taxonomy'):
                                             new_tags.append(item_str)
                             elif isinstance(value, str):
                                 separators = [',', '|', ';', '\n']
@@ -2118,7 +2187,8 @@ class ImageCard(QFrame):
                                     current_tags = expanded_tags
 
                                 for tag in current_tags:
-                                    if tag and tag not in new_tags:
+                                    # Filtra via rami AI|Taxonomy
+                                    if tag and tag not in new_tags and not tag.startswith('AI|Taxonomy'):
                                         new_tags.append(tag)
                     
                     # Estrai descrizione
@@ -2326,6 +2396,20 @@ class ImageCard(QFrame):
                     # Scrivi XMP usando il manager
                     success = xmp_manager.write_xmp_by_format(filepath, xmp_dict)
 
+                    # Scrivi BioCLIP HierarchicalSubject se presente
+                    if success:
+                        bioclip_raw = item.image_data.get('bioclip_taxonomy', '')
+                        if bioclip_raw:
+                            try:
+                                from embedding_generator import EmbeddingGenerator
+                                taxonomy = json.loads(bioclip_raw) if isinstance(bioclip_raw, str) else bioclip_raw
+                                if taxonomy and isinstance(taxonomy, list):
+                                    hier_path = EmbeddingGenerator.build_hierarchical_taxonomy(taxonomy, prefix="AI|Taxonomy")
+                                    if hier_path:
+                                        xmp_manager.write_hierarchical_bioclip(filepath, hier_path)
+                            except Exception as e:
+                                print(f"⚠️ Errore HierarchicalSubject per {filepath.name}: {e}")
+
                     if success:
                         success_count += 1
                     else:
@@ -2399,36 +2483,33 @@ class ImageCard(QFrame):
                     new_tags = []
                     new_description = ""
                     
-                    # Tags da XMP - FIX: Parsing robusto
+                    # Tags da XMP - Parsing robusto (NO BioCLIP — gestiti internamente)
                     new_tags = []
-                    
-                    # Try multiple XMP keyword fields
+
                     keyword_fields = ['Keywords', 'Subject', 'HierarchicalSubject']
-                    
+
                     for field in keyword_fields:
                         if field in xmp_data and xmp_data[field] is not None:
                             value = xmp_data[field]
-                            
+
                             if isinstance(value, list):
-                                # Array di keywords
                                 for item in value:
                                     if item is not None:
                                         item_str = str(item).strip()
-                                        if item_str and item_str not in new_tags:
+                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|Taxonomy'):
                                             new_tags.append(item_str)
                             elif isinstance(value, str):
-                                # String con separatori diversi
                                 separators = [',', '|', ';', '\n']
                                 current_tags = [value]
-                                
+
                                 for sep in separators:
                                     expanded_tags = []
                                     for tag in current_tags:
                                         expanded_tags.extend([t.strip() for t in tag.split(sep) if t.strip()])
                                     current_tags = expanded_tags
-                                
+
                                 for tag in current_tags:
-                                    if tag and tag not in new_tags:
+                                    if tag and tag not in new_tags and not tag.startswith('AI|Taxonomy'):
                                         new_tags.append(tag)
                     
                     # Descrizione da XMP
@@ -2688,7 +2769,7 @@ class ImageCard(QFrame):
                 if desc:
                     break
 
-        # Estrai TAGS/KEYWORDS
+        # Estrai TAGS/KEYWORDS (filtra AI|Taxonomy — BioCLIP gestito internamente)
         keyword_fields = ['Keywords', 'Subject', 'HierarchicalSubject']
         for field in keyword_fields:
             if field in xmp_data and xmp_data[field] is not None:
@@ -2698,7 +2779,7 @@ class ImageCard(QFrame):
                     for item_val in value:
                         if item_val is not None:
                             item_str = str(item_val).strip()
-                            if item_str:
+                            if item_str and not item_str.startswith('AI|Taxonomy'):
                                 tags.add(item_str)
                 elif isinstance(value, str):
                     # Prima prova a parsare come lista (JSON o Python repr)
@@ -2883,8 +2964,129 @@ class ImageCard(QFrame):
 #                              DIALOGS
 # ═══════════════════════════════════════════════════════════════════════
 
+class BioCLIPTaxonomyDialog(QDialog):
+    """Dialog per modifica tassonomia BioCLIP completa (7 livelli)"""
+
+    TAXONOMY_LEVELS = [
+        ('Kingdom', 'kingdom'),
+        ('Phylum', 'phylum'),
+        ('Class', 'class'),
+        ('Order', 'order'),
+        ('Family', 'family'),
+        ('Genus', 'genus'),
+        ('Species Epithet', 'species_epithet')
+    ]
+
+    def __init__(self, items, parent=None):
+        super().__init__(parent)
+        self.items = items or []
+        self.setWindowTitle(f"Edita BioCLIP Taxonomy ({len(self.items)} elementi)")
+        self.setMinimumWidth(550)
+        self.setModal(True)
+        self.input_fields = {}
+        self._build_ui()
+        self._load_current_taxonomy()
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+
+        # Info
+        if len(self.items) == 1 and hasattr(self.items[0], 'image_data'):
+            filename = self.items[0].image_data.get('filename', 'Unknown')
+            info_text = f"Tassonomia BioCLIP per: {filename}"
+        else:
+            info_text = f"Tassonomia BioCLIP per {len(self.items)} elementi"
+        info_label = QLabel(info_text)
+        info_label.setStyleSheet("font-weight: bold; color: #2A6A82; margin-bottom: 10px;")
+        layout.addWidget(info_label)
+
+        # Campi tassonomici
+        taxonomy_group = QGroupBox("Classificazione tassonomica (7 livelli)")
+        taxonomy_layout = QVBoxLayout(taxonomy_group)
+
+        for display_name, field_name in self.TAXONOMY_LEVELS:
+            level_layout = QHBoxLayout()
+            label = QLabel(f"{display_name}:")
+            label.setMinimumWidth(110)
+            label.setStyleSheet("font-weight: bold;")
+            level_layout.addWidget(label)
+            input_field = QLineEdit()
+            input_field.setPlaceholderText(f"{display_name.lower()}")
+            input_field.textChanged.connect(self._update_preview)
+            self.input_fields[field_name] = input_field
+            level_layout.addWidget(input_field)
+            taxonomy_layout.addLayout(level_layout)
+
+        layout.addWidget(taxonomy_group)
+
+        # Preview gerarchica
+        preview_label = QLabel("Anteprima path gerarchico:")
+        preview_label.setStyleSheet("font-weight: bold; margin-top: 8px;")
+        layout.addWidget(preview_label)
+
+        self.preview_text = QLabel("(vuoto)")
+        self.preview_text.setStyleSheet(
+            "background: #f0f0f0; padding: 6px; border: 1px solid #ccc; "
+            "font-family: monospace; color: #333;"
+        )
+        self.preview_text.setWordWrap(True)
+        layout.addWidget(self.preview_text)
+
+        # Pulsanti azione
+        actions_layout = QHBoxLayout()
+        clear_button = QPushButton("Cancella tutto")
+        clear_button.clicked.connect(self._clear_all)
+        actions_layout.addWidget(clear_button)
+        actions_layout.addStretch()
+        layout.addLayout(actions_layout)
+
+        # OK/Cancel
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _load_current_taxonomy(self):
+        """Carica tassonomia esistente se singola immagine"""
+        if len(self.items) != 1:
+            self._update_preview()
+            return
+        try:
+            taxonomy_raw = self.items[0].image_data.get('bioclip_taxonomy', '')
+            if not taxonomy_raw:
+                self._update_preview()
+                return
+            taxonomy = json.loads(taxonomy_raw) if isinstance(taxonomy_raw, str) else taxonomy_raw
+            if isinstance(taxonomy, list):
+                for i, (_, field_name) in enumerate(self.TAXONOMY_LEVELS):
+                    if i < len(taxonomy) and taxonomy[i]:
+                        self.input_fields[field_name].setText(taxonomy[i])
+        except (json.JSONDecodeError, TypeError):
+            pass
+        self._update_preview()
+
+    def _update_preview(self):
+        """Aggiorna anteprima del path gerarchico"""
+        taxonomy = self.get_taxonomy()
+        non_empty = [l for l in taxonomy if l and l.strip()]
+        if non_empty:
+            self.preview_text.setText("AI|Taxonomy|" + "|".join(non_empty))
+        else:
+            self.preview_text.setText("(vuoto)")
+
+    def _clear_all(self):
+        for field in self.input_fields.values():
+            field.clear()
+
+    def get_taxonomy(self):
+        """Ritorna array 7 livelli (stringhe vuote per livelli mancanti)"""
+        return [self.input_fields[fn].text().strip() for _, fn in self.TAXONOMY_LEVELS]
+
+
 class UserTagDialog(QDialog):
-    """Dialog per gestione di TUTTI i tag (utente + AI + BioCLIP)"""
+    """Dialog per gestione tag (utente + AI, NO BioCLIP)"""
     
     def __init__(self, items, parent=None):
         super().__init__(parent)

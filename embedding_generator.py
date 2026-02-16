@@ -652,16 +652,20 @@ class EmbeddingGenerator:
                                     if prob_val < min_prob:
                                         continue
 
-                                    # Parsing tassonomico da TreeOfLife
+                                    # Parsing tassonomico completo da TreeOfLife (7 livelli)
                                     entry = self.txt_names[idx.item()]
 
                                     # Formato lista: [[kingdom,phylum,class,order,family,genus,species], common_name]
                                     if isinstance(entry, list) and len(entry) >= 2:
                                         taxon = entry[0] if isinstance(entry[0], list) else []
                                         common_name = entry[1] if isinstance(entry[1], str) else ''
+                                        kingdom = taxon[0] if len(taxon) > 0 else ''
+                                        phylum = taxon[1] if len(taxon) > 1 else ''
+                                        tax_class = taxon[2] if len(taxon) > 2 else ''
+                                        order = taxon[3] if len(taxon) > 3 else ''
+                                        family = taxon[4] if len(taxon) > 4 else 'Unknown'
                                         genus = taxon[5] if len(taxon) > 5 else 'Unknown'
                                         species_epithet = taxon[6] if len(taxon) > 6 else ''
-                                        family = taxon[4] if len(taxon) > 4 else 'Unknown'
                                         species = f"{genus} {species_epithet}".strip() if species_epithet else genus
                                     elif isinstance(entry, str):
                                         # Formato stringa semplice (vecchio formato)
@@ -670,6 +674,8 @@ class EmbeddingGenerator:
                                         species = ' '.join(parts[:2]) if len(parts) >= 2 else entry
                                         family = 'Unknown'
                                         common_name = ''
+                                        kingdom = phylum = tax_class = order = ''
+                                        species_epithet = parts[1] if len(parts) >= 2 else ''
                                     else:
                                         continue
 
@@ -678,7 +684,8 @@ class EmbeddingGenerator:
                                         'genus': genus,
                                         'family': family,
                                         'common_name': common_name,
-                                        'score': prob_val
+                                        'score': prob_val,
+                                        'taxonomy': [kingdom, phylum, tax_class, order, family, genus, species_epithet]
                                     })
 
                                 return results
@@ -783,12 +790,15 @@ class EmbeddingGenerator:
                     # RAW file - BRISQUE non applicabile
                     result['technical_score'] = None
 
-                # BioCLIP tags (se abilitato)
+                # BioCLIP tags + tassonomia completa (se abilitato)
                 if getattr(self, 'bioclip_enabled', False):
-                    bioclip_tags = self.generate_bioclip_tags(input_data)
+                    bioclip_tags, bioclip_taxonomy = self.generate_bioclip_tags(input_data)
                     result['bioclip_tags'] = bioclip_tags
+                    result['bioclip_taxonomy'] = bioclip_taxonomy
                     if bioclip_tags:
                         logger.info(f"BioCLIP tags generati: {bioclip_tags}")
+                    if bioclip_taxonomy:
+                        logger.info(f"BioCLIP taxonomy: {bioclip_taxonomy}")
 
                 return result
             except Exception as e:
@@ -1103,9 +1113,13 @@ class EmbeddingGenerator:
     # ===== BIOCLIP ON-DEMAND METHODS =====
     def generate_bioclip_tags(self, input_data):
         """
-        Genera tag BioCLIP - supporta filepath, PIL Image, o predictions_list
+        Genera tag BioCLIP con tassonomia completa.
         Args:
             input_data: Path/str (filepath), PIL.Image, o lista di predizioni BioCLIP
+        Returns:
+            tuple: (flat_tags, taxonomy_array) dove:
+                - flat_tags: lista tag display ["Specie: X", "Genere: Y", ...]
+                - taxonomy_array: lista 7 livelli [kingdom, phylum, class, order, family, genus, species_epithet] o None
         """
         from PIL import Image
 
@@ -1113,33 +1127,37 @@ class EmbeddingGenerator:
         if self.bioclip_classifier is None:
             if not self._init_bioclip():
                 logger.error("BioCLIP non disponibile")
-                return []
+                return [], None
+
+        predictions = None
 
         # Se è un filepath (string o Path), esegui pipeline completa
         if isinstance(input_data, (str, Path)):
             try:
                 predictions = self._predict_bioclip(input_data, 'path')
-                return self._format_bioclip_tags(predictions)
             except Exception as e:
                 logger.error(f"Errore BioCLIP da filepath: {e}")
-                return []
+                return [], None
 
         # Se è una PIL Image, usa direttamente
         elif isinstance(input_data, Image.Image):
             try:
                 predictions = self._predict_bioclip(input_data, 'pil')
-                return self._format_bioclip_tags(predictions)
             except Exception as e:
                 logger.error(f"Errore BioCLIP da PIL Image: {e}")
-                return []
+                return [], None
 
-        # Se è una lista di predizioni, usa il metodo originale
+        # Se è una lista di predizioni, usa direttamente
         elif isinstance(input_data, list):
-            return self._format_bioclip_tags(input_data)
+            predictions = input_data
 
         else:
             logger.error(f"Input non supportato per BioCLIP: {type(input_data)}")
-            return []
+            return [], None
+
+        flat_tags = self._format_bioclip_tags(predictions)
+        taxonomy = self._extract_best_taxonomy(predictions)
+        return flat_tags, taxonomy
     
     def _format_bioclip_tags(self, predictions_list):
         """Formatta predizioni BioCLIP in tag (metodo originale)"""
@@ -1174,6 +1192,41 @@ class EmbeddingGenerator:
         except Exception as e:
             logger.error(f"Errore parsing BioCLIP tags: {e}")
             return []
+
+    def _extract_best_taxonomy(self, predictions_list):
+        """Estrae tassonomia completa dalla migliore predizione BioCLIP"""
+        if not predictions_list or not isinstance(predictions_list, list):
+            return None
+        try:
+            best = max(predictions_list, key=lambda x: x.get('score', 0))
+            if best.get('score', 0) < 0.1:
+                return None
+            return best.get('taxonomy')
+        except Exception as e:
+            logger.error(f"Errore estrazione taxonomy: {e}")
+            return None
+
+    @staticmethod
+    def build_hierarchical_taxonomy(taxonomy_array, prefix="AI|Taxonomy"):
+        """Costruisce stringa gerarchica da array tassonomico, saltando livelli vuoti.
+        Es: ["Animalia","","Aves","","Passeridae","Passer","domesticus"]
+          → "AI|Taxonomy|Animalia|Aves|Passeridae|Passer|domesticus"
+        """
+        if not taxonomy_array:
+            return ""
+        parts = [prefix]
+        for level in taxonomy_array:
+            if level and level.strip():
+                parts.append(level.strip())
+        return "|".join(parts) if len(parts) > 1 else ""
+
+    @staticmethod
+    def parse_hierarchical_taxonomy(hierarchical_str, prefix="AI|Taxonomy"):
+        """Parsing inverso: da stringa gerarchica a lista livelli (senza prefix)."""
+        if not hierarchical_str or not hierarchical_str.startswith(prefix + "|"):
+            return None
+        parts = hierarchical_str[len(prefix) + 1:].split("|")
+        return [p.strip() for p in parts if p.strip()]
 
     @staticmethod
     def extract_bioclip_context(bioclip_tags):
@@ -1830,8 +1883,9 @@ class EmbeddingGenerator:
             
             # BioCLIP on-demand
             if processing_config.get('bioclip_enabled', False):
-                bioclip_tags = self.generate_bioclip_tags(image_input)
+                bioclip_tags, bioclip_taxonomy = self.generate_bioclip_tags(image_input)
                 result['bioclip_tags'] = bioclip_tags
+                result['bioclip_taxonomy'] = bioclip_taxonomy
                 result['bioclip_generated'] = len(bioclip_tags) > 0
             
             # LLM Vision on-demand
