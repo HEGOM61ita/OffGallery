@@ -572,7 +572,7 @@ class ProcessingWorker(QThread):
                         llm_futures['tags'] = executor.submit(
                             embedding_generator.generate_llm_tags,
                             llm_input,
-                            gen_tags_cfg.get('max_tags', 10),
+                            gen_tags_cfg.get('max', 10),
                             bioclip_context
                         )
 
