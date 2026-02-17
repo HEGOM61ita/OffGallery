@@ -1346,20 +1346,21 @@ class EmbeddingGenerator:
 
     def generate_llm_description(self, image_input, max_description_words: int = 100, bioclip_context: Optional[str] = None):
         """Genera descrizione LLM Vision.
-        Con bioclip_context: genera in EN poi traduce in IT.
-        Senza: genera direttamente in IT.
+        Genera sempre in IT con termini generici, poi prepende nome latino da BioCLIP.
         """
         try:
             image_b64 = self._prepare_llm_image(image_input)
             if not image_b64:
                 return None
 
-            response = self._call_ollama_vision_api(image_b64, mode='description', max_description_words=max_description_words, bioclip_context=bioclip_context)
+            # Genera sempre in IT diretto (senza bioclip_context nel prompt)
+            response = self._call_ollama_vision_api(image_b64, mode='description', max_description_words=max_description_words)
 
-            # Con BioCLIP: risposta in EN, traduci in IT
+            # Prependi nome latino da BioCLIP
             if bioclip_context and response:
-                translated = self._translate_to_italian(desc_en=response, bioclip_context=bioclip_context)
-                return translated.get('description', response)
+                latin_name = bioclip_context.split('(')[0].split(',')[0].strip()
+                if latin_name:
+                    response = f"{latin_name}: {response}"
 
             return response
 
@@ -1369,26 +1370,25 @@ class EmbeddingGenerator:
 
     def generate_llm_tags(self, image_input, max_tags: int = 10, bioclip_context: Optional[str] = None) -> List[str]:
         """Genera tag LLM Vision.
-        Con bioclip_context: genera in EN poi traduce in IT.
-        Senza: genera direttamente in IT.
+        Genera sempre in IT con termini generici, poi aggiunge nome latino da BioCLIP.
         """
         try:
             image_b64 = self._prepare_llm_image(image_input)
             if not image_b64:
                 return []
 
-            response = self._call_ollama_vision_api(image_b64, mode='tags', max_tags=max_tags, bioclip_context=bioclip_context)
+            # Genera sempre in IT diretto (senza bioclip_context nel prompt)
+            response = self._call_ollama_vision_api(image_b64, mode='tags', max_tags=max_tags)
             if response:
-                # Parse tags da risposta
                 tags = self._parse_llm_tags_response(response, max_tags)
-                tags = tags[:max_tags]
 
-                # Con BioCLIP: risposta in EN, traduci in IT
-                if bioclip_context and tags:
-                    translated = self._translate_to_italian(tags_en=tags, bioclip_context=bioclip_context)
-                    return translated.get('tags', tags)[:max_tags]
+                # Aggiungi nome latino da BioCLIP come primo tag
+                if bioclip_context:
+                    latin_name = bioclip_context.split('(')[0].split(',')[0].strip()
+                    if latin_name:
+                        tags = [latin_name] + [t for t in tags if t.lower() != latin_name.lower()]
 
-                return tags
+                return tags[:max_tags]
             return []
 
         except Exception as e:
@@ -1397,23 +1397,23 @@ class EmbeddingGenerator:
 
     def generate_llm_title(self, image_input, max_title_words: int = 5, bioclip_context: Optional[str] = None) -> Optional[str]:
         """Genera titolo LLM Vision.
-        Con bioclip_context: genera in EN poi traduce in IT.
-        Senza: genera direttamente in IT.
+        Genera sempre in IT con termini generici, poi prepende nome latino da BioCLIP.
         """
         try:
             image_b64 = self._prepare_llm_image(image_input)
             if not image_b64:
                 return None
 
-            response = self._call_ollama_vision_api(image_b64, mode='title', max_title_words=max_title_words, bioclip_context=bioclip_context)
+            # Genera sempre in IT diretto (senza bioclip_context nel prompt)
+            response = self._call_ollama_vision_api(image_b64, mode='title', max_title_words=max_title_words)
             if response:
-                # Pulisci il titolo da eventuali virgolette o punteggiatura finale
                 title = response.strip().strip('"').strip("'").rstrip('.').rstrip(',').strip()
 
-                # Con BioCLIP: risposta in EN, traduci in IT
+                # Prependi nome latino da BioCLIP
                 if bioclip_context and title:
-                    translated = self._translate_to_italian(title_en=title, bioclip_context=bioclip_context)
-                    return translated.get('title', title)
+                    latin_name = bioclip_context.split('(')[0].split(',')[0].strip()
+                    if latin_name:
+                        title = f"{latin_name} - {title}"
 
                 return title
             return None
@@ -1730,25 +1730,40 @@ class EmbeddingGenerator:
             if ctx_match:
                 latin_name = ctx_match.group(1).strip()
                 common_name_en = ctx_match.group(2).strip()
-                if common_name_en and latin_name:
-                    # Per descrizione/titolo: sostituisci nome comune EN → nome Latino
+            else:
+                # Contesto senza common_name (es. solo "Columba palumbus")
+                latin_name = bioclip_context.split(',')[0].strip()
+                common_name_en = None
+
+            if latin_name:
+                if common_name_en:
+                    # Sostituisci nome comune EN → nome Latino in descrizione/titolo
                     pattern = re.compile(re.escape(common_name_en), re.IGNORECASE)
                     if desc_for_translate:
                         desc_for_translate = pattern.sub(latin_name, desc_for_translate)
                     if title_for_translate:
                         title_for_translate = pattern.sub(latin_name, title_for_translate)
 
-                    # Per tags: RIMUOVI il nome specie (BioCLIP lo fornisce gia')
-                    latin_lower = latin_name.lower()
-                    common_lower = common_name_en.lower()
-                    tags_before = len(tags_for_translate)
-                    tags_for_translate = [
-                        t for t in tags_for_translate
-                        if t.lower().strip() not in (latin_lower, common_lower)
-                    ]
-                    removed = tags_before - len(tags_for_translate)
-                    if removed:
-                        logger.info(f"Traduzione: rimossi {removed} tag nome specie (BioCLIP li fornisce gia')")
+                # Proteggi nome latino con placeholder (il modello 4B lo traduce male)
+                latin_pattern = re.compile(re.escape(latin_name), re.IGNORECASE)
+                if desc_for_translate:
+                    desc_for_translate = latin_pattern.sub('SPECIES_PLACEHOLDER', desc_for_translate)
+                if title_for_translate:
+                    title_for_translate = latin_pattern.sub('SPECIES_PLACEHOLDER', title_for_translate)
+
+                # Per tags: RIMUOVI il nome specie (BioCLIP lo fornisce gia')
+                latin_lower = latin_name.lower()
+                names_to_remove = {latin_lower}
+                if common_name_en:
+                    names_to_remove.add(common_name_en.lower())
+                tags_before = len(tags_for_translate)
+                tags_for_translate = [
+                    t for t in tags_for_translate
+                    if t.lower().strip() not in names_to_remove
+                ]
+                removed = tags_before - len(tags_for_translate)
+                if removed:
+                    logger.info(f"Traduzione: rimossi {removed} tag nome specie (BioCLIP li fornisce gia')")
 
         if not tags_for_translate and not desc_for_translate and not title_for_translate:
             return {'tags': tags_en or [], 'description': desc_en, 'title': title_en}
@@ -1788,9 +1803,7 @@ class EmbeddingGenerator:
         if text_block:
             text_prompt = (
                 "Translate the following to Italian.\n"
-                f"{species_hint}"
-                "For Latin species names: use the correct Italian common name if you know it, "
-                "otherwise keep the Latin name as-is.\n"
+                "Keep SPECIES_PLACEHOLDER exactly as-is, do not translate or change it.\n"
                 "Keep the DESCRIPTION:/TITLE: labels. Output ONLY the translation.\n\n"
                 f"{text_block}"
             )
@@ -1829,6 +1842,13 @@ class EmbeddingGenerator:
                     title = line.split(':', 1)[1].strip()
                     result['title'] = title.strip('"').strip("'").rstrip('.').rstrip(',').strip()
                     logger.info(f"Traduzione TITLE parsed: {result['title']}")
+
+        # Ripristina nome latino al posto del placeholder
+        if bioclip_context and latin_name:
+            if result.get('description'):
+                result['description'] = result['description'].replace('SPECIES_PLACEHOLDER', latin_name)
+            if result.get('title'):
+                result['title'] = result['title'].replace('SPECIES_PLACEHOLDER', latin_name)
 
         logger.info(f"Traduzione EN→IT completata (bioclip: {bioclip_context is not None})")
         return result
