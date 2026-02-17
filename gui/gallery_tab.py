@@ -887,13 +887,15 @@ class GalleryTab(QWidget):
                 is_raw = filepath.suffix.lower() in ['.orf', '.cr2', '.nef', '.arw', '.dng', '.raf', '.cr3', '.nrw', '.srf', '.sr2', '.rw2', '.raw', '.pef', '.ptx', '.rwl', '.3fr', '.iiq', '.x3f']
 
                 if is_raw:
-                    llm_input = raw_processor.extract_thumbnail(filepath, target_size=512)
+                    llm_input = raw_processor.extract_thumbnail(filepath, profile_name='llm_vision')
                 else:
                     from PIL import Image
+                    llm_profile = config.get('image_optimization', {}).get('profiles', {}).get('llm_vision', {})
+                    llm_target = llm_profile.get('target_size', 768)
                     with Image.open(filepath) as img:
-                        if max(img.size) > 1024:
+                        if max(img.size) > llm_target:
                             pil_image = img.copy().convert('RGB')
-                            pil_image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+                            pil_image.thumbnail((llm_target, llm_target), Image.Resampling.LANCZOS)
                             llm_input = pil_image
                         else:
                             llm_input = filepath
