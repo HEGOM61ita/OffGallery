@@ -514,23 +514,15 @@ class ConfigTab(QWidget):
         self.dinov2_model_name.setToolTip("Modello Hugging Face per embedding visuali\nDefault: facebook/dinov2-base")
         layout.addWidget(self.dinov2_model_name, 0, 1)
 
-        # Dimension
-        layout.addWidget(QLabel("Dimensione Embedding:"), 1, 0)
-        self.dinov2_dimension = NoWheelSpinBox()
-        self.dinov2_dimension.setRange(64, 1024)
-        self.dinov2_dimension.setSingleStep(64)
-        self.dinov2_dimension.setToolTip("Dimensione vettore embedding\nDINOv2-base: 768, DINOv2-small: 384")
-        layout.addWidget(self.dinov2_dimension, 1, 1)
-        
-        # Soglia Similarità (NUOVO)
-        layout.addWidget(QLabel("Soglia Similarità (Find Similar):"), 2, 0)
+        # Soglia Similarità
+        layout.addWidget(QLabel("Soglia Similarità (Find Similar):"), 1, 0)
         self.dinov2_similarity_threshold = NoWheelDoubleSpinBox()
         self.dinov2_similarity_threshold.setRange(0.0, 1.0)
         self.dinov2_similarity_threshold.setSingleStep(0.05)
         self.dinov2_similarity_threshold.setDecimals(2)
         self.dinov2_similarity_threshold.setToolTip("Soglia per ricerca immagini simili (0.0-1.0, default 0.7)")
         self.dinov2_similarity_threshold.valueChanged.connect(self.validate_dinov2_threshold)
-        layout.addWidget(self.dinov2_similarity_threshold, 2, 1)
+        layout.addWidget(self.dinov2_similarity_threshold, 1, 1)
 
         group_box.setLayout(layout)
         return group_box
@@ -554,16 +546,6 @@ class ConfigTab(QWidget):
         self.clip_model_name.setToolTip("Modello CLIP per ricerca semantica\nDefault: laion/CLIP-ViT-B-32-laion2B-s34B-b79K")
         layout.addWidget(self.clip_model_name, 0, 1)
 
-        # Dimension
-        layout.addWidget(QLabel("Dimensione Embedding:"), 1, 0)
-        self.clip_dimension = NoWheelSpinBox()
-        self.clip_dimension.setRange(64, 1024)
-        self.clip_dimension.setSingleStep(64)
-        self.clip_dimension.setToolTip("Dimensione vettore embedding\nCLIP-ViT-B-32: 512, CLIP-ViT-L-14: 768")
-        layout.addWidget(self.clip_dimension, 1, 1)
-        self.clip_dimension.setSingleStep(64)
-        layout.addWidget(self.clip_dimension, 1, 1)
-        
         group_box.setLayout(layout)
         return group_box
 
@@ -1155,13 +1137,11 @@ class ConfigTab(QWidget):
             # DINOv2
             dino = models['dinov2']
             self.dinov2_model_name.setText(dino['model_name'])
-            self.dinov2_dimension.setValue(dino['dimension'])
             self.dinov2_similarity_threshold.setValue(dino['similarity_threshold'])
 
             # CLIP
             clip = models['clip']
             self.clip_model_name.setText(clip['model_name'])
-            self.clip_dimension.setValue(clip['dimension'])
 
             # Aesthetic Score
             aesthetic = models.get('aesthetic', {})
@@ -1321,12 +1301,10 @@ class ConfigTab(QWidget):
             
             # DINOv2
             self.dinov2_model_name.setText('facebook/dinov2-base')
-            self.dinov2_dimension.setValue(768)
             self.dinov2_similarity_threshold.setValue(0.25)
             
             # CLIP
             self.clip_model_name.setText('laion/CLIP-ViT-B-32-laion2B-s34B-b79K')
-            self.clip_dimension.setValue(512)
 
             # Quality Scores
             self.aesthetic_enabled.setChecked(True)
@@ -1451,7 +1429,6 @@ class ConfigTab(QWidget):
                 'description': 'Similarità visiva (composizione, texture, forma)',
                 'enabled': True,
                 'model_name': self.dinov2_model_name.text(),
-                'dimension': self.dinov2_dimension.value(),
                 'similarity_threshold': self.dinov2_similarity_threshold.value(),
             }
             
@@ -1459,7 +1436,6 @@ class ConfigTab(QWidget):
                 'description': 'Ricerca semantica (query naturali)',
                 'enabled': True,
                 'model_name': self.clip_model_name.text(),
-                'dimension': self.clip_dimension.value(),
             }
 
             # Quality Scores

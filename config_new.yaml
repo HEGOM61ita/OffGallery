@@ -15,12 +15,10 @@ embedding:
       threshold: 0.05
     clip:
       description: Ricerca semantica (query naturali)
-      dimension: 512
       enabled: true
       model_name: laion/CLIP-ViT-B-32-laion2B-s34B-b79K
     dinov2:
       description: Similarità visiva (composizione, texture, forma)
-      dimension: 768
       enabled: true
       model_name: facebook/dinov2-base
       similarity_threshold: 0.25
@@ -126,7 +124,7 @@ image_optimization:
       method: preview_optimized
       quality: 85
       resampling: LANCZOS
-      target_size: 768
+      target_size: 512
       upscale: false
     metadata_extraction:
       description: Metadata - Estrazione metadati veloce
