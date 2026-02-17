@@ -32,31 +32,42 @@ class XMPSyncState(Enum):
 
 class XMPManagerExtended:
     """XMP Manager con supporto embedded completo via ExifTool e gestione format-aware"""
-    
+
+    # Cache a livello di classe: check ExifTool eseguito una sola volta
+    _exiftool_checked = False
+    _exiftool_available = False
+
     def __init__(self, config: Dict[str, Any] = None):
         self.config = config or {}
         self.exiftool_available = self._check_exiftool()
-        
+
         # Format definitions per gestione format-aware
-        self.raw_formats = ['.cr2', '.cr3', '.nef', '.nrw', '.orf', '.arw', '.srf', '.sr2', 
+        self.raw_formats = ['.cr2', '.cr3', '.nef', '.nrw', '.orf', '.arw', '.srf', '.sr2',
                            '.raf', '.rw2', '.raw', '.pef', '.ptx', '.rwl', '.3fr', '.iiq', '.x3f']
         self.standard_formats = ['.jpg', '.jpeg', '.tiff', '.tif', '.png']
-        
+
         if not self.exiftool_available:
             logger.warning("⚠️ ExifTool non disponibile - supporto XMP embedded limitato")
-    
+
     def _check_exiftool(self) -> bool:
-        """Verifica disponibilità ExifTool"""
+        """Verifica disponibilità ExifTool (cached a livello di classe)"""
+        if XMPManagerExtended._exiftool_checked:
+            return XMPManagerExtended._exiftool_available
+
         try:
-            result = subprocess.run(['exiftool', '-ver'], 
-                                  capture_output=True, 
+            result = subprocess.run(['exiftool', '-ver'],
+                                  capture_output=True,
                                   timeout=5)
             if result.returncode == 0:
                 version = result.stdout.decode().strip()
                 logger.info(f"✓ ExifTool disponibile: v{version}")
+                XMPManagerExtended._exiftool_checked = True
+                XMPManagerExtended._exiftool_available = True
                 return True
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
+        XMPManagerExtended._exiftool_checked = True
+        XMPManagerExtended._exiftool_available = False
         return False
     
     def _get_file_category(self, file_path: Path) -> str:

@@ -2913,7 +2913,6 @@ class ImageCard(QFrame):
             
                 # Controllo sicurezza prima di salvare cache
                 if state is None or info is None:
-                    print(f"XMP analysis failed per {self.filepath}")
                     return
                 
                 self._xmp_state_cache = state
@@ -2921,7 +2920,6 @@ class ImageCard(QFrame):
 
             # Controllo sicurezza per info
             if info is None:
-                print(f"Info è None per {self.filepath}")
                 return
             
             category = info.get('category', 'standard')

@@ -398,7 +398,8 @@ class SearchTab(QWidget):
             self.search_executed.emit(results)
         except Exception as e:
             import traceback
-            print(f"DEBUG ERROR: {traceback.format_exc()}")
+            import logging
+            logging.getLogger(__name__).error(f"Errore ricerca: {traceback.format_exc()}")
             QMessageBox.critical(self, "Errore", f"Problema durante la ricerca: {str(e)}")
         finally:
             if loading_msg:
@@ -1030,11 +1031,8 @@ class SearchTab(QWidget):
         MANTIENE il valore max_results corrente dell'utente
         """
     
-        print("🔍 DEBUG: clear_filters() iniziato")
-        
         # Salva il valore corrente di max_results prima del reset
         current_max_results = self.max_results_spin.value()
-        print(f"🔍 DEBUG: clear_filters() chiamata, mantenendo max_results={current_max_results}")
     
         # Carica config
         try:
@@ -1069,8 +1067,6 @@ class SearchTab(QWidget):
             'date_filter_enabled': False
         }
         
-        print(f"📋 DEBUG: Processerò {len(defaults)} widget")
-    
         # Raccogli widget esistenti
         all_widgets = []
         missing_widgets = []
@@ -1175,9 +1171,9 @@ class SearchTab(QWidget):
                 self.update_deep_search_mode()
                 print("✅ Modi di ricerca aggiornati")
             except Exception as e:
-                print(f"❌ Errore aggiornamento modi: {e}")
+                import logging
+                logging.getLogger(__name__).error(f"Errore aggiornamento modi: {e}")
                 
-        print("🎯 DEBUG: clear_filters() completato")
 
     def update_search_progress(self, count):
         """Aggiorna il conteggio dinamico durante la ricerca"""

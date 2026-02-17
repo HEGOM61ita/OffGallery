@@ -253,6 +253,20 @@ def run_with_splash():
 
     print("🚀 Avvio OffGallery...")
 
+    # Filtra warning Qt TIFF (null byte in tag EXIF, compressione JPEG non supportata)
+    from PyQt6.QtCore import qInstallMessageHandler, QtMsgType
+    def qt_message_filter(msg_type, context, message):
+        if 'qt.imageformats.tiff' in (context.category or ''):
+            return  # Ignora warning TIFF su file RAW
+        # Stampa tutti gli altri messaggi normalmente
+        if msg_type == QtMsgType.QtWarningMsg:
+            print(f"Qt Warning: {message}")
+        elif msg_type == QtMsgType.QtCriticalMsg:
+            print(f"Qt Critical: {message}")
+        elif msg_type == QtMsgType.QtFatalMsg:
+            print(f"Qt Fatal: {message}")
+    qInstallMessageHandler(qt_message_filter)
+
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
 
