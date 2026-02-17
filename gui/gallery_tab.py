@@ -912,21 +912,21 @@ class GalleryTab(QWidget):
                 title_cfg = auto_import.get('title', {})
                 max_title_words = title_cfg.get('max_words', title_cfg.get('max', 5))
 
-                # Estrai contesto BioCLIP dai tag esistenti nel DB
+                # Estrai contesto BioCLIP dal campo dedicato bioclip_taxonomy
                 bioclip_context = None
-                existing_tags_for_ctx = []
-                if 'tags' in item.image_data and item.image_data['tags']:
+                taxonomy_raw = item.image_data.get('bioclip_taxonomy')
+                if taxonomy_raw:
                     try:
-                        existing_tags_for_ctx = json.loads(item.image_data['tags'])
-                    except:
-                        existing_tags_for_ctx = []
-
-                bioclip_prefixes = ("Specie: ", "Genere: ", "Famiglia: ", "Confidenza: ", "Nome comune: ",
-                                    "Species: ", "Genus: ", "Family: ", "Confidence: ", "Common name: ")
-                bioclip_tags_from_db = [t for t in existing_tags_for_ctx if any(t.startswith(p) for p in bioclip_prefixes)]
-                if bioclip_tags_from_db:
-                    from embedding_generator import EmbeddingGenerator
-                    bioclip_context = EmbeddingGenerator.extract_bioclip_context(bioclip_tags_from_db)
+                        taxonomy = json.loads(taxonomy_raw) if isinstance(taxonomy_raw, str) else taxonomy_raw
+                        if isinstance(taxonomy, list) and len(taxonomy) >= 6:
+                            # taxonomy: [kingdom, phylum, class, order, family, genus, species_epithet]
+                            genus = taxonomy[5] if len(taxonomy) > 5 else ''
+                            species_ep = taxonomy[6] if len(taxonomy) > 6 else ''
+                            species = f"{genus} {species_ep}".strip() if genus else ''
+                            if species:
+                                bioclip_context = species
+                    except Exception:
+                        pass
 
                 # Genera contenuti in base alle selezioni
                 result = {}
