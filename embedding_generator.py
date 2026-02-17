@@ -1460,15 +1460,13 @@ class EmbeddingGenerator:
             logger.error(f"Errore LLM content generation: {e}")
             return None
 
-    def _call_ollama_vision_api(self, image_data_b64: str, mode: str, max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5, bioclip_context: Optional[str] = None) -> Optional[str]:
+    def _call_ollama_vision_api(self, image_data_b64: str, mode: str, max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5) -> Optional[str]:
         """Chiama API Ollama Vision (Qwen3-VL) e ritorna SOLO il contenuto finale.
 
         Args:
             image_data_b64: immagine già codificata in base64
             mode: 'title', 'tags', 'description'
-
-        Con bioclip_context: genera in INGLESE con nomi scientifici (Latino)
-        Senza bioclip_context: genera in ITALIANO (comportamento originale)
+        Genera sempre in ITALIANO con termini generici.
         """
         try:
             import requests
@@ -1497,101 +1495,53 @@ class EmbeddingGenerator:
             num_ctx = generation.get('num_ctx', 2048)
             num_batch = generation.get('num_batch', 1024)
 
-            # --- Prompt condizionali: con BioCLIP → EN + nomi Latini, senza → IT diretto ---
-            if bioclip_context:
-                # Approccio B: genera in inglese con nomi scientifici
-                species_block = (
-                    f"SPECIES ID: {bioclip_context}\n"
-                    "If this species is the MAIN SUBJECT, use its name. If background, use generic terms.\n"
-                )
-                latin_rule = "- Use the SCIENTIFIC (Latin) name for species, NOT common English names\n"
+            # Genera sempre in italiano, identifica specie solo se sicuro
+            italian_rules = (
+                "LANGUAGE: ALL output MUST be in ITALIAN. NEVER use English words.\n"
+                "ANIMAL/PLANT IDENTIFICATION:\n"
+                "- If you clearly recognize the species, use its common Italian name (e.g. cervo, delfino, girasole)\n"
+                "- If you are NOT sure, use a generic Italian term (uccello, animale, fiore, albero, pesce)\n"
+                "- NEVER guess a species name. A generic term is ALWAYS better than a wrong name\n"
+                "- Do NOT use scientific/Latin names\n"
+            )
 
-                if mode == "description":
-                    prompt = (
-                        "You are a professional photography captioning system.\n"
-                        f"{species_block}"
-                        "Task: describe the image.\n\n"
-                        "STRICT RULES:\n"
-                        "- Output ONLY the final description text\n"
-                        f"{latin_rule}"
-                        "- Include: subject, environment, colors, composition, atmosphere\n"
-                        f"- Concise, informative, max {max_description_words} words\n"
-                    )
-                elif mode == "tags":
-                    prompt = (
-                        "You are a professional photographic tagging system.\n"
-                        f"{species_block}"
-                        "Task: generate photo tags, format \"tag1,tag2,tag3\".\n"
-                        "Priority: 1) subjects, 2) scene, 3) actions, 4) objects, 5) weather, 6) mood, 7) colors\n\n"
-                        "STRICT RULES:\n"
-                        f"- Maximum {max_tags} tags, in English\n"
-                        f"{latin_rule}"
-                        "- If the species is the main subject, include its name and habitat/behavior tags\n"
-                        "- lowercase, singular form\n"
-                    )
-                elif mode == "title":
-                    prompt = (
-                        "You are a professional photo archiving system.\n"
-                        f"{species_block}"
-                        "Task: generate a factual, descriptive title.\n\n"
-                        "STRICT RULES:\n"
-                        "- Output ONLY the title text, nothing else\n"
-                        "- NO quotes, NO punctuation at the end\n"
-                        f"- Maximum {max_title_words} words\n"
-                        "- Be DESCRIPTIVE, not poetic or creative\n"
-                        f"{latin_rule}"
-                    )
-                else:
-                    logger.error(f"Modalità non supportata: {mode}")
-                    return None
+            if mode == "description":
+                prompt = (
+                    "You are a professional photography captioning system.\n"
+                    "Task: describe the image.\n\n"
+                    f"{italian_rules}"
+                    "\nSTRICT RULES:\n"
+                    "- Output ONLY the description text, nothing else\n"
+                    "- Include: subject, environment, colors, composition, atmosphere\n"
+                    f"- Concise, informative, max {max_description_words} words\n"
+                )
+            elif mode == "tags":
+                prompt = (
+                    "You are a professional photographic tagging system.\n"
+                    "Task: observe the scene and generate photo tags, in format \"tag1,tag2,tag3\".\n"
+                    "Priority: 1) subjects, 2) scene, 3) actions, 4) objects, 5) weather, 6) mood, 7) colors\n\n"
+                    f"{italian_rules}"
+                    "\nSTRICT RULES:\n"
+                    f"- Maximum {max_tags} tags\n"
+                    "- lowercase, singular form\n"
+                    "- Only tag what you clearly see in the image\n"
+                )
+            elif mode == "title":
+                prompt = (
+                    "You are a professional photo archiving system.\n"
+                    "Task: generate a factual, descriptive title for this photo.\n\n"
+                    f"{italian_rules}"
+                    "\nSTRICT RULES:\n"
+                    "- Output ONLY the title text, nothing else\n"
+                    "- NO quotes, NO punctuation at the end\n"
+                    f"- Maximum {max_title_words} words\n"
+                    "- Be DESCRIPTIVE, not poetic or creative\n"
+                    "- Focus on: main subject, location type, action (if any)\n"
+                    "- For animals/plants: prefer generic terms if unsure (e.g. 'Uccello bianco' not a wrong species)\n"
+                )
             else:
-                # Senza BioCLIP: genera in italiano, identifica specie solo se sicuro
-                italian_rules = (
-                    "LANGUAGE: ALL output MUST be in ITALIAN. NEVER use English words.\n"
-                    "ANIMAL/PLANT IDENTIFICATION:\n"
-                    "- If you clearly recognize the species, use its common Italian name (e.g. cervo, delfino, girasole)\n"
-                    "- If you are NOT sure, use a generic Italian term (uccello, animale, fiore, albero, pesce)\n"
-                    "- NEVER guess a species name. A generic term is ALWAYS better than a wrong name\n"
-                    "- Do NOT use scientific/Latin names\n"
-                )
-
-                if mode == "description":
-                    prompt = (
-                        "You are a professional photography captioning system.\n"
-                        "Task: describe the image.\n\n"
-                        f"{italian_rules}"
-                        "\nSTRICT RULES:\n"
-                        "- Output ONLY the description text, nothing else\n"
-                        "- Include: subject, environment, colors, composition, atmosphere\n"
-                        f"- Concise, informative, max {max_description_words} words\n"
-                    )
-                elif mode == "tags":
-                    prompt = (
-                        "You are a professional photographic tagging system.\n"
-                        "Task: observe the scene and generate photo tags, in format \"tag1,tag2,tag3\".\n"
-                        "Priority: 1) subjects, 2) scene, 3) actions, 4) objects, 5) weather, 6) mood, 7) colors\n\n"
-                        f"{italian_rules}"
-                        "\nSTRICT RULES:\n"
-                        f"- Maximum {max_tags} tags\n"
-                        "- lowercase, singular form\n"
-                        "- Only tag what you clearly see in the image\n"
-                    )
-                elif mode == "title":
-                    prompt = (
-                        "You are a professional photo archiving system.\n"
-                        "Task: generate a factual, descriptive title for this photo.\n\n"
-                        f"{italian_rules}"
-                        "\nSTRICT RULES:\n"
-                        "- Output ONLY the title text, nothing else\n"
-                        "- NO quotes, NO punctuation at the end\n"
-                        f"- Maximum {max_title_words} words\n"
-                        "- Be DESCRIPTIVE, not poetic or creative\n"
-                        "- Focus on: main subject, location type, action (if any)\n"
-                        "- For animals/plants: prefer generic terms if unsure (e.g. 'Uccello bianco' not a wrong species)\n"
-                    )
-                else:
-                    logger.error(f"Modalità non supportata: {mode}")
-                    return None
+                logger.error(f"Modalità non supportata: {mode}")
+                return None
 
             # Soft switch Qwen3: disabilita thinking a livello di chat template
             # (complementare a "think": False nel payload API)
@@ -1654,204 +1604,6 @@ class EmbeddingGenerator:
                 return ''
         return text
 
-    def _call_ollama_text_api(self, prompt: str, max_tokens: int = 300) -> Optional[str]:
-        """Chiama Ollama API text-only (senza immagine) per traduzione EN→IT"""
-        try:
-            import requests
-
-            llm_config = self.embedding_config.get('models', {}).get('llm_vision', {})
-            endpoint = llm_config.get('endpoint', 'http://localhost:11434')
-            model = llm_config.get('model', 'qwen3-vl:4b-instruct')
-            timeout = llm_config.get('timeout', 180)
-            generation = llm_config.get('generation', {})
-            num_ctx = generation.get('num_ctx', 2048)
-            num_batch = generation.get('num_batch', 1024)
-            keep_alive = generation.get('keep_alive', -1)
-
-            # Soft switch Qwen3: disabilita thinking a livello di chat template
-            prompt = "/no_think\n" + prompt
-
-            payload = {
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "think": False,
-                "keep_alive": keep_alive,
-                "options": {
-                    "num_predict": max_tokens,
-                    "temperature": 0.1,
-                    "top_p": 0.8,
-                    "top_k": 20,
-                    "num_ctx": num_ctx,
-                    "num_batch": num_batch,
-                }
-            }
-
-            response = requests.post(
-                f"{endpoint}/api/generate",
-                json=payload,
-                timeout=timeout
-            )
-
-            if response.status_code != 200:
-                logger.error(f"Ollama text API error: {response.status_code}")
-                return None
-
-            raw = response.json().get("response", "").strip()
-            # Rimuovi blocchi <think>...</think> da modelli qwen3 (fallback safety)
-            cleaned = self._strip_think_blocks(raw)
-            logger.debug(f"Ollama text API raw: {raw[:200]}...")
-            logger.debug(f"Ollama text API cleaned: {cleaned[:200]}...")
-            return cleaned
-
-        except Exception as e:
-            logger.error(f"Errore chiamata Ollama text: {e}")
-            return None
-
-    def _translate_to_italian(self, tags_en=None, desc_en=None, title_en=None, bioclip_context=None):
-        """Traduce output LLM da EN a IT via chiamata LLM text-only.
-
-        1. Sostituzione programmatica common_name EN → nome Latino (evita traduzioni letterali)
-        2. Composizione blocco TAGS:/DESCRIPTION:/TITLE: (solo item presenti)
-        3. Traduzione LLM con contesto specie
-        4. Parsing strutturato risposta
-
-        Ritorna: dict con chiavi 'tags' (list), 'description' (str), 'title' (str)
-        """
-        import re
-
-        tags_for_translate = list(tags_en) if tags_en else []
-        desc_for_translate = desc_en or ''
-        title_for_translate = title_en or ''
-
-        # Gestione nomi specie con bioclip_context
-        if bioclip_context:
-            ctx_match = re.match(r'^(.+?)\s*\((.+?)\)', bioclip_context)
-            if ctx_match:
-                latin_name = ctx_match.group(1).strip()
-                common_name_en = ctx_match.group(2).strip()
-            else:
-                # Contesto senza common_name (es. solo "Columba palumbus")
-                latin_name = bioclip_context.split(',')[0].strip()
-                common_name_en = None
-
-            if latin_name:
-                if common_name_en:
-                    # Sostituisci nome comune EN → nome Latino in descrizione/titolo
-                    pattern = re.compile(re.escape(common_name_en), re.IGNORECASE)
-                    if desc_for_translate:
-                        desc_for_translate = pattern.sub(latin_name, desc_for_translate)
-                    if title_for_translate:
-                        title_for_translate = pattern.sub(latin_name, title_for_translate)
-
-                # Proteggi nome latino con placeholder (il modello 4B lo traduce male)
-                latin_pattern = re.compile(re.escape(latin_name), re.IGNORECASE)
-                if desc_for_translate:
-                    desc_for_translate = latin_pattern.sub('SPECIES_PLACEHOLDER', desc_for_translate)
-                if title_for_translate:
-                    title_for_translate = latin_pattern.sub('SPECIES_PLACEHOLDER', title_for_translate)
-
-                # Per tags: RIMUOVI il nome specie (BioCLIP lo fornisce gia')
-                latin_lower = latin_name.lower()
-                names_to_remove = {latin_lower}
-                if common_name_en:
-                    names_to_remove.add(common_name_en.lower())
-                tags_before = len(tags_for_translate)
-                tags_for_translate = [
-                    t for t in tags_for_translate
-                    if t.lower().strip() not in names_to_remove
-                ]
-                removed = tags_before - len(tags_for_translate)
-                if removed:
-                    logger.info(f"Traduzione: rimossi {removed} tag nome specie (BioCLIP li fornisce gia')")
-
-        if not tags_for_translate and not desc_for_translate and not title_for_translate:
-            return {'tags': tags_en or [], 'description': desc_en, 'title': title_en}
-
-        # Contesto specie per aiutare la traduzione
-        species_hint = ""
-        if bioclip_context:
-            species_hint = (
-                f"SPECIES CONTEXT: {bioclip_context}\n"
-                "Use the correct Italian common name for this species.\n"
-            )
-
-        # Prompt separati per tags (servono esempi espliciti) e testo libero
-        if tags_for_translate:
-            tags_prompt = (
-                "Translate EVERY tag from English to Italian. Do NOT keep any English word.\n"
-                "IMPORTANT: NEVER translate Latin/scientific species names. Keep them exactly as-is.\n"
-                f"{species_hint}"
-                "Examples: forest→foresta, close up→primo piano, staring→sguardo fisso, "
-                "white→bianco, yellow eyes→occhi gialli, fluffy→soffice, daytime→diurno, "
-                "surprised→sorpreso, open beak→becco aperto, perched→appollaiato, "
-                "bubo scandiacus→bubo scandiacus, passer domesticus→passer domesticus\n"
-                "Output ONLY: TAGS: tag1, tag2, tag3\n\n"
-                f"TAGS: {', '.join(tags_for_translate)}\n"
-            )
-            translated_tags = self._call_ollama_text_api(tags_prompt, max_tokens=300)
-        else:
-            translated_tags = None
-
-        # Descrizione e titolo insieme (il modello traduce bene il testo libero)
-        text_block = ""
-        if desc_for_translate:
-            text_block += f"DESCRIPTION: {desc_for_translate}\n"
-        if title_for_translate:
-            text_block += f"TITLE: {title_for_translate}\n"
-
-        if text_block:
-            text_prompt = (
-                "Translate the following to Italian.\n"
-                "Keep SPECIES_PLACEHOLDER exactly as-is, do not translate or change it.\n"
-                "Keep the DESCRIPTION:/TITLE: labels. Output ONLY the translation.\n\n"
-                f"{text_block}"
-            )
-            translated_text = self._call_ollama_text_api(text_prompt, max_tokens=500)
-        else:
-            translated_text = None
-
-        result = {'tags': tags_en or [], 'description': desc_en, 'title': title_en}
-
-        # Parse risposta tags
-        if translated_tags:
-            logger.info(f"Traduzione TAGS risposta: {translated_tags[:200]}")
-            for line in translated_tags.split('\n'):
-                line = line.strip()
-                if line.upper().startswith('TAGS:'):
-                    tags_it = line[5:].strip()
-                    parsed = self._parse_llm_tags_response(tags_it, max_tags=50)
-                    if parsed:
-                        result['tags'] = parsed
-                        logger.info(f"Traduzione TAGS parsed: {parsed}")
-                    break
-        elif tags_for_translate:
-            logger.warning("Traduzione TAGS: _call_ollama_text_api ha restituito None!")
-
-        # Parse risposta descrizione/titolo
-        if translated_text:
-            logger.info(f"Traduzione TEXT risposta: {translated_text[:200]}")
-            for line in translated_text.split('\n'):
-                line = line.strip()
-                if not line:
-                    continue
-                if line.upper().startswith(('DESCRIPTION:', 'DESCRIZIONE:')):
-                    result['description'] = line.split(':', 1)[1].strip()
-                    logger.info(f"Traduzione DESC parsed: {result['description'][:100]}")
-                elif line.upper().startswith(('TITLE:', 'TITOLO:')):
-                    title = line.split(':', 1)[1].strip()
-                    result['title'] = title.strip('"').strip("'").rstrip('.').rstrip(',').strip()
-                    logger.info(f"Traduzione TITLE parsed: {result['title']}")
-
-        # Ripristina nome latino al posto del placeholder
-        if bioclip_context and latin_name:
-            if result.get('description'):
-                result['description'] = result['description'].replace('SPECIES_PLACEHOLDER', latin_name)
-            if result.get('title'):
-                result['title'] = result['title'].replace('SPECIES_PLACEHOLDER', latin_name)
-
-        logger.info(f"Traduzione EN→IT completata (bioclip: {bioclip_context is not None})")
-        return result
 
     def _parse_llm_tags_response(self, response: str, max_tags: int = 10) -> List[str]:
         """Parse risposta LLM per estrarre tag puliti"""
