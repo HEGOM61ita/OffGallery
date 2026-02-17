@@ -1593,6 +1593,10 @@ class EmbeddingGenerator:
                     logger.error(f"Modalità non supportata: {mode}")
                     return None
 
+            # Soft switch Qwen3: disabilita thinking a livello di chat template
+            # (complementare a "think": False nel payload API)
+            prompt = "/no_think\n" + prompt
+
             # --- Payload Ollama ---
             keep_alive = generation.get('keep_alive', -1)
             payload = {
@@ -1664,6 +1668,9 @@ class EmbeddingGenerator:
             num_batch = generation.get('num_batch', 1024)
             keep_alive = generation.get('keep_alive', -1)
 
+            # Soft switch Qwen3: disabilita thinking a livello di chat template
+            prompt = "/no_think\n" + prompt
+
             payload = {
                 "model": model,
                 "prompt": prompt,
@@ -1691,7 +1698,7 @@ class EmbeddingGenerator:
                 return None
 
             raw = response.json().get("response", "").strip()
-            # Rimuovi blocchi <think>...</think> da modelli qwen3
+            # Rimuovi blocchi <think>...</think> da modelli qwen3 (fallback safety)
             cleaned = self._strip_think_blocks(raw)
             logger.debug(f"Ollama text API raw: {raw[:200]}...")
             logger.debug(f"Ollama text API cleaned: {cleaned[:200]}...")

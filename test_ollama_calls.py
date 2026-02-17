@@ -117,6 +117,8 @@ def strip_think_blocks(text):
 
 def call_ollama(prompt, max_tokens, label):
     """Chiama Ollama e misura il tempo."""
+    # Soft switch Qwen3: disabilita thinking a livello di chat template
+    prompt = "/no_think\n" + prompt
     payload = {
         "model": MODEL,
         "prompt": prompt,
