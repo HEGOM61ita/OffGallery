@@ -25,7 +25,7 @@ generation = llm_config.get("generation", {})
 
 ENDPOINT = llm_config.get("endpoint", "http://localhost:11434")
 MODEL = llm_config.get("model", "qwen3-vl:4b-instruct")
-TIMEOUT = llm_config.get("timeout", 240)
+TIMEOUT = llm_config.get("timeout", 180)
 KEEP_ALIVE = generation.get("keep_alive", -1)
 TEMPERATURE = generation.get("temperature", 0.2)
 TOP_P = generation.get("top_p", 0.8)
@@ -37,7 +37,8 @@ MIN_P = generation.get("min_p", 0.0)
 MAX_TAGS = 10
 MAX_TITLE_WORDS = 5
 MAX_DESC_WORDS = 50
-THINK_MARGIN = 10
+THINK_MARGIN_SMALL = 10  # per title e tags (come embedding_generator)
+THINK_MARGIN_DESC = 20   # per description (come embedding_generator)
 
 # --- Immagine da processare ---
 input_dir = os.path.join(os.path.dirname(__file__), "INPUT")
@@ -199,7 +200,7 @@ PROMPTS = {
             "- Focus on: main subject, location type, action (if any)\n"
             "- For animals/plants: prefer generic terms if unsure (e.g. 'Uccello bianco' not a wrong species)\n"
         ),
-        "max_tokens": int(MAX_TITLE_WORDS * 2) + THINK_MARGIN,
+        "max_tokens": int(MAX_TITLE_WORDS * 2) + THINK_MARGIN_SMALL,
     },
     "tags": {
         "prompt": (
@@ -212,7 +213,7 @@ PROMPTS = {
             "- lowercase, singular form\n"
             "- Only tag what you clearly see in the image\n"
         ),
-        "max_tokens": (MAX_TAGS * 3) + THINK_MARGIN,
+        "max_tokens": (MAX_TAGS * 3) + THINK_MARGIN_SMALL,
     },
     "description": {
         "prompt": (
@@ -224,7 +225,7 @@ PROMPTS = {
             "- Include: subject, environment, colors, composition, atmosphere\n"
             f"- Concise, informative, max {MAX_DESC_WORDS} words\n"
         ),
-        "max_tokens": int(MAX_DESC_WORDS * 1.5) + THINK_MARGIN,
+        "max_tokens": int(MAX_DESC_WORDS * 1.5) + THINK_MARGIN_DESC,
     },
 }
 
