@@ -80,26 +80,26 @@ image_optimization:
   profiles:
     aesthetic_score:
       method: preview_optimized
-      quality: 85
+      quality: 75
       resampling: BILINEAR
       target_size: 224
       upscale: false
     ai_processing:
       method: preview_optimized
-      quality: 85
-      resampling: LANCZOS
+      quality: 75
+      resampling: BILINEAR
       target_size: 512
       upscale: false
     bioclip_classification:
       method: preview_optimized
-      quality: 85
-      resampling: LANCZOS
+      quality: 75
+      resampling: BILINEAR
       target_size: 224
       upscale: false
     clip_embedding:
       method: preview_optimized
-      quality: 85
-      resampling: LANCZOS
+      quality: 75
+      resampling: BILINEAR
       target_size: 224
       upscale: false
     default:
@@ -110,9 +110,9 @@ image_optimization:
       target_size: 512
       upscale: false
     dinov2_embedding:
-      method: high_quality
-      quality: 90
-      resampling: LANCZOS
+      method: preview_optimized
+      quality: 75
+      resampling: BILINEAR
       target_size: 518
       upscale: false
     gallery_display:
@@ -126,7 +126,7 @@ image_optimization:
       method: preview_optimized
       quality: 85
       resampling: LANCZOS
-      target_size: 512
+      target_size: 768
       upscale: false
     metadata_extraction:
       description: Metadata - Estrazione metadati veloce
