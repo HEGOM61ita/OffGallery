@@ -174,19 +174,6 @@ image_optimization:
   - .iiq
   - .x3f
 image_processing:
-  convert_raw: true
-  jpeg_quality: 95
-  max_dimension: 2048
-  max_workers: 4
-  raw_processing:
-    cache_dir: thumbnails_cache
-    cache_thumbnails: true
-    enabled: true
-    fallback_size: 512
-    fallback_thumbnail: true
-    processing_timeout: 30
-    thumbnail_strategy: embedded
-  resize_images: false
   supported_formats:
   - .jpg
   - .jpeg

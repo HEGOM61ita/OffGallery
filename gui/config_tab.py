@@ -860,82 +860,6 @@ class ConfigTab(QWidget):
         
         layout = QGridLayout()
 
-        # Row 0: Convert RAW + JPEG Quality
-        self.convert_raw_checkbox = QCheckBox("Converti RAW")
-        self.convert_raw_checkbox.setToolTip("Converte automaticamente file RAW in JPEG durante processing")
-        layout.addWidget(self.convert_raw_checkbox, 0, 0)
-        
-        layout.addWidget(QLabel("Qualità JPEG:"), 0, 1)
-        self.jpeg_quality_spin = NoWheelSpinBox()
-        self.jpeg_quality_spin.setRange(50, 100)
-        self.jpeg_quality_spin.setSuffix("%")
-        self.jpeg_quality_spin.setToolTip("Qualità compressione JPEG (50-100%)")
-        layout.addWidget(self.jpeg_quality_spin, 0, 2)
-
-        # Row 1: Max Dimension + Max Workers  
-        layout.addWidget(QLabel("Max Dimensione:"), 1, 0)
-        self.max_dimension_spin = NoWheelSpinBox()
-        self.max_dimension_spin.setRange(512, 8192)
-        self.max_dimension_spin.setSingleStep(256)
-        self.max_dimension_spin.setSuffix("px")
-        self.max_dimension_spin.setToolTip("Dimensione massima per resize automatico")
-        layout.addWidget(self.max_dimension_spin, 1, 1)
-        
-        layout.addWidget(QLabel("Max Workers:"), 1, 2)
-        self.max_workers_spin = NoWheelSpinBox()
-        self.max_workers_spin.setRange(1, 16)
-        self.max_workers_spin.setToolTip("Thread paralleli per elaborazione")
-        layout.addWidget(self.max_workers_spin, 1, 3)
-
-        # Row 2: Resize Images
-        self.resize_images_checkbox = QCheckBox("Resize Automatico")
-        self.resize_images_checkbox.setToolTip("Ridimensiona automaticamente immagini troppo grandi")
-        layout.addWidget(self.resize_images_checkbox, 2, 0, 1, 2)
-
-        # RAW Processing Sub-section
-        raw_group = QGroupBox("⚙️ Processing RAW")
-        raw_group.setStyleSheet(f"QGroupBox {{ color: {COLORS['grigio_medio']}; font-size: 12px; }}")
-        raw_layout = QGridLayout()
-        
-        # Row 0: Cache enabled + Cache dir
-        self.cache_thumbnails_checkbox = QCheckBox("Cache Thumb")
-        self.cache_thumbnails_checkbox.setToolTip("Salva thumbnails in cache per velocizzare operazioni")
-        raw_layout.addWidget(self.cache_thumbnails_checkbox, 0, 0)
-        
-        raw_layout.addWidget(QLabel("Dir Cache:"), 0, 1)
-        self.cache_dir_edit = QLineEdit()
-        self.cache_dir_edit.setToolTip("Directory cache thumbnails RAW")
-        self.cache_dir_edit.setPlaceholderText("thumbnails_cache")
-        raw_layout.addWidget(self.cache_dir_edit, 0, 2)
-        
-        # Row 1: Timeout + Fallback size
-        raw_layout.addWidget(QLabel("Timeout (s):"), 1, 0)
-        self.processing_timeout_spin = NoWheelSpinBox()
-        self.processing_timeout_spin.setRange(10, 300)
-        self.processing_timeout_spin.setToolTip("Timeout processing RAW file")
-        raw_layout.addWidget(self.processing_timeout_spin, 1, 1)
-        
-        raw_layout.addWidget(QLabel("Fallback Size:"), 1, 2)
-        self.fallback_size_spin = NoWheelSpinBox()
-        self.fallback_size_spin.setRange(256, 2048)
-        self.fallback_size_spin.setSingleStep(128)
-        self.fallback_size_spin.setSuffix("px")
-        raw_layout.addWidget(self.fallback_size_spin, 1, 3)
-        
-        # Row 2: Thumbnail strategy + Fallback thumbnail
-        raw_layout.addWidget(QLabel("Strategia:"), 2, 0)
-        self.thumbnail_strategy_combo = NoWheelComboBox()
-        self.thumbnail_strategy_combo.addItems(["embedded", "preview", "full"])
-        self.thumbnail_strategy_combo.setToolTip("embedded=thumbnail integrato, preview=anteprima, full=immagine completa")
-        raw_layout.addWidget(self.thumbnail_strategy_combo, 2, 1)
-        
-        self.fallback_thumbnail_checkbox = QCheckBox("Fallback Thumb")
-        self.fallback_thumbnail_checkbox.setToolTip("Usa thumbnail di fallback se estrazione fallisce")
-        raw_layout.addWidget(self.fallback_thumbnail_checkbox, 2, 2)
-        
-        raw_group.setLayout(raw_layout)
-        layout.addWidget(raw_group, 3, 0, 1, 4)
-
         # Formati Supportati Sub-section
         formats_group = QGroupBox("📄 Formati File Supportati")
         formats_group.setStyleSheet(f"QGroupBox {{ color: {COLORS['grigio_medio']}; font-size: 12px; }}")
@@ -974,7 +898,7 @@ class ConfigTab(QWidget):
         formats_layout.addLayout(preset_layout)
         
         formats_group.setLayout(formats_layout)
-        layout.addWidget(formats_group, 4, 0, 1, 4)
+        layout.addWidget(formats_group, 0, 0, 1, 4)
 
         group_box.setLayout(layout)
         return group_box
@@ -1304,11 +1228,6 @@ class ConfigTab(QWidget):
             # IMAGE PROCESSING
             # --------------------------------------------------
             img = self.config['image_processing']
-            self.convert_raw_checkbox.setChecked(img['convert_raw'])
-            self.jpeg_quality_spin.setValue(img['jpeg_quality'])
-            self.max_dimension_spin.setValue(img['max_dimension'])
-            self.max_workers_spin.setValue(img['max_workers'])
-            self.resize_images_checkbox.setChecked(img['resize_images'])
 
             # Supported formats (se presente nel config)
             if 'supported_formats' in img:
@@ -1317,14 +1236,6 @@ class ConfigTab(QWidget):
             else:
                 # Fallback per config senza supported_formats
                 self.set_extended_formats()
-
-            raw = img['raw_processing']
-            self.cache_thumbnails_checkbox.setChecked(raw['cache_thumbnails'])
-            self.cache_dir_edit.setText(raw['cache_dir'])
-            self.processing_timeout_spin.setValue(raw['processing_timeout'])
-            self.fallback_size_spin.setValue(raw['fallback_size'])
-            self.thumbnail_strategy_combo.setCurrentText(raw['thumbnail_strategy'])
-            self.fallback_thumbnail_checkbox.setChecked(raw['fallback_thumbnail'])
 
             # --------------------------------------------------
             # IMAGE OPTIMIZATION
@@ -1462,21 +1373,6 @@ class ConfigTab(QWidget):
             self.gen_title_overwrite.setChecked(False)
             self.llm_vision_max_title_chars.setValue(5)
             self._toggle_title_controls(False)
-            
-            # Image Processing
-            self.convert_raw_checkbox.setChecked(True)
-            self.jpeg_quality_spin.setValue(95)
-            self.max_dimension_spin.setValue(2048)
-            self.max_workers_spin.setValue(4)
-            self.resize_images_checkbox.setChecked(False)
-            
-            # RAW Processing
-            self.cache_thumbnails_checkbox.setChecked(True)
-            self.cache_dir_edit.setText('thumbnails_cache')
-            self.processing_timeout_spin.setValue(30)
-            self.fallback_size_spin.setValue(512)
-            self.thumbnail_strategy_combo.setCurrentText('embedded')
-            self.fallback_thumbnail_checkbox.setChecked(True)
             
             # Supported Formats (Default: Extended)
             self.set_extended_formats()
@@ -1630,21 +1526,7 @@ class ConfigTab(QWidget):
             supported_formats = [fmt.strip() for fmt in formats_text.split('\n') if fmt.strip()]
             
             self.config['image_processing'] = {
-                'convert_raw': self.convert_raw_checkbox.isChecked(),
-                'jpeg_quality': self.jpeg_quality_spin.value(),
-                'max_dimension': self.max_dimension_spin.value(),
-                'max_workers': self.max_workers_spin.value(),
-                'resize_images': self.resize_images_checkbox.isChecked(),
                 'supported_formats': supported_formats,
-                'raw_processing': {
-                    'enabled': True,
-                    'cache_thumbnails': self.cache_thumbnails_checkbox.isChecked(),
-                    'cache_dir': self.cache_dir_edit.text(),
-                    'processing_timeout': self.processing_timeout_spin.value(),
-                    'fallback_size': self.fallback_size_spin.value(),
-                    'thumbnail_strategy': self.thumbnail_strategy_combo.currentText(),
-                    'fallback_thumbnail': self.fallback_thumbnail_checkbox.isChecked(),
-                }
             }
             
             # Image Optimization
