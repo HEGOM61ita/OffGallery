@@ -412,6 +412,7 @@ class ProcessingWorker(QThread):
             image_data['tags'] = json.dumps([], ensure_ascii=False)
         # Contesto BioCLIP per LLM (inizializzato qui, valorizzato dopo BioCLIP)
         bioclip_context = None
+        category_hint = None
 
         # === CACHE THUMBNAIL PER OTTIMIZZAZIONE ===
         # Estrae thumbnail una sola volta alla MAX size necessaria tra i modelli abilitati
@@ -503,13 +504,18 @@ class ProcessingWorker(QThread):
                         image_data['bioclip_taxonomy'] = json.dumps(bioclip_taxonomy, ensure_ascii=False)
                         self.log_message.emit(f"🌿 BioCLIP taxonomy: {len([l for l in bioclip_taxonomy if l])} livelli", "info")
 
-                    # Estrai contesto BioCLIP per LLM (approccio B: EN + traduzione)
+                    # Estrai contesto BioCLIP per LLM: nome latino + hint categoria
                     from embedding_generator import EmbeddingGenerator
                     bioclip_context = EmbeddingGenerator.extract_bioclip_context(
                         bioclip_tags if (bioclip_tags and isinstance(bioclip_tags, list)) else []
                     )
+                    category_hint = EmbeddingGenerator.extract_category_hint(
+                        bioclip_taxonomy if (bioclip_taxonomy and isinstance(bioclip_taxonomy, list)) else []
+                    )
                     if bioclip_context:
                         self.log_message.emit(f"🔗 Contesto BioCLIP per LLM: {bioclip_context}", "info")
+                    if category_hint:
+                        self.log_message.emit(f"🏷️ Hint categoria: {category_hint}", "info")
 
                     # Flag embedding generato
                     has_embedding = any([clip_emb is not None, dinov2_emb is not None])
@@ -573,7 +579,8 @@ class ProcessingWorker(QThread):
                             embedding_generator.generate_llm_tags,
                             llm_input,
                             gen_tags_cfg.get('max', 10),
-                            bioclip_context
+                            bioclip_context,
+                            category_hint
                         )
 
                     if should_gen_desc:
@@ -581,7 +588,8 @@ class ProcessingWorker(QThread):
                             embedding_generator.generate_llm_description,
                             llm_input,
                             gen_desc_cfg.get('max', 100),
-                            bioclip_context
+                            bioclip_context,
+                            category_hint
                         )
 
                     if should_gen_title:
@@ -589,7 +597,8 @@ class ProcessingWorker(QThread):
                             embedding_generator.generate_llm_title,
                             llm_input,
                             gen_title_cfg.get('max', 5),
-                            bioclip_context
+                            bioclip_context,
+                            category_hint
                         )
 
                     # Raccogli risultati

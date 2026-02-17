@@ -1267,6 +1267,49 @@ class EmbeddingGenerator:
             result = f"{result}, conf:{confidence:.2f}"
         return result
 
+    # Mappa classe tassonomica BioCLIP → hint italiano per il prompt LLM
+    TAXONOMY_CLASS_HINTS = {
+        # Animali - Vertebrati
+        'Aves': 'uccello',
+        'Mammalia': 'mammifero',
+        'Reptilia': 'rettile',
+        'Amphibia': 'anfibio',
+        'Actinopterygii': 'pesce',
+        'Chondrichthyes': 'pesce cartilagineo',
+        'Agnatha': 'pesce primitivo',
+        # Animali - Invertebrati
+        'Insecta': 'insetto',
+        'Arachnida': 'aracnide',
+        'Malacostraca': 'crostaceo',
+        'Gastropoda': 'lumaca o chiocciola',
+        'Bivalvia': 'mollusco bivalve',
+        'Cephalopoda': 'cefalopode',
+        # Piante
+        'Magnoliopsida': 'pianta',
+        'Liliopsida': 'pianta monocotiledone',
+        'Pinopsida': 'conifera',
+        'Polypodiopsida': 'felce',
+        # Funghi
+        'Agaricomycetes': 'fungo',
+        'Lecanoromycetes': 'lichene',
+    }
+
+    @staticmethod
+    def extract_category_hint(taxonomy):
+        """Estrae hint di categoria italiana dalla tassonomia BioCLIP.
+
+        Input: lista 7 livelli [kingdom, phylum, class, order, family, genus, species_epithet]
+        Output: stringa italiana (es. "uccello", "mammifero") oppure None
+        """
+        if not taxonomy or not isinstance(taxonomy, list) or len(taxonomy) < 3:
+            return None
+
+        taxon_class = taxonomy[2]  # indice 2 = class
+        if not taxon_class:
+            return None
+
+        return EmbeddingGenerator.TAXONOMY_CLASS_HINTS.get(taxon_class)
+
     # ===== LLM VISION METHODS =====
 
     def _prepare_llm_image(self, image_input) -> Optional[str]:
@@ -1344,17 +1387,17 @@ class EmbeddingGenerator:
                 pass
         self._llm_image_cache = {'source': None, 'base64': None, 'temp_path': None}
 
-    def generate_llm_description(self, image_input, max_description_words: int = 100, bioclip_context: Optional[str] = None):
+    def generate_llm_description(self, image_input, max_description_words: int = 100, bioclip_context: Optional[str] = None, category_hint: Optional[str] = None):
         """Genera descrizione LLM Vision.
-        Genera sempre in IT con termini generici, poi prepende nome latino da BioCLIP.
+        Usa category_hint nel prompt per guidare il modello, prepende nome latino da BioCLIP.
         """
         try:
             image_b64 = self._prepare_llm_image(image_input)
             if not image_b64:
                 return None
 
-            # Genera sempre in IT diretto (senza bioclip_context nel prompt)
-            response = self._call_ollama_vision_api(image_b64, mode='description', max_description_words=max_description_words)
+            # Genera in IT con hint di categoria nel prompt
+            response = self._call_ollama_vision_api(image_b64, mode='description', max_description_words=max_description_words, category_hint=category_hint)
 
             # Prependi nome latino da BioCLIP
             if bioclip_context and response:
@@ -1368,17 +1411,17 @@ class EmbeddingGenerator:
             logger.error(f"Errore LLM description: {e}")
             return None
 
-    def generate_llm_tags(self, image_input, max_tags: int = 10, bioclip_context: Optional[str] = None) -> List[str]:
+    def generate_llm_tags(self, image_input, max_tags: int = 10, bioclip_context: Optional[str] = None, category_hint: Optional[str] = None) -> List[str]:
         """Genera tag LLM Vision.
-        Genera sempre in IT con termini generici, poi aggiunge nome latino da BioCLIP.
+        Usa category_hint nel prompt per guidare il modello, aggiunge nome latino da BioCLIP.
         """
         try:
             image_b64 = self._prepare_llm_image(image_input)
             if not image_b64:
                 return []
 
-            # Genera sempre in IT diretto (senza bioclip_context nel prompt)
-            response = self._call_ollama_vision_api(image_b64, mode='tags', max_tags=max_tags)
+            # Genera in IT con hint di categoria nel prompt
+            response = self._call_ollama_vision_api(image_b64, mode='tags', max_tags=max_tags, category_hint=category_hint)
             if response:
                 tags = self._parse_llm_tags_response(response, max_tags)
 
@@ -1395,17 +1438,17 @@ class EmbeddingGenerator:
             logger.error(f"Errore LLM tags: {e}")
             return []
 
-    def generate_llm_title(self, image_input, max_title_words: int = 5, bioclip_context: Optional[str] = None) -> Optional[str]:
+    def generate_llm_title(self, image_input, max_title_words: int = 5, bioclip_context: Optional[str] = None, category_hint: Optional[str] = None) -> Optional[str]:
         """Genera titolo LLM Vision.
-        Genera sempre in IT con termini generici, poi prepende nome latino da BioCLIP.
+        Usa category_hint nel prompt per guidare il modello, prepende nome latino da BioCLIP.
         """
         try:
             image_b64 = self._prepare_llm_image(image_input)
             if not image_b64:
                 return None
 
-            # Genera sempre in IT diretto (senza bioclip_context nel prompt)
-            response = self._call_ollama_vision_api(image_b64, mode='title', max_title_words=max_title_words)
+            # Genera in IT con hint di categoria nel prompt
+            response = self._call_ollama_vision_api(image_b64, mode='title', max_title_words=max_title_words, category_hint=category_hint)
             if response:
                 title = response.strip().strip('"').strip("'").rstrip('.').rstrip(',').strip()
 
@@ -1422,7 +1465,7 @@ class EmbeddingGenerator:
             logger.error(f"Errore LLM title: {e}")
             return None
 
-    def generate_llm_content(self, image_input, mode='description', max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5, bioclip_context: Optional[str] = None):
+    def generate_llm_content(self, image_input, mode='description', max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5, bioclip_context: Optional[str] = None, category_hint: Optional[str] = None):
         """Metodo unificato per contenuti LLM con parametri completi.
 
         Modes supportati:
@@ -1432,7 +1475,8 @@ class EmbeddingGenerator:
         - 'tags_and_description': tag + descrizione
         - 'all': tag + descrizione + titolo
 
-        Con bioclip_context: ogni sotto-metodo genera EN e traduce individualmente.
+        category_hint: hint italiano dalla classe tassonomica BioCLIP (es. "uccello")
+        bioclip_context: nome latino per prepend programmatico
         """
         import logging
         logger = logging.getLogger(__name__)
@@ -1440,17 +1484,17 @@ class EmbeddingGenerator:
 
         try:
             if mode in ['description', 'tags_and_description', 'all']:
-                description = self.generate_llm_description(image_input, max_description_words, bioclip_context=bioclip_context)
+                description = self.generate_llm_description(image_input, max_description_words, bioclip_context=bioclip_context, category_hint=category_hint)
                 if description:
                     result['description'] = description
 
             if mode in ['tags', 'tags_and_description', 'all']:
-                tags = self.generate_llm_tags(image_input, max_tags, bioclip_context=bioclip_context)
+                tags = self.generate_llm_tags(image_input, max_tags, bioclip_context=bioclip_context, category_hint=category_hint)
                 if tags:
                     result['tags'] = tags
 
             if mode in ['title', 'all']:
-                title = self.generate_llm_title(image_input, max_title_words, bioclip_context=bioclip_context)
+                title = self.generate_llm_title(image_input, max_title_words, bioclip_context=bioclip_context, category_hint=category_hint)
                 if title:
                     result['title'] = title
 
@@ -1460,7 +1504,7 @@ class EmbeddingGenerator:
             logger.error(f"Errore LLM content generation: {e}")
             return None
 
-    def _call_ollama_vision_api(self, image_data_b64: str, mode: str, max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5) -> Optional[str]:
+    def _call_ollama_vision_api(self, image_data_b64: str, mode: str, max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5, category_hint: Optional[str] = None) -> Optional[str]:
         """Chiama API Ollama Vision (Qwen3-VL) e ritorna SOLO il contenuto finale.
 
         Args:
@@ -1496,9 +1540,15 @@ class EmbeddingGenerator:
             num_batch = generation.get('num_batch', 1024)
 
             # Genera sempre in italiano, identifica specie solo se sicuro
+            # Se abbiamo un hint di categoria da BioCLIP, lo usiamo per guidare il modello
+            category_line = ""
+            if category_hint:
+                category_line = f"- IMPORTANT: The main subject is a type of: {category_hint}. Use this as context.\n"
+
             italian_rules = (
                 "LANGUAGE: ALL output MUST be in ITALIAN. NEVER use English words.\n"
                 "ANIMAL/PLANT IDENTIFICATION:\n"
+                f"{category_line}"
                 "- If you clearly recognize the species, use its common Italian name (e.g. cervo, delfino, girasole)\n"
                 "- If you are NOT sure, use a generic Italian term (uccello, animale, fiore, albero, pesce)\n"
                 "- NEVER guess a species name. A generic term is ALWAYS better than a wrong name\n"

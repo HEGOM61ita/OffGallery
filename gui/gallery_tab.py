@@ -916,6 +916,7 @@ class GalleryTab(QWidget):
 
                 # Estrai contesto BioCLIP dal campo dedicato bioclip_taxonomy
                 bioclip_context = None
+                category_hint = None
                 taxonomy_raw = item.image_data.get('bioclip_taxonomy')
                 if taxonomy_raw:
                     try:
@@ -927,6 +928,9 @@ class GalleryTab(QWidget):
                             species = f"{genus} {species_ep}".strip() if genus else ''
                             if species:
                                 bioclip_context = species
+                        # Estrai hint di categoria dalla classe tassonomica
+                        from embedding_generator import EmbeddingGenerator
+                        category_hint = EmbeddingGenerator.extract_category_hint(taxonomy)
                     except Exception:
                         pass
 
@@ -934,17 +938,17 @@ class GalleryTab(QWidget):
                 result = {}
 
                 if gen_options.get('title'):
-                    title = embedding_gen.generate_llm_title(llm_input, max_title_words, bioclip_context=bioclip_context)
+                    title = embedding_gen.generate_llm_title(llm_input, max_title_words, bioclip_context=bioclip_context, category_hint=category_hint)
                     if title:
                         result['title'] = title
 
                 if gen_options.get('tags'):
-                    tags = embedding_gen.generate_llm_tags(llm_input, max_tags, bioclip_context=bioclip_context)
+                    tags = embedding_gen.generate_llm_tags(llm_input, max_tags, bioclip_context=bioclip_context, category_hint=category_hint)
                     if tags:
                         result['tags'] = tags
 
                 if gen_options.get('description'):
-                    description = embedding_gen.generate_llm_description(llm_input, max_words, bioclip_context=bioclip_context)
+                    description = embedding_gen.generate_llm_description(llm_input, max_words, bioclip_context=bioclip_context, category_hint=category_hint)
                     if description:
                         result['description'] = description
                 #-------------------------------------------
