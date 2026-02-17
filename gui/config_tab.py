@@ -848,21 +848,17 @@ class ConfigTab(QWidget):
         self.llm_vision_max_title_chars.setEnabled(enabled)
 
     def create_image_processing_section(self):
-        """Crea sezione configurazione elaborazione immagini"""
-        group_box = QGroupBox("🖼️ Elaborazione Immagini")
-        group_box.setObjectName("ImageProcessingSection")
-        
-        group_box.setStyleSheet(f"""
+        """Crea sezione configurazione formati file supportati"""
+        formats_group = QGroupBox("📄 Formati File Supportati")
+        formats_group.setObjectName("ImageProcessingSection")
+
+        formats_group.setStyleSheet(f"""
             QGroupBox#ImageProcessingSection {{
                 border: 2px solid {COLORS['ambra_light']};
+                color: {COLORS['grigio_medio']};
+                font-size: 12px;
             }}
         """)
-        
-        layout = QGridLayout()
-
-        # Formati Supportati Sub-section
-        formats_group = QGroupBox("📄 Formati File Supportati")
-        formats_group.setStyleSheet(f"QGroupBox {{ color: {COLORS['grigio_medio']}; font-size: 12px; }}")
         formats_layout = QVBoxLayout()
         
         # Info
@@ -898,10 +894,7 @@ class ConfigTab(QWidget):
         formats_layout.addLayout(preset_layout)
         
         formats_group.setLayout(formats_layout)
-        layout.addWidget(formats_group, 0, 0, 1, 4)
-
-        group_box.setLayout(layout)
-        return group_box
+        return formats_group
 
     def create_image_optimization_section(self):
         """Crea sezione ottimizzazione profili AI"""
