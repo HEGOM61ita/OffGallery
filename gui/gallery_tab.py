@@ -747,18 +747,20 @@ class GalleryTab(QWidget):
             QApplication.processEvents()
             
             updated = 0
+            not_found = 0
+            bio_results = []  # riepilogo per messaggio finale
             for i, item in enumerate(items):
                 if progress.wasCanceled():
                     break
-                
+
                 progress.setValue(i + 1)
                 progress.setLabelText(f"Classificazione:\n{item.image_data.get('filename', '')}\n\n({i+1}/{len(items)})")
                 QApplication.processEvents()
-                
+
                 filepath = Path(item.image_data.get('filepath', ''))
                 if not filepath.exists():
                     continue
-                
+
                 flat_tags, taxonomy = embedding_gen.generate_bioclip_tags(filepath)
 
                 if taxonomy:
@@ -790,7 +792,16 @@ class GalleryTab(QWidget):
                     db_manager.conn.commit()
                     item.image_data['bioclip_taxonomy'] = taxonomy_json
                     updated += 1
-            
+
+                    # Estrai nome specie per riepilogo
+                    genus = taxonomy[5] if len(taxonomy) > 5 else ''
+                    species_ep = taxonomy[6] if len(taxonomy) > 6 else ''
+                    species_name = f"{genus} {species_ep}".strip() if genus else ''
+                    bio_results.append(f"✅ {item.image_data.get('filename', '')}: {species_name or 'classe identificata'}")
+                else:
+                    not_found += 1
+                    bio_results.append(f"❌ {item.image_data.get('filename', '')}: nessuna specie trovata")
+
             progress.setValue(len(items) + 1)
             db_manager.close()
 
@@ -802,7 +813,11 @@ class GalleryTab(QWidget):
             self._refresh_cards(items)
 
             if self.parent_window:
-                self.parent_window.update_status(f"BioCLIP: {updated} immagini classificate")
+                self.parent_window.update_status(f"BioCLIP: {updated} trovate, {not_found} non trovate")
+
+            # Mostra riepilogo risultati
+            summary = f"Specie trovate: {updated}\nSpecie non trovate: {not_found}\n\n" + "\n".join(bio_results)
+            QMessageBox.information(self, "🌿 Risultati BioCLIP", summary)
 
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Errore BioCLIP:\n{e}")
@@ -868,6 +883,8 @@ class GalleryTab(QWidget):
             updated_title = 0
             updated_tags = 0
             updated_desc = 0
+            bio_found = 0
+            bio_not_found = 0
             
             for i, item in enumerate(items):
                 if progress.wasCanceled():
@@ -933,6 +950,22 @@ class GalleryTab(QWidget):
                         category_hint = EmbeddingGenerator.extract_category_hint(taxonomy)
                     except Exception:
                         pass
+
+                # Aggiorna progress con info BioCLIP e contatori
+                if bioclip_context:
+                    bio_found += 1
+                    bio_info = f"\n🌿 BioCLIP: {bioclip_context}"
+                    if category_hint:
+                        bio_info += f" ({category_hint})"
+                else:
+                    bio_not_found += 1
+                    if category_hint:
+                        bio_info = f"\n🌿 BioCLIP: {category_hint} (specie non identificata)"
+                    else:
+                        bio_info = "\n🌿 BioCLIP: nessun dato"
+                bio_stats = f"\n🌿 Specie: {bio_found} trovate, {bio_not_found} non trovate"
+                progress.setLabelText(f"Analisi AI:\n{item.image_data.get('filename', '')}{bio_info}{bio_stats}\n\n({i+1}/{len(items)})")
+                QApplication.processEvents()
 
                 # Genera contenuti in base alle selezioni
                 result = {}
@@ -1224,8 +1257,8 @@ class GalleryTab(QWidget):
                 return yaml.safe_load(f)
         except Exception as e:
             # Il problema è qui: se 'self' è in uno stato inconsistente, QMessageBox fallisce
-            print(f"DEBUG - Errore critico su path: {self.config_path} (Tipo: {type(self.config_path)})")
-            print(f"Errore caricamento directory salvata: {e}")
+            import logging
+            logging.getLogger(__name__).error(f"Errore caricamento config da {self.config_path}: {e}")
             return None
 
 
