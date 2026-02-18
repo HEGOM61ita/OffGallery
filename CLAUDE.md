@@ -133,3 +133,22 @@ if isinstance(raw_data, bytes):
 7. **Nome latino MAI dal LLM**: inserirlo solo programmaticamente da BioCLIP context, il modello 4B non è affidabile per nomi specie
 8. **Gallery LLM profile**: sempre `profile_name='llm_vision'` per RAW, mai lasciare che CallerOptimizer scelga `gallery_display`
 9. **Config key mismatch**: `processing_tab` salva max_tags con chiave `'max'`, leggere con `.get('max', 10)` non `'max_tags'`
+
+## Roadmap: Sistema Plugin
+
+### Obiettivo
+Progettare un sistema di plugin modulare per OffGallery. I plugin sono moduli Python che, una volta collocati in una directory dedicata del progetto (es. `/plugins`), vengono riconosciuti automaticamente all'avvio e le loro funzionalità rese disponibili sia in Config Tab che in Gallery.
+
+### Caso d'uso principale
+Un plugin "LLM Vision 7B" che fornisce un motore alternativo per tag, descrizioni e titoli usando un modello quantizzato più grande (es. 7B-8B VL). Questo plugin:
+- Si usa **in alternativa** al motore 4B integrato, non in parallelo
+- Serve per riscansione o scansione mirata di foto con output di qualità superiore
+- Richiede **scaricamento dei modelli concorrenti** dalla VRAM: i modelli embedding (CLIP, DINOv2, BioCLIP, Aesthetic, MUSIQ) non possono stare in memoria contemporaneamente a un 7B
+- L'utente attiva/disattiva il plugin da Config Tab, che automaticamente disabilita i modelli incompatibili e libera VRAM
+
+### Requisiti architetturali
+- **Auto-discovery**: scan della directory plugin all'avvio, caricamento dinamico dei moduli conformi
+- **Interfaccia standard**: ogni plugin espone un manifest (nome, versione, descrizione, requisiti VRAM, modelli incompatibili) e metodi standard (init, process, cleanup)
+- **Gestione VRAM**: il sistema deve gestire il mutua esclusione dei modelli in base alla VRAM disponibile e ai requisiti dichiarati dal plugin
+- **UI dinamica**: Config Tab genera automaticamente le sezioni di configurazione dai parametri esposti dal plugin
+- **Gallery integration**: i plugin che generano tag/descrizioni/titoli appaiono nel menu contestuale come opzioni alternative
