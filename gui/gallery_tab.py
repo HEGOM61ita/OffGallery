@@ -815,9 +815,25 @@ class GalleryTab(QWidget):
             if self.parent_window:
                 self.parent_window.update_status(f"BioCLIP: {updated} trovate, {not_found} non trovate")
 
-            # Mostra riepilogo risultati
-            summary = f"Specie trovate: {updated}\nSpecie non trovate: {not_found}\n\n" + "\n".join(bio_results)
-            QMessageBox.information(self, "🌿 Risultati BioCLIP", summary)
+            # Mostra riepilogo risultati con dialog scrollabile
+            from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextEdit, QDialogButtonBox
+            dlg = QDialog(self)
+            dlg.setWindowTitle("🌿 Risultati BioCLIP")
+            dlg.setMinimumWidth(500)
+            dlg.setMaximumHeight(500)
+            layout = QVBoxLayout(dlg)
+            header = QLabel(f"Specie trovate: {updated} — Non trovate: {not_found}")
+            header.setStyleSheet("font-weight: bold; font-size: 13px; margin-bottom: 6px;")
+            layout.addWidget(header)
+            text = QTextEdit()
+            text.setReadOnly(True)
+            text.setPlainText("\n".join(bio_results))
+            layout.addWidget(text)
+            btn = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+            btn.accepted.connect(dlg.accept)
+            layout.addWidget(btn)
+            apply_popup_style(dlg)
+            dlg.exec()
 
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Errore BioCLIP:\n{e}")
@@ -951,20 +967,19 @@ class GalleryTab(QWidget):
                     except Exception:
                         pass
 
-                # Aggiorna progress con info BioCLIP e contatori
+                # Mostra contesto BioCLIP esistente (letto dal DB, non rigenerato)
                 if bioclip_context:
                     bio_found += 1
-                    bio_info = f"\n🌿 BioCLIP: {bioclip_context}"
+                    ctx_info = f"\nContesto: {bioclip_context}"
                     if category_hint:
-                        bio_info += f" ({category_hint})"
+                        ctx_info += f" ({category_hint})"
                 else:
                     bio_not_found += 1
                     if category_hint:
-                        bio_info = f"\n🌿 BioCLIP: {category_hint} (specie non identificata)"
+                        ctx_info = f"\nContesto: {category_hint}"
                     else:
-                        bio_info = "\n🌿 BioCLIP: nessun dato"
-                bio_stats = f"\n🌿 Specie: {bio_found} trovate, {bio_not_found} non trovate"
-                progress.setLabelText(f"Analisi AI:\n{item.image_data.get('filename', '')}{bio_info}{bio_stats}\n\n({i+1}/{len(items)})")
+                        ctx_info = "\nContesto: nessuno"
+                progress.setLabelText(f"Generazione LLM:\n{item.image_data.get('filename', '')}{ctx_info}\n\n({i+1}/{len(items)})")
                 QApplication.processEvents()
 
                 # Genera contenuti in base alle selezioni
