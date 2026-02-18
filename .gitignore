@@ -28,6 +28,7 @@
 !installer/
 !installer/*.py
 !installer/*.bat
+!installer/*.sh
 !installer/*.md
 !installer/*.txt
 

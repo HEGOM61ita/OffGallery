@@ -5,6 +5,7 @@ Versione 2.0 -
 """
 
 import yaml
+import platform
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
@@ -394,7 +395,10 @@ class ConfigTab(QWidget):
             
             # Percorso
             path_edit = QLineEdit()
-            path_edit.setPlaceholderText("Seleziona file .exe...")
+            if platform.system() == "Windows":
+                path_edit.setPlaceholderText("Seleziona file .exe...")
+            else:
+                path_edit.setPlaceholderText("Seleziona eseguibile...")
             path_edit.setObjectName(f"editor_{i}_path")
             path_edit.textChanged.connect(lambda text, idx=i: self.validate_editor_path(text, idx))
             
@@ -1812,7 +1816,13 @@ class ConfigTab(QWidget):
         path = Path(path_text.strip())
         path_edit = self.editor_controls[editor_index - 1]['path']
         
-        if path.exists() and path.is_file() and path.suffix.lower() == '.exe':
+        import os
+        if platform.system() == "Windows":
+            is_valid_exec = path.exists() and path.is_file() and path.suffix.lower() == '.exe'
+        else:
+            is_valid_exec = path.exists() and path.is_file() and os.access(str(path), os.X_OK)
+
+        if is_valid_exec:
             # Percorso valido
             path_edit.setStyleSheet(f"""
                 QLineEdit {{
@@ -1831,7 +1841,10 @@ class ConfigTab(QWidget):
                     color: {COLORS['grigio_chiaro']};
                 }}
             """)
-            path_edit.setToolTip("❌ Percorso non valido o non è un .exe")
+            if platform.system() == "Windows":
+                path_edit.setToolTip("❌ Percorso non valido o non è un .exe")
+            else:
+                path_edit.setToolTip("❌ Percorso non valido o non è un eseguibile")
 
     def browse_editor_path(self, editor_index):
         """Apri dialog per selezionare editor esterno"""
@@ -1839,7 +1852,8 @@ class ConfigTab(QWidget):
             self,
             f"Seleziona Editor {editor_index}",
             "",
-            "Eseguibili (*.exe);;Tutti i file (*.*)"
+            "Eseguibili (*.exe);;Tutti i file (*.*)" if platform.system() == "Windows"
+            else "Tutti i file (*)"
         )
         
         if file_path:

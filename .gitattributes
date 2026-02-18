@@ -32,3 +32,8 @@ brisque_models/** linguist-vendored
 # LINGUAGGIO PROGETTO
 # =============================================================================
 *.py linguist-language=Python
+
+# =============================================================================
+# LINE ENDINGS: script bash sempre LF (anche su Windows)
+# =============================================================================
+*.sh text eol=lf
