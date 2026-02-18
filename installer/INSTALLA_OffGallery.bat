@@ -129,6 +129,25 @@ for %%A in ("!MINICONDA_INSTALLER!") do (
     )
 )
 
+:: Se esiste una installazione parziale, chiedi se rimuoverla
+if exist "!MINICONDA_DIR!" (
+    echo   [!!] La cartella !MINICONDA_DIR! esiste gia'
+    echo       ma conda non risulta funzionante.
+    echo       Potrebbe essere un'installazione precedente incompleta.
+    echo.
+    set /p "REMOVE_OLD=  Vuoi rimuoverla e reinstallare? (S/N): "
+    if /i "!REMOVE_OLD!"=="S" (
+        echo   Rimozione in corso...
+        rmdir /s /q "!MINICONDA_DIR!" 2>nul
+        echo   Cartella rimossa.
+    ) else (
+        echo.
+        echo   Impossibile procedere con la cartella esistente.
+        echo   Rimuovila manualmente e riesegui il wizard.
+        goto :END_ERROR
+    )
+)
+
 echo.
 echo   Installazione Miniconda in corso...
 echo   (Puo' richiedere 2-5 minuti, attendere...)

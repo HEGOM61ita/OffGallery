@@ -159,7 +159,23 @@ else
     echo "   Download Miniconda (~120 MB)..."
     echo ""
 
-    if ! curl -fSL "$MINICONDA_URL" -o "$MINICONDA_INSTALLER" 2>&1; then
+    # Se esiste una installazione parziale/corrotta, chiedi se rimuoverla
+    if [ -d "$MINICONDA_DIR" ]; then
+        print_warn "La cartella $MINICONDA_DIR esiste già ma conda non funziona."
+        echo "   Potrebbe essere un'installazione precedente incompleta."
+        echo ""
+        if ask_yes_no "Vuoi rimuoverla e reinstallare Miniconda?"; then
+            rm -rf "$MINICONDA_DIR"
+            echo "   Cartella rimossa."
+        else
+            print_err "Impossibile procedere con la cartella esistente."
+            echo "   Rimuovila manualmente: rm -rf $MINICONDA_DIR"
+            echo "   poi riesegui questo wizard."
+            exit 1
+        fi
+    fi
+
+    if ! curl -fSL "$MINICONDA_URL" -o "$MINICONDA_INSTALLER"; then
         print_err "Download Miniconda fallito."
         echo "   Verifica la connessione internet e riprova."
         echo ""
@@ -183,7 +199,20 @@ else
     echo "   (Può richiedere 2-5 minuti)"
     echo ""
 
-    bash "$MINICONDA_INSTALLER" -b -p "$MINICONDA_DIR"
+    if ! bash "$MINICONDA_INSTALLER" -b -p "$MINICONDA_DIR"; then
+        print_err "Installazione Miniconda fallita."
+        echo ""
+        echo "   Possibili cause:"
+        echo "     - Spazio disco insufficiente"
+        echo "     - Permessi mancanti sulla cartella home"
+        echo "     - Installazione precedente corrotta"
+        echo ""
+        echo "   Prova a rimuovere la cartella e riesegui:"
+        echo "     rm -rf $MINICONDA_DIR"
+        echo "     bash installer/install_offgallery.sh"
+        rm -f "$MINICONDA_INSTALLER"
+        exit 1
+    fi
 
     # Pulizia installer
     rm -f "$MINICONDA_INSTALLER"
@@ -196,7 +225,7 @@ else
     fi
 
     # Inizializza conda per la shell corrente
-    eval "$("$MINICONDA_DIR/bin/conda" shell.bash hook)"
+    eval "$("$MINICONDA_DIR/bin/conda" shell.bash hook)" 2>/dev/null || true
 
     print_ok "Miniconda installato con successo!"
     echo ""
@@ -213,7 +242,8 @@ STEP_CURRENT=2
 print_header "$STEP_CURRENT" "Ambiente Python"
 
 # Verifica se l'ambiente esiste già
-if "$CONDA_CMD" env list 2>/dev/null | grep -q "$ENV_NAME"; then
+ENV_LIST=$("$CONDA_CMD" env list 2>/dev/null || true)
+if echo "$ENV_LIST" | grep -q "$ENV_NAME"; then
     print_ok "Ambiente \"$ENV_NAME\" già presente."
     echo ""
     if ask_yes_no "Vuoi eliminarlo e ricrearlo da zero?"; then
@@ -238,14 +268,19 @@ if [ "${SKIP_ENV_CREATE:-false}" != "true" ]; then
     echo "   (1-3 minuti)"
     echo ""
 
-    "$CONDA_CMD" create -n "$ENV_NAME" python="$PYTHON_VER" -y
-
-    # Verifica concreta
-    if ! "$CONDA_CMD" env list 2>/dev/null | grep -q "$ENV_NAME"; then
+    if ! "$CONDA_CMD" create -n "$ENV_NAME" python="$PYTHON_VER" -y; then
         print_err "Creazione ambiente fallita."
         echo "   Possibili cause:"
         echo "     - Spazio disco insufficiente"
         echo "     - Permessi mancanti"
+        echo "     - Problemi di rete durante il download di Python"
+        exit 1
+    fi
+
+    # Verifica concreta
+    ENV_CHECK=$("$CONDA_CMD" env list 2>/dev/null || true)
+    if ! echo "$ENV_CHECK" | grep -q "$ENV_NAME"; then
+        print_err "Creazione ambiente fallita (verifica post-creazione)."
         exit 1
     fi
 
@@ -294,7 +329,17 @@ echo "   [1/3] Aggiornamento pip..."
 echo "   [2/3] Installazione dipendenze Python..."
 echo ""
 
-"$CONDA_CMD" run -n "$ENV_NAME" --no-banner pip install -r "$REQUIREMENTS"
+if ! "$CONDA_CMD" run -n "$ENV_NAME" --no-banner pip install -r "$REQUIREMENTS"; then
+    print_err "Installazione dipendenze fallita."
+    echo ""
+    echo "   Possibili cause:"
+    echo "     - Connessione internet instabile"
+    echo "     - Spazio disco insufficiente (~6 GB necessari)"
+    echo ""
+    echo "   Suggerimento: riesegui questo wizard. I pacchetti"
+    echo "   già scaricati non verranno riscaricati."
+    exit 1
+fi
 
 # Verifica PyTorch
 echo ""
