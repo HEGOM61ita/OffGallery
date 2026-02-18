@@ -27,20 +27,29 @@ Da quel momento in poi, l'applicazione funzionera' completamente offline.
 INSTALLAZIONE RAPIDA (CONSIGLIATA)
 ──────────────────────────────────
 
-Il modo piu' semplice per installare tutto e' usare il wizard unificato:
+Il modo piu' semplice per installare tutto e' usare il wizard.
 
-  1. Apri la cartella "installer".
-  2. Fai doppio click su INSTALLA_OffGallery.bat
-  3. Segui le istruzioni a schermo (rispondi S o N alle domande).
+  Su Windows:
+    1. Apri la cartella "installer".
+    2. Fai doppio click su INSTALLA_OffGallery.bat
+    3. Segui le istruzioni a schermo (rispondi S o N alle domande).
+
+  Su Linux:
+    1. Apri un terminale nella cartella OffGallery.
+    2. Esegui:  bash installer/install_offgallery.sh
+    3. Segui le istruzioni a schermo (rispondi s o n alle domande).
 
 Il wizard fa tutto automaticamente:
   - Scarica e installa Miniconda (se non presente)
   - Crea l'ambiente Python e installa tutte le librerie
+  - Solo Linux: installa ExifTool tramite il gestore pacchetti
+    del sistema (apt, dnf, pacman, zypper)
   - Offre l'installazione opzionale di Ollama (per descrizioni AI)
-  - Crea un collegamento sul Desktop per avviare l'app
+  - Crea un collegamento (Desktop su Windows, menu applicazioni su Linux)
 
 Tempo stimato: 20-40 minuti.
-Al termine, troverai l'icona "OffGallery" sul Desktop.
+Su Windows, troverai l'icona "OffGallery" sul Desktop.
+Su Linux, troverai "OffGallery" nel menu applicazioni.
 
 Se il wizard viene interrotto per qualsiasi motivo (errore di rete,
 spazio disco, etc.), puoi semplicemente rieseguirlo: gli step gia'
@@ -63,13 +72,13 @@ separati invece del wizard. Gli step vanno eseguiti in ordine.
 REQUISITI DEL COMPUTER
 ──────────────────────
 
-  Componente         Minimo               Consigliato
-  ─────────────────  ───────────────────  ─────────────────────
-  Sistema operativo  Windows 10 64-bit    Windows 11
-  RAM                8 GB                 16 GB o piu'
-  Spazio su disco    15 GB liberi         25 GB liberi
-  Scheda video       non richiesta        NVIDIA con 4+ GB VRAM
-  Internet           si (solo per setup)  --
+  Componente         Minimo                        Consigliato
+  ─────────────────  ────────────────────────────  ──────────────────────────
+  Sistema operativo  Windows 10 64-bit o Linux     Windows 11 / Ubuntu 22.04+
+  RAM                8 GB                          16 GB o piu'
+  Spazio su disco    15 GB liberi                  25 GB liberi
+  Scheda video       non richiesta                 NVIDIA con 4+ GB VRAM
+  Internet           si (solo per setup)           --
 
   Note importanti:
 
@@ -100,9 +109,8 @@ SCARICARE OFFGALLERY
 
     4. Una volta scaricato, apri il file ZIP e estrai la cartella
        dove preferisci. Ad esempio:
-         C:\OffGallery
-       oppure:
-         D:\Programmi\OffGallery
+         Windows: C:\OffGallery  oppure  D:\Programmi\OffGallery
+         Linux:   ~/OffGallery
 
        Scegli un percorso semplice, senza spazi nel nome se possibile.
 
@@ -120,18 +128,22 @@ una sottocartella "installer" con gli script di installazione:
 
   OffGallery/
     installer/
-      INSTALLA_OffGallery.bat     <-- WIZARD UNICO (consigliato)
-      01_install_miniconda.bat    <-- Step manuale 1
-      02_create_env.bat           <-- Step manuale 2
-      03_install_packages.bat     <-- Step manuale 3
-      06_setup_ollama.bat         <-- Step manuale 4 (facoltativo)
+      INSTALLA_OffGallery.bat     <-- Wizard Windows (consigliato)
+      install_offgallery.sh       <-- Wizard Linux (consigliato)
+      01_install_miniconda.bat    <-- Step manuale 1 (Windows)
+      02_create_env.bat           <-- Step manuale 2 (Windows)
+      03_install_packages.bat     <-- Step manuale 3 (Windows)
+      06_setup_ollama.bat         <-- Step manuale 4 (facoltativo, Windows)
       07_verify_installation.py   <-- Verifica finale
-      OffGallery_Launcher.bat     <-- Per avviare l'app
+      OffGallery_Launcher.bat     <-- Per avviare l'app (Windows)
+      offgallery_launcher.sh      <-- Per avviare l'app (Linux)
       INSTALL_GUIDE.md            <-- Guida di riferimento
 
-Se usi il wizard (INSTALLA_OffGallery.bat), non serve eseguire gli
-altri script separatamente. Se preferisci il metodo manuale, gli step
-vanno eseguiti in ordine, uno dopo l'altro.
+Su Windows: usa il wizard INSTALLA_OffGallery.bat
+Su Linux:   usa il wizard install_offgallery.sh
+
+Non serve eseguire gli altri script separatamente. Se preferisci il
+metodo manuale, gli step vanno eseguiti in ordine, uno dopo l'altro.
 
 
 ────────────────────────────────────────────────────────────────────────
@@ -355,6 +367,8 @@ ma ti da' una visione completa dello stato del sistema.
 AVVIARE OFFGALLERY
 ────────────────────────────────────────────────────────────────────────
 
+  WINDOWS:
+
   Metodo 1 - Doppio click (consigliato per l'uso quotidiano):
 
     Nella cartella "installer" c'e' il file:
@@ -372,6 +386,24 @@ AVVIARE OFFGALLERY
       conda activate OffGallery
       cd C:\percorso\di\OffGallery
       python gui_launcher.py
+
+
+  LINUX:
+
+  Metodo 1 - Menu applicazioni:
+
+    Se hai usato il wizard, OffGallery appare nel menu applicazioni.
+    Cercalo per nome.
+
+  Metodo 2 - Da terminale:
+
+    bash installer/offgallery_launcher.sh
+
+  Metodo 3 - Manuale:
+
+    conda activate OffGallery
+    cd ~/percorso/di/OffGallery
+    python gui_launcher.py
 
 
 ────────────────────────────────────────────────────────────────────────
@@ -416,6 +448,7 @@ SPAZIO SU DISCO OCCUPATO (RIEPILOGO)
 Dopo l'installazione completa, ecco quanto spazio occupa ogni
 componente e dove si trova:
 
+  Windows:
   Componente              Posizione                            Dimensione
   ──────────────────────  ───────────────────────────────────  ──────────
   Miniconda               %USERPROFILE%\miniconda3             ~400 MB
@@ -424,10 +457,19 @@ componente e dove si trova:
   Argos Translate         %USERPROFILE%\.local\share\argos...  ~92 MB
   Ollama + modello LLM    %LOCALAPPDATA%\Ollama                ~3.5 GB
 
-  Totale approssimativo: circa 17 GB
-
   (%USERPROFILE% e' la cartella del tuo utente Windows, ad esempio
    C:\Users\Mario)
+
+  Linux:
+  Componente              Posizione                            Dimensione
+  ──────────────────────  ───────────────────────────────────  ──────────
+  Miniconda               ~/miniconda3                         ~400 MB
+  Ambiente OffGallery     ~/miniconda3/envs/OffGallery         ~6 GB
+  Modelli HuggingFace     ~/.cache/huggingface                 ~6.7 GB
+  Argos Translate         ~/.local/share/argos-translate       ~92 MB
+  Ollama + modello LLM    ~/.ollama                            ~3.5 GB
+
+  Totale approssimativo: circa 17 GB
 
 
 ────────────────────────────────────────────────────────────────────────
@@ -442,15 +484,23 @@ Se vuoi rimuovere OffGallery dal computer:
      Apri un terminale e digita:
        conda env remove -n OffGallery -y
 
-  3. Se vuoi liberare tutto lo spazio, elimina anche:
-     - La cache dei modelli: %USERPROFILE%\.cache\huggingface
-     - Argos Translate: %USERPROFILE%\.local\share\argos-translate
+  3. Se vuoi liberare tutto lo spazio, elimina anche la cache dei modelli:
+     Windows: %USERPROFILE%\.cache\huggingface
+              %USERPROFILE%\.local\share\argos-translate
+     Linux:   ~/.cache/huggingface
+              ~/.local/share/argos-translate
 
   4. Se hai installato Ollama e non lo usi per altro:
-     - Disinstallalo da Impostazioni > App > Ollama
+     Windows: Disinstallalo da Impostazioni > App > Ollama
+     Linux:   sudo rm /usr/local/bin/ollama
+              rm -rf ~/.ollama
 
   5. Se hai installato Miniconda solo per OffGallery:
-     - Disinstallalo da Impostazioni > App > Miniconda3
+     Windows: Disinstallalo da Impostazioni > App > Miniconda3
+     Linux:   rm -rf ~/miniconda3
+
+  6. Solo Linux - rimuovi la desktop entry:
+     rm ~/.local/share/applications/offgallery.desktop
 
 ================================================================================
   Fine del Capitolo 1 - Installazione

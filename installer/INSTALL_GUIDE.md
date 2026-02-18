@@ -4,29 +4,44 @@
 
 | Componente | Minimo | Consigliato |
 |------------|--------|-------------|
-| **Sistema Operativo** | Windows 10 64-bit | Windows 11 |
+| **Sistema Operativo** | Windows 10 64-bit / Linux 64-bit | Windows 11 / Ubuntu 22.04+ |
 | **RAM** | 8 GB | 16 GB |
 | **Spazio Disco** | 15 GB | 25 GB |
 | **GPU (opzionale)** | - | NVIDIA con 4+ GB VRAM |
 | **Connessione Internet** | Richiesta solo al primo avvio | - |
 
 > **Nota GPU**: OffGallery funziona anche senza GPU NVIDIA, ma l'elaborazione sarà più lenta. Puoi scegliere CPU/GPU nelle impostazioni.
+>
+> **Nota Linux**: Testato su Ubuntu, Fedora e Arch Linux. Altre distribuzioni con supporto conda dovrebbero funzionare.
 
 ---
 
 ## Installazione Rapida (Consigliata)
 
-Il modo piu' semplice per installare OffGallery e' usare il **wizard di installazione unificato**:
+Il modo piu' semplice per installare OffGallery e' usare il **wizard di installazione**:
+
+### Windows
 
 1. Apri la cartella `installer`
 2. **Doppio click** su **`INSTALLA_OffGallery.bat`**
 3. Segui le istruzioni a schermo (rispondi S/N alle domande)
 
-Il wizard:
+### Linux
+
+1. Apri un terminale nella cartella OffGallery
+2. Esegui:
+   ```bash
+   bash installer/install_offgallery.sh
+   ```
+3. Segui le istruzioni a schermo (rispondi s/n alle domande)
+
+### Cosa fa il wizard (entrambe le piattaforme)
+
 - Scarica e installa Miniconda automaticamente (se non presente)
 - Crea l'ambiente Python e installa tutte le librerie
+- **Solo Linux**: installa ExifTool tramite il gestore pacchetti del sistema (apt, dnf, pacman, zypper)
 - Offre l'installazione opzionale di Ollama (per descrizioni AI)
-- Crea un collegamento sul Desktop
+- Crea un collegamento (Desktop su Windows, menu applicazioni su Linux)
 
 **Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarichera' automaticamente ~7 GB di modelli AI. Gli avvii successivi saranno completamente offline.
 
@@ -38,6 +53,8 @@ Il wizard:
 
 Se preferisci installare i componenti singolarmente, segui gli step qui sotto.
 
+### Windows - Script separati
+
 | Step | Script | Cosa fa | Tempo |
 |------|--------|---------|-------|
 | 1 | `01_install_miniconda.bat` | Verifica/installa Miniconda | 5 min |
@@ -45,6 +62,36 @@ Se preferisci installare i componenti singolarmente, segui gli step qui sotto.
 | 3 | `03_install_packages.bat` | Installa librerie Python | 15-20 min |
 | 4 | `06_setup_ollama.bat` | Installa LLM locale (opzionale) | 5-10 min |
 | - | **Primo avvio app** | Download automatico modelli AI | 10-20 min |
+
+### Linux - Installazione manuale
+
+Se preferisci non usare il wizard `install_offgallery.sh`, puoi eseguire ogni step manualmente:
+
+```bash
+# 1. Installa Miniconda (se non presente)
+curl -fSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o /tmp/miniconda.sh
+bash /tmp/miniconda.sh -b -p $HOME/miniconda3
+$HOME/miniconda3/bin/conda init bash
+# Riapri il terminale dopo questo comando
+
+# 2. Crea ambiente Python
+conda create -n OffGallery python=3.12 -y
+
+# 3. Installa librerie Python
+conda run -n OffGallery pip install -r installer/requirements_offgallery.txt
+
+# 4. Installa ExifTool
+# Ubuntu/Debian:
+sudo apt install libimage-exiftool-perl
+# Fedora/RHEL:
+sudo dnf install perl-Image-ExifTool
+# Arch Linux:
+sudo pacman -S perl-image-exiftool
+
+# 5. Ollama (opzionale)
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull qwen3-vl:4b-instruct
+```
 
 ### Step 1: Installa Miniconda
 
@@ -146,16 +193,16 @@ Se non ti interessa questa funzionalità, puoi saltare questo step.
 
 ## Avviare OffGallery
 
-### Metodo 1: Doppio Click (Consigliato)
+### Windows
+
+**Metodo 1 - Doppio Click (Consigliato):**
 
 Nella cartella `installer` trovi il file `OffGallery_Launcher.bat`:
 
 1. **Copia** `OffGallery_Launcher.bat` sul **Desktop**
 2. **Doppio click** per avviare l'app
 
-> Il launcher rileva automaticamente il percorso dell'app.
-
-### Metodo 2: Da Terminale
+**Metodo 2 - Da Terminale:**
 
 1. Apri il **Prompt Anaconda**
 2. Digita:
@@ -164,6 +211,26 @@ Nella cartella `installer` trovi il file `OffGallery_Launcher.bat`:
    cd C:\percorso\di\OffGallery
    python gui_launcher.py
    ```
+
+### Linux
+
+**Metodo 1 - Menu applicazioni (Consigliato):**
+
+Se hai usato il wizard, OffGallery appare nel menu applicazioni. Cercalo per nome.
+
+**Metodo 2 - Da terminale:**
+
+```bash
+bash installer/offgallery_launcher.sh
+```
+
+**Metodo 3 - Manuale:**
+
+```bash
+conda activate OffGallery
+cd ~/percorso/di/OffGallery
+python gui_launcher.py
+```
 
 ---
 
@@ -187,8 +254,8 @@ Al **primo avvio**, OffGallery scarica automaticamente i modelli AI necessari:
 ## Risoluzione Problemi
 
 ### "conda non è riconosciuto come comando"
-- Riavvia il terminale dopo aver installato Miniconda
-- Verifica che "Add to PATH" sia stato selezionato durante l'installazione
+- **Windows**: Riavvia il terminale dopo aver installato Miniconda. Verifica che "Add to PATH" sia stato selezionato durante l'installazione
+- **Linux**: Esegui `~/miniconda3/bin/conda init bash` e riapri il terminale
 
 ### "CUDA not available" / Elaborazione lenta
 - Normale se non hai una GPU NVIDIA
@@ -200,12 +267,24 @@ Al **primo avvio**, OffGallery scarica automaticamente i modelli AI necessari:
 - In alternativa, usa `python gui_launcher.py --download-models` per forzare il download
 
 ### Ollama non risponde
-- Assicurati che Ollama sia in esecuzione (icona nella system tray)
-- Riavvia Ollama
+- **Windows**: Assicurati che Ollama sia in esecuzione (icona nella system tray). Riavvia Ollama
+- **Linux**: Verifica con `systemctl status ollama` oppure avvia con `ollama serve`
+
+### Linux: ExifTool non trovato
+- Installa tramite il gestore pacchetti del sistema:
+  - Ubuntu/Debian: `sudo apt install libimage-exiftool-perl`
+  - Fedora: `sudo dnf install perl-Image-ExifTool`
+  - Arch: `sudo pacman -S perl-image-exiftool`
+
+### Linux: l'app non si avvia dal menu applicazioni
+- Prova da terminale: `bash installer/offgallery_launcher.sh`
+- Verifica che conda sia inizializzato: `conda --version`
 
 ---
 
 ## Spazio Disco Utilizzato
+
+### Windows
 
 | Componente | Posizione | Dimensione |
 |------------|-----------|------------|
@@ -214,6 +293,17 @@ Al **primo avvio**, OffGallery scarica automaticamente i modelli AI necessari:
 | Modelli HuggingFace | `%USERPROFILE%\.cache\huggingface` | ~6.7 GB |
 | Argos Translate | `%USERPROFILE%\.local\share\argos-translate` | ~92 MB |
 | Ollama + modello | `%LOCALAPPDATA%\Ollama` | ~3.5 GB |
+| **Totale** | | **~17 GB** |
+
+### Linux
+
+| Componente | Posizione | Dimensione |
+|------------|-----------|------------|
+| Miniconda | `~/miniconda3` | ~400 MB |
+| Ambiente OffGallery | `~/miniconda3/envs/OffGallery` | ~6 GB |
+| Modelli HuggingFace | `~/.cache/huggingface` | ~6.7 GB |
+| Argos Translate | `~/.local/share/argos-translate` | ~92 MB |
+| Ollama + modello | `~/.ollama` | ~3.5 GB |
 | **Totale** | | **~17 GB** |
 
 ---

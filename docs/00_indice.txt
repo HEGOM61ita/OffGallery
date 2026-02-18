@@ -11,8 +11,9 @@
   INDICE DEI CAPITOLI
   ───────────────────
 
-  01 - Installazione
-       Requisiti, download, Miniconda, ambiente Python, librerie, Ollama.
+  01 - Installazione (Windows e Linux)
+       Requisiti, download, wizard automatico, Miniconda, ambiente Python,
+       librerie, ExifTool, Ollama.
 
   02 - Primo avvio e configurazione iniziale
        Download automatico dei modelli AI, splash screen, impostazioni base.

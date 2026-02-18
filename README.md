@@ -15,6 +15,8 @@
   <img src="https://img.shields.io/badge/CUDA-11.8-green?logo=nvidia" alt="CUDA"/>
   <img src="https://img.shields.io/badge/License-AGPLV3-yellow" alt="License"/>
   <img src="https://img.shields.io/badge/100%25-Offline-brightgreen" alt="Offline"/>
+  <img src="https://img.shields.io/badge/Windows-10%2F11-blue?logo=windows" alt="Windows"/>
+  <img src="https://img.shields.io/badge/Linux-Ubuntu%20|%20Fedora%20|%20Arch-orange?logo=linux" alt="Linux"/>
 </p>
 
 <p align="center">
@@ -26,6 +28,11 @@
 ## Ultime Novità
 
 > Per approfondimenti su ogni versione, visita le [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions) del progetto.
+
+### v0.7 — 18 febbraio 2026
+- **Supporto Linux**: installer bash completo (`install_offgallery.sh`) con detection distro, ExifTool automatico e desktop entry
+- **Launcher Linux**: `offgallery_launcher.sh` con auto-detection conda
+- **Config cross-platform**: validazione editor esterni adattata per Linux (`os.X_OK` invece di `.exe`)
 
 ### v0.5 — 16 febbraio 2025
 - **BioCLIP tassonomia completa**: 7 livelli (Kingdom, Phylum, Class, Order, Family, Genus, Species) nel campo DB dedicato `bioclip_taxonomy`
@@ -145,11 +152,12 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 | **RAM** | 8 GB | 16 GB |
 | **Disco** | 15 GB | 25 GB |
 | **GPU** | - | NVIDIA con CUDA |
-| **OS** | Windows 10/11 | Windows 11 |
+| **OS** | Windows 10/11 oppure Linux 64-bit | Windows 11 / Ubuntu 22.04+ |
 
 > **Note**:
 > - GPU NVIDIA raccomandata per prestazioni ottimali. Funziona anche su CPU (più lento)
 > - Connessione internet richiesta solo al primo avvio per download modelli AI (~7 GB)
+> - **Linux**: testato su Ubuntu, Fedora e Arch. Altre distribuzioni con supporto conda dovrebbero funzionare
 
 ---
 
@@ -160,30 +168,48 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 **Opzione A - Download ZIP (consigliato):**
 1. Clicca il pulsante verde **"<> Code"** in alto a destra
 2. Seleziona **"Download ZIP"**
-3. Estrai la cartella dove preferisci (es. `C:\OffGallery`)
+3. Estrai la cartella dove preferisci (es. `C:\OffGallery` o `~/OffGallery`)
 
 **Opzione B - Git clone:**
 ```bash
 git clone https://github.com/HEGOM61ita/OffGallery.git
 ```
 
-### 2. Installa con il Wizard (consigliato)
+### 2. Installa con il Wizard
+
+#### Windows
 
 1. Apri la cartella `installer`
 2. **Doppio click** su **`INSTALLA_OffGallery.bat`**
 3. Segui le istruzioni a schermo
 
-Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Python, librerie, e opzionalmente Ollama per le descrizioni AI. Al termine crea un collegamento sul Desktop.
+#### Linux
+
+1. Apri un terminale nella cartella OffGallery
+2. Esegui:
+   ```bash
+   bash installer/install_offgallery.sh
+   ```
+3. Segui le istruzioni a schermo
+
+Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Python, librerie (+ ExifTool su Linux), e opzionalmente Ollama per le descrizioni AI. Al termine crea un collegamento (Desktop su Windows, menu applicazioni su Linux).
 
 > **Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarica automaticamente i modelli AI (~7 GB). Gli avvii successivi saranno completamente offline.
 
 ### Installazione manuale (alternativa)
 
-Se preferisci installare i componenti singolarmente:
+**Windows** - script batch separati:
 1. `installer/01_install_miniconda.bat` - Verifica/installa Miniconda
 2. `installer/02_create_env.bat` - Crea ambiente Python
 3. `installer/03_install_packages.bat` - Installa librerie
 4. `installer/06_setup_ollama.bat` - Ollama + LLM Vision (opzionale)
+
+**Linux** - usa il wizard `install_offgallery.sh` che copre tutti gli step, oppure installa manualmente:
+1. Installa [Miniconda](https://docs.anaconda.com/miniconda/install/) per Linux
+2. `conda create -n OffGallery python=3.12 -y`
+3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
+4. Installa ExifTool: `sudo apt install libimage-exiftool-perl` (Ubuntu/Debian) o equivalente
+5. (Opzionale) Installa [Ollama](https://ollama.com/download) e `ollama pull qwen3-vl:4b-instruct`
 
 ### Istruzioni Dettagliate
 
