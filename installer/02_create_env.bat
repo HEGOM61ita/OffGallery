@@ -63,6 +63,13 @@ if !ENV_EXISTS! EQU 0 (
 )
 
 echo.
+echo Accettazione Terms of Service Anaconda...
+call "!CONDA_CMD!" tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main >nul 2>&1
+call "!CONDA_CMD!" tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r >nul 2>&1
+call "!CONDA_CMD!" tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2 >nul 2>&1
+echo [OK] Terms of Service accettati
+echo.
+
 echo Creazione ambiente "OffGallery" con Python 3.12...
 echo Questo potrebbe richiedere qualche minuto...
 echo.

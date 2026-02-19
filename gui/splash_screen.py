@@ -299,10 +299,34 @@ def run_with_splash():
     # Import e creazione MainWindow (genera i log)
     print("📦 Caricamento moduli...")
 
-    from gui.main_window import MainWindow, shutdown_badge_manager
+    try:
+        from gui.main_window import MainWindow, shutdown_badge_manager
+    except Exception as e:
+        import traceback
+        restore_log_capture()
+        from PyQt6.QtWidgets import QMessageBox
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setWindowTitle("OffGallery - Errore caricamento moduli")
+        msg.setText("Impossibile caricare i moduli dell'interfaccia.")
+        msg.setDetailedText(traceback.format_exc())
+        msg.exec()
+        sys.exit(1)
 
     print("🔧 Inizializzazione interfaccia...")
-    window = MainWindow()
+    try:
+        window = MainWindow()
+    except Exception as e:
+        import traceback
+        restore_log_capture()
+        from PyQt6.QtWidgets import QMessageBox
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setWindowTitle("OffGallery - Errore avvio")
+        msg.setText(f"Errore durante l'inizializzazione:\n{e}")
+        msg.setDetailedText(traceback.format_exc())
+        msg.exec()
+        sys.exit(1)
 
     # Completa splash
     splash.finish()

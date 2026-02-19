@@ -83,12 +83,39 @@ call "!CONDA_CMD!" run -n OffGallery --no-banner python -m pip install --upgrade
 echo [2/2] Installazione dipendenze...
 call "!CONDA_CMD!" run -n OffGallery --no-banner pip install -r "%SCRIPT_DIR%requirements_offgallery.txt"
 
-:: Verifica concreta
+:: Verifica pacchetti critici
+echo.
+echo Verifica installazione...
+set "INSTALL_OK=1"
+
 call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import torch; print('[OK] PyTorch', torch.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 (
+    echo [ERRORE] torch non trovato
+    set "INSTALL_OK=0"
+)
+
+call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import yaml; print('[OK] PyYAML', yaml.__version__)" 2>nul
+if !ERRORLEVEL! NEQ 0 (
+    echo [ERRORE] pyyaml non trovato
+    set "INSTALL_OK=0"
+)
+
+call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import PyQt6; print('[OK] PyQt6')" 2>nul
+if !ERRORLEVEL! NEQ 0 (
+    echo [ERRORE] PyQt6 non trovato
+    set "INSTALL_OK=0"
+)
+
+call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import numpy; print('[OK] NumPy', numpy.__version__)" 2>nul
+if !ERRORLEVEL! NEQ 0 (
+    echo [ERRORE] numpy non trovato
+    set "INSTALL_OK=0"
+)
+
+if "!INSTALL_OK!"=="0" (
     echo.
-    echo [ERRORE] Installazione pacchetti fallita.
-    echo Controlla la connessione internet e riprova.
+    echo [ERRORE] Installazione incompleta. Uno o piu' pacchetti mancano.
+    echo Controlla la connessione internet e riprova questo step.
     pause
     exit /b 1
 )
