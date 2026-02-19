@@ -8,7 +8,6 @@
 !CONFIGURATION.md
 !TRADEMARK.md
 !THIRD_PARTY.md
-!HUGGINGFACE_SETUP.md
 !LICENSE
 !OffGallery.spec
 !requirements_frozen.txt
@@ -56,6 +55,7 @@ dist/
 build/
 
 # Script di test sperimentali
+test_*.py
 test_bioclip_llm.py
 INPUT_TEST/
 
