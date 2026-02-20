@@ -12,7 +12,7 @@ embedding:
       description: Classificazione flora/fauna TreeOfLife (~450k specie)
       enabled: true
       max_tags: 3
-      threshold: 0.05
+      threshold: 0.2
     clip:
       description: Ricerca semantica (query naturali)
       enabled: true
@@ -26,7 +26,7 @@ embedding:
       auto_import:
         description:
           enabled: true
-          max_words: 30
+          max_words: 25
           overwrite: true
         tags:
           enabled: true
@@ -209,6 +209,7 @@ models_repository:
   auto_download: true
   download_on_first_run: true
   huggingface_repo: HEGOM/OffGallery-models
+  models_dir: Models
   models:
     aesthetic: aesthetic
     argos_it_en: argos-it-en

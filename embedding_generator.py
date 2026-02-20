@@ -298,6 +298,12 @@ class EmbeddingGenerator:
             logger.warning("Argostranslate non disponibile - traduzioni disabilitate")
             self.translator = None
     
+    def _get_models_dir(self) -> Path:
+        """Restituisce il percorso assoluto della directory modelli dal config."""
+        rel = self.config.get('models_repository', {}).get('models_dir', 'Models')
+        p = Path(rel)
+        return p if p.is_absolute() else get_app_dir() / p
+
     def _initialize_models(self):
         """Inizializza modelli abilitati"""
         models_config = self.embedding_config.get('models', {})
@@ -317,27 +323,39 @@ class EmbeddingGenerator:
             self.bioclip_enabled = hasattr(self, 'bioclip_classifier') and self.bioclip_classifier is not None
 
     def _init_clip(self):
-        """Inizializza CLIP dal repo congelato HEGOM/OffGallery-models"""
+        """Inizializza CLIP: prima da models_dir locale, poi repo congelato, poi fallback ufficiale"""
         try:
             from transformers import CLIPProcessor, CLIPModel
 
-            # Repo congelato (priorità) e fallback ufficiale
+            models_dir = self._get_models_dir()
+            clip_subfolder = self.config.get('models_repository', {}).get('models', {}).get('clip', 'clip')
+            clip_local = models_dir / clip_subfolder
             frozen_repo = self.config.get('models_repository', {}).get('huggingface_repo', '')
             fallback_model = self.embedding_config.get('models', {}).get('clip', {}).get('model_name', 'laion/CLIP-ViT-B-32-laion2B-s34B-b79K')
 
             loaded = False
 
-            # Prova repo congelato
-            if frozen_repo:
+            # 1. Cartella locale (models_dir/clip/)
+            if clip_local.exists() and (clip_local / 'config.json').exists():
                 try:
-                    self.clip_model = CLIPModel.from_pretrained(frozen_repo, subfolder='clip').to(self.device)
-                    self.clip_processor = CLIPProcessor.from_pretrained(frozen_repo, subfolder='clip')
+                    self.clip_model = CLIPModel.from_pretrained(str(clip_local)).to(self.device)
+                    self.clip_processor = CLIPProcessor.from_pretrained(str(clip_local))
                     loaded = True
-                    logger.info("[OK] CLIP caricato")
+                    logger.info("[OK] CLIP caricato da locale")
+                except Exception as e:
+                    logger.warning(f"CLIP: cartella locale non valida ({e}), uso repo...")
+
+            # 2. Repo congelato HuggingFace
+            if not loaded and frozen_repo:
+                try:
+                    self.clip_model = CLIPModel.from_pretrained(frozen_repo, subfolder=clip_subfolder).to(self.device)
+                    self.clip_processor = CLIPProcessor.from_pretrained(frozen_repo, subfolder=clip_subfolder)
+                    loaded = True
+                    logger.info("[OK] CLIP caricato da repo")
                 except Exception as e:
                     logger.warning(f"CLIP: repo congelato non disponibile ({e}), uso fallback...")
 
-            # Fallback repo ufficiale
+            # 3. Fallback repo ufficiale
             if not loaded:
                 self.clip_model = CLIPModel.from_pretrained(fallback_model).to(self.device)
                 self.clip_processor = CLIPProcessor.from_pretrained(fallback_model)
@@ -350,27 +368,39 @@ class EmbeddingGenerator:
             self.clip_enabled = False
 
     def _init_dinov2(self):
-        """Inizializza DINOv2 dal repo congelato HEGOM/OffGallery-models"""
+        """Inizializza DINOv2: prima da models_dir locale, poi repo congelato, poi fallback ufficiale"""
         try:
             from transformers import AutoImageProcessor, AutoModel
 
-            # Repo congelato (priorità) e fallback ufficiale
+            models_dir = self._get_models_dir()
+            dinov2_subfolder = self.config.get('models_repository', {}).get('models', {}).get('dinov2', 'dinov2')
+            dinov2_local = models_dir / dinov2_subfolder
             frozen_repo = self.config.get('models_repository', {}).get('huggingface_repo', '')
             fallback_model = self.embedding_config.get('models', {}).get('dinov2', {}).get('model_name', 'facebook/dinov2-base')
 
             loaded = False
 
-            # Prova repo congelato
-            if frozen_repo:
+            # 1. Cartella locale (models_dir/dinov2/)
+            if dinov2_local.exists() and (dinov2_local / 'config.json').exists():
                 try:
-                    self.dinov2_model = AutoModel.from_pretrained(frozen_repo, subfolder='dinov2').to(self.device)
-                    self.dinov2_processor = AutoImageProcessor.from_pretrained(frozen_repo, subfolder='dinov2')
+                    self.dinov2_model = AutoModel.from_pretrained(str(dinov2_local)).to(self.device)
+                    self.dinov2_processor = AutoImageProcessor.from_pretrained(str(dinov2_local))
                     loaded = True
-                    logger.info("[OK] DINOv2 caricato")
+                    logger.info("[OK] DINOv2 caricato da locale")
+                except Exception as e:
+                    logger.warning(f"DINOv2: cartella locale non valida ({e}), uso repo...")
+
+            # 2. Repo congelato HuggingFace
+            if not loaded and frozen_repo:
+                try:
+                    self.dinov2_model = AutoModel.from_pretrained(frozen_repo, subfolder=dinov2_subfolder).to(self.device)
+                    self.dinov2_processor = AutoImageProcessor.from_pretrained(frozen_repo, subfolder=dinov2_subfolder)
+                    loaded = True
+                    logger.info("[OK] DINOv2 caricato da repo")
                 except Exception as e:
                     logger.warning(f"DINOv2: repo congelato non disponibile ({e}), uso fallback...")
 
-            # Fallback repo ufficiale
+            # 3. Fallback repo ufficiale
             if not loaded:
                 self.dinov2_model = AutoModel.from_pretrained(fallback_model).to(self.device)
                 self.dinov2_processor = AutoImageProcessor.from_pretrained(fallback_model)
@@ -389,8 +419,9 @@ class EmbeddingGenerator:
             import torch
             import torch.nn as nn
 
-            app_dir = get_app_dir()
-            aesthetic_dir = app_dir / 'aesthetic'
+            models_dir = self._get_models_dir()
+            aesthetic_subfolder = self.config.get('models_repository', {}).get('models', {}).get('aesthetic', 'aesthetic')
+            aesthetic_dir = models_dir / aesthetic_subfolder
 
             # Repo congelato e fallback
             frozen_repo = self.config.get('models_repository', {}).get('huggingface_repo', '')
@@ -501,12 +532,14 @@ class EmbeddingGenerator:
             import numpy as np
             import json
 
-            app_dir = get_app_dir()
-            bioclip_dir = app_dir / 'bioclip'
-            treeoflife_dir = app_dir / 'treeoflife'
+            models_dir = self._get_models_dir()
+            models_mapping = self.config.get('models_repository', {}).get('models', {})
+            bioclip_subfolder = models_mapping.get('bioclip', 'bioclip')
+            treeoflife_subfolder = models_mapping.get('treeoflife', 'treeoflife')
+            bioclip_dir = models_dir / bioclip_subfolder
+            treeoflife_dir = models_dir / treeoflife_subfolder
 
             frozen_repo = self.config.get('models_repository', {}).get('huggingface_repo', '')
-            models_mapping = self.config.get('models_repository', {}).get('models', {})
 
             # File necessari per BioCLIP
             bioclip_files = ['open_clip_config.json', 'open_clip_model.safetensors']
@@ -526,9 +559,6 @@ class EmbeddingGenerator:
                 if frozen_repo:
                     try:
                         from huggingface_hub import hf_hub_download
-
-                        bioclip_subfolder = models_mapping.get('bioclip', 'bioclip')
-                        treeoflife_subfolder = models_mapping.get('treeoflife', 'treeoflife')
 
                         # Scarica BioCLIP model
                         if not bioclip_local_ok:

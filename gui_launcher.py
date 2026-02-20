@@ -24,50 +24,50 @@ sys.path.insert(0, str(app_dir))
 
 def check_models_cached() -> bool:
     """
-    Verifica se i modelli AI sono già in cache.
-    Controlla: aesthetic locale + bioclip locale + modelli HuggingFace in cache.
+    Verifica se i modelli AI sono già presenti in models_dir.
+    Controlla: aesthetic, bioclip, treeoflife, clip, dinov2.
     """
-    # 1. Verifica aesthetic locale (obbligatorio)
-    aesthetic_dir = app_dir / 'aesthetic'
-    if not aesthetic_dir.exists():
-        return False
-    aesthetic_ok = (
-        (aesthetic_dir / 'model.safetensors').exists() or
-        (aesthetic_dir / 'pytorch_model.bin').exists()
-    )
-    if not aesthetic_ok:
-        return False
-
-    # 2. Verifica bioclip locale (obbligatorio)
-    bioclip_dir = app_dir / 'bioclip'
-    treeoflife_dir = app_dir / 'treeoflife'
-    bioclip_ok = (
-        bioclip_dir.exists() and
-        (bioclip_dir / 'open_clip_model.safetensors').exists() and
-        treeoflife_dir.exists() and
-        (treeoflife_dir / 'txt_emb_species.npy').exists()
-    )
-    if not bioclip_ok:
-        return False
-
-    # 3. Verifica cache HuggingFace per CLIP/DINOv2
-    hf_cache = Path.home() / '.cache' / 'huggingface' / 'hub'
-
     try:
         import yaml
         config_path = app_dir / 'config_new.yaml'
-        if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-            repo_id = config.get('models_repository', {}).get('huggingface_repo', '')
-            if repo_id:
-                cache_folder = hf_cache / f"models--{repo_id.replace('/', '--')}"
-                if not cache_folder.exists():
-                    return False
-                snapshots_dir = cache_folder / 'snapshots'
-                if not snapshots_dir.exists() or not any(snapshots_dir.iterdir()):
-                    return False
+        if not config_path.exists():
+            return False
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
     except Exception:
+        return False
+
+    repo_config = config.get('models_repository', {})
+    models_config = repo_config.get('models', {})
+    rel = repo_config.get('models_dir', 'Models')
+    p = Path(rel)
+    models_dir = p if p.is_absolute() else app_dir / p
+
+    aesthetic_subfolder = models_config.get('aesthetic', 'aesthetic')
+    aesthetic_dir = models_dir / aesthetic_subfolder
+    if not (aesthetic_dir.exists() and (
+        (aesthetic_dir / 'model.safetensors').exists() or
+        (aesthetic_dir / 'pytorch_model.bin').exists()
+    )):
+        return False
+
+    bioclip_subfolder = models_config.get('bioclip', 'bioclip')
+    treeoflife_subfolder = models_config.get('treeoflife', 'treeoflife')
+    bioclip_dir = models_dir / bioclip_subfolder
+    treeoflife_dir = models_dir / treeoflife_subfolder
+    if not (
+        bioclip_dir.exists() and (bioclip_dir / 'open_clip_model.safetensors').exists() and
+        treeoflife_dir.exists() and (treeoflife_dir / 'txt_emb_species.npy').exists()
+    ):
+        return False
+
+    clip_subfolder = models_config.get('clip', 'clip')
+    dinov2_subfolder = models_config.get('dinov2', 'dinov2')
+    clip_dir = models_dir / clip_subfolder
+    dinov2_dir = models_dir / dinov2_subfolder
+    if not (clip_dir.exists() and (clip_dir / 'config.json').exists()):
+        return False
+    if not (dinov2_dir.exists() and (dinov2_dir / 'config.json').exists()):
         return False
 
     return True

@@ -49,9 +49,18 @@ def get_assets_dir() -> Path:
     return get_app_dir() / 'assets'
 
 
-def get_models_dir() -> Path:
-    """Directory per modelli AI (aesthetic/, brisque_models/)"""
-    return get_app_dir()
+def get_models_dir(config=None) -> Path:
+    """Directory per i modelli AI.
+    Se config contiene models_repository.models_dir, usa quello.
+    Percorsi relativi sono risolti rispetto ad APP_DIR.
+    Default: APP_DIR/Models
+    """
+    if config:
+        rel = config.get('models_repository', {}).get('models_dir', 'Models')
+    else:
+        rel = 'Models'
+    p = Path(rel)
+    return p if p.is_absolute() else get_app_dir() / p
 
 
 def get_config_path() -> Path:

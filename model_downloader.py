@@ -53,14 +53,32 @@ def print_info(msg):
     print(f"[...] {msg}")
 
 
-def check_models_exist():
-    """Verifica se i modelli sono già presenti"""
-    aesthetic_dir = APP_DIR / 'aesthetic'
-    model_files = ['config.json', 'model.safetensors']
+def get_models_dir(config=None) -> Path:
+    """Restituisce il percorso assoluto della directory modelli."""
+    if config is None:
+        config = load_config() or {}
+    rel = config.get('models_repository', {}).get('models_dir', 'Models')
+    p = Path(rel)
+    return p if p.is_absolute() else APP_DIR / p
 
-    if aesthetic_dir.exists() and all((aesthetic_dir / f).exists() for f in model_files):
-        return True
-    return False
+
+def check_models_exist(config=None):
+    """Verifica se i modelli sono già presenti nella models_dir."""
+    models_dir = get_models_dir(config)
+    aesthetic_dir = models_dir / 'aesthetic'
+    clip_dir = models_dir / 'clip'
+    dinov2_dir = models_dir / 'dinov2'
+
+    if not (aesthetic_dir.exists() and (
+        (aesthetic_dir / 'model.safetensors').exists() or
+        (aesthetic_dir / 'pytorch_model.bin').exists()
+    )):
+        return False
+    if not (clip_dir.exists() and (clip_dir / 'config.json').exists()):
+        return False
+    if not (dinov2_dir.exists() and (dinov2_dir / 'config.json').exists()):
+        return False
+    return True
 
 
 def download_from_hf_repo(repo_id: str, subfolder: str, local_dir: Path, description: str):
@@ -98,32 +116,30 @@ def download_from_hf_repo(repo_id: str, subfolder: str, local_dir: Path, descrip
         return False
 
 
-def download_all_models(repo_id: str, models_config: dict):
+def download_all_models(repo_id: str, models_config: dict, models_dir: Path):
     """
-    Scarica tutti i modelli dal repository HuggingFace congelato.
+    Scarica tutti i modelli dal repository HuggingFace congelato in models_dir.
 
     Il repo deve avere questa struttura:
     repo_id/
     ├── clip/           (modello CLIP completo)
     ├── dinov2/         (modello DINOv2 completo)
     ├── aesthetic/      (modello CLIP per aesthetic)
-    ├── bioclip/        (modello BioCLIP)
+    ├── bioclip/        (modello BioCLIP v2)
     ├── treeoflife/     (dataset TreeOfLife per BioCLIP)
     └── argos-it-en/    (pacchetto traduzione Argos)
     """
     try:
-        from huggingface_hub import snapshot_download, hf_hub_download
+        from huggingface_hub import snapshot_download
     except ImportError:
         print_error("huggingface_hub non installato")
         return False
 
+    models_dir.mkdir(parents=True, exist_ok=True)
     success = True
 
-    # Directory cache HuggingFace per i modelli transformers
-    hf_cache = Path.home() / '.cache' / 'huggingface' / 'hub'
-
     print(f"Repository congelato: {repo_id}")
-    print(f"Cache HuggingFace: {hf_cache}")
+    print(f"Destinazione modelli: {models_dir}")
     print()
 
     # --- CLIP ---
@@ -132,13 +148,17 @@ def download_all_models(repo_id: str, models_config: dict):
     print_info("Download CLIP (ricerca semantica) - ~580 MB")
     try:
         clip_subfolder = models_config.get('clip', 'clip')
-        snapshot_download(
-            repo_id=repo_id,
-            allow_patterns=f"{clip_subfolder}/**",
-            local_dir=str(hf_cache / f"models--{repo_id.replace('/', '--')}"),
-            local_dir_use_symlinks=False,
-        )
-        print_ok("CLIP scaricato")
+        clip_dir = models_dir / clip_subfolder
+        if clip_dir.exists() and (clip_dir / 'config.json').exists():
+            print_ok("CLIP già presente")
+        else:
+            snapshot_download(
+                repo_id=repo_id,
+                allow_patterns=f"{clip_subfolder}/**",
+                local_dir=str(models_dir),
+                local_dir_use_symlinks=False,
+            )
+            print_ok("CLIP scaricato")
     except Exception as e:
         print_error(f"CLIP: {e}")
         success = False
@@ -149,77 +169,78 @@ def download_all_models(repo_id: str, models_config: dict):
     print_info("Download DINOv2 (similarità visiva) - ~330 MB")
     try:
         dinov2_subfolder = models_config.get('dinov2', 'dinov2')
-        snapshot_download(
-            repo_id=repo_id,
-            allow_patterns=f"{dinov2_subfolder}/**",
-            local_dir=str(hf_cache / f"models--{repo_id.replace('/', '--')}"),
-            local_dir_use_symlinks=False,
-        )
-        print_ok("DINOv2 scaricato")
+        dinov2_dir = models_dir / dinov2_subfolder
+        if dinov2_dir.exists() and (dinov2_dir / 'config.json').exists():
+            print_ok("DINOv2 già presente")
+        else:
+            snapshot_download(
+                repo_id=repo_id,
+                allow_patterns=f"{dinov2_subfolder}/**",
+                local_dir=str(models_dir),
+                local_dir_use_symlinks=False,
+            )
+            print_ok("DINOv2 scaricato")
     except Exception as e:
         print_error(f"DINOv2: {e}")
         success = False
 
-    # --- Aesthetic (salva direttamente in app/aesthetic/) ---
+    # --- Aesthetic ---
     print()
     print("-" * 60)
     print_info("Download Aesthetic (score estetico) - ~1.6 GB")
-    aesthetic_dir = APP_DIR / 'aesthetic'
-
     try:
-        model_files = ['config.json', 'model.safetensors']
-        if aesthetic_dir.exists() and all((aesthetic_dir / f).exists() for f in model_files):
-            print_ok("Aesthetic già presente in aesthetic/")
+        aesthetic_subfolder = models_config.get('aesthetic', 'aesthetic')
+        aesthetic_dir = models_dir / aesthetic_subfolder
+        if aesthetic_dir.exists() and (
+            (aesthetic_dir / 'model.safetensors').exists() or
+            (aesthetic_dir / 'pytorch_model.bin').exists()
+        ):
+            print_ok("Aesthetic già presente")
         else:
-            aesthetic_subfolder = models_config.get('aesthetic', 'aesthetic')
             aesthetic_dir.mkdir(exist_ok=True)
-
-            # Scarica direttamente nella cartella aesthetic dell'app
             snapshot_download(
                 repo_id=repo_id,
                 allow_patterns=f"{aesthetic_subfolder}/**",
-                local_dir=str(APP_DIR),
+                local_dir=str(models_dir),
                 local_dir_use_symlinks=False,
             )
-
-            # Se i file sono in una sottocartella, spostali
-            downloaded_dir = APP_DIR / aesthetic_subfolder
-            if downloaded_dir.exists() and downloaded_dir != aesthetic_dir:
-                import shutil
-                for f in downloaded_dir.iterdir():
-                    shutil.move(str(f), str(aesthetic_dir / f.name))
-                downloaded_dir.rmdir()
-
-            print_ok("Aesthetic scaricato e salvato in aesthetic/")
+            print_ok("Aesthetic scaricato")
     except Exception as e:
         print_error(f"Aesthetic: {e}")
         success = False
 
-    # --- BioCLIP + TreeOfLife ---
+    # --- BioCLIP v2 + TreeOfLife ---
     print()
     print("-" * 60)
-    print_info("Download BioCLIP + TreeOfLife (classificazione natura) - ~4.2 GB")
+    print_info("Download BioCLIP v2 + TreeOfLife (classificazione natura) - ~4.2 GB")
     try:
         bioclip_subfolder = models_config.get('bioclip', 'bioclip')
         treeoflife_subfolder = models_config.get('treeoflife', 'treeoflife')
+        bioclip_dir = models_dir / bioclip_subfolder
+        treeoflife_dir = models_dir / treeoflife_subfolder
 
-        # BioCLIP model
-        snapshot_download(
-            repo_id=repo_id,
-            allow_patterns=f"{bioclip_subfolder}/**",
-            local_dir=str(hf_cache / f"models--{repo_id.replace('/', '--')}"),
-            local_dir_use_symlinks=False,
-        )
+        if bioclip_dir.exists() and (bioclip_dir / 'open_clip_model.safetensors').exists():
+            print_ok("BioCLIP v2 già presente")
+        else:
+            snapshot_download(
+                repo_id=repo_id,
+                allow_patterns=f"{bioclip_subfolder}/**",
+                local_dir=str(models_dir),
+                local_dir_use_symlinks=False,
+            )
+            print_ok("BioCLIP v2 scaricato")
 
-        # TreeOfLife dataset
-        snapshot_download(
-            repo_id=repo_id,
-            allow_patterns=f"{treeoflife_subfolder}/**",
-            local_dir=str(hf_cache / f"datasets--{repo_id.replace('/', '--')}"),
-            local_dir_use_symlinks=False,
-        )
+        if treeoflife_dir.exists() and (treeoflife_dir / 'txt_emb_species.npy').exists():
+            print_ok("TreeOfLife già presente")
+        else:
+            snapshot_download(
+                repo_id=repo_id,
+                allow_patterns=f"{treeoflife_subfolder}/**",
+                local_dir=str(models_dir),
+                local_dir_use_symlinks=False,
+            )
+            print_ok("TreeOfLife scaricato")
 
-        print_ok("BioCLIP + TreeOfLife scaricato")
     except Exception as e:
         print_error(f"BioCLIP: {e}")
         success = False
@@ -324,6 +345,7 @@ def run_download(force=False):
     repo_id = repo_config.get('huggingface_repo', '')
     auto_download = repo_config.get('auto_download', True)
     models_config = repo_config.get('models', {})
+    models_dir = get_models_dir(config)
 
     if not repo_id:
         print_error("huggingface_repo non configurato in config_new.yaml")
@@ -335,20 +357,20 @@ def run_download(force=False):
         return True
 
     # Verifica se già scaricati
-    if not force and check_models_exist():
+    if not force and check_models_exist(config):
         print_ok("Modelli già presenti, skip download")
         print_info("Usa --force per forzare il re-download")
         return True
 
     print(f"Repository congelato: {repo_id}")
-    print(f"Destinazione Aesthetic: {APP_DIR / 'aesthetic'}")
+    print(f"Destinazione modelli: {models_dir}")
     print()
     print("NOTA: I modelli sono congelati sul tuo repository HuggingFace")
     print("      per garantire compatibilità futura.")
     print()
 
     # Download
-    hf_ok = download_all_models(repo_id, models_config)
+    hf_ok = download_all_models(repo_id, models_config, models_dir)
     argos_ok = download_argos_from_hf(repo_id, models_config)
 
     # Riepilogo

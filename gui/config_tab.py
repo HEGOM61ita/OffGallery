@@ -353,6 +353,27 @@ class ConfigTab(QWidget):
         log_browse_btn.clicked.connect(lambda: self._select_directory(self.log_dir_edit, "Seleziona Directory Log"))
         layout.addWidget(log_browse_btn, 1, 2)
 
+        # Models Directory
+        layout.addWidget(QLabel("Modelli AI:"), 2, 0)
+        self.models_dir_edit = QLineEdit()
+        self.models_dir_edit.setToolTip(
+            "Directory dove sono salvati i modelli AI.\n"
+            "Percorso relativo (es: Models) = dentro la cartella OffGallery.\n"
+            "Percorso assoluto (es: D:\\AI\\Models) = cartella esterna.\n\n"
+            "⚠ Modifica solo DOPO aver spostato manualmente la cartella Models/."
+        )
+        self.models_dir_edit.setPlaceholderText("Es: Models  oppure  D:\\AI\\Models")
+        layout.addWidget(self.models_dir_edit, 2, 1)
+
+        models_dir_browse_btn = QPushButton("📂")
+        models_dir_browse_btn.setFixedWidth(40)
+        models_dir_browse_btn.clicked.connect(lambda: self._select_directory(self.models_dir_edit, "Seleziona Directory Modelli AI"))
+        layout.addWidget(models_dir_browse_btn, 2, 2)
+
+        models_dir_warn = QLabel("⚠ Cambia solo dopo aver spostato manualmente la cartella Models/")
+        models_dir_warn.setStyleSheet("color: #e6a817; font-size: 10px;")
+        layout.addWidget(models_dir_warn, 3, 1)
+
         group_box.setLayout(layout)
         return group_box
     
@@ -1120,11 +1141,13 @@ class ConfigTab(QWidget):
                 raise ValueError("Configurazione non valida (root non è una mappa)")
 
             # --------------------------------------------------
-            # PATHS (rimossa input_dir)
+            # PATHS
             # --------------------------------------------------
             paths = self.config['paths']
             self.db_path_edit.setText(paths['database'])
             self.log_dir_edit.setText(paths['log_dir'])
+            models_dir_val = self.config.get('models_repository', {}).get('models_dir', 'Models')
+            self.models_dir_edit.setText(str(models_dir_val))
 
             # --------------------------------------------------
             # EMBEDDING / DEVICE
@@ -1296,9 +1319,10 @@ class ConfigTab(QWidget):
     def set_default_values(self):
         """Imposta valori di default completi"""
         try:
-            # Database & Paths (rimossa input_dir)
+            # Database & Paths
             self.db_path_edit.setText('database/offgallery.sqlite')
             self.log_dir_edit.setText('logs')
+            self.models_dir_edit.setText('Models')
             
             # Device
             self.device_combo.setCurrentIndex(0)  # auto
@@ -1415,8 +1439,13 @@ class ConfigTab(QWidget):
             # Preserva input_dir se presente (gestito solo da processing_tab)
             if 'paths' in self.config and 'input_dir' in self.config['paths']:
                 paths_data['input_dir'] = self.config['paths']['input_dir']
-            
+
             self.config['paths'] = paths_data
+
+            # models_dir (sotto models_repository)
+            if 'models_repository' not in self.config:
+                self.config['models_repository'] = {}
+            self.config['models_repository']['models_dir'] = self.models_dir_edit.text().strip() or 'Models'
             
             # Embedding (aggiorna solo sezioni gestite dall'UI)
             if 'embedding' not in self.config:

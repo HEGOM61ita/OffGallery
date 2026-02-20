@@ -15,8 +15,8 @@ huggingface-hub
 safetensors
 timm
 
-# BioCLIP per classificazione flora/fauna
-pybioclip
+# BioCLIP v2 per classificazione flora/fauna
+pybioclip>=1.0
 open-clip-torch
 
 # === IMAGE PROCESSING ===
