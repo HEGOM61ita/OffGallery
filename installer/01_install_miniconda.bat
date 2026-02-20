@@ -8,15 +8,33 @@ echo ║         OFFGALLERY INSTALLER - STEP 1: MINICONDA             ║
 echo ╚══════════════════════════════════════════════════════════════╝
 echo.
 
-:: Verifica se conda esiste già
+:: Verifica se conda esiste già (PATH o percorsi noti)
 where conda >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    echo [OK] Conda già installato nel sistema
+if !ERRORLEVEL! EQU 0 (
+    echo [OK] Conda trovato nel PATH
     conda --version
     echo.
     echo Puoi procedere con lo step successivo: 02_create_env.bat
     pause
     exit /b 0
+)
+
+for %%P in (
+    "%USERPROFILE%\miniconda3\condabin\conda.bat"
+    "%USERPROFILE%\Miniconda3\condabin\conda.bat"
+    "%LOCALAPPDATA%\miniconda3\condabin\conda.bat"
+    "%USERPROFILE%\anaconda3\condabin\conda.bat"
+    "%USERPROFILE%\Anaconda3\condabin\conda.bat"
+    "%LOCALAPPDATA%\anaconda3\condabin\conda.bat"
+) do (
+    if exist %%P (
+        echo [OK] Conda trovato in %%~P
+        call %%P --version
+        echo.
+        echo Puoi procedere con lo step successivo: 02_create_env.bat
+        pause
+        exit /b 0
+    )
 )
 
 :: Conda non trovato

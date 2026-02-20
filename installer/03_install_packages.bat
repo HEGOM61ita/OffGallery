@@ -78,10 +78,27 @@ echo.
 :: Aggiorna pip (usa conda run per evitare problemi con conda activate)
 echo [1/2] Aggiornamento pip...
 call "!CONDA_CMD!" run -n OffGallery --no-banner python -m pip install --upgrade pip -q
+if !ERRORLEVEL! NEQ 0 (
+    echo [!!] Aggiornamento pip fallito, continuo comunque...
+)
 
 :: Installa requirements
 echo [2/2] Installazione dipendenze...
 call "!CONDA_CMD!" run -n OffGallery --no-banner pip install -r "%SCRIPT_DIR%requirements_offgallery.txt"
+if !ERRORLEVEL! NEQ 0 (
+    echo.
+    echo [ERRORE] Installazione dipendenze fallita.
+    echo.
+    echo Possibili cause:
+    echo   - Connessione internet assente o instabile
+    echo   - Spazio disco insufficiente ^(servono ~6 GB^)
+    echo   - Antivirus che blocca il download
+    echo.
+    echo Suggerimento: riprova questo script. I pacchetti gia'
+    echo scaricati non vengono riscaricati.
+    pause
+    exit /b 1
+)
 
 :: Verifica pacchetti critici
 echo.
