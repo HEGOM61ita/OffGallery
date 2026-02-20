@@ -4,8 +4,6 @@
 # Avvia OffGallery trovando conda automaticamente
 # ═══════════════════════════════════════════════════════════════
 
-set -euo pipefail
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OFFGALLERY_PATH="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_NAME="OffGallery"

@@ -22,7 +22,7 @@ open-clip-torch
 # === IMAGE PROCESSING ===
 pillow
 rawpy
-opencv-contrib-python
+opencv-contrib-python-headless
 numpy
 
 # === TRANSLATION ===

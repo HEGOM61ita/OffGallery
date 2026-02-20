@@ -328,12 +328,30 @@ echo ""
 echo "  ----------------------------------------------------------------"
 echo ""
 
+# Installa dipendenze di sistema per OpenCV e PyQt6
+echo "   [1/3] Dipendenze di sistema (OpenCV + Qt)..."
+PKG_MGR_SYS=$(detect_pkg_manager)
+case "$PKG_MGR_SYS" in
+    apt)
+        sudo apt-get install -y -qq libgl1 libglib2.0-0 libxcb-xinerama0 libxcb-cursor0 libegl1 2>/dev/null || true
+        ;;
+    dnf)
+        sudo dnf install -y -q mesa-libGL glib2 libxcb xcb-util-cursor mesa-libEGL 2>/dev/null || true
+        ;;
+    pacman)
+        sudo pacman -S --noconfirm mesa glib2 libxcb xcb-util-cursor 2>/dev/null || true
+        ;;
+    zypper)
+        sudo zypper install -y libGL1 glib2 libxcb-xinerama0 libxcb-cursor0 2>/dev/null || true
+        ;;
+esac
+
 # Aggiorna pip
-echo "   [1/3] Aggiornamento pip..."
+echo "   [2/3] Aggiornamento pip..."
 "$CONDA_CMD" run -n "$ENV_NAME" --no-banner python -m pip install --upgrade pip -q 2>/dev/null || true
 
 # Installa requirements
-echo "   [2/3] Installazione dipendenze Python..."
+echo "   [3/3] Installazione dipendenze Python..."
 echo ""
 
 if ! "$CONDA_CMD" run -n "$ENV_NAME" --no-banner pip install -r "$REQUIREMENTS"; then

@@ -87,12 +87,27 @@ if !ERRORLEVEL! EQU 0 (
     goto :STEP2_ENV
 )
 
-:: --- Scenario B: Miniconda installato ma non nel PATH ---
+:: --- Scenario B: Miniconda/Anaconda installato ma non nel PATH ---
 if exist "!CONDA_BAT!" (
     echo   [OK] Miniconda trovato in !MINICONDA_DIR!
     set "STATUS_MINICONDA=Gia' presente"
     set "CONDA_CMD=!CONDA_BAT!"
     goto :STEP2_ENV
+)
+
+:: Controlla anche percorsi Anaconda
+for %%P in (
+    "%USERPROFILE%\anaconda3\condabin\conda.bat"
+    "%USERPROFILE%\Anaconda3\condabin\conda.bat"
+    "%LOCALAPPDATA%\anaconda3\condabin\conda.bat"
+    "%LOCALAPPDATA%\miniconda3\condabin\conda.bat"
+) do (
+    if exist %%P (
+        echo   [OK] Conda trovato in %%~P
+        set "STATUS_MINICONDA=Gia' presente"
+        set "CONDA_CMD=%%~P"
+        goto :STEP2_ENV
+    )
 )
 
 :: --- Scenario C: Installazione necessaria ---
