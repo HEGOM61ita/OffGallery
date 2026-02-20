@@ -238,16 +238,19 @@ python gui_launcher.py
 
 Al **primo avvio**, OffGallery scarica automaticamente i modelli AI necessari:
 
-- **CLIP** (ricerca semantica) - ~580 MB
-- **DINOv2** (similarità visiva) - ~330 MB
-- **Aesthetic** (valutazione estetica) - ~1.6 GB
-- **BioCLIP + TreeOfLife** (classificazione natura) - ~4.2 GB
-- **Argos Translate** (traduzione IT→EN) - ~92 MB
+| Modello | Uso | Dimensione |
+|---------|-----|------------|
+| **CLIP** | Ricerca semantica | ~580 MB |
+| **DINOv2** | Similarità visiva | ~330 MB |
+| **Aesthetic** | Valutazione estetica | ~1.6 GB |
+| **BioCLIP v2 + TreeOfLife** | Classificazione flora/fauna | ~4.2 GB |
+| **Argos Translate** | Traduzione IT→EN | ~92 MB |
 
 **Tempo stimato**: 10-20 minuti (dipende dalla connessione)
 
-> I modelli vengono scaricati dal repository congelato `HEGOM/OffGallery-models` per garantire compatibilità.
-> Gli avvii successivi saranno **completamente offline**.
+I modelli vengono scaricati dal repository congelato `HEGOM/OffGallery-models` e salvati nella cartella **`OffGallery/Models/`** (non nella cache di sistema). Gli avvii successivi saranno **completamente offline**.
+
+> Se il download viene interrotto, riavvia l'app: i modelli già scaricati non vengono riscaricati.
 
 ---
 
@@ -290,7 +293,7 @@ Al **primo avvio**, OffGallery scarica automaticamente i modelli AI necessari:
 |------------|-----------|------------|
 | Miniconda | `%USERPROFILE%\miniconda3` | ~400 MB |
 | Ambiente OffGallery | `%USERPROFILE%\miniconda3\envs\OffGallery` | ~6 GB |
-| Modelli HuggingFace | `%USERPROFILE%\.cache\huggingface` | ~6.7 GB |
+| **Modelli AI** | **`OffGallery\Models\`** | **~6.7 GB** |
 | Argos Translate | `%USERPROFILE%\.local\share\argos-translate` | ~92 MB |
 | Ollama + modello | `%LOCALAPPDATA%\Ollama` | ~3.5 GB |
 | **Totale** | | **~17 GB** |
@@ -301,10 +304,24 @@ Al **primo avvio**, OffGallery scarica automaticamente i modelli AI necessari:
 |------------|-----------|------------|
 | Miniconda | `~/miniconda3` | ~400 MB |
 | Ambiente OffGallery | `~/miniconda3/envs/OffGallery` | ~6 GB |
-| Modelli HuggingFace | `~/.cache/huggingface` | ~6.7 GB |
+| **Modelli AI** | **`OffGallery/Models/`** | **~6.7 GB** |
 | Argos Translate | `~/.local/share/argos-translate` | ~92 MB |
 | Ollama + modello | `~/.ollama` | ~3.5 GB |
 | **Totale** | | **~17 GB** |
+
+---
+
+## Spostare i Modelli AI su un Altro Disco
+
+Se il disco principale non ha spazio sufficiente, puoi spostare la cartella `Models/` su un altro disco dopo l'installazione.
+
+1. **Sposta la cartella** `OffGallery/Models/` nella destinazione desiderata (es. `D:\AI\Models\OffGallery`)
+2. **Avvia OffGallery** e vai nel tab **Configurazione**
+3. Nella sezione **Percorsi & Database**, campo **Modelli AI**, inserisci il percorso assoluto della nuova posizione (es. `D:\AI\Models\OffGallery`)
+4. Clicca **Salva**
+5. Riavvia l'app
+
+> **Attenzione**: modifica il percorso solo dopo aver spostato fisicamente la cartella. Se il percorso non esiste, OffGallery considererà i modelli mancanti e tenterà di riscaricарli.
 
 ---
 

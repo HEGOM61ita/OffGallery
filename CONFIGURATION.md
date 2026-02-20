@@ -91,6 +91,11 @@ paths:
   input_dir: "D:\\AI\\Scripts\\Descrittore\\INPUT"
   log_dir: "logs"
 
+models_repository:
+  huggingface_repo: HEGOM/OffGallery-models
+  models_dir: Models          # relativo ad APP_DIR, oppure percorso assoluto es. D:\AI\Models
+  auto_download: true
+
 image_optimization:
   enabled: true
   profiles:
@@ -232,6 +237,16 @@ Configura fino a 3 editor fotografici esterni. Ogni editor è accessibile dal me
 | `input_dir` | string | Cartella di default per l'importazione immagini |
 | `log_dir` | string | Cartella per i file di log |
 
+### Models Repository
+
+| Parametro | Tipo | Descrizione |
+|-----------|------|-------------|
+| `huggingface_repo` | string | Repository HuggingFace congelato per il download dei modelli |
+| `models_dir` | string | Directory dove vengono salvati i modelli AI. Percorso relativo (es. `Models`) = dentro la cartella OffGallery. Percorso assoluto (es. `D:\AI\Models`) = cartella esterna. **Default**: `Models` |
+| `auto_download` | bool | Scarica automaticamente i modelli al primo avvio |
+
+> **Spostare i modelli su un altro disco**: modifica `models_dir` con il percorso assoluto desiderato **solo dopo** aver spostato manualmente la cartella `Models/`. La modifica è disponibile nel tab Configurazione → sezione Percorsi & Database.
+
 ---
 
 ## Profili di Ottimizzazione Immagini
@@ -278,6 +293,7 @@ La maggior parte delle impostazioni è accessibile dal tab **Configurazione** de
 4. **Parametri LLM**: Modello, endpoint, timeout
 5. **Parametri avanzati LLM** (sezione collassabile): temperature, top_k, top_p, num_ctx, num_batch, keep_alive
 6. **Auto Import LLM**: Abilita/disabilita generazione di tags, descrizione e titolo con limiti configurabili
+7. **Percorsi & Database**: Database, Logs, e **Directory Modelli AI** (`models_dir`) con warning per modifica accidentale
 
 Le modifiche dalla GUI vengono salvate in `config_new.yaml` tramite il pulsante **Salva**.
 
