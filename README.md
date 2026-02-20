@@ -29,6 +29,12 @@
 
 > Per approfondimenti su ogni versione, visita le [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions) del progetto.
 
+### Fix Installer v2 — 20 febbraio 2026
+- **13 bug risolti** nell'installer Windows e Linux che impedivano il completamento dell'installazione
+- **Windows (7 fix)**: error check dopo `pip install`, verifica estesa a 9 pacchetti (era 2), rilevamento Anaconda in 6 percorsi noti, error check su `conda env remove`
+- **Linux (6 fix)**: `opencv-contrib-python-headless` (elimina dipendenza `libGL.so.1`), installazione automatica dipendenze Qt di sistema, errori `sudo` ora visibili, messaggi di errore con fix specifici per distro
+- Dettagli: [Discussion #8](https://github.com/HEGOM61ita/OffGallery/discussions/8)
+
 ### v0.7 — 18 febbraio 2026
 - **Supporto Linux**: installer bash completo (`install_offgallery.sh`) con detection distro, ExifTool automatico e desktop entry
 - **Launcher Linux**: `offgallery_launcher.sh` con auto-detection conda
