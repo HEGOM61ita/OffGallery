@@ -5,7 +5,11 @@ Schema: Compatibile con db_manager_new.py (tags unificati, sync_state)
 """
 
 import json
+import logging
+import traceback as _traceback
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from PyQt6.QtWidgets import (
@@ -338,11 +342,11 @@ class StatsTab(QWidget):
         
         try:
             self.init_ui()
-            print("✅ StatsTab professionale inizializzata")
+            logger.debug("✅ StatsTab professionale inizializzata")
         except Exception as e:
-            print(f"❌ Errore inizializzazione StatsTab: {e}")
+            logger.error(f"❌ Errore inizializzazione StatsTab: {e}")
             import traceback
-            traceback.print_exc()
+            logger.debug(_traceback.format_exc())
         
     def init_ui(self):
         """Inizializza UI con layout professionale"""
@@ -853,22 +857,22 @@ class StatsTab(QWidget):
     
     def set_database_manager(self, db_manager):
         """Imposta il database manager"""
-        print(f"🔧 StatsTab.set_database_manager chiamato con: {db_manager}")
+        logger.debug(f"🔧 StatsTab.set_database_manager chiamato con: {db_manager}")
         self.db_manager = db_manager
         if db_manager:
-            print("✅ Database manager impostato nella StatsTab")
+            logger.debug("✅ Database manager impostato nella StatsTab")
         else:
-            print("❌ Database manager è None")
+            logger.error("❌ Database manager è None")
     
     def refresh_stats(self):
         """Aggiorna tutte le statistiche"""
         try:
             if not self.db_manager:
-                print("❌ Database manager non disponibile per refresh")
+                logger.error("❌ Database manager non disponibile per refresh")
                 return
             
             cursor = self.db_manager.cursor
-            print("🔄 Inizio refresh statistiche...")
+            logger.debug("🔄 Inizio refresh statistiche...")
             
             # Aggiorna KPI principali
             self.update_main_kpis(cursor)
@@ -879,12 +883,12 @@ class StatsTab(QWidget):
             self.update_shooting_stats(cursor)
             self.update_workflow_stats(cursor)
             
-            print("✅ Refresh statistiche completato")
+            logger.debug("✅ Refresh statistiche completato")
             
         except Exception as e:
-            print(f"❌ Errore refresh stats: {e}")
+            logger.error(f"❌ Errore refresh stats: {e}")
             import traceback
-            traceback.print_exc()
+            logger.debug(_traceback.format_exc())
     
     def update_main_kpis(self, cursor):
         """Aggiorna KPI principali"""
@@ -916,7 +920,7 @@ class StatsTab(QWidget):
             self.kpi_coverage.update_value(f"{metadata_percent:.1f}%")
             
         except Exception as e:
-            print(f"❌ Errore update main KPIs: {e}")
+            logger.error(f"❌ Errore update main KPIs: {e}")
     
     def update_database_stats(self, cursor):
         """Aggiorna statistiche database"""
@@ -978,10 +982,10 @@ class StatsTab(QWidget):
             if time_stats[3]:  # Se c'è avg_time
                 avg_time = time_stats[3]
                 self.proc_stats["avg_time"].setText(f"{avg_time:.1f}s")
-                print(f"🕐 Processing: {time_stats[2]}/{time_stats[0]} con tempo, avg={avg_time:.1f}s")
+                logger.debug(f"🕐 Processing: {time_stats[2]}/{time_stats[0]} con tempo, avg={avg_time:.1f}s")
             else:
                 self.proc_stats["avg_time"].setText("N/A")
-                print(f"🕐 Processing: {time_stats[1]} non-null, {time_stats[2]} positivi su {time_stats[0]} totali")
+                logger.debug(f"🕐 Processing: {time_stats[1]} non-null, {time_stats[2]} positivi su {time_stats[0]} totali")
             
             # Error count
             cursor.execute("SELECT COUNT(*) FROM images WHERE success = 0 OR error_message IS NOT NULL")
@@ -999,7 +1003,7 @@ class StatsTab(QWidget):
                 FROM images
             """)
             date_breakdown = cursor.fetchone()
-            print(f"🗓️ Date fields: orig={date_breakdown[1]}, mod={date_breakdown[2]}, dig={date_breakdown[3]}, proc={date_breakdown[4]} su {date_breakdown[0]} totali")
+            logger.debug(f"🗓️ Date fields: orig={date_breakdown[1]}, mod={date_breakdown[2]}, dig={date_breakdown[3]}, proc={date_breakdown[4]} su {date_breakdown[0]} totali")
             
             # Timeline con più fallback possibili
             cursor.execute("""
@@ -1024,16 +1028,16 @@ class StatsTab(QWidget):
                 year, count = row
                 if year == '????':
                     missing_count = count
-                    print(f"🗓️ {count} foto senza date valide")
+                    logger.debug(f"🗓️ {count} foto senza date valide")
                 else:
                     timeline_data[str(year)] = count
-                    print(f"🗓️ Anno {year}: {count} foto")
+                    logger.debug(f"🗓️ Anno {year}: {count} foto")
             
             if self.timeline_chart:
                 self.timeline_chart.update_data(timeline_data)
             
         except Exception as e:
-            print(f"❌ Errore update database stats: {e}")
+            logger.error(f"❌ Errore update database stats: {e}")
     
     def update_gear_stats(self, cursor):
         """Aggiorna statistiche attrezzatura"""
@@ -1115,14 +1119,14 @@ class StatsTab(QWidget):
                     self.gear_summary["focal_range"].setText(f"{min_focal}mm")
                 else:
                     self.gear_summary["focal_range"].setText(f"{min_focal}-{max_focal}mm")
-                print(f"📏 Range focali: {min_focal}-{max_focal}mm ({focal_range_result[2]} foto)")
+                logger.debug(f"📏 Range focali: {min_focal}-{max_focal}mm ({focal_range_result[2]} foto)")
             else:
                 self.gear_summary["focal_range"].setText("N/A")
-                print(f"📏 Nessuna focale trovata")
+                logger.debug(f"📏 Nessuna focale trovata")
 
             
         except Exception as e:
-            print(f"❌ Errore update gear stats: {e}")
+            logger.error(f"❌ Errore update gear stats: {e}")
     
     def update_shooting_stats(self, cursor):
         """Aggiorna statistiche di scatto"""
@@ -1191,10 +1195,10 @@ class StatsTab(QWidget):
             iso_range_result = cursor.fetchone()
             if iso_range_result[2] > 0 and iso_range_result[0]:
                 self.shooting_patterns["iso_range"].setText(f"{iso_range_result[0]}-{iso_range_result[1]}")
-                print(f"📊 ISO range: {iso_range_result[0]}-{iso_range_result[1]} ({iso_range_result[2]} foto)")
+                logger.debug(f"📊 ISO range: {iso_range_result[0]}-{iso_range_result[1]} ({iso_range_result[2]} foto)")
             else:
                 self.shooting_patterns["iso_range"].setText("N/A")
-                print(f"📊 Nessun dato ISO")
+                logger.debug(f"📊 Nessun dato ISO")
             
             cursor.execute("""
                 SELECT aperture, COUNT(*) as count 
@@ -1207,10 +1211,10 @@ class StatsTab(QWidget):
             pref_aperture = cursor.fetchone()
             if pref_aperture:
                 self.shooting_patterns["aperture_preferred"].setText(f"f/{pref_aperture[0]}")
-                print(f"📊 Apertura preferita: f/{pref_aperture[0]} ({pref_aperture[1]} foto)")
+                logger.debug(f"📊 Apertura preferita: f/{pref_aperture[0]} ({pref_aperture[1]} foto)")
             else:
                 self.shooting_patterns["aperture_preferred"].setText("N/A")
-                print(f"📊 Nessun dato apertura")
+                logger.debug(f"📊 Nessun dato apertura")
             
             # Flash detection migliorata
             cursor.execute("PRAGMA table_info(images)")
@@ -1225,7 +1229,7 @@ class StatsTab(QWidget):
                 if flash_total > 0:
                     flash_percent = (flash_used / flash_total * 100)
                     self.shooting_patterns["flash_usage"].setText(f"{flash_percent:.0f}%")
-                    print(f"📸 Flash: {flash_used}/{flash_total} = {flash_percent:.0f}%")
+                    logger.debug(f"📸 Flash: {flash_used}/{flash_total} = {flash_percent:.0f}%")
                 else:
                     self.shooting_patterns["flash_usage"].setText("0%")
             elif any('flash' in col for col in columns):
@@ -1234,10 +1238,10 @@ class StatsTab(QWidget):
                 cursor.execute(f"SELECT COUNT(DISTINCT {flash_col}) FROM images WHERE {flash_col} IS NOT NULL")
                 flash_variants = cursor.fetchone()[0]
                 self.shooting_patterns["flash_usage"].setText(f"{flash_variants} tipi")
-                print(f"📸 Flash variants in {flash_col}: {flash_variants}")
+                logger.debug(f"📸 Flash variants in {flash_col}: {flash_variants}")
             else:
                 self.shooting_patterns["flash_usage"].setText("N/A")
-                print(f"📸 Nessun campo flash trovato. Campi: {flash_fields}")
+                logger.debug(f"📸 Nessun campo flash trovato. Campi: {flash_fields}")
 
             
             # Quality stats
@@ -1259,7 +1263,7 @@ class StatsTab(QWidget):
             self.quality_stats["gps_photos"].setText(f"{gps_photos:,}")
             
         except Exception as e:
-            print(f"❌ Errore update shooting stats: {e}")
+            logger.error(f"❌ Errore update shooting stats: {e}")
     
     def update_workflow_stats(self, cursor):
         """Aggiorna statistiche workflow"""
@@ -1297,12 +1301,12 @@ class StatsTab(QWidget):
             self.metadata_completeness["with_gps"].setText(f"{with_gps/total*100:.1f}%")
             
             # Debug per capire il bug 7.1%
-            print(f"📝 Metadata debug:")
-            print(f"  Titolo: {with_title}/{total} = {with_title/total*100:.1f}%")
-            print(f"  Descrizione: {with_desc}/{total} = {with_desc/total*100:.1f}%") 
-            print(f"  Tags: {with_tags}/{total} = {with_tags/total*100:.1f}%")
-            print(f"  Rating: {with_rating}/{total} = {with_rating/total*100:.1f}%")
-            print(f"  GPS: {with_gps}/{total} = {with_gps/total*100:.1f}%")
+            logger.debug(f"📝 Metadata debug:")
+            logger.debug(f"  Titolo: {with_title}/{total} = {with_title/total*100:.1f}%")
+            logger.debug(f"  Descrizione: {with_desc}/{total} = {with_desc/total*100:.1f}%")
+            logger.debug(f"  Tags: {with_tags}/{total} = {with_tags/total*100:.1f}%")
+            logger.debug(f"  Rating: {with_rating}/{total} = {with_rating/total*100:.1f}%")
+            logger.debug(f"  GPS: {with_gps}/{total} = {with_gps/total*100:.1f}%")
 
             
             # Tag analysis (extract from unified tags field)
@@ -1342,7 +1346,7 @@ class StatsTab(QWidget):
             cursor.execute("SELECT COUNT(*) FROM images WHERE gps_city IS NOT NULL AND gps_city != ''")
             gps_cities = cursor.fetchone()[0]
             
-            print(f"🌍 GPS debug: {gps_coords} coordinate, {gps_countries} paesi, {gps_cities} città")
+            logger.debug(f"🌍 GPS debug: {gps_coords} coordinate, {gps_countries} paesi, {gps_cities} città")
             
             # Top location
             cursor.execute("""
@@ -1392,18 +1396,18 @@ class StatsTab(QWidget):
             self.file_stats["unique_formats"].setText(str(unique_formats))
             
         except Exception as e:
-            print(f"❌ Errore update workflow stats: {e}")
+            logger.error(f"❌ Errore update workflow stats: {e}")
     
     def on_activated(self):
         """Metodo chiamato quando la tab diventa attiva - RICHIESTO DAL MAIN"""
-        print("🎯 StatsTab.on_activated chiamato dal main_window")
+        logger.debug("🎯 StatsTab.on_activated chiamato dal main_window")
         try:
             if self.db_manager:
                 self.refresh_stats()
             else:
-                print("⚠️ Database manager non disponibile in on_activated")
-            print("✅ on_activated completato")
+                logger.warning("⚠️ Database manager non disponibile in on_activated")
+            logger.debug("✅ on_activated completato")
         except Exception as e:
-            print(f"❌ Errore in on_activated: {e}")
+            logger.error(f"❌ Errore in on_activated: {e}")
             import traceback
-            traceback.print_exc()
+            logger.debug(_traceback.format_exc())
