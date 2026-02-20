@@ -264,6 +264,13 @@ if echo "$ENV_LIST" | grep -q "$ENV_NAME"; then
 fi
 
 if [ "${SKIP_ENV_CREATE:-false}" != "true" ]; then
+    echo "   Accettazione Terms of Service Anaconda..."
+    "$CONDA_CMD" tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main >/dev/null 2>&1 || true
+    "$CONDA_CMD" tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r >/dev/null 2>&1 || true
+    "$CONDA_CMD" tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2 >/dev/null 2>&1 || true
+    print_ok "Terms of Service accettati"
+    echo ""
+
     echo "   Creazione ambiente \"$ENV_NAME\" con Python $PYTHON_VER..."
     echo "   (1-3 minuti)"
     echo ""
@@ -341,32 +348,40 @@ if ! "$CONDA_CMD" run -n "$ENV_NAME" --no-banner pip install -r "$REQUIREMENTS";
     exit 1
 fi
 
-# Verifica PyTorch
+# Verifica pacchetti critici
 echo ""
-echo "   Verifica installazione..."
-if "$CONDA_CMD" run -n "$ENV_NAME" --no-banner python -c "
-import torch
-cuda = 'SI' if torch.cuda.is_available() else 'NO (solo CPU)'
-print(f'  [OK] PyTorch {torch.__version__} - CUDA: {cuda}')
-" 2>/dev/null; then
-    : # Successo, il messaggio è già stampato
-else
-    print_err "Installazione pacchetti fallita o incompleta."
+echo "   Verifica installazione pacchetti..."
+INSTALL_OK=true
+
+check_pkg() {
+    local import_expr="$1"
+    local label="$2"
+    if "$CONDA_CMD" run -n "$ENV_NAME" --no-banner python -c "$import_expr" 2>/dev/null; then
+        : # messaggio già stampato dall'espressione
+    else
+        print_err "$label non trovato"
+        INSTALL_OK=false
+    fi
+}
+
+check_pkg "import torch; cuda='SI' if torch.cuda.is_available() else 'NO'; print(f'  [OK] PyTorch {torch.__version__} - CUDA: {cuda}')" "torch"
+check_pkg "import yaml; print(f'  [OK] PyYAML {yaml.__version__}')" "pyyaml"
+check_pkg "from PyQt6.QtWidgets import QApplication; print('  [OK] PyQt6')" "PyQt6"
+check_pkg "import numpy; print(f'  [OK] NumPy {numpy.__version__}')" "numpy"
+check_pkg "import cv2; print(f'  [OK] OpenCV {cv2.__version__}')" "opencv"
+check_pkg "import PIL; print(f'  [OK] Pillow {PIL.__version__}')" "Pillow"
+check_pkg "import transformers; print(f'  [OK] transformers {transformers.__version__}')" "transformers"
+check_pkg "import open_clip; print('  [OK] open-clip-torch')" "open-clip-torch"
+check_pkg "import rawpy; print(f'  [OK] rawpy {rawpy.__version__}')" "rawpy"
+
+if [ "$INSTALL_OK" = false ]; then
     echo ""
-    echo "   Possibili cause:"
-    echo "     - Connessione internet instabile"
-    echo "     - Spazio disco insufficiente (~6 GB necessari)"
+    print_err "Installazione incompleta. Uno o più pacchetti mancano."
     echo ""
     echo "   Suggerimento: riesegui questo wizard. I pacchetti"
     echo "   già scaricati non verranno riscaricati."
     exit 1
 fi
-
-# Verifica PyQt6
-"$CONDA_CMD" run -n "$ENV_NAME" --no-banner python -c "
-from PyQt6.QtWidgets import QApplication
-print('  [OK] PyQt6 funzionante')
-" 2>/dev/null || print_warn "PyQt6 non trovato. L'interfaccia potrebbe non avviarsi."
 
 # --- ExifTool ---
 echo ""
