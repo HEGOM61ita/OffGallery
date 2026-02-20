@@ -295,28 +295,57 @@ echo   [2/2] Installazione dipendenze in corso...
 echo.
 
 call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner pip install -r "!REQUIREMENTS!"
-
-:: Verifica concreta: controlla che torch sia importabile
-echo.
-echo   Verifica installazione...
-call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import torch; print('  [OK] PyTorch', torch.__version__, '- CUDA:', 'SI' if torch.cuda.is_available() else 'NO (solo CPU)')" 2>nul
 if !ERRORLEVEL! NEQ 0 (
     echo.
-    echo   [ERRORE] Installazione pacchetti fallita o incompleta.
+    echo   [ERRORE] Installazione dipendenze fallita.
     echo.
     echo   Possibili cause:
-    echo     - Connessione internet instabile
-    echo     - Spazio disco insufficiente (~6 GB necessari)
-    echo     - Conflitto con antivirus
+    echo     - Connessione internet assente o instabile
+    echo     - Spazio disco insufficiente ^(servono ~6 GB^)
+    echo     - Antivirus che blocca il download
     echo.
     echo   Suggerimento: riesegui questo wizard. I pacchetti
     echo   gia' scaricati non verranno riscaricati.
     goto :END_ERROR
 )
 
-call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "from PyQt6.QtWidgets import QApplication; print('  [OK] PyQt6 funzionante')" 2>nul
-if !ERRORLEVEL! NEQ 0 (
-    echo   [!!] Attenzione: PyQt6 non trovato. L'interfaccia potrebbe non avviarsi.
+:: Verifica concreta: controlla tutti i pacchetti critici
+echo.
+echo   Verifica installazione...
+set "INSTALL_OK=1"
+
+call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import torch; print('  [OK] PyTorch', torch.__version__, '- CUDA:', 'SI' if torch.cuda.is_available() else 'NO (solo CPU)')" 2>nul
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] torch non trovato & set "INSTALL_OK=0" )
+
+call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "from PyQt6.QtWidgets import QApplication; print('  [OK] PyQt6')" 2>nul
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] PyQt6 non trovato & set "INSTALL_OK=0" )
+
+call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import cv2; print('  [OK] OpenCV', cv2.__version__)" 2>nul
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] opencv non trovato & set "INSTALL_OK=0" )
+
+call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import numpy; print('  [OK] NumPy', numpy.__version__)" 2>nul
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] numpy non trovato & set "INSTALL_OK=0" )
+
+call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import PIL; print('  [OK] Pillow', PIL.__version__)" 2>nul
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] Pillow non trovato & set "INSTALL_OK=0" )
+
+call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import transformers; print('  [OK] transformers', transformers.__version__)" 2>nul
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] transformers non trovato & set "INSTALL_OK=0" )
+
+call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import open_clip; print('  [OK] open-clip-torch')" 2>nul
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] open-clip-torch non trovato & set "INSTALL_OK=0" )
+
+call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import rawpy; print('  [OK] rawpy', rawpy.__version__)" 2>nul
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] rawpy non trovato & set "INSTALL_OK=0" )
+
+call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import yaml; print('  [OK] PyYAML', yaml.__version__)" 2>nul
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] pyyaml non trovato & set "INSTALL_OK=0" )
+
+if "!INSTALL_OK!"=="0" (
+    echo.
+    echo   [ERRORE] Installazione incompleta. Uno o piu' pacchetti mancano.
+    echo   Riesegui questo wizard: i pacchetti gia' scaricati non verranno riscaricati.
+    goto :END_ERROR
 )
 
 echo.

@@ -23,6 +23,7 @@ for %%P in (
     "%LOCALAPPDATA%\miniconda3\condabin\conda.bat"
     "%USERPROFILE%\anaconda3\condabin\conda.bat"
     "%USERPROFILE%\Anaconda3\condabin\conda.bat"
+    "%LOCALAPPDATA%\anaconda3\condabin\conda.bat"
 ) do (
     if exist %%P (
         set "CONDA_CMD=%%~P"
@@ -52,7 +53,13 @@ if !ENV_EXISTS! EQU 0 (
     if /i "!RECREATE!"=="S" (
         echo.
         echo Rimozione ambiente esistente...
-        call "!CONDA_CMD!" env remove -n OffGallery -y >nul 2>&1
+        call "!CONDA_CMD!" env remove -n OffGallery -y
+        if !ERRORLEVEL! NEQ 0 (
+            echo [ERRORE] Impossibile rimuovere l'ambiente.
+            echo Potrebbe essere in uso. Chiudi OffGallery e riprova.
+            pause
+            exit /b 1
+        )
         echo [OK] Ambiente rimosso
     ) else (
         echo.

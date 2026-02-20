@@ -23,6 +23,7 @@ for %%P in (
     "%LOCALAPPDATA%\miniconda3\condabin\conda.bat"
     "%USERPROFILE%\anaconda3\condabin\conda.bat"
     "%USERPROFILE%\Anaconda3\condabin\conda.bat"
+    "%LOCALAPPDATA%\anaconda3\condabin\conda.bat"
 ) do (
     if exist %%P (
         set "CONDA_CMD=%%~P"
