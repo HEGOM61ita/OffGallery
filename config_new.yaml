@@ -209,7 +209,6 @@ models_repository:
   auto_download: true
   download_on_first_run: true
   huggingface_repo: HEGOM/OffGallery-models
-  models_dir: Models
   models:
     aesthetic: aesthetic
     argos_it_en: argos-it-en
@@ -217,6 +216,7 @@ models_repository:
     clip: clip
     dinov2: dinov2
     treeoflife: treeoflife
+  models_dir: Models
 paths:
   database: database/offgallery.sqlite
   input_dir: INPUT
