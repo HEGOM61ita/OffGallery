@@ -219,7 +219,7 @@ models_repository:
     treeoflife: treeoflife
 paths:
   database: database/offgallery.sqlite
-  input_dir: D:\AI\Scripts\Descrittore\INPUT
+  input_dir: INPUT
   log_dir: logs
 search:
   fuzzy_enabled: true

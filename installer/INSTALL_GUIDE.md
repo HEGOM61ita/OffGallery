@@ -315,9 +315,9 @@ I modelli vengono scaricati dal repository congelato `HEGOM/OffGallery-models` e
 
 Se il disco principale non ha spazio sufficiente, puoi spostare la cartella `Models/` su un altro disco dopo l'installazione.
 
-1. **Sposta la cartella** `OffGallery/Models/` nella destinazione desiderata (es. `D:\AI\Models\OffGallery`)
+1. **Sposta la cartella** `OffGallery/Models/` nella destinazione desiderata (es. `E:\MyModels\OffGallery`)
 2. **Avvia OffGallery** e vai nel tab **Configurazione**
-3. Nella sezione **Percorsi & Database**, campo **Modelli AI**, inserisci il percorso assoluto della nuova posizione (es. `D:\AI\Models\OffGallery`)
+3. Nella sezione **Percorsi & Database**, campo **Modelli AI**, inserisci il percorso assoluto della nuova posizione (es. `E:\MyModels\OffGallery`)
 4. Clicca **Salva**
 5. Riavvia l'app
 

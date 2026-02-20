@@ -88,12 +88,12 @@ external_editors:
 
 paths:
   database: "database/offgallery.sqlite"
-  input_dir: "D:\\AI\\Scripts\\Descrittore\\INPUT"
+  input_dir: "INPUT"
   log_dir: "logs"
 
 models_repository:
   huggingface_repo: HEGOM/OffGallery-models
-  models_dir: Models          # relativo ad APP_DIR, oppure percorso assoluto es. D:\AI\Models
+  models_dir: Models          # relativo ad APP_DIR, oppure percorso assoluto es. E:\MyModels
   auto_download: true
 
 image_optimization:
@@ -242,7 +242,7 @@ Configura fino a 3 editor fotografici esterni. Ogni editor è accessibile dal me
 | Parametro | Tipo | Descrizione |
 |-----------|------|-------------|
 | `huggingface_repo` | string | Repository HuggingFace congelato per il download dei modelli |
-| `models_dir` | string | Directory dove vengono salvati i modelli AI. Percorso relativo (es. `Models`) = dentro la cartella OffGallery. Percorso assoluto (es. `D:\AI\Models`) = cartella esterna. **Default**: `Models` |
+| `models_dir` | string | Directory dove vengono salvati i modelli AI. Percorso relativo (es. `Models`) = dentro la cartella OffGallery. Percorso assoluto (es. `E:\MyModels`) = cartella esterna. **Default**: `Models` |
 | `auto_download` | bool | Scarica automaticamente i modelli al primo avvio |
 
 > **Spostare i modelli su un altro disco**: modifica `models_dir` con il percorso assoluto desiderato **solo dopo** aver spostato manualmente la cartella `Models/`. La modifica è disponibile nel tab Configurazione → sezione Percorsi & Database.
