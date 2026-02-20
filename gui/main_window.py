@@ -236,13 +236,17 @@ class MainWindow(QMainWindow):
         with open(self.config_path, 'r', encoding='utf-8') as f:
             self.config = yaml.safe_load(f)
 
-        # Inizializza i modelli AI una volta sola
-        self.ai_models = {
-            'embedding_generator': EmbeddingGenerator(self.config),
-            'initialized': True
-        }
-
-        print("✅ Modelli AI centralizzati inizializzati")
+        # Inizializza i modelli AI (non bloccante: l'app parte anche se fallisce)
+        self.ai_models = {'initialized': False}
+        try:
+            self.ai_models['embedding_generator'] = EmbeddingGenerator(self.config)
+            self.ai_models['initialized'] = True
+            print("✅ Modelli AI centralizzati inizializzati")
+        except Exception as e:
+            import traceback
+            print(f"⚠️ Modelli AI non inizializzati: {e}")
+            print("   L'app si avvia ugualmente. Processing non disponibile finché i modelli non sono pronti.")
+            print(traceback.format_exc())
 
         # Warmup Ollama in background (pre-carica LLM in VRAM)
         import threading

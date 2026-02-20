@@ -112,6 +112,36 @@ if !ERRORLEVEL! NEQ 0 (
     set "INSTALL_OK=0"
 )
 
+call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import cv2; print('[OK] OpenCV', cv2.__version__)" 2>nul
+if !ERRORLEVEL! NEQ 0 (
+    echo [ERRORE] opencv non trovato
+    set "INSTALL_OK=0"
+)
+
+call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import PIL; print('[OK] Pillow', PIL.__version__)" 2>nul
+if !ERRORLEVEL! NEQ 0 (
+    echo [ERRORE] Pillow non trovato
+    set "INSTALL_OK=0"
+)
+
+call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import transformers; print('[OK] transformers', transformers.__version__)" 2>nul
+if !ERRORLEVEL! NEQ 0 (
+    echo [ERRORE] transformers non trovato
+    set "INSTALL_OK=0"
+)
+
+call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import open_clip; print('[OK] open-clip-torch')" 2>nul
+if !ERRORLEVEL! NEQ 0 (
+    echo [ERRORE] open-clip-torch non trovato
+    set "INSTALL_OK=0"
+)
+
+call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import rawpy; print('[OK] rawpy', rawpy.__version__)" 2>nul
+if !ERRORLEVEL! NEQ 0 (
+    echo [ERRORE] rawpy non trovato
+    set "INSTALL_OK=0"
+)
+
 if "!INSTALL_OK!"=="0" (
     echo.
     echo [ERRORE] Installazione incompleta. Uno o piu' pacchetti mancano.
