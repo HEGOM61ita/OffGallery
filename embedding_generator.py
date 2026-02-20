@@ -352,6 +352,13 @@ class EmbeddingGenerator:
                     self.clip_processor = CLIPProcessor.from_pretrained(frozen_repo, subfolder=clip_subfolder)
                     loaded = True
                     logger.info("[OK] CLIP caricato da repo")
+                    try:
+                        clip_local.mkdir(parents=True, exist_ok=True)
+                        self.clip_model.save_pretrained(str(clip_local))
+                        self.clip_processor.save_pretrained(str(clip_local))
+                        logger.info(f"CLIP salvato in {clip_local}")
+                    except Exception as se:
+                        logger.warning(f"CLIP: impossibile salvare in locale ({se})")
                 except Exception as e:
                     logger.warning(f"CLIP: repo congelato non disponibile ({e}), uso fallback...")
 
@@ -360,6 +367,13 @@ class EmbeddingGenerator:
                 self.clip_model = CLIPModel.from_pretrained(fallback_model).to(self.device)
                 self.clip_processor = CLIPProcessor.from_pretrained(fallback_model)
                 logger.info(f"[OK] CLIP caricato (fallback: {fallback_model})")
+                try:
+                    clip_local.mkdir(parents=True, exist_ok=True)
+                    self.clip_model.save_pretrained(str(clip_local))
+                    self.clip_processor.save_pretrained(str(clip_local))
+                    logger.info(f"CLIP salvato in {clip_local}")
+                except Exception as se:
+                    logger.warning(f"CLIP: impossibile salvare in locale ({se})")
 
             self.clip_model.eval()
             self.clip_enabled = True
@@ -397,6 +411,13 @@ class EmbeddingGenerator:
                     self.dinov2_processor = AutoImageProcessor.from_pretrained(frozen_repo, subfolder=dinov2_subfolder)
                     loaded = True
                     logger.info("[OK] DINOv2 caricato da repo")
+                    try:
+                        dinov2_local.mkdir(parents=True, exist_ok=True)
+                        self.dinov2_model.save_pretrained(str(dinov2_local))
+                        self.dinov2_processor.save_pretrained(str(dinov2_local))
+                        logger.info(f"DINOv2 salvato in {dinov2_local}")
+                    except Exception as se:
+                        logger.warning(f"DINOv2: impossibile salvare in locale ({se})")
                 except Exception as e:
                     logger.warning(f"DINOv2: repo congelato non disponibile ({e}), uso fallback...")
 
@@ -405,6 +426,13 @@ class EmbeddingGenerator:
                 self.dinov2_model = AutoModel.from_pretrained(fallback_model).to(self.device)
                 self.dinov2_processor = AutoImageProcessor.from_pretrained(fallback_model)
                 logger.info(f"[OK] DINOv2 caricato (fallback: {fallback_model})")
+                try:
+                    dinov2_local.mkdir(parents=True, exist_ok=True)
+                    self.dinov2_model.save_pretrained(str(dinov2_local))
+                    self.dinov2_processor.save_pretrained(str(dinov2_local))
+                    logger.info(f"DINOv2 salvato in {dinov2_local}")
+                except Exception as se:
+                    logger.warning(f"DINOv2: impossibile salvare in locale ({se})")
 
             self.dinov2_model.eval()
             self.dinov2_enabled = True
