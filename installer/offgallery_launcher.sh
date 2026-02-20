@@ -28,6 +28,9 @@ elif [ -x "$HOME/anaconda3/bin/conda" ]; then
 
 elif [ -x "/opt/miniconda3/bin/conda" ]; then
     CONDA_CMD="/opt/miniconda3/bin/conda"
+
+elif [ -x "/opt/anaconda3/bin/conda" ]; then
+    CONDA_CMD="/opt/anaconda3/bin/conda"
 fi
 
 if [ -z "$CONDA_CMD" ]; then
@@ -39,6 +42,7 @@ if [ -z "$CONDA_CMD" ]; then
     echo "    - $HOME/miniconda3"
     echo "    - $HOME/anaconda3"
     echo "    - /opt/miniconda3"
+    echo "    - /opt/anaconda3"
     echo ""
     echo "  Se hai appena installato Miniconda, apri un nuovo terminale."
     echo "  Altrimenti esegui: bash installer/install_offgallery.sh"
@@ -47,7 +51,7 @@ if [ -z "$CONDA_CMD" ]; then
 fi
 
 # --- Avvia OffGallery ---
-cd "$OFFGALLERY_PATH"
+cd "$OFFGALLERY_PATH" || { echo "  [ERRORE] Cartella non trovata: $OFFGALLERY_PATH"; exit 1; }
 "$CONDA_CMD" run -n "$ENV_NAME" --no-banner python gui_launcher.py
 
 EXIT_CODE=$?
