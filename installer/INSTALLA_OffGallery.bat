@@ -230,10 +230,11 @@ echo   (1-3 minuti)
 echo.
 
 call "!CONDA_CMD!" create -n !ENV_NAME! python=!PYTHON_VER! --override-channels -c conda-forge -y
-
-:: Verifica concreta che l'ambiente sia stato creato (conda run e' piu' affidabile di env list)
-call "!CONDA_CMD!" run -n !ENV_NAME! python --version >nul 2>&1
 set "ENV_CREATED=!ERRORLEVEL!"
+
+:: Nota: non usiamo 'conda run' ne' 'conda env list' per verificare —
+:: entrambi richiedono i ToS Anaconda anche quando conda create li bypassa.
+:: L'exit code di conda create e' sufficiente: 0 = ambiente creato.
 if !ENV_CREATED! NEQ 0 (
     echo.
     echo   [ERRORE] Creazione ambiente fallita.
