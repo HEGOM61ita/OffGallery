@@ -4,8 +4,8 @@
 # ============================================
 
 # === CORE AI / DEEP LEARNING ===
-# PyTorch con CUDA 11.8 (funziona anche su CPU)
---extra-index-url https://download.pytorch.org/whl/cu118
+# PyTorch: installato dall'installer con GPU auto-rilevata (CUDA o CPU)
+# Non specificare l'index-url qui: viene gestito da INSTALLA_OffGallery.bat
 torch
 torchvision
 

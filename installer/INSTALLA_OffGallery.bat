@@ -274,11 +274,11 @@ if not exist "!REQUIREMENTS!" (
 )
 
 echo   Installazione librerie Python (PyTorch, CLIP, BioCLIP, etc.)
-echo   Download stimato: ~3 GB
+echo   Download stimato: ~3-4 GB
 echo   Tempo stimato: 10-20 minuti
 echo.
 echo   Componenti:
-echo     - PyTorch (GPU CUDA 11.8 / CPU)
+echo     - PyTorch (GPU con CUDA se scheda NVIDIA presente, altrimenti CPU)
 echo     - Transformers (HuggingFace)
 echo     - BioCLIP (classificazione natura)
 echo     - PyQt6 (interfaccia grafica)
@@ -291,12 +291,41 @@ echo.
 echo  ----------------------------------------------------------------
 echo.
 
+:: === RILEVAMENTO SCHEDA GRAFICA NVIDIA ===
+echo   Rilevamento scheda grafica...
+set "PYTORCH_VARIANT=cpu"
+set "PYTORCH_INDEX=https://download.pytorch.org/whl/cpu"
+
+nvidia-smi >nul 2>&1
+if !ERRORLEVEL! EQU 0 (
+    echo   [OK] Scheda NVIDIA rilevata - PyTorch installato con supporto GPU ^(CUDA 11.8^)
+    set "PYTORCH_VARIANT=cu118"
+    set "PYTORCH_INDEX=https://download.pytorch.org/whl/cu118"
+) else (
+    echo   [INFO] Nessuna scheda NVIDIA rilevata - PyTorch installato in modalita' CPU
+    echo         ^(se hai una GPU NVIDIA, installa prima i driver NVIDIA e riesegui^)
+)
+echo.
+
 :: Aggiorna pip (usa conda run per evitare problemi con conda activate in batch)
-echo   [1/2] Aggiornamento pip...
+echo   [1/3] Aggiornamento pip...
 call "!CONDA_CMD!" run -n !ENV_NAME! python -m pip install --upgrade pip -q 2>nul
 
-:: Installa requirements
-echo   [2/2] Installazione dipendenze in corso...
+:: Pre-installa PyTorch con la variante corretta (CUDA o CPU)
+echo   [2/3] Installazione PyTorch ^(!PYTORCH_VARIANT!^)...
+echo         ^(download ~2 GB, attendere pazientemente^)
+echo.
+call "!CONDA_CMD!" run -n !ENV_NAME! pip install torch torchvision --index-url "!PYTORCH_INDEX!"
+if !ERRORLEVEL! NEQ 0 (
+    echo.
+    echo   [!!] Installazione PyTorch !PYTORCH_VARIANT! fallita. Riprovo con CPU...
+    echo.
+    call "!CONDA_CMD!" run -n !ENV_NAME! pip install torch torchvision --index-url "https://download.pytorch.org/whl/cpu"
+)
+
+:: Installa le restanti dipendenze
+echo.
+echo   [3/3] Installazione dipendenze in corso...
 echo.
 
 call "!CONDA_CMD!" run -n !ENV_NAME! pip install -r "!REQUIREMENTS!"
@@ -567,7 +596,7 @@ echo   Riepilogo:
 echo.
 echo     Miniconda:          !STATUS_MINICONDA!
 echo     Ambiente Python:    !STATUS_ENV!
-echo     Librerie Python:    !STATUS_PACKAGES!
+echo     Librerie Python:    !STATUS_PACKAGES! ^(PyTorch: !PYTORCH_VARIANT!^)
 echo     Ollama:             !STATUS_OLLAMA!
 echo     Collegamento:       !STATUS_SHORTCUT!
 echo.
