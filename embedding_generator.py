@@ -209,7 +209,24 @@ class EmbeddingGenerator:
             import argostranslate.translate
 
             # Verifica se pacchetto IT->EN già installato
-            installed = argostranslate.package.get_installed_packages()
+            # Cattura FileNotFoundError: argostranslate crasha se trova sottodirectory
+            # prive di metadata.json (installazione parziale/corrotta)
+            try:
+                installed = argostranslate.package.get_installed_packages()
+            except Exception as e:
+                logger.warning(f"Argos: directory pacchetti corrotta ({e}) - pulizia in corso...")
+                # Rimuovi sottodirectory senza metadata.json (installazioni incomplete)
+                import shutil
+                argos_pkg_dir = Path.home() / '.local' / 'share' / 'argos-translate' / 'packages'
+                if argos_pkg_dir.exists():
+                    for sub in argos_pkg_dir.iterdir():
+                        if sub.is_dir() and not (sub / 'metadata.json').exists():
+                            shutil.rmtree(str(sub), ignore_errors=True)
+                            logger.info(f"Argos: rimossa directory corrotta: {sub.name}")
+                try:
+                    installed = argostranslate.package.get_installed_packages()
+                except Exception:
+                    installed = []
             it_en_installed = any(pkg.from_code == 'it' and pkg.to_code == 'en' for pkg in installed)
 
             if not it_en_installed:
