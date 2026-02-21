@@ -16,6 +16,31 @@
 
 ---
 
+## Passo 0: Scaricare ed Estrarre OffGallery
+
+> **Questo passo è necessario solo se hai scaricato lo ZIP da GitHub.**
+> Se hai usato `git clone`, salta direttamente a "Installazione Rapida".
+
+Lo ZIP di GitHub contiene una cartella `OffGallery-main` al suo interno — quella **è** la root dell'applicazione.
+
+**Errore comune:** fare "Estrai tutto" in una cartella già chiamata `OffGallery` crea una doppia cartella:
+```
+OffGallery\
+  OffGallery-main\   ← la vera root (dentro c'è installer\, gui\, ecc.)
+```
+In questo caso l'installer non trova i file che si aspetta.
+
+**Come estrarre correttamente:**
+
+1. Scegli la **cartella padre** dove vuoi che viva OffGallery — per esempio `C:\Programs\` o `C:\Users\TuoNome\`
+2. Apri lo ZIP e clicca **"Estrai tutto"**, impostando come destinazione quella cartella padre
+3. Si crea automaticamente `C:\Programs\OffGallery-main\`
+4. (Facoltativo) Rinomina la cartella come preferisci, es. `OffGallery`
+
+La cartella che contiene `installer\`, `gui\`, `gui_launcher.py` è la root corretta. Entra lì prima di procedere.
+
+---
+
 ## Installazione Rapida (Consigliata)
 
 Il modo piu' semplice per installare OffGallery e' usare il **wizard di installazione**:

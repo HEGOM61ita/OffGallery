@@ -174,7 +174,12 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 **Opzione A - Download ZIP (consigliato):**
 1. Clicca il pulsante verde **"<> Code"** in alto a destra
 2. Seleziona **"Download ZIP"**
-3. Estrai la cartella dove preferisci (es. `C:\OffGallery` o `~/OffGallery`)
+3. Estrai lo ZIP scegliendo la **cartella padre** dove vuoi che risieda OffGallery
+
+> **Attenzione all'estrazione:** lo ZIP contiene già una cartella `OffGallery-main` al suo interno — quella **è** la root dell'app.
+> Se fai "Estrai tutto" in una cartella già chiamata `OffGallery`, ottieni `OffGallery\OffGallery-main\` (doppia cartella inutile).
+> **Corretto:** estrai in `C:\Programs\` → si crea `C:\Programs\OffGallery-main\`, che puoi rinominare come vuoi (es. `OffGallery`).
+> Con **git clone** il problema non esiste: la cartella creata è già la root.
 
 **Opzione B - Git clone:**
 ```bash
