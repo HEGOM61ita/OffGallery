@@ -36,6 +36,7 @@ class XMPManagerExtended:
     # Cache a livello di classe: check ExifTool eseguito una sola volta
     _exiftool_checked = False
     _exiftool_available = False
+    _exiftool_cmd: list = ['exiftool']  # Comando risolto in _check_exiftool
 
     def __init__(self, config: Dict[str, Any] = None):
         self.config = config or {}
@@ -50,22 +51,45 @@ class XMPManagerExtended:
             logger.warning("⚠️ ExifTool non disponibile - supporto XMP embedded limitato")
 
     def _check_exiftool(self) -> bool:
-        """Verifica disponibilità ExifTool (cached a livello di classe)"""
+        """Verifica disponibilità ExifTool (cached a livello di classe).
+        Prima cerca il bundled perl+exiftool in exiftool_files/, poi fallback al sistema."""
         if XMPManagerExtended._exiftool_checked:
             return XMPManagerExtended._exiftool_available
 
+        # Percorso bundled: exiftool_files/ è nella root del progetto (stessa dir di questo file)
+        _root = Path(__file__).parent
+        _perl = _root / 'exiftool_files' / 'perl.exe'
+        _script = _root / 'exiftool_files' / 'exiftool.pl'
+
+        # 1. Prova ExifTool bundled (perl.exe + exiftool.pl)
+        if _perl.exists() and _script.exists():
+            try:
+                result = subprocess.run([str(_perl), str(_script), '-ver'],
+                                        capture_output=True, timeout=10)
+                if result.returncode == 0:
+                    version = result.stdout.decode().strip()
+                    logger.info(f"✓ ExifTool bundled disponibile: v{version}")
+                    XMPManagerExtended._exiftool_cmd = [str(_perl), str(_script)]
+                    XMPManagerExtended._exiftool_checked = True
+                    XMPManagerExtended._exiftool_available = True
+                    return True
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                pass
+
+        # 2. Fallback: exiftool di sistema nel PATH
         try:
             result = subprocess.run(['exiftool', '-ver'],
-                                  capture_output=True,
-                                  timeout=5)
+                                    capture_output=True, timeout=5)
             if result.returncode == 0:
                 version = result.stdout.decode().strip()
-                logger.info(f"✓ ExifTool disponibile: v{version}")
+                logger.info(f"✓ ExifTool di sistema disponibile: v{version}")
+                XMPManagerExtended._exiftool_cmd = ['exiftool']
                 XMPManagerExtended._exiftool_checked = True
                 XMPManagerExtended._exiftool_available = True
                 return True
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
+
         XMPManagerExtended._exiftool_checked = True
         XMPManagerExtended._exiftool_available = False
         return False
@@ -222,11 +246,11 @@ class XMPManagerExtended:
             # Estrai XMP embedded as JSON per parsing facile
             # HAL: Leggiamo i tag specifici ovunque siano (XMP, IPTC o EXIF)
             cmd = [
-            'exiftool', 
+            *XMPManagerExtended._exiftool_cmd,
             '-json',
             '-G',           # HAL: Molto importante! Aggiunge il gruppo (es. IPTC:Keywords)
-            '-Subject', 
-            '-Keywords', 
+            '-Subject',
+            '-Keywords',
             '-Description',
             '-ImageDescription',
             '-Rating',
@@ -289,16 +313,16 @@ class XMPManagerExtended:
             
         try:
             # Prepara parametri ExifTool
-            cmd = ['exiftool', '-overwrite_original']
-            
+            cmd = [*XMPManagerExtended._exiftool_cmd, '-overwrite_original']
+
             # Converti dict in parametri ExifTool
             for key, value in xmp_dict.items():
                 if value is not None:
                     exif_key = self._dict_key_to_exiftool(key)
                     cmd.extend([f'-{exif_key}={value}'])
-            
+
             cmd.append(str(file_path))
-            
+
             result = subprocess.run(cmd, capture_output=True, timeout=30)
             
             if result.returncode == 0:
@@ -780,8 +804,8 @@ class XMPManagerExtended:
         try:
             if self.exiftool_available:
                 # Usa ExifTool per consistency
-                cmd = ['exiftool', '-overwrite_original']
-                
+                cmd = [*XMPManagerExtended._exiftool_cmd, '-overwrite_original']
+
                 for key, value in xmp_dict.items():
                     if value is not None:
                         exif_key = self._dict_key_to_exiftool(key)
@@ -880,7 +904,7 @@ class XMPManagerExtended:
             existing_hier = []
             try:
                 result = subprocess.run(
-                    ['exiftool', '-j', '-XMP-lr:HierarchicalSubject', str(target)],
+                    [*XMPManagerExtended._exiftool_cmd, '-j', '-XMP-lr:HierarchicalSubject', str(target)],
                     capture_output=True, text=True, timeout=10
                 )
                 if result.returncode == 0 and result.stdout.strip():
@@ -894,7 +918,7 @@ class XMPManagerExtended:
                 pass
 
             # Scrivi: cancella + riscrivi con merge
-            cmd = ['exiftool', '-overwrite_original', '-XMP-lr:HierarchicalSubject=']
+            cmd = [*XMPManagerExtended._exiftool_cmd, '-overwrite_original', '-XMP-lr:HierarchicalSubject=']
             for subject in existing_hier:
                 cmd.append(f'-XMP-lr:HierarchicalSubject+={subject}')
             cmd.append(f'-XMP-lr:HierarchicalSubject+={hierarchical_path}')
