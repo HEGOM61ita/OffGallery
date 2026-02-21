@@ -266,6 +266,7 @@ class MainWindow(QMainWindow):
             db_path = self.config['paths']['database']
             if db_path:
                 try:
+                    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
                     self.db_manager = DatabaseManager(db_path)
                     print(f"✅ Database manager inizializzato: {db_path}")
                 except Exception as e:

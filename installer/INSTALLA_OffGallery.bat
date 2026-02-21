@@ -231,11 +231,9 @@ echo.
 
 call "!CONDA_CMD!" create -n !ENV_NAME! python=!PYTHON_VER! --override-channels -c conda-forge -y
 
-:: Verifica concreta che l'ambiente sia stato creato
-call "!CONDA_CMD!" env list > "%TEMP%\og_envlist.tmp" 2>nul
-findstr /C:"!ENV_NAME!" "%TEMP%\og_envlist.tmp" >nul 2>&1
+:: Verifica concreta che l'ambiente sia stato creato (conda run e' piu' affidabile di env list)
+call "!CONDA_CMD!" run -n !ENV_NAME! python --version >nul 2>&1
 set "ENV_CREATED=!ERRORLEVEL!"
-del /f /q "%TEMP%\og_envlist.tmp" 2>nul
 if !ENV_CREATED! NEQ 0 (
     echo.
     echo   [ERRORE] Creazione ambiente fallita.
@@ -397,7 +395,7 @@ echo.
 echo   Download Ollama...
 echo.
 
-powershell -Command "& { try { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '!OLLAMA_URL!' -OutFile '!OLLAMA_INSTALLER!' -UseBasicParsing; Write-Host '  [OK] Download completato.' } catch { Write-Host '  [ERRORE] Download fallito:' $_.Exception.Message; exit 1 } }"
+powershell -NoProfile -Command "& { try { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '!OLLAMA_URL!' -OutFile '!OLLAMA_INSTALLER!' -UseBasicParsing; Write-Host '  [OK] Download completato.' } catch { Write-Host '  [ERRORE] Download fallito:' $_.Exception.Message; exit 1 } }"
 
 :: Verifica concreta che il file sia stato scaricato
 if not exist "!OLLAMA_INSTALLER!" (
@@ -534,7 +532,7 @@ if not exist "!LAUNCHER!" (
 echo   Creazione collegamento "!SHORTCUT_NAME!" sul Desktop...
 echo.
 
-powershell -Command "& { try { $ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('!DESKTOP!\!SHORTCUT_NAME!.lnk'); $s.TargetPath = '!LAUNCHER!'; $s.WorkingDirectory = '!APP_ROOT!'; $s.Description = 'Avvia OffGallery - Catalogazione foto AI offline'; $s.Save(); Write-Host '  [OK] Collegamento creato sul Desktop.' } catch { Write-Host '  [ERRORE]' $_.Exception.Message; exit 1 } }"
+powershell -NoProfile -Command "& { try { $ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('!DESKTOP!\!SHORTCUT_NAME!.lnk'); $s.TargetPath = '!LAUNCHER!'; $s.WorkingDirectory = '!APP_ROOT!'; $s.Description = 'Avvia OffGallery - Catalogazione foto AI offline'; $s.Save(); Write-Host '  [OK] Collegamento creato sul Desktop.' } catch { Write-Host '  [ERRORE]' $_.Exception.Message; exit 1 } }"
 
 if !ERRORLEVEL! NEQ 0 (
     echo.
@@ -545,6 +543,13 @@ if !ERRORLEVEL! NEQ 0 (
 ) else (
     set "STATUS_SHORTCUT=Creato"
 )
+
+:: ═══════════════════════════════════════════════════════════════════
+:: Crea cartelle di lavoro necessarie all'app (escluse da git)
+:: ═══════════════════════════════════════════════════════════════════
+if not exist "!APP_ROOT!\database" mkdir "!APP_ROOT!\database"
+if not exist "!APP_ROOT!\INPUT"    mkdir "!APP_ROOT!\INPUT"
+if not exist "!APP_ROOT!\logs"     mkdir "!APP_ROOT!\logs"
 
 :: ═══════════════════════════════════════════════════════════════════
 :: RIEPILOGO FINALE
