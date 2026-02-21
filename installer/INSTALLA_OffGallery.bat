@@ -294,13 +294,13 @@ echo.
 
 :: Aggiorna pip (usa conda run per evitare problemi con conda activate in batch)
 echo   [1/2] Aggiornamento pip...
-call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -m pip install --upgrade pip -q 2>nul
+call "!CONDA_CMD!" run -n !ENV_NAME! python -m pip install --upgrade pip -q 2>nul
 
 :: Installa requirements
 echo   [2/2] Installazione dipendenze in corso...
 echo.
 
-call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner pip install -r "!REQUIREMENTS!"
+call "!CONDA_CMD!" run -n !ENV_NAME! pip install -r "!REQUIREMENTS!"
 if !ERRORLEVEL! NEQ 0 (
     echo.
     echo   [ERRORE] Installazione dipendenze fallita.
@@ -320,31 +320,31 @@ echo.
 echo   Verifica installazione...
 set "INSTALL_OK=1"
 
-call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import torch; print('  [OK] PyTorch', torch.__version__, '- CUDA:', 'SI' if torch.cuda.is_available() else 'NO (solo CPU)')" 2>nul
+call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import torch; print('  [OK] PyTorch', torch.__version__, '- CUDA:', 'SI' if torch.cuda.is_available() else 'NO (solo CPU)')" 2>nul
 if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] torch non trovato & set "INSTALL_OK=0" )
 
-call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "from PyQt6.QtWidgets import QApplication; print('  [OK] PyQt6')" 2>nul
+call "!CONDA_CMD!" run -n !ENV_NAME! python -c "from PyQt6.QtWidgets import QApplication; print('  [OK] PyQt6')" 2>nul
 if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] PyQt6 non trovato & set "INSTALL_OK=0" )
 
-call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import cv2; print('  [OK] OpenCV', cv2.__version__)" 2>nul
+call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import cv2; print('  [OK] OpenCV', cv2.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] opencv non trovato & set "INSTALL_OK=0" )
 
-call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import numpy; print('  [OK] NumPy', numpy.__version__)" 2>nul
+call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import numpy; print('  [OK] NumPy', numpy.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] numpy non trovato & set "INSTALL_OK=0" )
 
-call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import PIL; print('  [OK] Pillow', PIL.__version__)" 2>nul
+call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import PIL; print('  [OK] Pillow', PIL.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] Pillow non trovato & set "INSTALL_OK=0" )
 
-call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import transformers; print('  [OK] transformers', transformers.__version__)" 2>nul
+call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import transformers; print('  [OK] transformers', transformers.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] transformers non trovato & set "INSTALL_OK=0" )
 
-call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import open_clip; print('  [OK] open-clip-torch')" 2>nul
+call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import open_clip; print('  [OK] open-clip-torch')" 2>nul
 if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] open-clip-torch non trovato & set "INSTALL_OK=0" )
 
-call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import rawpy; print('  [OK] rawpy', rawpy.__version__)" 2>nul
+call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import rawpy; print('  [OK] rawpy', rawpy.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] rawpy non trovato & set "INSTALL_OK=0" )
 
-call "!CONDA_CMD!" run -n !ENV_NAME! --no-banner python -c "import yaml; print('  [OK] PyYAML', yaml.__version__)" 2>nul
+call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import yaml; print('  [OK] PyYAML', yaml.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] pyyaml non trovato & set "INSTALL_OK=0" )
 
 if "!INSTALL_OK!"=="0" (
