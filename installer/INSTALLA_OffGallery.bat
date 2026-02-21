@@ -229,7 +229,7 @@ echo   Creazione ambiente "!ENV_NAME!" con Python !PYTHON_VER!...
 echo   (1-3 minuti)
 echo.
 
-call "!CONDA_CMD!" create -n !ENV_NAME! python=!PYTHON_VER! -y
+call "!CONDA_CMD!" create -n !ENV_NAME! python=!PYTHON_VER! --override-channels -c conda-forge -y
 
 :: Verifica concreta che l'ambiente sia stato creato
 call "!CONDA_CMD!" env list > "%TEMP%\og_envlist.tmp" 2>nul
@@ -240,8 +240,14 @@ if !ENV_CREATED! NEQ 0 (
     echo.
     echo   [ERRORE] Creazione ambiente fallita.
     echo   Possibili cause:
+    echo     - Termini di servizio Anaconda non accettati (vedere sotto)
     echo     - Spazio disco insufficiente
     echo     - Permessi mancanti
+    echo.
+    echo   Se vedi "CondaToSNonInteractiveError", aggiorna conda con:
+    echo     conda update conda
+    echo   oppure accetta i termini dal prompt Anaconda con:
+    echo     conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y
     goto :END_ERROR
 )
 
