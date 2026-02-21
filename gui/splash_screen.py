@@ -229,6 +229,12 @@ def setup_log_capture():
     root_logger.addHandler(_log_handler)
     root_logger.setLevel(logging.DEBUG)
 
+    # Silenzia logger librerie HTTP: i loro messaggi TRACE/DEBUG includono
+    # header HuggingFace con "X-Error-Code" nel testo, che viene erroneamente
+    # classificato come ERROR dal controllo 'ERROR' in message.upper()
+    for _noisy in ('httpcore', 'httpx', 'urllib3', 'hpack', 'huggingface_hub.file_download'):
+        logging.getLogger(_noisy).setLevel(logging.WARNING)
+
 
 def restore_log_capture():
     """Ripristina stdout/stderr originali"""
