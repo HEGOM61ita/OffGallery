@@ -347,13 +347,13 @@ esac
 
 # Aggiorna pip
 echo "   [2/3] Aggiornamento pip..."
-"$CONDA_CMD" run -n "$ENV_NAME" --no-banner python -m pip install --upgrade pip -q 2>/dev/null || true
+"$CONDA_CMD" run -n "$ENV_NAME" python -m pip install --upgrade pip -q 2>/dev/null || true
 
 # Installa requirements
 echo "   [3/3] Installazione dipendenze Python..."
 echo ""
 
-if ! "$CONDA_CMD" run -n "$ENV_NAME" --no-banner pip install -r "$REQUIREMENTS"; then
+if ! "$CONDA_CMD" run -n "$ENV_NAME" pip install -r "$REQUIREMENTS"; then
     print_err "Installazione dipendenze fallita."
     echo ""
     echo "   Possibili cause:"
@@ -373,7 +373,7 @@ INSTALL_OK=true
 check_pkg() {
     local import_expr="$1"
     local label="$2"
-    if "$CONDA_CMD" run -n "$ENV_NAME" --no-banner python -c "$import_expr" 2>/dev/null; then
+    if "$CONDA_CMD" run -n "$ENV_NAME" python -c "$import_expr" 2>/dev/null; then
         : # messaggio già stampato dall'espressione
     else
         print_err "$label non trovato"

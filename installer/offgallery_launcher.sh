@@ -52,7 +52,7 @@ fi
 
 # --- Avvia OffGallery ---
 cd "$OFFGALLERY_PATH" || { echo "  [ERRORE] Cartella non trovata: $OFFGALLERY_PATH"; exit 1; }
-"$CONDA_CMD" run -n "$ENV_NAME" --no-banner python gui_launcher.py
+"$CONDA_CMD" run -n "$ENV_NAME" python gui_launcher.py
 
 EXIT_CODE=$?
 if [ $EXIT_CODE -ne 0 ]; then

@@ -78,14 +78,14 @@ echo.
 
 :: Aggiorna pip (usa conda run per evitare problemi con conda activate)
 echo [1/2] Aggiornamento pip...
-call "!CONDA_CMD!" run -n OffGallery --no-banner python -m pip install --upgrade pip -q
+call "!CONDA_CMD!" run -n OffGallery python -m pip install --upgrade pip -q
 if !ERRORLEVEL! NEQ 0 (
     echo [!!] Aggiornamento pip fallito, continuo comunque...
 )
 
 :: Installa requirements
 echo [2/2] Installazione dipendenze...
-call "!CONDA_CMD!" run -n OffGallery --no-banner pip install -r "%SCRIPT_DIR%requirements_offgallery.txt"
+call "!CONDA_CMD!" run -n OffGallery pip install -r "%SCRIPT_DIR%requirements_offgallery.txt"
 if !ERRORLEVEL! NEQ 0 (
     echo.
     echo [ERRORE] Installazione dipendenze fallita.
@@ -106,55 +106,55 @@ echo.
 echo Verifica installazione...
 set "INSTALL_OK=1"
 
-call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import torch; print('[OK] PyTorch', torch.__version__)" 2>nul
+call "!CONDA_CMD!" run -n OffGallery python -c "import torch; print('[OK] PyTorch', torch.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 (
     echo [ERRORE] torch non trovato
     set "INSTALL_OK=0"
 )
 
-call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import yaml; print('[OK] PyYAML', yaml.__version__)" 2>nul
+call "!CONDA_CMD!" run -n OffGallery python -c "import yaml; print('[OK] PyYAML', yaml.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 (
     echo [ERRORE] pyyaml non trovato
     set "INSTALL_OK=0"
 )
 
-call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import PyQt6; print('[OK] PyQt6')" 2>nul
+call "!CONDA_CMD!" run -n OffGallery python -c "import PyQt6; print('[OK] PyQt6')" 2>nul
 if !ERRORLEVEL! NEQ 0 (
     echo [ERRORE] PyQt6 non trovato
     set "INSTALL_OK=0"
 )
 
-call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import numpy; print('[OK] NumPy', numpy.__version__)" 2>nul
+call "!CONDA_CMD!" run -n OffGallery python -c "import numpy; print('[OK] NumPy', numpy.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 (
     echo [ERRORE] numpy non trovato
     set "INSTALL_OK=0"
 )
 
-call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import cv2; print('[OK] OpenCV', cv2.__version__)" 2>nul
+call "!CONDA_CMD!" run -n OffGallery python -c "import cv2; print('[OK] OpenCV', cv2.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 (
     echo [ERRORE] opencv non trovato
     set "INSTALL_OK=0"
 )
 
-call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import PIL; print('[OK] Pillow', PIL.__version__)" 2>nul
+call "!CONDA_CMD!" run -n OffGallery python -c "import PIL; print('[OK] Pillow', PIL.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 (
     echo [ERRORE] Pillow non trovato
     set "INSTALL_OK=0"
 )
 
-call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import transformers; print('[OK] transformers', transformers.__version__)" 2>nul
+call "!CONDA_CMD!" run -n OffGallery python -c "import transformers; print('[OK] transformers', transformers.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 (
     echo [ERRORE] transformers non trovato
     set "INSTALL_OK=0"
 )
 
-call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import open_clip; print('[OK] open-clip-torch')" 2>nul
+call "!CONDA_CMD!" run -n OffGallery python -c "import open_clip; print('[OK] open-clip-torch')" 2>nul
 if !ERRORLEVEL! NEQ 0 (
     echo [ERRORE] open-clip-torch non trovato
     set "INSTALL_OK=0"
 )
 
-call "!CONDA_CMD!" run -n OffGallery --no-banner python -c "import rawpy; print('[OK] rawpy', rawpy.__version__)" 2>nul
+call "!CONDA_CMD!" run -n OffGallery python -c "import rawpy; print('[OK] rawpy', rawpy.__version__)" 2>nul
 if !ERRORLEVEL! NEQ 0 (
     echo [ERRORE] rawpy non trovato
     set "INSTALL_OK=0"

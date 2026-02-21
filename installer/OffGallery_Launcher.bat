@@ -63,7 +63,7 @@ exit /b 1
 
 :: Vai alla cartella dell'app e avvia con conda run
 cd /d "%OFFGALLERY_PATH%"
-call "!CONDA_CMD!" run -n %ENV_NAME% --no-banner python gui_launcher.py
+call "!CONDA_CMD!" run -n %ENV_NAME% python gui_launcher.py
 
 :: Se l'app crasha, mostra l'errore
 if !ERRORLEVEL! NEQ 0 (
