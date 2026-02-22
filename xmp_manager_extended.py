@@ -73,7 +73,7 @@ class XMPManagerExtended:
                     XMPManagerExtended._exiftool_checked = True
                     XMPManagerExtended._exiftool_available = True
                     return True
-            except (subprocess.TimeoutExpired, FileNotFoundError):
+            except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError, OSError):
                 pass
 
         # 2. Fallback: exiftool di sistema nel PATH
