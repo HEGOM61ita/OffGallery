@@ -500,7 +500,12 @@ else
             _ET_BIN="$HOME/.local/bin/exiftool"
             mkdir -p "$HOME/.local/bin" "$_ET_DIR"
             echo "   Download ExifTool da exiftool.org..."
-            if curl -fsSL "https://exiftool.org/Image-ExifTool-latest.tar.gz" \
+            _ET_VER=$(curl -fsSL "https://exiftool.org/ver.txt" 2>/dev/null | tr -d '[:space:]')
+            if [ -z "$_ET_VER" ]; then
+                print_warn "Impossibile ottenere versione ExifTool da exiftool.org/ver.txt"
+                _ET_VER=""
+            fi
+            if [ -n "$_ET_VER" ] && curl -fsSL "https://exiftool.org/Image-ExifTool-${_ET_VER}.tar.gz" \
                     -o /tmp/exiftool.tar.gz; then
                 if tar -xzf /tmp/exiftool.tar.gz -C "$_ET_DIR" \
                         --strip-components=1; then
