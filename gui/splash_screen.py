@@ -49,6 +49,21 @@ class LogCapture:
         if self.original:
             self.original.flush()
 
+    def isatty(self):
+        # tqdm, safetensors e huggingface_hub chiamano isatty() per decidere
+        # se usare la modalità interattiva del terminale. LogCapture non è un
+        # terminale, quindi ritorna sempre False.
+        return False
+
+    def fileno(self):
+        # Necessario per compatibilità con io.IOBase; ritorniamo quello
+        # del flusso originale se disponibile, altrimenti solleviamo
+        # l'eccezione standard per stream non-file.
+        if self.original and hasattr(self.original, 'fileno'):
+            return self.original.fileno()
+        import io
+        raise io.UnsupportedOperation("fileno")
+
 
 class SplashLogHandler(logging.Handler):
     """Handler per catturare log dal modulo logging"""
