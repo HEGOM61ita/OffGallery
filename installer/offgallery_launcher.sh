@@ -11,24 +11,22 @@ ENV_NAME="OffGallery"
 # --- Cerca conda ---
 CONDA_CMD=""
 
-# 1. conda nel PATH
 if command -v conda &>/dev/null; then
     CONDA_CMD="conda"
-
-# 2. Percorsi noti Miniconda
 elif [ -x "$HOME/miniconda3/bin/conda" ]; then
     CONDA_CMD="$HOME/miniconda3/bin/conda"
-
 elif [ -x "$HOME/.miniconda3/bin/conda" ]; then
     CONDA_CMD="$HOME/.miniconda3/bin/conda"
-
-# 3. Percorsi noti Anaconda
 elif [ -x "$HOME/anaconda3/bin/conda" ]; then
     CONDA_CMD="$HOME/anaconda3/bin/conda"
-
+elif [ -x "$HOME/miniforge3/bin/conda" ]; then
+    CONDA_CMD="$HOME/miniforge3/bin/conda"
+elif [ -x "$HOME/mambaforge/bin/conda" ]; then
+    CONDA_CMD="$HOME/mambaforge/bin/conda"
+elif [ -x "/opt/conda/bin/conda" ]; then
+    CONDA_CMD="/opt/conda/bin/conda"
 elif [ -x "/opt/miniconda3/bin/conda" ]; then
     CONDA_CMD="/opt/miniconda3/bin/conda"
-
 elif [ -x "/opt/anaconda3/bin/conda" ]; then
     CONDA_CMD="/opt/anaconda3/bin/conda"
 fi
@@ -52,7 +50,7 @@ fi
 
 # --- Avvia OffGallery ---
 cd "$OFFGALLERY_PATH" || { echo "  [ERRORE] Cartella non trovata: $OFFGALLERY_PATH"; exit 1; }
-"$CONDA_CMD" run -n "$ENV_NAME" python gui_launcher.py
+"$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" python gui_launcher.py
 
 EXIT_CODE=$?
 if [ $EXIT_CODE -ne 0 ]; then
