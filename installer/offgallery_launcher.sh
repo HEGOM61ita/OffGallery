@@ -58,10 +58,11 @@ export PATH="$HOME/.local/bin:$PATH"
 if [ -z "$DISPLAY" ]; then
     export DISPLAY=:0
 fi
-if [ -z "$WAYLAND_DISPLAY" ]; then
-    export WAYLAND_DISPLAY=wayland-0
-fi
-if [ -z "$XDG_RUNTIME_DIR" ]; then
+# Forza backend X11 per evitare segfault su WSL2 quando il socket Wayland
+# non è disponibile per l'utente corrente (es. sessioni su - tester)
+export QT_QPA_PLATFORM=xcb
+# XDG_RUNTIME_DIR solo se la directory esiste già
+if [ -z "$XDG_RUNTIME_DIR" ] && [ -d "/run/user/$(id -u)" ]; then
     export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 fi
 
