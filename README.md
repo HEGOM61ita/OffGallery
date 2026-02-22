@@ -38,66 +38,13 @@
 
 ## Ultime Novità
 
-> Per approfondimenti su ogni versione, visita le [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions) del progetto.
+| Data | Cosa | Note |
+|------|------|------|
+| 22 feb 2026 | **Hardening installer Windows + Linux** | Robustezza conda su tutti i profili, ARM64, ToS bypass, pipefail — [Discussion #9](https://github.com/HEGOM61ita/OffGallery/discussions/9) |
+| 20 feb 2026 | **Fix Installer v2** | 13 bug risolti su Windows e Linux — [Discussion #8](https://github.com/HEGOM61ita/OffGallery/discussions/8) |
+| 18 feb 2026 | **v0.7 — Supporto Linux** | Installer bash, launcher, config cross-platform — [Discussion #7](https://github.com/HEGOM61ita/OffGallery/discussions/7) |
 
-### Fix Installer Linux — 22 febbraio 2026 🔧
-
-Applicato lo stesso hardening già fatto per Windows all'installer Linux (`install_offgallery.sh`):
-
-- **`conda env list` inaffidabile**: sostituito con verifica filesystem tramite `conda info --base` + controllo `python` nell'env path — immune a errori ToS e profili non configurati
-- **`conda create` senza `--override-channels`**: aggiunto `--override-channels --channel conda-forge`, rimosso `conda tos accept` (non universale)
-- **Percorsi conda incompleti**: aggiunta detection di miniforge3, mambaforge, `/opt/conda`, `/opt/miniconda3`, `/opt/anaconda3`
-- **URL Miniconda hardcoded x86_64**: rilevamento architettura con `uname -m`, supporto ARM64 (Raspberry Pi, Graviton)
-- **Pipefail su `ollama list | grep`**: pipeline eliminata, `awk '$1 == m'` per match esatto sul nome modello
-- **`conda run` senza `--no-capture-output`**: aggiunto a tutti i comandi — l'output pip è ora visibile in tempo reale
-- Dettagli: [Discussion #9](https://github.com/HEGOM61ita/OffGallery/discussions/9)
-
-### Fix Installer Windows v3 — 22 febbraio 2026 🔧
-
-Grazie ai test sistematici su profili Windows nuovi, sono stati individuati e risolti i problemi residui dell'installer:
-
-- **`CondaToSNonInteractiveError` su Anaconda**: l'ambiente veniva creato con successo ma l'installer si fermava perché l'exit code non era zero. Fix: verifica via filesystem (`python.exe` nell'env path) invece di fidarsi dell'exit code
-- **`conda env list` falliva con ToS**: aggiunta verifica filesystem anche nel check iniziale "ambiente già esistente"
-- **CLIP e Aesthetic non salvati in `Models/`**: `save_pretrained()` crashava silenziosamente perché `LogCapture` non implementava `isatty()`. Fix in due parti: (1) `hf_hub_download + shutil.copy2` invece di `save_pretrained` per il repo congelato, (2) `isatty()` aggiunto a `LogCapture`
-- **`from_pretrained` crashava dopo il 100% di caricamento**: `tqdm` e `safetensors` chiamano `sys.stdout.isatty()` al completamento della barra di progresso. Con `LogCapture` come stdout, questo causava un `AttributeError` che buttava via il modello appena caricato
-- Dettagli: [Discussion #9](https://github.com/HEGOM61ita/OffGallery/discussions/9)
-
-### Fix Installer v2 — 20 febbraio 2026
-- **13 bug risolti** nell'installer Windows e Linux che impedivano il completamento dell'installazione
-- **Windows (7 fix)**: error check dopo `pip install`, verifica estesa a 9 pacchetti (era 2), rilevamento Anaconda in 6 percorsi noti, error check su `conda env remove`
-- **Linux (6 fix)**: `opencv-contrib-python-headless` (elimina dipendenza `libGL.so.1`), installazione automatica dipendenze Qt di sistema, errori `sudo` ora visibili, messaggi di errore con fix specifici per distro
-- Dettagli: [Discussion #8](https://github.com/HEGOM61ita/OffGallery/discussions/8)
-
-### v0.7 — 18 febbraio 2026
-- **Supporto Linux**: installer bash completo (`install_offgallery.sh`) con detection distro, ExifTool automatico e desktop entry
-- **Launcher Linux**: `offgallery_launcher.sh` con auto-detection conda
-- **Config cross-platform**: validazione editor esterni adattata per Linux (`os.X_OK` invece di `.exe`)
-
-### v0.5 — 16 febbraio 2025
-- **BioCLIP tassonomia completa**: 7 livelli (Kingdom, Phylum, Class, Order, Family, Genus, Species) nel campo DB dedicato `bioclip_taxonomy`
-- **Separazione BioCLIP dai tag**: campo `tags` contiene solo LLM + user tags, BioCLIP ha storage e UI dedicati
-- **Export XMP gerarchico**: tassonomia BioCLIP scritta in `HierarchicalSubject` con prefisso `AI|Taxonomy|...`, compatibile Lightroom
-- **Edit BioCLIP da gallery**: nuovo dialog nel menu contestuale per modificare i 7 livelli tassonomici
-- **Tooltip BioCLIP separato**: sezione dedicata nell'hover con gerarchia compatta (Kingdom > ... > Species)
-- **Protezione dati**: i dati BioCLIP non vengono importati da XMP (gestione solo interna a OffGallery)
-
-### v0.4 — 15 febbraio 2025
-- **Ottimizzazione LLM Ollama**: keep_alive permanente in VRAM, warmup allo startup, cache immagine tra chiamate multiple
-- **Parametri LLM configurabili da UI**: num_ctx, num_batch, keep_alive, temperature, top_k, top_p
-- **Profili immagine corretti**: dimensioni adattate ai modelli AI reali (CLIP 224px, BioCLIP 224px, LLM 512px)
-- **Prompt LLM migliorati**: identificazione specie prudente senza BioCLIP, niente più allucinazioni
-
-### v0.3 — 14 febbraio 2025
-- **Serializzazione embedding**: migrazione da pickle a raw float32 per robustezza e performance
-- **Ordinamento gallery**: 7 criteri con selettore UI (rilevanza, data, nome, rating, score)
-- **Log tab**: filtri per livello e limite 500 entry
-- **Fix traduzione LLM**: strip think blocks, prompt esplicito IT, rimozione nomi specie
-
-### v0.2 — 13-14 febbraio 2025
-- **BioCLIP → LLM feedback loop**: identificazione specie guida la generazione di tag e descrizioni
-- **Parametri LLM avanzati** nella config tab (temperature, top_k, top_p)
-- **Wizard di installazione** unificato (INSTALLA_OffGallery.bat)
-- **Fix processing**: progress bar accurata, ordine tag BioCLIP preservato
+Storico completo nelle [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
 ---
 
