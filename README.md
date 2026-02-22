@@ -26,18 +26,31 @@
 ---
 
 > [!NOTE]
-> **🔧 Installer Windows — Verifica Finale in Corso**
+> **🔧 Installer Windows + Linux — Hardening Completato**
 >
-> Tutti i problemi noti dell'installer Windows sono stati identificati e risolti:
-> `CondaToSNonInteractiveError`, mancato salvataggio dei modelli AI in `Models/`, crash silenzioso di `from_pretrained` dopo il 100% del caricamento.
+> Tutti i problemi noti di entrambi gli installer sono stati identificati e risolti.
+> **Windows**: `CondaToSNonInteractiveError`, mancato salvataggio modelli AI in `Models/`, crash di `from_pretrained` dopo il 100% di caricamento.
+> **Linux**: `conda env list` inaffidabile, mancanza di `--override-channels`, percorsi conda incompleti, URL Miniconda hardcoded x86_64, pipefail su `ollama list`.
 >
-> **È in attesa di una verifica finale su installazione fresh.** Per problemi durante l'installazione, apri una [Discussion](https://github.com/HEGOM61ita/OffGallery/discussions).
+> **In attesa di verifica finale su installazione fresh.** Per problemi durante l'installazione, apri una [Discussion](https://github.com/HEGOM61ita/OffGallery/discussions).
 
 ---
 
 ## Ultime Novità
 
 > Per approfondimenti su ogni versione, visita le [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions) del progetto.
+
+### Fix Installer Linux — 22 febbraio 2026 🔧
+
+Applicato lo stesso hardening già fatto per Windows all'installer Linux (`install_offgallery.sh`):
+
+- **`conda env list` inaffidabile**: sostituito con verifica filesystem tramite `conda info --base` + controllo `python` nell'env path — immune a errori ToS e profili non configurati
+- **`conda create` senza `--override-channels`**: aggiunto `--override-channels --channel conda-forge`, rimosso `conda tos accept` (non universale)
+- **Percorsi conda incompleti**: aggiunta detection di miniforge3, mambaforge, `/opt/conda`, `/opt/miniconda3`, `/opt/anaconda3`
+- **URL Miniconda hardcoded x86_64**: rilevamento architettura con `uname -m`, supporto ARM64 (Raspberry Pi, Graviton)
+- **Pipefail su `ollama list | grep`**: pipeline eliminata, `awk '$1 == m'` per match esatto sul nome modello
+- **`conda run` senza `--no-capture-output`**: aggiunto a tutti i comandi — l'output pip è ora visibile in tempo reale
+- Dettagli: [Discussion #9](https://github.com/HEGOM61ita/OffGallery/discussions/9)
 
 ### Fix Installer Windows v3 — 22 febbraio 2026 🔧
 
