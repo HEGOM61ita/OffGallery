@@ -22,7 +22,13 @@ REQUIREMENTS="$SCRIPT_DIR/requirements_offgallery.txt"
 LAUNCHER="$SCRIPT_DIR/offgallery_launcher.sh"
 ENV_NAME="OffGallery"
 PYTHON_VER="3.12"
-MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
+# Rileva architettura per URL Miniconda corretto (x86_64 o aarch64/ARM)
+_ARCH=$(uname -m)
+case "$_ARCH" in
+    aarch64|arm64) _MINICONDA_ARCH="Linux-aarch64" ;;
+    *)             _MINICONDA_ARCH="Linux-x86_64"   ;;
+esac
+MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-${_MINICONDA_ARCH}.sh"
 MINICONDA_INSTALLER="/tmp/miniconda_installer.sh"
 MINICONDA_DIR="$HOME/miniconda3"
 OLLAMA_MODEL="qwen3-vl:4b-instruct"
@@ -37,6 +43,8 @@ STATUS_DESKTOP="-"
 
 # Comando conda (determinato nello step 1)
 CONDA_CMD=""
+# Flag: salta creazione ambiente se già presente e l'utente non vuole ricrearlo
+SKIP_ENV_CREATE=false
 
 # === UTILITY ===
 print_header() {
@@ -68,6 +76,14 @@ ask_yes_no() {
     local answer
     read -rp "  $prompt (s/n): " answer
     [[ "${answer,,}" == "s" || "${answer,,}" == "si" || "${answer,,}" == "y" || "${answer,,}" == "yes" ]]
+}
+
+# Verifica l'ambiente conda via filesystem (più affidabile di 'conda env list')
+# 'conda env list' può fallire su profili Anaconda con ToS non accettati.
+env_python_exists() {
+    local conda_base
+    conda_base=$("$CONDA_CMD" info --base 2>/dev/null | tr -d '\r')
+    [ -n "$conda_base" ] && [ -x "$conda_base/envs/$ENV_NAME/bin/python" ]
 }
 
 # Detection gestore pacchetti
@@ -140,17 +156,37 @@ if command -v conda &>/dev/null; then
     STATUS_MINICONDA="Già presente"
     CONDA_CMD="conda"
 
-# --- Scenario B: Miniconda installato ma non nel PATH ---
+# --- Scenario B: Miniconda nella home (installato da questo script) ---
 elif [ -x "$MINICONDA_DIR/bin/conda" ]; then
     print_ok "Miniconda trovato in $MINICONDA_DIR"
     STATUS_MINICONDA="Già presente"
     CONDA_CMD="$MINICONDA_DIR/bin/conda"
 
-# --- Scenario C: Anaconda ---
+# --- Scenario C: Anaconda/Miniconda/Miniforge in percorsi standard ---
 elif [ -x "$HOME/anaconda3/bin/conda" ]; then
     print_ok "Anaconda trovato in $HOME/anaconda3"
     STATUS_MINICONDA="Già presente"
     CONDA_CMD="$HOME/anaconda3/bin/conda"
+elif [ -x "$HOME/miniforge3/bin/conda" ]; then
+    print_ok "Miniforge trovato in $HOME/miniforge3"
+    STATUS_MINICONDA="Già presente"
+    CONDA_CMD="$HOME/miniforge3/bin/conda"
+elif [ -x "$HOME/mambaforge/bin/conda" ]; then
+    print_ok "Mambaforge trovato in $HOME/mambaforge"
+    STATUS_MINICONDA="Già presente"
+    CONDA_CMD="$HOME/mambaforge/bin/conda"
+elif [ -x "/opt/conda/bin/conda" ]; then
+    print_ok "Conda trovato in /opt/conda (installazione di sistema)"
+    STATUS_MINICONDA="Già presente"
+    CONDA_CMD="/opt/conda/bin/conda"
+elif [ -x "/opt/miniconda3/bin/conda" ]; then
+    print_ok "Miniconda trovato in /opt/miniconda3"
+    STATUS_MINICONDA="Già presente"
+    CONDA_CMD="/opt/miniconda3/bin/conda"
+elif [ -x "/opt/anaconda3/bin/conda" ]; then
+    print_ok "Anaconda trovato in /opt/anaconda3"
+    STATUS_MINICONDA="Già presente"
+    CONDA_CMD="/opt/anaconda3/bin/conda"
 
 # --- Scenario D: Installazione necessaria ---
 else
@@ -241,9 +277,8 @@ fi
 STEP_CURRENT=2
 print_header "$STEP_CURRENT" "Ambiente Python"
 
-# Verifica se l'ambiente esiste già
-ENV_LIST=$("$CONDA_CMD" env list 2>/dev/null || true)
-if echo "$ENV_LIST" | grep -q "$ENV_NAME"; then
+# Verifica se l'ambiente esiste già tramite filesystem (più affidabile di 'conda env list')
+if env_python_exists; then
     print_ok "Ambiente \"$ENV_NAME\" già presente."
     echo ""
     if ask_yes_no "Vuoi eliminarlo e ricrearlo da zero?"; then
@@ -258,23 +293,19 @@ if echo "$ENV_LIST" | grep -q "$ENV_NAME"; then
         echo ""
     else
         STATUS_ENV="Già presente"
-        # Salta alla sezione pacchetti
         SKIP_ENV_CREATE=true
     fi
 fi
 
-if [ "${SKIP_ENV_CREATE:-false}" != "true" ]; then
-    echo "   Accettazione Terms of Service Anaconda..."
-    "$CONDA_CMD" tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main >/dev/null 2>&1 || true
-    "$CONDA_CMD" tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r >/dev/null 2>&1 || true
-    print_ok "Terms of Service accettati"
-    echo ""
-
+if [ "$SKIP_ENV_CREATE" != "true" ]; then
     echo "   Creazione ambiente \"$ENV_NAME\" con Python $PYTHON_VER..."
     echo "   (1-3 minuti)"
     echo ""
-
-    if ! "$CONDA_CMD" create -n "$ENV_NAME" python="$PYTHON_VER" -y; then
+    # --override-channels -c conda-forge: evita i canali Anaconda che richiedono
+    # accettazione ToS — conda-forge è pubblico e senza restrizioni.
+    if ! "$CONDA_CMD" create -n "$ENV_NAME" python="$PYTHON_VER" -y \
+            --override-channels \
+            --channel conda-forge; then
         print_err "Creazione ambiente fallita."
         echo "   Possibili cause:"
         echo "     - Spazio disco insufficiente"
@@ -283,10 +314,9 @@ if [ "${SKIP_ENV_CREATE:-false}" != "true" ]; then
         exit 1
     fi
 
-    # Verifica concreta
-    ENV_CHECK=$("$CONDA_CMD" env list 2>/dev/null || true)
-    if ! echo "$ENV_CHECK" | grep -q "$ENV_NAME"; then
-        print_err "Creazione ambiente fallita (verifica post-creazione)."
+    # Verifica via filesystem (non 'conda env list' che può fallire con errori ToS)
+    if ! env_python_exists; then
+        print_err "Creazione ambiente fallita (python non trovato dopo la creazione)."
         exit 1
     fi
 
@@ -347,13 +377,13 @@ esac
 
 # Aggiorna pip
 echo "   [2/3] Aggiornamento pip..."
-"$CONDA_CMD" run -n "$ENV_NAME" python -m pip install --upgrade pip -q 2>/dev/null || true
+"$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" python -m pip install --upgrade pip -q 2>/dev/null || true
 
 # Installa requirements
 echo "   [3/3] Installazione dipendenze Python..."
 echo ""
 
-if ! "$CONDA_CMD" run -n "$ENV_NAME" pip install -r "$REQUIREMENTS"; then
+if ! "$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" pip install -r "$REQUIREMENTS"; then
     print_err "Installazione dipendenze fallita."
     echo ""
     echo "   Possibili cause:"
@@ -373,7 +403,7 @@ INSTALL_OK=true
 check_pkg() {
     local import_expr="$1"
     local label="$2"
-    if "$CONDA_CMD" run -n "$ENV_NAME" python -c "$import_expr" 2>/dev/null; then
+    if "$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" python -c "$import_expr" 2>/dev/null; then
         : # messaggio già stampato dall'espressione
     else
         print_err "$label non trovato"
@@ -509,15 +539,19 @@ else
         echo ""
         echo "   Verifica modello $OLLAMA_MODEL..."
 
-        # Attendi avvio servizio
+        # Attendi avvio servizio (flag separato: evita problemi con pipefail)
+        OLLAMA_READY=false
         for wait_time in 5 3 3; do
             if ollama list &>/dev/null; then
+                OLLAMA_READY=true
                 break
             fi
             sleep "$wait_time"
         done
 
-        if ollama list 2>/dev/null | grep -q "$OLLAMA_MODEL"; then
+        # Confronto esatto sul nome modello (awk colonna 1) per evitare match parziali
+        OLLAMA_MODELS=$(ollama list 2>/dev/null || true)
+        if echo "$OLLAMA_MODELS" | awk -v m="$OLLAMA_MODEL" '$1 == m { found=1 } END { exit !found }'; then
             print_ok "Modello $OLLAMA_MODEL già installato."
             STATUS_OLLAMA="Già presente"
         else
