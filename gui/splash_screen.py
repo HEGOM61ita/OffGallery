@@ -230,12 +230,12 @@ class SplashScreen(QWidget):
             QApplication.processEvents()
 
     def finish(self):
-        """Completa il caricamento"""
-        self.progress.setValue(100)
-        self.subtitle.setText("✅ Caricamento completato!")
-        # Non chiamare processEvents() qui: su Linux, spacy/ctranslate2 possono
-        # essere ancora sul call stack nativo anche dopo il caricamento, causando
-        # segfault. La splash sta per chiudersi, il repaint non è necessario.
+        """Completa il caricamento.
+        Non eseguire operazioni Qt qui: su Linux, spacy/ctranslate2 rimangono
+        sul call stack nativo anche dopo il caricamento. Qualsiasi widget update
+        (setValue, setText) triggera un repaint interno che causa segfault via xcb.
+        La splash sta per chiudersi, le operazioni cosmetiche sono superflue."""
+        pass
 
 
 def setup_log_capture():
