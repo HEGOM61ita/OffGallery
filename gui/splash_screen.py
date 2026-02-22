@@ -76,7 +76,11 @@ class SplashLogHandler(logging.Handler):
         if _splash_instance:
             try:
                 msg = self.format(record)
-                _splash_instance.add_log(msg)
+                # process_events=False: evita di chiamare QApplication.processEvents()
+                # dall'interno di un logging handler. Su Linux/WSL2, alcune librerie C
+                # (ctranslate2, spacy) chiamano il logger mentre sono ancora sul call
+                # stack nativo; chiamare processEvents() in quel momento causa segfault.
+                _splash_instance.add_log(msg, process_events=False)
             except:
                 pass
 
@@ -182,7 +186,7 @@ class SplashScreen(QWidget):
         """)
         layout.addWidget(self.log_text, 1)
 
-    def add_log(self, message):
+    def add_log(self, message, process_events=True):
         """Aggiunge messaggio al log e aggiorna progress"""
         global startup_logs
 
@@ -216,7 +220,10 @@ class SplashScreen(QWidget):
             self.subtitle.setText(short_msg)
 
         # IMPORTANTE: forza aggiornamento UI
-        QApplication.processEvents()
+        # Saltato quando chiamato da SplashLogHandler per evitare segfault
+        # su Linux con ctranslate2/spacy ancora sul call stack nativo.
+        if process_events:
+            QApplication.processEvents()
 
     def finish(self):
         """Completa il caricamento"""
