@@ -54,6 +54,17 @@ cd "$OFFGALLERY_PATH" || { echo "  [ERRORE] Cartella non trovata: $OFFGALLERY_PA
 # Includi ~/.local/bin nel PATH (ExifTool installato localmente senza sudo)
 export PATH="$HOME/.local/bin:$PATH"
 
+# Variabili display per WSL2 / sessioni senza ambiente grafico ereditato
+if [ -z "$DISPLAY" ]; then
+    export DISPLAY=:0
+fi
+if [ -z "$WAYLAND_DISPLAY" ]; then
+    export WAYLAND_DISPLAY=wayland-0
+fi
+if [ -z "$XDG_RUNTIME_DIR" ]; then
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+fi
+
 "$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" python gui_launcher.py
 
 EXIT_CODE=$?
