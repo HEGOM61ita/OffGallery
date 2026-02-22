@@ -233,7 +233,9 @@ class SplashScreen(QWidget):
         """Completa il caricamento"""
         self.progress.setValue(100)
         self.subtitle.setText("✅ Caricamento completato!")
-        QApplication.processEvents()
+        # Non chiamare processEvents() qui: su Linux, spacy/ctranslate2 possono
+        # essere ancora sul call stack nativo anche dopo il caricamento, causando
+        # segfault. La splash sta per chiudersi, il repaint non è necessario.
 
 
 def setup_log_capture():
@@ -362,7 +364,7 @@ def run_with_splash():
 
     # Completa splash
     splash.finish()
-    QApplication.processEvents()
+    # Nessun processEvents() qui: spacy/ctranslate2 ancora sul call stack nativo
 
     # Breve pausa per mostrare "completato"
     import time
