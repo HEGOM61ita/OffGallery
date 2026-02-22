@@ -61,7 +61,7 @@ class XMPManagerExtended:
         _perl = _root / 'exiftool_files' / 'perl.exe'
         _script = _root / 'exiftool_files' / 'exiftool.pl'
 
-        # 1. Prova ExifTool bundled (perl.exe + exiftool.pl)
+        # 1. Prova ExifTool bundled (perl.exe + exiftool.pl) — Windows
         if _perl.exists() and _script.exists():
             try:
                 result = subprocess.run([str(_perl), str(_script), '-ver'],
@@ -70,6 +70,22 @@ class XMPManagerExtended:
                     version = result.stdout.decode().strip()
                     logger.info(f"✓ ExifTool bundled disponibile: v{version}")
                     XMPManagerExtended._exiftool_cmd = [str(_perl), str(_script)]
+                    XMPManagerExtended._exiftool_checked = True
+                    XMPManagerExtended._exiftool_available = True
+                    return True
+            except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError, OSError):
+                pass
+
+        # 1b. Prova ExifTool bundled con perl di sistema — Linux (perl.exe non eseguibile,
+        #     ma exiftool.pl + lib/ sono già nella repo, basta perl di sistema)
+        if _script.exists():
+            try:
+                result = subprocess.run(['perl', str(_script), '-ver'],
+                                        capture_output=True, timeout=10)
+                if result.returncode == 0:
+                    version = result.stdout.decode().strip()
+                    logger.info(f"✓ ExifTool bundled (perl di sistema) disponibile: v{version}")
+                    XMPManagerExtended._exiftool_cmd = ['perl', str(_script)]
                     XMPManagerExtended._exiftool_checked = True
                     XMPManagerExtended._exiftool_available = True
                     return True
