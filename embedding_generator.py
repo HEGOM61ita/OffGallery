@@ -375,7 +375,7 @@ class EmbeddingGenerator:
                         self.clip_processor.save_pretrained(str(clip_local))
                         logger.info(f"CLIP salvato in {clip_local}")
                     except Exception as se:
-                        logger.warning(f"CLIP: impossibile salvare in locale ({se})")
+                        logger.error(f"CLIP: save_pretrained fallito ({se}) - modello non persistito in {clip_local}")
                 except Exception as e:
                     logger.warning(f"CLIP: repo congelato non disponibile ({e}), uso fallback...")
 
@@ -390,7 +390,7 @@ class EmbeddingGenerator:
                     self.clip_processor.save_pretrained(str(clip_local))
                     logger.info(f"CLIP salvato in {clip_local}")
                 except Exception as se:
-                    logger.warning(f"CLIP: impossibile salvare in locale ({se})")
+                    logger.error(f"CLIP: save_pretrained fallito ({se}) - modello non persistito in {clip_local}")
 
             self.clip_model.eval()
             self.clip_enabled = True
@@ -502,7 +502,7 @@ class EmbeddingGenerator:
                     self.aesthetic_processor.save_pretrained(str(aesthetic_dir))
                     logger.info("[OK] Aesthetic caricato")
                 except Exception as e:
-                    logger.warning(f"Aesthetic: repo congelato non disponibile ({e}), uso fallback...")
+                    logger.error(f"Aesthetic: repo congelato fallito ({e}), uso fallback...")
                     clip_model = None
 
             # 3. Fallback repo ufficiale

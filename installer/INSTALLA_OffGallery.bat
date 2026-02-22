@@ -199,11 +199,25 @@ echo    STEP 2/%STEP_TOTAL%: Ambiente Python
 echo  ================================================================
 echo.
 
-:: Verifica se l'ambiente esiste gia'
+:: Verifica se l'ambiente esiste gia' (conda env list + fallback filesystem)
 call "!CONDA_CMD!" env list > "%TEMP%\og_envlist.tmp" 2>nul
 findstr /C:"!ENV_NAME!" "%TEMP%\og_envlist.tmp" >nul 2>&1
 set "ENV_EXISTS=!ERRORLEVEL!"
 del /f /q "%TEMP%\og_envlist.tmp" 2>nul
+:: Fallback filesystem: conda env list puo' fallire con ToS su Anaconda
+if !ENV_EXISTS! NEQ 0 (
+    if "!CONDA_CMD!" NEQ "conda" (
+        for %%C in ("!CONDA_CMD!") do (
+            for %%D in ("%%~dpC..") do set "_CBASE_E=%%~fD"
+        )
+        if exist "!_CBASE_E!\envs\!ENV_NAME!\python.exe" set "ENV_EXISTS=0"
+    )
+    if !ENV_EXISTS! NEQ 0 (
+        for %%B in ("%USERPROFILE%\miniconda3" "%USERPROFILE%\anaconda3" "%USERPROFILE%\Anaconda3" "%LOCALAPPDATA%\miniconda3" "%LOCALAPPDATA%\anaconda3") do (
+            if exist "%%~B\envs\!ENV_NAME!\python.exe" set "ENV_EXISTS=0"
+        )
+    )
+)
 if !ENV_EXISTS! EQU 0 (
     echo   [OK] Ambiente "!ENV_NAME!" gia' presente.
     echo.
@@ -232,22 +246,37 @@ echo.
 call "!CONDA_CMD!" create -n !ENV_NAME! python=!PYTHON_VER! --override-channels -c conda-forge -y
 set "ENV_CREATED=!ERRORLEVEL!"
 
-:: Nota: non usiamo 'conda run' ne' 'conda env list' per verificare —
-:: entrambi richiedono i ToS Anaconda anche quando conda create li bypassa.
-:: L'exit code di conda create e' sufficiente: 0 = ambiente creato.
+:: Verifica concreta nel filesystem: Anaconda puo' uscire con exit code non-zero
+:: anche se l'ambiente e' stato creato correttamente (es. ToS warning residuo).
+set "ENV_VERIFIED=0"
+if "!CONDA_CMD!" NEQ "conda" (
+    for %%C in ("!CONDA_CMD!") do (
+        for %%D in ("%%~dpC..") do set "_CBASE_C=%%~fD"
+    )
+    if exist "!_CBASE_C!\envs\!ENV_NAME!\python.exe" set "ENV_VERIFIED=1"
+)
+if !ENV_VERIFIED! EQU 0 (
+    for %%B in ("%USERPROFILE%\miniconda3" "%USERPROFILE%\anaconda3" "%USERPROFILE%\Anaconda3" "%LOCALAPPDATA%\miniconda3" "%LOCALAPPDATA%\anaconda3") do (
+        if exist "%%~B\envs\!ENV_NAME!\python.exe" set "ENV_VERIFIED=1"
+    )
+)
+
 if !ENV_CREATED! NEQ 0 (
-    echo.
-    echo   [ERRORE] Creazione ambiente fallita.
-    echo   Possibili cause:
-    echo     - Termini di servizio Anaconda non accettati (vedere sotto)
-    echo     - Spazio disco insufficiente
-    echo     - Permessi mancanti
-    echo.
-    echo   Se vedi "CondaToSNonInteractiveError", aggiorna conda con:
-    echo     conda update conda
-    echo   oppure accetta i termini dal prompt Anaconda con:
-    echo     conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y
-    goto :END_ERROR
+    if !ENV_VERIFIED! EQU 1 (
+        echo   [OK] Ambiente verificato nel filesystem ^(exit code !ENV_CREATED! ignorato^).
+    ) else (
+        echo.
+        echo   [ERRORE] Creazione ambiente fallita.
+        echo   Possibili cause:
+        echo     - Termini di servizio Anaconda non accettati
+        echo     - Spazio disco insufficiente
+        echo     - Permessi mancanti
+        echo.
+        echo   Apri il Prompt Anaconda e digita:
+        echo     conda create -n !ENV_NAME! python=!PYTHON_VER! --override-channels -c conda-forge -y
+        echo   poi riesegui questo wizard.
+        goto :END_ERROR
+    )
 )
 
 echo.
