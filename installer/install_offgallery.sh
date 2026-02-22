@@ -539,19 +539,32 @@ else
         echo ""
         echo "   Verifica modello $OLLAMA_MODEL..."
 
-        # Attendi avvio servizio (flag separato: evita problemi con pipefail)
+        # In ambienti senza systemd (WSL2, container) il server non parte da solo.
+        # Proviamo prima se è già attivo; se non risponde, lo avviamo in background.
         OLLAMA_READY=false
-        for wait_time in 5 3 3; do
-            if ollama list &>/dev/null; then
-                OLLAMA_READY=true
-                break
-            fi
-            sleep "$wait_time"
-        done
+        if ollama list &>/dev/null; then
+            OLLAMA_READY=true
+        else
+            print_info "Avvio server Ollama in background..."
+            ollama serve &>/dev/null &
+            OLLAMA_SERVE_PID=$!
+            for wait_time in 5 5 5; do
+                sleep "$wait_time"
+                if ollama list &>/dev/null; then
+                    OLLAMA_READY=true
+                    break
+                fi
+            done
+        fi
 
         # Confronto esatto sul nome modello (awk colonna 1) per evitare match parziali
-        OLLAMA_MODELS=$(ollama list 2>/dev/null || true)
-        if echo "$OLLAMA_MODELS" | awk -v m="$OLLAMA_MODEL" '$1 == m { found=1 } END { exit !found }'; then
+        if [ "$OLLAMA_READY" = false ]; then
+            print_warn "Server Ollama non raggiungibile dopo 15 secondi."
+            echo "   Avvialo manualmente con: ollama serve"
+            echo "   Poi scarica il modello con: ollama pull $OLLAMA_MODEL"
+            STATUS_OLLAMA="Server non avviato"
+        elif OLLAMA_MODELS=$(ollama list 2>/dev/null || true) && \
+             echo "$OLLAMA_MODELS" | awk -v m="$OLLAMA_MODEL" '$1 == m { found=1 } END { exit !found }'; then
             print_ok "Modello $OLLAMA_MODEL già installato."
             STATUS_OLLAMA="Già presente"
         else
