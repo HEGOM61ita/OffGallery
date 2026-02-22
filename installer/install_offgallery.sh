@@ -362,7 +362,7 @@ echo "   [1/3] Dipendenze di sistema (OpenCV + Qt)..."
 PKG_MGR_SYS=$(detect_pkg_manager)
 case "$PKG_MGR_SYS" in
     apt)
-        sudo apt-get install -y -qq libgl1 libglib2.0-0 libxcb-xinerama0 libxcb-cursor0 libegl1 || true
+        sudo apt-get install -y -qq libgl1 libglib2.0-0 libxcb-xinerama0 libxcb-cursor0 libxkbcommon-x11-0 libegl1 || true
         ;;
     dnf)
         sudo dnf install -y -q mesa-libGL glib2 libxcb xcb-util-cursor mesa-libEGL || true
