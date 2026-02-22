@@ -25,9 +25,29 @@
 
 ---
 
+> [!NOTE]
+> **🔧 Installer Windows — Verifica Finale in Corso**
+>
+> Tutti i problemi noti dell'installer Windows sono stati identificati e risolti:
+> `CondaToSNonInteractiveError`, mancato salvataggio dei modelli AI in `Models/`, crash silenzioso di `from_pretrained` dopo il 100% del caricamento.
+>
+> **È in attesa di una verifica finale su installazione fresh.** Per problemi durante l'installazione, apri una [Discussion](https://github.com/HEGOM61ita/OffGallery/discussions).
+
+---
+
 ## Ultime Novità
 
 > Per approfondimenti su ogni versione, visita le [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions) del progetto.
+
+### Fix Installer Windows v3 — 22 febbraio 2026 🔧
+
+Grazie ai test sistematici su profili Windows nuovi, sono stati individuati e risolti i problemi residui dell'installer:
+
+- **`CondaToSNonInteractiveError` su Anaconda**: l'ambiente veniva creato con successo ma l'installer si fermava perché l'exit code non era zero. Fix: verifica via filesystem (`python.exe` nell'env path) invece di fidarsi dell'exit code
+- **`conda env list` falliva con ToS**: aggiunta verifica filesystem anche nel check iniziale "ambiente già esistente"
+- **CLIP e Aesthetic non salvati in `Models/`**: `save_pretrained()` crashava silenziosamente perché `LogCapture` non implementava `isatty()`. Fix in due parti: (1) `hf_hub_download + shutil.copy2` invece di `save_pretrained` per il repo congelato, (2) `isatty()` aggiunto a `LogCapture`
+- **`from_pretrained` crashava dopo il 100% di caricamento**: `tqdm` e `safetensors` chiamano `sys.stdout.isatty()` al completamento della barra di progresso. Con `LogCapture` come stdout, questo causava un `AttributeError` che buttava via il modello appena caricato
+- Dettagli: [Discussion #9](https://github.com/HEGOM61ita/OffGallery/discussions/9)
 
 ### Fix Installer v2 — 20 febbraio 2026
 - **13 bug risolti** nell'installer Windows e Linux che impedivano il completamento dell'installazione
