@@ -340,7 +340,7 @@ class EmbeddingGenerator:
             self.bioclip_enabled = hasattr(self, 'bioclip_classifier') and self.bioclip_classifier is not None
 
     def _init_clip(self):
-        """Inizializza CLIP: prima da models_dir locale, poi repo congelato, poi fallback ufficiale"""
+        """Inizializza CLIP: prima da models_dir locale, poi repo congelato (hf_hub_download), poi fallback ufficiale (snapshot_download)"""
         try:
             from transformers import CLIPProcessor, CLIPModel
 
@@ -362,35 +362,60 @@ class EmbeddingGenerator:
                 except Exception as e:
                     logger.warning(f"CLIP: cartella locale non valida ({e}), uso repo...")
 
-            # 2. Repo congelato HuggingFace
+            # 2. Repo congelato: copia file per file come BioCLIP (evita save_pretrained)
             if not loaded and frozen_repo:
                 try:
-                    self.clip_model = CLIPModel.from_pretrained(frozen_repo, subfolder=clip_subfolder).to(self.device)
-                    self.clip_processor = CLIPProcessor.from_pretrained(frozen_repo, subfolder=clip_subfolder)
-                    loaded = True
-                    logger.info("[OK] CLIP caricato da repo")
-                    try:
-                        clip_local.mkdir(parents=True, exist_ok=True)
-                        self.clip_model.save_pretrained(str(clip_local))
-                        self.clip_processor.save_pretrained(str(clip_local))
-                        logger.info(f"CLIP salvato in {clip_local}")
-                    except Exception as se:
-                        logger.error(f"CLIP: save_pretrained fallito ({se}) - modello non persistito in {clip_local}")
+                    from huggingface_hub import hf_hub_download
+                    import shutil as _shutil
+
+                    clip_local.mkdir(parents=True, exist_ok=True)
+                    _clip_files = [
+                        'config.json', 'model.safetensors', 'preprocessor_config.json',
+                        'special_tokens_map.json', 'tokenizer.json', 'tokenizer_config.json',
+                        'vocab.json', 'merges.txt'
+                    ]
+                    for _fname in _clip_files:
+                        try:
+                            _dl = hf_hub_download(
+                                repo_id=frozen_repo,
+                                filename=f"{clip_subfolder}/{_fname}",
+                                repo_type="model"
+                            )
+                            _shutil.copy2(_dl, clip_local / _fname)
+                        except Exception:
+                            pass  # file opzionale o non presente
+
+                    if (clip_local / 'config.json').exists() and (clip_local / 'model.safetensors').exists():
+                        self.clip_model = CLIPModel.from_pretrained(str(clip_local)).to(self.device)
+                        self.clip_processor = CLIPProcessor.from_pretrained(str(clip_local))
+                        loaded = True
+                        logger.info("[OK] CLIP caricato da repo")
+                    else:
+                        logger.warning("CLIP: repo congelato incompleto, uso fallback...")
                 except Exception as e:
                     logger.warning(f"CLIP: repo congelato non disponibile ({e}), uso fallback...")
 
-            # 3. Fallback repo ufficiale
+            # 3. Fallback repo ufficiale: snapshot_download diretto in Models/clip/ (evita save_pretrained)
             if not loaded:
-                self.clip_model = CLIPModel.from_pretrained(fallback_model).to(self.device)
-                self.clip_processor = CLIPProcessor.from_pretrained(fallback_model)
-                logger.info(f"[OK] CLIP caricato (fallback: {fallback_model})")
                 try:
+                    from huggingface_hub import snapshot_download
                     clip_local.mkdir(parents=True, exist_ok=True)
-                    self.clip_model.save_pretrained(str(clip_local))
-                    self.clip_processor.save_pretrained(str(clip_local))
-                    logger.info(f"CLIP salvato in {clip_local}")
-                except Exception as se:
-                    logger.error(f"CLIP: save_pretrained fallito ({se}) - modello non persistito in {clip_local}")
+                    snapshot_download(
+                        repo_id=fallback_model,
+                        local_dir=str(clip_local),
+                        local_dir_use_symlinks=False,
+                        ignore_patterns=['*.msgpack', '*.h5', 'rust_model.ot', 'tf_model.h5', 'flax_model.msgpack']
+                    )
+                    self.clip_model = CLIPModel.from_pretrained(str(clip_local)).to(self.device)
+                    self.clip_processor = CLIPProcessor.from_pretrained(str(clip_local))
+                    logger.info(f"[OK] CLIP caricato e salvato (fallback: {fallback_model})")
+                    loaded = True
+                except Exception as fe:
+                    logger.error(f"CLIP: snapshot_download fallito ({fe}), provo from_pretrained in memoria...")
+                    self.clip_model = CLIPModel.from_pretrained(fallback_model).to(self.device)
+                    self.clip_processor = CLIPProcessor.from_pretrained(fallback_model)
+                    logger.info(f"[OK] CLIP caricato in memoria senza persistenza (fallback: {fallback_model})")
+                    loaded = True
 
             self.clip_model.eval()
             self.clip_enabled = True
@@ -458,7 +483,7 @@ class EmbeddingGenerator:
             self.dinov2_enabled = False
 
     def _init_aesthetic(self):
-        """Inizializza Aesthetic Score dal repo congelato HEGOM/OffGallery-models"""
+        """Inizializza Aesthetic Score: prima da models_dir locale, poi repo congelato (hf_hub_download), poi fallback ufficiale (snapshot_download)"""
         try:
             from transformers import CLIPProcessor, CLIPModel
             import torch
@@ -472,9 +497,7 @@ class EmbeddingGenerator:
             frozen_repo = self.config.get('models_repository', {}).get('huggingface_repo', '')
             fallback_model = 'openai/clip-vit-large-patch14'
 
-            # Verifica se già presente in locale
-            model_files = ['config.json', 'pytorch_model.bin', 'preprocessor_config.json', 'tokenizer_config.json']
-            # Accetta anche model.safetensors al posto di pytorch_model.bin
+            # Verifica se già presente in locale (accetta sia pytorch_model.bin che model.safetensors)
             local_exists = aesthetic_dir.exists() and (
                 (aesthetic_dir / 'pytorch_model.bin').exists() or
                 (aesthetic_dir / 'model.safetensors').exists()
@@ -487,32 +510,63 @@ class EmbeddingGenerator:
                 try:
                     clip_model = CLIPModel.from_pretrained(str(aesthetic_dir)).to(self.device)
                     self.aesthetic_processor = CLIPProcessor.from_pretrained(str(aesthetic_dir))
-                    logger.info("[OK] Aesthetic caricato")
+                    logger.info("[OK] Aesthetic caricato da locale")
                 except Exception as e:
-                    logger.warning(f"Aesthetic: cache locale non valida ({e})")
+                    logger.warning(f"Aesthetic: cartella locale non valida ({e}), uso repo...")
                     clip_model = None
 
-            # 2. Prova repo congelato
+            # 2. Repo congelato: copia file per file come CLIP (evita save_pretrained)
             if clip_model is None and frozen_repo:
                 try:
-                    clip_model = CLIPModel.from_pretrained(frozen_repo, subfolder='aesthetic').to(self.device)
-                    self.aesthetic_processor = CLIPProcessor.from_pretrained(frozen_repo, subfolder='aesthetic')
-                    aesthetic_dir.mkdir(exist_ok=True)
-                    clip_model.save_pretrained(str(aesthetic_dir))
-                    self.aesthetic_processor.save_pretrained(str(aesthetic_dir))
-                    logger.info("[OK] Aesthetic caricato")
+                    from huggingface_hub import hf_hub_download
+                    import shutil as _shutil
+
+                    aesthetic_dir.mkdir(parents=True, exist_ok=True)
+                    _aesthetic_files = [
+                        'config.json', 'model.safetensors', 'preprocessor_config.json',
+                        'special_tokens_map.json', 'tokenizer.json', 'tokenizer_config.json',
+                        'vocab.json', 'merges.txt'
+                    ]
+                    for _fname in _aesthetic_files:
+                        try:
+                            _dl = hf_hub_download(
+                                repo_id=frozen_repo,
+                                filename=f"{aesthetic_subfolder}/{_fname}",
+                                repo_type="model"
+                            )
+                            _shutil.copy2(_dl, aesthetic_dir / _fname)
+                        except Exception:
+                            pass  # file opzionale o non presente
+
+                    if (aesthetic_dir / 'config.json').exists() and (aesthetic_dir / 'model.safetensors').exists():
+                        clip_model = CLIPModel.from_pretrained(str(aesthetic_dir)).to(self.device)
+                        self.aesthetic_processor = CLIPProcessor.from_pretrained(str(aesthetic_dir))
+                        logger.info("[OK] Aesthetic caricato da repo")
+                    else:
+                        logger.warning("Aesthetic: repo congelato incompleto, uso fallback...")
                 except Exception as e:
                     logger.error(f"Aesthetic: repo congelato fallito ({e}), uso fallback...")
                     clip_model = None
 
-            # 3. Fallback repo ufficiale
+            # 3. Fallback repo ufficiale: snapshot_download diretto in Models/aesthetic/ (evita save_pretrained)
             if clip_model is None:
-                clip_model = CLIPModel.from_pretrained(fallback_model).to(self.device)
-                self.aesthetic_processor = CLIPProcessor.from_pretrained(fallback_model)
-                aesthetic_dir.mkdir(exist_ok=True)
-                clip_model.save_pretrained(str(aesthetic_dir))
-                self.aesthetic_processor.save_pretrained(str(aesthetic_dir))
-                logger.info(f"[OK] Aesthetic caricato (fallback: {fallback_model})")
+                try:
+                    from huggingface_hub import snapshot_download
+                    aesthetic_dir.mkdir(parents=True, exist_ok=True)
+                    snapshot_download(
+                        repo_id=fallback_model,
+                        local_dir=str(aesthetic_dir),
+                        local_dir_use_symlinks=False,
+                        ignore_patterns=['*.msgpack', '*.h5', 'rust_model.ot', 'tf_model.h5', 'flax_model.msgpack']
+                    )
+                    clip_model = CLIPModel.from_pretrained(str(aesthetic_dir)).to(self.device)
+                    self.aesthetic_processor = CLIPProcessor.from_pretrained(str(aesthetic_dir))
+                    logger.info(f"[OK] Aesthetic caricato e salvato (fallback: {fallback_model})")
+                except Exception as fe:
+                    logger.error(f"Aesthetic: snapshot_download fallito ({fe}), provo from_pretrained in memoria...")
+                    clip_model = CLIPModel.from_pretrained(fallback_model).to(self.device)
+                    self.aesthetic_processor = CLIPProcessor.from_pretrained(fallback_model)
+                    logger.info(f"[OK] Aesthetic caricato in memoria senza persistenza (fallback: {fallback_model})")
 
             # Head per score estetico
             pooler_dim = clip_model.vision_model.config.hidden_size
