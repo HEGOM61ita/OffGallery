@@ -58,12 +58,18 @@ export PATH="$HOME/.local/bin:$PATH"
 if [ -z "$DISPLAY" ]; then
     export DISPLAY=:0
 fi
-# Forza backend X11 per evitare segfault su WSL2 quando il socket Wayland
-# non è disponibile per l'utente corrente (es. sessioni su - tester)
-export QT_QPA_PLATFORM=xcb
-# XDG_RUNTIME_DIR solo se la directory esiste già
-if [ -z "$XDG_RUNTIME_DIR" ] && [ -d "/run/user/$(id -u)" ]; then
-    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+# XDG_RUNTIME_DIR: necessario per Qt/xcb. Usa /run/user/<uid> se esiste,
+# altrimenti crea una directory temporanea scrivibile dall'utente corrente.
+if [ -z "$XDG_RUNTIME_DIR" ]; then
+    _XDG_STD="/run/user/$(id -u)"
+    if [ -d "$_XDG_STD" ]; then
+        export XDG_RUNTIME_DIR="$_XDG_STD"
+    else
+        _XDG_TMP="/tmp/runtime-$(id -u)"
+        mkdir -p "$_XDG_TMP"
+        chmod 700 "$_XDG_TMP"
+        export XDG_RUNTIME_DIR="$_XDG_TMP"
+    fi
 fi
 
 "$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" python gui_launcher.py
