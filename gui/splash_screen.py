@@ -38,7 +38,11 @@ class LogCapture:
         # Aggiungi alla splash se esiste e testo non vuoto
         if text.strip() and _splash_instance:
             try:
-                _splash_instance.add_log(text.rstrip())
+                # process_events=False: stesso motivo di SplashLogHandler.emit().
+                # Su Linux/WSL2, ctranslate2/spacy possono chiamare print() mentre
+                # sono ancora sul call stack nativo; processEvents() in quel momento
+                # causa segfault.
+                _splash_instance.add_log(text.rstrip(), process_events=False)
             except:
                 # Fallback: scrivi su terminale se splash fallisce
                 if self.original:
