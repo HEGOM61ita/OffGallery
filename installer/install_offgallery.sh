@@ -491,26 +491,40 @@ else
         # Fallback: installa ExifTool localmente in ~/.local/bin senza root.
         # Funziona su qualsiasi utente Linux con perl e curl disponibili.
         print_info "Tentativo installazione locale ExifTool (senza sudo)..."
-        if command -v perl &>/dev/null && command -v curl &>/dev/null; then
+        if ! command -v perl &>/dev/null; then
+            print_warn "perl non trovato — installazione locale ExifTool non possibile."
+        elif ! command -v curl &>/dev/null; then
+            print_warn "curl non trovato — installazione locale ExifTool non possibile."
+        else
             _ET_DIR="$HOME/.local/share/exiftool"
             _ET_BIN="$HOME/.local/bin/exiftool"
             mkdir -p "$HOME/.local/bin" "$_ET_DIR"
+            echo "   Download ExifTool da exiftool.org..."
             if curl -fsSL "https://exiftool.org/Image-ExifTool-latest.tar.gz" \
-                    -o /tmp/exiftool.tar.gz 2>/dev/null && \
-               tar -xzf /tmp/exiftool.tar.gz -C "$_ET_DIR" \
-                    --strip-components=1 2>/dev/null; then
-                ln -sf "$_ET_DIR/exiftool" "$_ET_BIN"
-                chmod +x "$_ET_BIN"
-                rm -f /tmp/exiftool.tar.gz
-                # Aggiungi ~/.local/bin al PATH della sessione corrente
-                export PATH="$HOME/.local/bin:$PATH"
-                if command -v exiftool &>/dev/null; then
-                    EXIF_VER=$(exiftool -ver 2>/dev/null || echo "?")
-                    print_ok "ExifTool $EXIF_VER installato in ~/.local/bin"
-                    EXIFTOOL_INSTALLED=true
+                    -o /tmp/exiftool.tar.gz; then
+                if tar -xzf /tmp/exiftool.tar.gz -C "$_ET_DIR" \
+                        --strip-components=1; then
+                    ln -sf "$_ET_DIR/exiftool" "$_ET_BIN"
+                    chmod +x "$_ET_BIN"
+                    rm -f /tmp/exiftool.tar.gz
+                    # Aggiungi ~/.local/bin al PATH della sessione corrente
+                    export PATH="$HOME/.local/bin:$PATH"
+                    # Rendi permanente in ~/.bashrc se non già presente
+                    if ! grep -q 'local/bin' "$HOME/.bashrc" 2>/dev/null; then
+                        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
+                    fi
+                    if "$_ET_BIN" -ver &>/dev/null; then
+                        EXIF_VER=$("$_ET_BIN" -ver 2>/dev/null || echo "?")
+                        print_ok "ExifTool $EXIF_VER installato in ~/.local/bin"
+                        EXIFTOOL_INSTALLED=true
+                    fi
+                else
+                    rm -f /tmp/exiftool.tar.gz
+                    print_warn "Estrazione ExifTool fallita."
                 fi
             else
                 rm -f /tmp/exiftool.tar.gz
+                print_warn "Download ExifTool da exiftool.org fallito."
             fi
         fi
 

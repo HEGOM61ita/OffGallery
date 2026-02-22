@@ -76,7 +76,23 @@ class XMPManagerExtended:
             except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError, OSError):
                 pass
 
-        # 2. Fallback: exiftool di sistema nel PATH
+        # 2. Prova ExifTool locale (~/.local/bin/exiftool) — Linux senza sudo
+        _local_et = Path.home() / '.local' / 'bin' / 'exiftool'
+        if _local_et.exists():
+            try:
+                result = subprocess.run([str(_local_et), '-ver'],
+                                        capture_output=True, timeout=5)
+                if result.returncode == 0:
+                    version = result.stdout.decode().strip()
+                    logger.info(f"✓ ExifTool locale disponibile: v{version}")
+                    XMPManagerExtended._exiftool_cmd = [str(_local_et)]
+                    XMPManagerExtended._exiftool_checked = True
+                    XMPManagerExtended._exiftool_available = True
+                    return True
+            except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError, OSError):
+                pass
+
+        # 3. Fallback: exiftool di sistema nel PATH
         try:
             result = subprocess.run(['exiftool', '-ver'],
                                     capture_output=True, timeout=5)

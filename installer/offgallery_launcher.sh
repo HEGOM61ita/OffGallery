@@ -50,6 +50,10 @@ fi
 
 # --- Avvia OffGallery ---
 cd "$OFFGALLERY_PATH" || { echo "  [ERRORE] Cartella non trovata: $OFFGALLERY_PATH"; exit 1; }
+
+# Includi ~/.local/bin nel PATH (ExifTool installato localmente senza sudo)
+export PATH="$HOME/.local/bin:$PATH"
+
 "$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" python gui_launcher.py
 
 EXIT_CODE=$?
