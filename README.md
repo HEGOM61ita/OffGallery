@@ -147,16 +147,13 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 
 ### WSL2 (Windows Subsystem for Linux)
 
-OffGallery è utilizzabile anche sotto WSL2 con interfaccia grafica tramite **WSLg** (incluso in Windows 11 e Windows 10 aggiornato).
+OffGallery funziona anche su WSL2 con interfaccia grafica tramite **WSLg** (incluso in Windows 11 e Windows 10 aggiornato).
 
-**Requisiti aggiuntivi WSL2:**
-- WSLg attivo (verifica: `echo $DISPLAY` deve restituire `:0`)
-- Installa nella home Linux (es. `~/OffGallery`), **non** su un drive Windows (`/mnt/c`, `/mnt/d`): i filesystem NTFS non supportano i permessi Unix necessari per la scrittura dei modelli AI
+**Requisiti:**
+- WSLg attivo (Windows 11 o Windows 10 aggiornato)
+- Installa nella home Linux (es. `~/OffGallery`)
 
-**Il wizard gestisce automaticamente:**
-- Librerie Qt/xcb richieste (`libxcb-xkb1` e le altre dipendenze grafiche)
-- Forzatura `QT_QPA_PLATFORM=xcb` (il socket Wayland di WSLg non è condivisibile tra utenti)
-- Rendering software (`LIBGL_ALWAYS_SOFTWARE=1`) per compatibilità con l'ambiente virtuale WSL
+Il wizard installa e configura tutto automaticamente.
 
 ---
 

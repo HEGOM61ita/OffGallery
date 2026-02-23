@@ -98,35 +98,15 @@ REQUISITI DEL COMPUTER
 WSL2 (WINDOWS SUBSYSTEM FOR LINUX)
 ───────────────────────────────────
 
-  OffGallery funziona anche sotto WSL2 con interfaccia grafica tramite
+  OffGallery funziona anche su WSL2 con interfaccia grafica tramite
   WSLg (disponibile su Windows 11 e Windows 10 aggiornato).
 
-  Requisiti aggiuntivi per WSL2:
+  Requisiti:
 
-  - WSLg attivo: apri un terminale WSL e verifica con:
-      echo $DISPLAY
-    Deve restituire ":0". Se il comando non stampa nulla, WSLg non
-    e' disponibile e l'interfaccia grafica non funzionera'.
+  - WSLg attivo (Windows 11 o Windows 10 aggiornato)
+  - Installa nella home Linux (es. ~/OffGallery)
 
-  - Installa OffGallery nella home Linux (es. ~/OffGallery).
-    NON installare su drive Windows (/mnt/c, /mnt/d, ecc.):
-    i filesystem NTFS non supportano i permessi Unix necessari
-    per la scrittura dei modelli AI (~7 GB al primo avvio).
-
-  Il wizard di installazione gestisce automaticamente:
-
-  - Le librerie Qt/xcb aggiuntive richieste da WSL2
-    (tra cui libxcb-xkb1, non presente nei sistemi base).
-  - La modalita' grafica XCB al posto di Wayland: il socket
-    Wayland di WSLg non e' condivisibile tra utenti diversi,
-    quindi l'app usa X11/XCB che funziona correttamente.
-  - Il rendering software (LIBGL_ALWAYS_SOFTWARE): necessario
-    in WSL2 dove l'accelerazione OpenGL non e' disponibile
-    via XCB. Senza questa impostazione la finestra appare nera.
-
-  Non e' necessario configurare nulla manualmente: il launcher
-  rileva automaticamente l'ambiente WSL2 e applica le
-  impostazioni corrette ad ogni avvio.
+  Il wizard installa e configura tutto automaticamente.
 
 
 SCARICARE OFFGALLERY
