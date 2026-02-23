@@ -145,6 +145,19 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 > - Connessione internet richiesta solo al primo avvio per download modelli AI (~7 GB)
 > - **Linux**: testato su Ubuntu, Fedora e Arch. Altre distribuzioni con supporto conda dovrebbero funzionare
 
+### WSL2 (Windows Subsystem for Linux)
+
+OffGallery è utilizzabile anche sotto WSL2 con interfaccia grafica tramite **WSLg** (incluso in Windows 11 e Windows 10 aggiornato).
+
+**Requisiti aggiuntivi WSL2:**
+- WSLg attivo (verifica: `echo $DISPLAY` deve restituire `:0`)
+- Installa nella home Linux (es. `~/OffGallery`), **non** su un drive Windows (`/mnt/c`, `/mnt/d`): i filesystem NTFS non supportano i permessi Unix necessari per la scrittura dei modelli AI
+
+**Il wizard gestisce automaticamente:**
+- Librerie Qt/xcb richieste (`libxcb-xkb1` e le altre dipendenze grafiche)
+- Forzatura `QT_QPA_PLATFORM=xcb` (il socket Wayland di WSLg non è condivisibile tra utenti)
+- Rendering software (`LIBGL_ALWAYS_SOFTWARE=1`) per compatibilità con l'ambiente virtuale WSL
+
 ---
 
 ## Installazione
