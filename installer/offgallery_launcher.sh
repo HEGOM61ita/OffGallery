@@ -72,6 +72,15 @@ if [ -z "$XDG_RUNTIME_DIR" ]; then
     fi
 fi
 
+# Rilevamento WSL: in WSL il socket Wayland appartiene all'utente principale
+# e non è accessibile ad altri utenti. Si forza XCB (X11) e il rendering
+# software per evitare crash xcb e finestre nere per OpenGL non supportato.
+if grep -qi microsoft /proc/version 2>/dev/null; then
+    export QT_QPA_PLATFORM=xcb
+    export LIBGL_ALWAYS_SOFTWARE=1
+    export QT_OPENGL=software
+fi
+
 "$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" python gui_launcher.py
 
 EXIT_CODE=$?

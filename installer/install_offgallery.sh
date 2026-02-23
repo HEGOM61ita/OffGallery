@@ -366,7 +366,8 @@ case "$PKG_MGR_SYS" in
             libgl1 libglib2.0-0 libegl1 \
             libxcb-xinerama0 libxcb-cursor0 libxkbcommon-x11-0 \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
-            libxcb-render-util0 libxcb-xfixes0 libxcb-shape0 libxcb-util1 || true
+            libxcb-render-util0 libxcb-xfixes0 libxcb-shape0 libxcb-util1 \
+            libxcb-xkb1 || true
         ;;
     dnf)
         sudo dnf install -y -q mesa-libGL glib2 libxcb xcb-util-cursor mesa-libEGL || true
@@ -656,7 +657,8 @@ print_header "$STEP_CURRENT" "Launcher e Desktop Entry"
 
 # --- Rendi eseguibile il launcher ---
 if [ -f "$LAUNCHER" ]; then
-    chmod +x "$LAUNCHER"
+    # || true: chmod può fallire su filesystem NTFS (WSL con /mnt/d, /mnt/c, ecc.)
+    chmod +x "$LAUNCHER" || true
     print_ok "Launcher reso eseguibile: $LAUNCHER"
 else
     print_warn "File launcher non trovato: $LAUNCHER"
