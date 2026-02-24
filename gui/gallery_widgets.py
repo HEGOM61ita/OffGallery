@@ -2329,8 +2329,12 @@ class ImageCard(QFrame):
             reply = QMessageBox.question(
                 self,
                 "📤 Esporta a XMP",
-                f"Esportare title, tags e descrizione da DB a XMP per {len(items)} elementi?\n\n" +
-                "⚠️ Questo sovrascriverà i dati XMP esistenti nei file",
+                f"Esportare title, tags e descrizione da DB a XMP per {len(items)} elementi?\n\n"
+                "ℹ️ Campi scritti: Title, Descrizione, Keywords (tags), Tassonomia BioCLIP\n"
+                "🛡️ Preservati: tutti i namespace Lightroom (crs:, lr:Rating, lr:Label,\n"
+                "   xmpMM:, photoshop:) e qualsiasi altro dato non gestito da OffGallery.\n\n"
+                "⚠️ I keyword DB vengono uniti ai keyword già presenti nel sidecar.\n"
+                "   Title e Descrizione DB sovrascrivono quelli nel sidecar.",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
 
@@ -2390,7 +2394,6 @@ class ImageCard(QFrame):
                     if description:
                         xmp_dict['description'] = description
                     if tags:
-                        # Converti lista in stringa separata da virgole per ExifTool
                         xmp_dict['keywords'] = tags if isinstance(tags, list) else [tags]
 
                     # Scrivi XMP usando il manager

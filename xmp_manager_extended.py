@@ -333,16 +333,12 @@ class XMPManagerExtended:
             # Prepara parametri ExifTool
             cmd = [*XMPManagerExtended._exiftool_cmd, '-overwrite_original']
 
-            # Converti dict in parametri ExifTool
-            for key, value in xmp_dict.items():
-                if value is not None:
-                    exif_key = self._dict_key_to_exiftool(key)
-                    cmd.extend([f'-{exif_key}={value}'])
-
+            # Converti dict in parametri ExifTool (gestisce correttamente i campi lista)
+            cmd.extend(self._build_exiftool_args_from_dict(xmp_dict))
             cmd.append(str(file_path))
 
             result = subprocess.run(cmd, capture_output=True, timeout=30)
-            
+
             if result.returncode == 0:
                 logger.info(f"✓ XMP embedded scritto in {file_path.name}")
                 return True
@@ -638,7 +634,7 @@ class XMPManagerExtended:
         # Mappa comuni
         key_mapping = {
             'title': 'XMP:Title',
-            'description': 'XMP:Description', 
+            'description': 'XMP:Description',
             'keywords': 'XMP:Keywords',
             'creator': 'XMP:Creator',
             'rights': 'XMP:Rights',
@@ -648,8 +644,31 @@ class XMPManagerExtended:
             'bioclip_tags': 'XMP:Keywords',
             'ai_description': 'XMP:Description'
         }
-        
+
         return key_mapping.get(key.lower(), f'XMP:{key}')
+
+    # Campi che accettano valori multipli (liste di keyword/tag)
+    _LIST_FIELDS = {'keywords', 'subject', 'user_tags', 'ai_tags', 'bioclip_tags'}
+
+    def _build_exiftool_args_from_dict(self, xmp_dict: Dict[str, Any]) -> List[str]:
+        """
+        Converte xmp_dict in argomenti ExifTool validi.
+        Gestisce correttamente i campi lista (keyword/tag) con sintassi -Tag= poi -Tag+=val.
+        """
+        args = []
+        for key, value in xmp_dict.items():
+            if value is None:
+                continue
+            exif_key = self._dict_key_to_exiftool(key)
+            if isinstance(value, list) and key.lower() in self._LIST_FIELDS:
+                # Azzera il campo poi aggiungi ogni elemento separatamente
+                args.append(f'-{exif_key}=')
+                for kw in value:
+                    if kw:
+                        args.append(f'-{exif_key}+={kw}')
+            else:
+                args.append(f'-{exif_key}={value}')
+        return args
 
     def _extract_keywords_from_dict(self, xmp_dict: Dict[str, Any]) -> List[str]:
         """UNIFICATO: Estrae keywords dai dati RAWProcessor (formato JSON) e XMP tradizionale"""
@@ -814,42 +833,101 @@ class XMPManagerExtended:
             k = k.replace(char, '')
         return k.strip().lower()
     
-    def write_xmp_sidecar(self, file_path: Path, xmp_dict: Dict[str, Any]) -> bool:
-        """CORRETTO: Scrive XMP sidecar con naming Lightroom-compatibile"""
-        # Implementazione esistente o via ExifTool
-        sidecar_path = file_path.with_suffix('.xmp')  # ← CORRETTO: file.xmp invece di file.ORF.xmp
-        
+    def write_xmp_sidecar(self, file_path: Path, xmp_dict: Dict[str, Any],
+                          merge_existing_keywords: bool = True) -> bool:
+        """
+        Scrive XMP sidecar con naming Lightroom-compatibile.
+
+        Con merge_existing_keywords=True (default): legge i keyword già presenti nel
+        sidecar e li unisce con i nuovi prima di scrivere, evitando perdite di dati.
+        I namespace non gestiti (crs:, lr:, xmpMM:, photoshop:) vengono preservati
+        automaticamente da ExifTool (scrittura campo per campo).
+        """
+        sidecar_path = file_path.with_suffix('.xmp')
+
         try:
             if self.exiftool_available:
-                # Usa ExifTool per consistency
-                cmd = [*XMPManagerExtended._exiftool_cmd, '-overwrite_original']
+                # --- Merge keyword esistenti nel sidecar ---
+                merged_dict = dict(xmp_dict)
+                if merge_existing_keywords and sidecar_path.exists():
+                    existing_kw = self._read_existing_keywords_from_sidecar(sidecar_path)
+                    new_kw = []
+                    if isinstance(xmp_dict.get('keywords'), list):
+                        new_kw = xmp_dict['keywords']
+                    elif isinstance(xmp_dict.get('subject'), list):
+                        new_kw = xmp_dict['subject']
+                    if existing_kw or new_kw:
+                        # Unisce: esistenti prima, poi nuovi non già presenti (case-insensitive)
+                        existing_lower = {k.lower() for k in existing_kw}
+                        merged = list(existing_kw)
+                        for kw in new_kw:
+                            if kw and kw.lower() not in existing_lower:
+                                merged.append(kw)
+                                existing_lower.add(kw.lower())
+                        if 'keywords' in merged_dict:
+                            merged_dict['keywords'] = merged
+                        if 'subject' in merged_dict:
+                            merged_dict['subject'] = merged
 
-                for key, value in xmp_dict.items():
-                    if value is not None:
-                        exif_key = self._dict_key_to_exiftool(key)
-                        cmd.extend([f'-{exif_key}={value}'])
-                
+                cmd = [*XMPManagerExtended._exiftool_cmd, '-overwrite_original']
+                # Converti dict in argomenti ExifTool (gestisce correttamente le liste)
+                cmd.extend(self._build_exiftool_args_from_dict(merged_dict))
+
                 # Crea file sidecar vuoto se non esiste
                 if not sidecar_path.exists():
-                    sidecar_path.write_text('<?xml version="1.0" encoding="UTF-8"?>\n<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="OffGallery XMP Manager"/>')
-                
+                    sidecar_path.write_text(
+                        '<?xml version="1.0" encoding="UTF-8"?>\n'
+                        '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="OffGallery XMP Manager"/>'
+                    )
+
                 cmd.append(str(sidecar_path))
-                
+
                 result = subprocess.run(cmd, capture_output=True, timeout=30)
-                
+
                 if result.returncode == 0:
                     logger.info(f"✓ XMP sidecar scritto: {sidecar_path.name}")
                     return True
                 else:
                     error_msg = result.stderr.decode() if result.stderr else "Unknown error"
                     logger.error(f"Errore scrittura XMP sidecar: {error_msg}")
-            
+
             # Fallback: implementazione XML esistente
             return self._write_xmp_xml(sidecar_path, xmp_dict)
-            
+
         except Exception as e:
             logger.error(f"Errore scrittura XMP sidecar {sidecar_path.name}: {e}")
             return False
+
+    def _read_existing_keywords_from_sidecar(self, sidecar_path: Path) -> List[str]:
+        """
+        Legge i keyword dc:Subject esistenti nel sidecar.
+        Filtra le voci AI|Taxonomy (BioCLIP) e i keyword malformati con pipe.
+        """
+        try:
+            result = subprocess.run(
+                [*XMPManagerExtended._exiftool_cmd, '-j', '-XMP-dc:Subject', str(sidecar_path)],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode != 0 or not result.stdout.strip():
+                return []
+            data = json.loads(result.stdout)
+            if not data:
+                return []
+            subjects = data[0].get('Subject', [])
+            if isinstance(subjects, str):
+                subjects = [subjects]
+            elif not isinstance(subjects, list):
+                return []
+            # Filtra voci BioCLIP e malformate
+            return [
+                kw.strip() for kw in subjects
+                if kw and kw.strip()
+                and '|' not in kw
+                and not kw.startswith('AI|Taxonomy')
+            ]
+        except Exception as e:
+            logger.warning(f"Errore lettura keyword sidecar esistenti: {e}")
+            return []
     
     def _write_xmp_xml(self, file_path: Path, xmp_dict: Dict[str, Any]) -> bool:
         """Fallback: scrivi XMP come XML"""

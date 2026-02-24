@@ -301,18 +301,53 @@ class ExportTab(QWidget):
         # Sezione: Opzioni XMP
         xmp_section = QGroupBox("🏷️ Export XMP")
         xmp_layout = QVBoxLayout(xmp_section)
-        
+
         self.xmp_preserve_existing = QCheckBox("Preserva metadati XMP esistenti")
         self.xmp_preserve_existing.setChecked(True)
-        self.xmp_preserve_existing.setToolTip("Non sovrascrive metadati XMP già presenti")
-        
-        # Nota: Compatibilità Lightroom sempre attiva (standard integrato)
-        note = QLabel("✓ Compatibilità Lightroom ottimale sempre attiva")
+        self.xmp_preserve_existing.setToolTip(
+            "Attivo: keyword merged, Title/Descrizione/Rating non sovrascritti se già presenti.\n"
+            "Disattivo: tutti i campi gestiti da OffGallery vengono sovrascritti."
+        )
+
+        # Sub-gruppo: sovrascrittura selettiva per campo (visibile solo con preserve attivo)
+        self.xmp_override_frame = QFrame()
+        override_layout = QVBoxLayout(self.xmp_override_frame)
+        override_layout.setSpacing(3)
+        override_layout.setContentsMargins(20, 2, 0, 2)
+
+        override_label = QLabel("Sovrascrivi comunque (anche se già presente nel sidecar):")
+        override_label.setStyleSheet("color: #aaa; font-size: 10px;")
+        override_layout.addWidget(override_label)
+
+        self.xmp_overwrite_title = QCheckBox("Titolo")
+        self.xmp_overwrite_title.setChecked(False)
+        self.xmp_overwrite_title.setToolTip("Sovrascrive XMP-dc:Title anche se il sidecar ne ha già uno")
+
+        self.xmp_overwrite_description = QCheckBox("Descrizione")
+        self.xmp_overwrite_description.setChecked(False)
+        self.xmp_overwrite_description.setToolTip("Sovrascrive XMP-dc:Description anche se il sidecar ne ha già una")
+
+        self.xmp_overwrite_keywords = QCheckBox("Keywords (sostituisce invece di unire)")
+        self.xmp_overwrite_keywords.setChecked(False)
+        self.xmp_overwrite_keywords.setToolTip(
+            "Cancella i keyword esistenti nel sidecar e scrive solo quelli del DB.\n"
+            "Di default i keyword DB vengono uniti a quelli già presenti."
+        )
+
+        for cb in [self.xmp_overwrite_title, self.xmp_overwrite_description, self.xmp_overwrite_keywords]:
+            override_layout.addWidget(cb)
+
+        # Collega stato preserve_existing all'abilitazione dei sotto-controlli
+        self.xmp_preserve_existing.stateChanged.connect(self._update_xmp_override_state)
+
+        # Nota: namespace Lightroom sempre preservati
+        note = QLabel("✓ Namespace Lightroom (crs:, lr:, xmpMM:) sempre preservati")
         note.setStyleSheet("color: gray; font-style: italic; font-size: 10px;")
-        
+
         xmp_layout.addWidget(self.xmp_preserve_existing)
+        xmp_layout.addWidget(self.xmp_override_frame)
         xmp_layout.addWidget(note)
-            
+
         layout.addWidget(xmp_section)
 
         # Sezione: Performance
@@ -335,6 +370,11 @@ class ExportTab(QWidget):
         # Sezione AI/Scoring RIMOSSA - Non necessaria per export standard
 
         return box
+
+    def _update_xmp_override_state(self):
+        """Abilita/disabilita i controlli di sovrascrittura per campo in base a preserve_existing."""
+        preserve = self.xmp_preserve_existing.isChecked()
+        self.xmp_override_frame.setEnabled(preserve)
 
     # ------------------------------------------------------------------
     # SELECTION (Esistente)
@@ -444,11 +484,39 @@ class ExportTab(QWidget):
                 else f"directory: {options['path']['single_dir']}"
             )
 
+            # Avviso modalità XMP se pertinente
+            xmp_mode_note = ""
+            if export_xmp:
+                preserve = options['advanced']['xmp_preserve_existing']
+                if preserve:
+                    ow_kw = options['advanced'].get('xmp_overwrite_keywords', False)
+                    ow_ti = options['advanced'].get('xmp_overwrite_title', False)
+                    ow_de = options['advanced'].get('xmp_overwrite_description', False)
+                    kw_mode = "sostituisce" if ow_kw else "merged con esistenti"
+                    ti_mode = "SOVRASCRIVE" if ow_ti else "preservato se presente"
+                    de_mode = "SOVRASCRIVE" if ow_de else "preservata se presente"
+                    xmp_mode_note = (
+                        f"\n\n🛡️ Modalità PRESERVA — sovrascritture per campo:\n"
+                        f"  • Keywords: {kw_mode}\n"
+                        f"  • Title: {ti_mode}\n"
+                        f"  • Descrizione: {de_mode}\n"
+                        f"  • Rating: preservato se già presente nel sidecar\n"
+                        f"  • Namespace Lightroom (crs:, lr:, xmpMM:): sempre preservati"
+                    )
+                else:
+                    xmp_mode_note = (
+                        "\n\n⚠️ Modalità SOSTITUZIONE (preserve disattivo):\n"
+                        "  • Keyword esistenti nel sidecar verranno cancellati e riscritti\n"
+                        "  • Title/Descrizione/Rating saranno sovrascritti\n"
+                        "  • Namespace Lightroom (crs:, lr:, xmpMM:): preservati comunque"
+                    )
+
             reply = QMessageBox.question(
                 self,
                 "Conferma Export",
                 f"Esportare {' + '.join(export_types)} per {len(self.images_to_export)} immagini?\n\n"
-                f"📁 Destinazione: {location_msg}",
+                f"📁 Destinazione: {location_msg}"
+                f"{xmp_mode_note}",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
 
@@ -900,9 +968,15 @@ class ExportTab(QWidget):
                     output_dir.mkdir(parents=True, exist_ok=True)
                 sidecar_path = output_dir / f"{image_file.stem}.xmp"
 
-            # Merge keywords intelligente
+            # Calcola comportamento per campo in base alle opzioni
+            preserve = options['advanced']['xmp_preserve_existing']
+            do_merge_keywords = preserve and not options['advanced'].get('xmp_overwrite_keywords', False)
+            do_preserve_title = preserve and not options['advanced'].get('xmp_overwrite_title', False)
+            do_preserve_description = preserve and not options['advanced'].get('xmp_overwrite_description', False)
+
+            # Merge keywords o sostituzione
             final_keywords = []
-            if options['advanced']['xmp_preserve_existing'] and sidecar_path.exists():
+            if do_merge_keywords and sidecar_path.exists():
                 existing_keywords = self._read_existing_keywords_from_xmp(sidecar_path)
                 existing_keywords = list(dict.fromkeys(existing_keywords))
                 all_keywords = existing_keywords[:]
@@ -913,20 +987,17 @@ class ExportTab(QWidget):
             else:
                 final_keywords = list(dict.fromkeys(keywords))
 
-            # Riscrittura pulita se file XMP esistente
+            # Azzera dc:Subject nel sidecar esistente prima di riscrivere
+            # MAI cancellare il file: potrebbe contenere dati Lightroom/altri software non gestiti
             if sidecar_path.exists():
                 try:
                     clear_cmd = ["exiftool", "-overwrite_original", "-XMP-dc:Subject=", str(sidecar_path)]
                     clear_result = subprocess.run(clear_cmd, capture_output=True, text=True, timeout=10)
                     if clear_result.returncode != 0:
-                        print(f"⚠️ Errore cancellazione keywords esistenti: {clear_result.stderr}")
-                        try:
-                            sidecar_path.unlink()
-                        except Exception as delete_error:
-                            print(f"❌ Impossibile eliminare XMP: {delete_error}")
-                            return False
+                        print(f"❌ Errore pulizia Subject nel sidecar, export annullato per sicurezza: {clear_result.stderr}")
+                        return False
                 except Exception as clear_error:
-                    print(f"❌ Errore comando clear ExifTool: {clear_error}")
+                    print(f"❌ Errore ExifTool nel clear Subject, export annullato per sicurezza: {clear_error}")
                     return False
 
             cmd = ["exiftool", "-overwrite_original"]
@@ -935,23 +1006,35 @@ class ExportTab(QWidget):
                 for kw in final_keywords:
                     cmd.append(f"-XMP-dc:Subject+={kw}")
 
+            # Leggi campi scalari esistenti nel sidecar se è attiva una qualsiasi forma di preserve
+            existing_scalar = {}
+            needs_scalar_read = preserve and sidecar_path.exists()
+            if needs_scalar_read:
+                existing_scalar = self._read_existing_scalar_fields_from_xmp(sidecar_path)
+
             # TITLE
             title = image_item.image_data.get('title', '') or ''
             if not title:
                 title = image_item.image_data.get('filename', '').split('.')[0]
             if title:
-                cmd.append(f"-XMP-dc:Title={title}")
+                # Scrivi se: preserve disattivo, O sovrascrittura esplicita titolo, O sidecar non ha titolo
+                if not do_preserve_title or not existing_scalar.get('title'):
+                    cmd.append(f"-XMP-dc:Title={title}")
 
             # DESCRIPTION
             description = image_item.image_data.get('description', '')
             if description:
                 description = description.replace("x-default ", "").strip()
-                cmd.append(f"-XMP-dc:Description={description}")
+                # Scrivi se: preserve disattivo, O sovrascrittura esplicita descrizione, O sidecar non ha descrizione
+                if not do_preserve_description or not existing_scalar.get('description'):
+                    cmd.append(f"-XMP-dc:Description={description}")
 
-            # RATING
+            # RATING — sempre preservato se preserve attivo e sidecar ha già un valore
+            # (non c'è controllo per campo per il rating: si comporta come preserve globale)
             rating = image_item.image_data.get('lr_rating') or image_item.image_data.get('rating')
             if rating is not None and 1 <= int(rating) <= 5:
-                cmd.append(f"-XMP-xmp:Rating={int(rating)}")
+                if not preserve or existing_scalar.get('rating') is None:
+                    cmd.append(f"-XMP-xmp:Rating={int(rating)}")
 
             # BIOCLIP HIERARCHICAL TAXONOMY → HierarchicalSubject
             bioclip_taxonomy_raw = image_item.image_data.get('bioclip_taxonomy', '')
@@ -1021,6 +1104,39 @@ class ExportTab(QWidget):
 
         except Exception as e:
             print(f"❌ Errore aggiornamento sync_state: {e}")
+
+    def _read_existing_scalar_fields_from_xmp(self, xmp_path: Path) -> dict:
+        """Legge Title, Description e Rating esistenti dal sidecar per evitare sovrascritture."""
+        result = {}
+        if not xmp_path.exists():
+            return result
+        try:
+            import subprocess, json
+            cmd = ["exiftool", "-j", "-XMP-dc:Title", "-XMP-dc:Description", "-XMP-xmp:Rating", str(xmp_path)]
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if r.returncode == 0 and r.stdout.strip():
+                data = json.loads(r.stdout)
+                if data:
+                    title_raw = data[0].get('Title', '')
+                    # Normalizza titolo (può essere dict x-default da ExifTool)
+                    if isinstance(title_raw, dict):
+                        title_raw = title_raw.get('x-default', '') or next(iter(title_raw.values()), '')
+                    result['title'] = str(title_raw).strip() if title_raw else ''
+
+                    desc_raw = data[0].get('Description', '')
+                    if isinstance(desc_raw, dict):
+                        desc_raw = desc_raw.get('x-default', '') or next(iter(desc_raw.values()), '')
+                    result['description'] = str(desc_raw).strip() if desc_raw else ''
+
+                    rating_raw = data[0].get('Rating', None)
+                    if rating_raw is not None:
+                        try:
+                            result['rating'] = int(rating_raw)
+                        except (ValueError, TypeError):
+                            pass
+        except Exception as e:
+            print(f"⚠️ Errore lettura campi scalari da sidecar esistente: {e}")
+        return result
 
     def _read_existing_keywords_from_xmp(self, xmp_path: Path) -> list:
         """Legge keywords esistenti da file XMP per merge intelligente"""
@@ -1186,10 +1302,14 @@ class ExportTab(QWidget):
                 "dng_allow_embedded": self.dng_allow_embedded.isChecked(),
             },
             "advanced": {
-                # CSV options (semplificato)
+                # CSV options
                 "csv_include_gps": self.csv_include_gps.isChecked(),
-                # XMP options (semplificato - AI tags sempre inclusi nei tag unificati)
+                # XMP options
                 "xmp_preserve_existing": self.xmp_preserve_existing.isChecked(),
+                # Sovrascrittura selettiva per campo (rilevante solo con preserve_existing=True)
+                "xmp_overwrite_title": self.xmp_overwrite_title.isChecked(),
+                "xmp_overwrite_description": self.xmp_overwrite_description.isChecked(),
+                "xmp_overwrite_keywords": self.xmp_overwrite_keywords.isChecked(),
                 "xmp_lr_compatibility": True,  # Sempre attivo - standard integrato
                 # Performance options
                 "batch_processing": self.batch_processing.isChecked(),
