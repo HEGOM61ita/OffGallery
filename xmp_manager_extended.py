@@ -811,10 +811,16 @@ class XMPManagerExtended:
             return False
 
         # 4. RATING
+        # read_xmp_sidecar ritorna 'lr_rating', _get_db_payload ritorna 'Rating'
         def r_val(d):
-            val = d.get('Rating', d.get('XMP:Rating', 0))
-            try: return int(val)
-            except: return 0
+            for key in ['Rating', 'XMP:Rating', 'XMP-xmp:Rating', 'lr_rating', 'rating']:
+                val = d.get(key)
+                if val is not None:
+                    try:
+                        return int(val)
+                    except (ValueError, TypeError):
+                        continue
+            return 0
         r1, r2 = r_val(d1), r_val(d2)
         if r1 != r2:
             debug_info.append(f"Rating differ: XMP={r1} vs DB={r2}")
