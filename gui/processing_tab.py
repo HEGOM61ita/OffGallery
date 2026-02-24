@@ -450,9 +450,14 @@ class ProcessingWorker(QThread):
             if cached_thumbnail:
                 thumb_size = cached_thumbnail.size if hasattr(cached_thumbnail, 'size') else 'N/A'
                 self.log_message.emit(f"📥 Thumbnail cached per AI: {thumb_size}", "info")
+            elif is_raw:
+                self.log_message.emit(
+                    f"⚠️ {image_path.name}: nessuna immagine estraibile dal RAW — "
+                    f"embedding e LLM saltati, solo metadati salvati", "warning"
+                )
 
         # === GENERAZIONE EMBEDDING (se abilitato) ===
-        if embedding_enabled and embedding_generator:
+        if embedding_enabled and embedding_generator and cached_thumbnail is not None:
             self.log_message.emit(f"🧠 Generazione embedding per {image_path.name}...", "info")
 
             try:
@@ -559,7 +564,7 @@ class ProcessingWorker(QThread):
 
         llm_enabled = gen_tags_cfg.get('enabled') or gen_desc_cfg.get('enabled') or gen_title_cfg.get('enabled')
 
-        if llm_enabled and embedding_generator:
+        if llm_enabled and embedding_generator and cached_thumbnail is not None:
             self.log_message.emit(f"🤖 Generazione LLM auto-import per {image_path.name}...", "info")
 
             try:

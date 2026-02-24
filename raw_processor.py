@@ -485,31 +485,66 @@ class RAWProcessor:
         try:
             # Replica il metodo originale per compatibilità
             thumbnail = self._extract_preview_image(raw_path)
-            
+
             if thumbnail and max(thumbnail.size) >= 300:
                 thumbnail.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
                 return thumbnail
-            
+
             if self.is_raw_file(raw_path):
                 thumbnail = self._extract_jpeg_from_raw(raw_path, target_size)
                 if thumbnail:
                     return thumbnail
-            
+
             thumbnail = self._extract_thumbnail_embedded(raw_path)
             if thumbnail:
                 thumbnail = thumbnail.resize((target_size, target_size), Image.Resampling.LANCZOS)
                 return thumbnail
-            
+
             if not self.is_raw_file(raw_path):
                 thumbnail = self._extract_full_image_resized(raw_path, target_size)
                 if thumbnail:
                     return thumbnail
-            
+
+            # Ultimo tentativo: prova tag ExifTool alternativi (es. Nikon High-Efficiency)
+            if self.is_raw_file(raw_path):
+                thumbnail = self._extract_exiftool_any_preview(raw_path, target_size)
+                if thumbnail:
+                    return thumbnail
+
             return None
-            
+
         except Exception as e:
             logger.debug(f"Original method failed: {e}")
             return None
+
+    def _extract_exiftool_any_preview(self, file_path: Path, target_size: int) -> Optional[Image.Image]:
+        """Ultimo tentativo per formati RAW insoliti: prova tag ExifTool alternativi in sequenza.
+        Utile per Nikon High-Efficiency NEF, fotocamere recenti non ancora supportate da rawpy."""
+        tags_to_try = [
+            '-LargePreview',
+            '-SubIFD:PreviewImage',
+            '-OriginalRawImage',
+            '-PreviewTIFF',
+            '-RawThumbnailImage',
+        ]
+        for tag in tags_to_try:
+            try:
+                result = subprocess.run(
+                    ['exiftool', '-b', tag, str(file_path)],
+                    capture_output=True, timeout=15
+                )
+                if result.returncode == 0 and result.stdout and len(result.stdout) > 1000:
+                    try:
+                        thumbnail = Image.open(BytesIO(result.stdout)).convert('RGB')
+                        if max(thumbnail.size) > target_size:
+                            thumbnail.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
+                        logger.info(f"✅ ExifTool fallback ({tag}): {file_path.name} → {thumbnail.size}")
+                        return thumbnail
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        return None
     
     def _resize_with_quality(self, image: Image.Image, target_size: int, profile: dict) -> Image.Image:
         """Ridimensiona immagine con parametri di qualità del profilo"""
@@ -567,65 +602,27 @@ class RAWProcessor:
         return None
     
     def _extract_jpeg_from_raw(self, file_path: Path, target_size: int) -> Optional[Image.Image]:
-        """Estrai JPEG completo da RAW usando ExifTool per massima qualità"""
-        try:
-            # Crea file temporaneo per output JPEG
-            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as temp_file:
-                temp_path = temp_file.name
-            
-            # ExifTool: converti RAW a JPEG con alta qualità
-            result = subprocess.run([
-                'exiftool', 
-                '-b', 
-                '-JpgFromRaw',  # Estrai JPEG embedded da RAW
-                str(file_path),
-                f'-w', f'{temp_path}'  # Write to temp file
-            ], capture_output=True, timeout=30)
-            
-            # Se JpgFromRaw fallisce, prova con thumbnail più grande
-            if result.returncode != 0 or not Path(temp_path).exists():
-                result = subprocess.run([
-                    'exiftool', 
-                    '-b', 
-                    '-OtherImage',  # Altri embedded image
-                    str(file_path)
-                ], capture_output=True, timeout=30)
-                
-                if result.returncode == 0 and result.stdout and len(result.stdout) > 5000:
+        """Estrai JPEG completo da RAW usando ExifTool (legge stdout direttamente)."""
+        for tag in ('-JpgFromRaw', '-OtherImage'):
+            try:
+                result = subprocess.run(
+                    ['exiftool', '-b', tag, str(file_path)],
+                    capture_output=True, timeout=30
+                )
+                if result.returncode == 0 and result.stdout and len(result.stdout) > 1000:
                     try:
-                        thumbnail = Image.open(BytesIO(result.stdout))
+                        thumbnail = Image.open(BytesIO(result.stdout)).convert('RGB')
                         if max(thumbnail.size) > target_size:
                             thumbnail.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
-                        logger.debug(f"ExifTool OtherImage: {file_path.name} → {thumbnail.size}")
+                        logger.debug(f"ExifTool {tag}: {file_path.name} → {thumbnail.size}")
                         return thumbnail
-                    except:
+                    except Exception:
                         pass
-            
-            # Controlla se file JPEG temporaneo è stato creato
-            temp_path_obj = Path(temp_path)
-            if temp_path_obj.exists() and temp_path_obj.stat().st_size > 1000:
-                try:
-                    with Image.open(temp_path) as img:
-                        # Copia e ridimensiona
-                        thumbnail = img.copy().convert('RGB')
-                        if max(thumbnail.size) > target_size:
-                            thumbnail.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
-                        
-                        # Cleanup
-                        temp_path_obj.unlink()
-                        
-                        logger.debug(f"ExifTool JPEG from RAW: {file_path.name} → {thumbnail.size}")
-                        return thumbnail
-                finally:
-                    if temp_path_obj.exists():
-                        temp_path_obj.unlink()
-            
-            logger.debug(f"ExifTool JPEG from RAW failed for {file_path.name}")
-            return None
-            
-        except Exception as e:
-            logger.debug(f"ExifTool JPEG from RAW error for {file_path.name}: {e}")
-            return None
+            except Exception as e:
+                logger.debug(f"ExifTool {tag} error for {file_path.name}: {e}")
+
+        logger.debug(f"ExifTool JPEG from RAW failed for {file_path.name}")
+        return None
     
     def _extract_full_image_resized(self, file_path: Path, target_size: int) -> Optional[Image.Image]:
         """Estrai e ridimensiona immagine completa (per JPEG, TIFF, etc.)"""
