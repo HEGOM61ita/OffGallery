@@ -170,23 +170,27 @@ class XMPManagerExtended:
             logger.error(f"Errore lettura XMP format-aware per {file_path.name}: {e}")
             return {}
     
-    def write_xmp_by_format(self, file_path: Path, xmp_dict: Dict[str, Any], 
+    def write_xmp_by_format(self, file_path: Path, xmp_dict: Dict[str, Any],
                            mode: str = 'smart',
-                           dng_options: Dict[str, Any] = None) -> bool:
+                           dng_options: Dict[str, Any] = None,
+                           merge_existing_keywords: bool = False) -> bool:
         """
-        Scrive XMP usando strategia corretta per formato con supporto DNG avanzato
-        
+        Scrive XMP usando strategia corretta per formato con supporto DNG avanzato.
+
         Args:
             file_path: Path del file
             xmp_dict: Metadata da scrivere
             mode: 'smart' (default), 'embedded_only', 'sidecar_only', 'both'
             dng_options: Opzioni DNG avanzate: {'destination': 'embedded|sidecar', 'mode': 'merge|overwrite', 'smart_cleanup': bool}
-            
+            merge_existing_keywords: Se True, unisce keyword DB con quelli già nel file
+                                     (per Export Tab); se False, sostituisce completamente
+                                     (per sincronizzazione Gallery — DB è fonte di verità)
+
         Returns:
             True se almeno una scrittura è riuscita
         """
         category = self._get_file_category(file_path)
-        
+
         try:
             if category == 'dng':
                 # DNG: opzioni multiple
@@ -194,34 +198,37 @@ class XMPManagerExtended:
                     result = self.write_xmp_embedded(file_path, xmp_dict)
                     logger.info(f"DNG XMP embedded scritto per {file_path.name}: {'✓' if result else '❌'}")
                     return result
-                    
+
                 elif mode == 'sidecar_only':
-                    result = self.write_xmp_sidecar(file_path, xmp_dict)
+                    result = self.write_xmp_sidecar(file_path, xmp_dict,
+                                                    merge_existing_keywords=merge_existing_keywords)
                     logger.info(f"DNG XMP sidecar scritto per {file_path.name}: {'✓' if result else '❌'}")
                     return result
-                    
+
                 else:  # 'smart' or 'both'
                     emb_ok = self.write_xmp_embedded(file_path, xmp_dict)
-                    side_ok = self.write_xmp_sidecar(file_path, xmp_dict)
+                    side_ok = self.write_xmp_sidecar(file_path, xmp_dict,
+                                                     merge_existing_keywords=merge_existing_keywords)
                     logger.info(f"DNG XMP both scritto per {file_path.name}: embedded {'✓' if emb_ok else '❌'}, sidecar {'✓' if side_ok else '❌'}")
                     return emb_ok or side_ok
-                    
+
             elif category == 'raw':
                 # RAW: solo sidecar (mai embedded)
-                result = self.write_xmp_sidecar(file_path, xmp_dict)
+                result = self.write_xmp_sidecar(file_path, xmp_dict,
+                                                merge_existing_keywords=merge_existing_keywords)
                 logger.info(f"RAW XMP sidecar scritto per {file_path.name}: {'✓' if result else '❌'}")
                 return result
-                
+
             elif category == 'standard':
                 # Standard: solo embedded (mai sidecar)
                 result = self.write_xmp_embedded(file_path, xmp_dict)
                 logger.info(f"Standard XMP embedded scritto per {file_path.name}: {'✓' if result else '❌'}")
                 return result
-                
+
             else:
                 logger.error(f"Formato non supportato per scrittura XMP: {file_path.suffix}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"Errore scrittura XMP format-aware per {file_path.name}: {e}")
             return False
@@ -642,7 +649,9 @@ class XMPManagerExtended:
             'user_tags': 'XMP:Keywords',
             'ai_tags': 'XMP:Subject',
             'bioclip_tags': 'XMP:Keywords',
-            'ai_description': 'XMP:Description'
+            'ai_description': 'XMP:Description',
+            'rating': 'XMP-xmp:Rating',
+            'color_label': 'XMP-xmp:Label',
         }
 
         return key_mapping.get(key.lower(), f'XMP:{key}')

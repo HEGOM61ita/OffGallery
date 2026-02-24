@@ -21,12 +21,15 @@ from PyQt6.QtWidgets import QLayout, QSizePolicy
 from PyQt6.QtCore import QRect, QSize, Qt
 
 import json
+import logging
 import subprocess
 import platform
 import yaml
 import os
 import time
 from utils.paths import get_app_dir
+
+logger = logging.getLogger(__name__)
 from xmp_badge_manager import XMPBadgeIntegration
 # NUOVO: Import per supporto XMP
 try:
@@ -2076,26 +2079,28 @@ class ImageCard(QFrame):
             self._show_xmp_dialog("❌ Errore", f"Errore durante analisi XMP:\n{str(e)}")
     
     def _import_from_xmp_with_refresh(self, items):
-        """Importa tags e descrizione da XMP/Embedded - SOLO database reale"""
+        """Sincronizza XMP/Embedded → DB: titolo, descrizione, tag, stelle, colore."""
 
         # GUARD: Previeni chiamate multiple
         if hasattr(self, '_importing_xmp') and self._importing_xmp:
-            print("Export XMP già in corso, ignoro richiesta duplicata")
+            logger.warning("Import XMP già in corso, ignoro richiesta duplicata")
             return
 
         try:
             self._importing_xmp = True  # Flag per prevenire chiamate multiple
-            
+
             if not XMP_SUPPORT_AVAILABLE:
                 self._show_xmp_dialog("❌ Errore", "XMP Manager non disponibile")
                 return
-            
+
             # Conferma utente
             reply = QMessageBox.question(
                 self,
-                "📥 Importa da XMP",
-                f"Importare tags e descrizione da XMP/Embedded per {len(items)} elementi?\n\n" +
-                "⚠️ Questo sovrascriverà i dati esistenti nel database",
+                "📥 Sincronizzazione XMP → DB",
+                f"Sincronizzare XMP → DB per {len(items)} elementi?\n\n"
+                "Il file XMP/embedded è la fonte di verità.\n"
+                "Verranno aggiornati nel DB: titolo, descrizione, tag, stelle (rating), colore.\n\n"
+                "⚠️ I valori attuali nel database saranno sostituiti con quelli letti dal file.",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             
@@ -2255,9 +2260,7 @@ class ImageCard(QFrame):
                             item.image_data['tags'] = json.dumps(new_tags)
                             db_updated = True
                         except Exception as e:
-                            print(f"Errore scrittura tag su DB: {e}")
-                            import traceback
-                            traceback.print_exc()
+                            logger.error(f"Errore scrittura tag su DB: {e}", exc_info=True)
 
                     if new_description:
                         try:
@@ -2274,9 +2277,7 @@ class ImageCard(QFrame):
                             item.image_data['description'] = new_description
                             db_updated = True
                         except Exception as e:
-                            print(f"Errore scrittura descrizione su DB: {e}")
-                            import traceback
-                            traceback.print_exc()
+                            logger.error(f"Errore scrittura descrizione su DB: {e}", exc_info=True)
 
                     if new_title:
                         try:
@@ -2289,9 +2290,7 @@ class ImageCard(QFrame):
                                 item.image_data['title'] = new_title
                                 db_updated = True
                         except Exception as e:
-                            print(f"Errore aggiornamento title: {e}")
-                            import traceback
-                            traceback.print_exc()
+                            logger.error(f"Errore aggiornamento title: {e}", exc_info=True)
 
                     # Importa rating e color_label con update_metadata (campo lr_rating e color_label nel DB)
                     rating_color_kwargs = {}
@@ -2310,17 +2309,13 @@ class ImageCard(QFrame):
                                 item.image_data['color_label'] = new_color_label
                             db_updated = True
                         except Exception as e:
-                            print(f"Errore aggiornamento rating/color_label su DB: {e}")
-                            import traceback
-                            traceback.print_exc()
+                            logger.error(f"Errore aggiornamento rating/color_label su DB: {e}", exc_info=True)
 
                     if db_updated:
                         success_count += 1
 
                 except Exception as e:
-                    print(f"Errore import XMP per elemento {i+1}: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    logger.error(f"Errore import XMP per elemento {i+1}: {e}", exc_info=True)
                     error_count += 1
             
             # Refresh automatico dopo import
@@ -2329,31 +2324,29 @@ class ImageCard(QFrame):
                 self._refresh_after_database_operation(updated_items, "xmp_import")
             
             # Report risultati
-            result_msg = f"Import XMP completato!\n\n"
+            result_msg = f"Sincronizzazione XMP → DB completata!\n\n"
             result_msg += f"✅ Aggiornati: {success_count}\n"
             if no_xmp_count > 0:
-                result_msg += f"⚠️ Senza XMP: {no_xmp_count}\n"
+                result_msg += f"⚠️ Senza dati XMP: {no_xmp_count}\n"
             if error_count > 0:
                 result_msg += f"❌ Errori: {error_count}\n"
-            
-            self._show_xmp_dialog("📋 Import Completato", result_msg)
+
+            self._show_xmp_dialog("📋 Sincronizzazione completata", result_msg)
                 
         except Exception as e:
-            print(f"Errore globale import XMP: {e}")
-            import traceback
-            traceback.print_exc()
-            self._show_xmp_dialog("❌ Errore", f"Errore durante import XMP:\n{str(e)}")
+            logger.error(f"Errore globale sincronizzazione XMP → DB: {e}", exc_info=True)
+            self._show_xmp_dialog("❌ Errore", f"Errore durante sincronizzazione XMP → DB:\n{str(e)}")
         finally:
             # Rimuovi flag anche in caso di errore
             if hasattr(self, '_importing_xmp'):
                 delattr(self, '_importing_xmp')
 
     def _export_to_xmp_with_refresh(self, items):
-        """Esporta title, tags e descrizione da DB a XMP/Embedded"""
+        """Sincronizza DB → XMP/Embedded: titolo, descrizione, tag, BioCLIP, stelle, colore."""
 
         # GUARD: Previeni chiamate multiple
         if hasattr(self, '_exporting_xmp') and self._exporting_xmp:
-            print("Export XMP già in corso, ignoro richiesta duplicata")
+            logger.warning("Export XMP già in corso, ignoro richiesta duplicata")
             return
 
         try:
@@ -2366,13 +2359,13 @@ class ImageCard(QFrame):
             # Conferma utente
             reply = QMessageBox.question(
                 self,
-                "📤 Esporta a XMP",
-                f"Esportare title, tags e descrizione da DB a XMP per {len(items)} elementi?\n\n"
-                "ℹ️ Campi scritti: Title, Descrizione, Keywords (tags), Tassonomia BioCLIP\n"
-                "🛡️ Preservati: tutti i namespace Lightroom (crs:, lr:Rating, lr:Label,\n"
-                "   xmpMM:, photoshop:) e qualsiasi altro dato non gestito da OffGallery.\n\n"
-                "⚠️ I keyword DB vengono uniti ai keyword già presenti nel sidecar.\n"
-                "   Title e Descrizione DB sovrascrivono quelli nel sidecar.",
+                "📤 Sincronizzazione DB → XMP",
+                f"Sincronizzare DB → XMP per {len(items)} elementi?\n\n"
+                "Il database OffGallery è la fonte di verità.\n"
+                "Verranno scritti nel file XMP/embedded: titolo, descrizione,\n"
+                "tag, tassonomia BioCLIP, stelle (rating), colore.\n\n"
+                "🛡️ I namespace non gestiti da OffGallery (crs:, xmpMM:, photoshop:, ecc.)\n"
+                "   rimangono intatti nel file.",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
 
@@ -2408,6 +2401,8 @@ class ImageCard(QFrame):
                     title = item.image_data.get('title', '') or ''
                     description = item.image_data.get('description', '') or ''
                     tags_raw = item.image_data.get('tags', '[]')
+                    rating = item.image_data.get('lr_rating') or item.image_data.get('rating')
+                    color_label = item.image_data.get('color_label', '') or ''
 
                     # Parsing tags da JSON
                     tags = []
@@ -2421,11 +2416,11 @@ class ImageCard(QFrame):
                             tags = []
 
                     # Verifica se ci sono dati da esportare
-                    if not title and not description and not tags:
+                    if not title and not description and not tags and rating is None and not color_label:
                         skipped_count += 1
                         continue
 
-                    # Prepara dizionario XMP
+                    # Prepara dizionario XMP (sync completo — DB è fonte di verità)
                     xmp_dict = {}
                     if title:
                         xmp_dict['title'] = title
@@ -2433,9 +2428,18 @@ class ImageCard(QFrame):
                         xmp_dict['description'] = description
                     if tags:
                         xmp_dict['keywords'] = tags if isinstance(tags, list) else [tags]
+                    if rating is not None:
+                        try:
+                            xmp_dict['rating'] = int(rating)
+                        except (ValueError, TypeError):
+                            pass
+                    if color_label:
+                        xmp_dict['color_label'] = color_label
 
-                    # Scrivi XMP usando il manager
-                    success = xmp_manager.write_xmp_by_format(filepath, xmp_dict)
+                    # Sync DB→XMP: merge_existing_keywords=False — il DB è la fonte di verità
+                    success = xmp_manager.write_xmp_by_format(
+                        filepath, xmp_dict, merge_existing_keywords=False
+                    )
 
                     # Scrivi BioCLIP HierarchicalSubject se presente
                     if success:
@@ -2449,7 +2453,7 @@ class ImageCard(QFrame):
                                     if hier_path:
                                         xmp_manager.write_hierarchical_bioclip(filepath, hier_path)
                             except Exception as e:
-                                print(f"⚠️ Errore HierarchicalSubject per {filepath.name}: {e}")
+                                logger.warning(f"Errore HierarchicalSubject per {filepath.name}: {e}")
 
                     if success:
                         success_count += 1
@@ -2457,26 +2461,22 @@ class ImageCard(QFrame):
                         error_count += 1
 
                 except Exception as e:
-                    print(f"Errore export XMP per elemento {i+1}: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    logger.error(f"Errore sincronizzazione DB→XMP per elemento {i+1}: {e}", exc_info=True)
                     error_count += 1
 
             # Report risultati
-            result_msg = f"Export XMP completato!\n\n"
-            result_msg += f"✅ Esportati: {success_count}\n"
+            result_msg = "Sincronizzazione DB → XMP completata!\n\n"
+            result_msg += f"✅ Sincronizzati: {success_count}\n"
             if skipped_count > 0:
-                result_msg += f"⚠️ Saltati (nessun dato): {skipped_count}\n"
+                result_msg += f"⚠️ Saltati (nessun dato nel DB): {skipped_count}\n"
             if error_count > 0:
                 result_msg += f"❌ Errori: {error_count}\n"
 
-            self._show_xmp_dialog("📋 Export Completato", result_msg)
+            self._show_xmp_dialog("📋 Sincronizzazione completata", result_msg)
 
         except Exception as e:
-            print(f"Errore globale export XMP: {e}")
-            import traceback
-            traceback.print_exc()
-            self._show_xmp_dialog("❌ Errore", f"Errore durante export XMP:\n{str(e)}")
+            logger.error(f"Errore globale sincronizzazione DB → XMP: {e}", exc_info=True)
+            self._show_xmp_dialog("❌ Errore", f"Errore durante sincronizzazione DB → XMP:\n{str(e)}")
         finally:
             # Rimuovi flag anche in caso di errore
             if hasattr(self, '_exporting_xmp'):
