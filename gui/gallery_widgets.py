@@ -2393,6 +2393,9 @@ class ImageCard(QFrame):
             error_count = 0
             skipped_count = 0
 
+            # Ottieni DB manager per leggere dati freschi prima della scrittura
+            db_manager = self._get_database_manager()
+
             for i, item in enumerate(items):
                 try:
                     # Check filepath
@@ -2405,7 +2408,15 @@ class ImageCard(QFrame):
                         error_count += 1
                         continue
 
-                    # Estrai metadati dal DB (da image_data)
+                    # Ricarica image_data dal DB prima di ogni scrittura:
+                    # image_data potrebbe essere stale (es. tags aggiunti dopo l'ultima ricerca).
+                    # Il DB è la fonte di verità per l'export.
+                    if db_manager:
+                        fresh_data = db_manager.get_image_by_filepath(str(filepath))
+                        if fresh_data:
+                            item.image_data.update(fresh_data)
+
+                    # Estrai metadati dal DB (sempre freschi)
                     title = item.image_data.get('title', '') or ''
                     description = item.image_data.get('description', '') or ''
                     tags_raw = item.image_data.get('tags', '[]')
