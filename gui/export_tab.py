@@ -298,54 +298,38 @@ class ExportTab(QWidget):
         
         layout.addWidget(csv_section)
 
-        # Sezione: Opzioni XMP
+        # Sezione: Opzioni XMP — controllo indipendente per campo
         xmp_section = QGroupBox("🏷️ Export XMP")
         xmp_layout = QVBoxLayout(xmp_section)
+        xmp_layout.setSpacing(5)
 
-        self.xmp_preserve_existing = QCheckBox("Preserva metadati XMP esistenti")
-        self.xmp_preserve_existing.setChecked(True)
-        self.xmp_preserve_existing.setToolTip(
-            "Attivo: keyword merged, Title/Descrizione/Rating non sovrascritti se già presenti.\n"
-            "Disattivo: tutti i campi gestiti da OffGallery vengono sovrascritti."
+        self.xmp_merge_keywords = QCheckBox("Unisci keywords con esistenti nel sidecar")
+        self.xmp_merge_keywords.setChecked(True)
+        self.xmp_merge_keywords.setToolTip(
+            "Attivo: i keyword del DB vengono aggiunti a quelli già presenti nel sidecar.\n"
+            "Disattivo: i keyword esistenti nel sidecar vengono cancellati e riscritti solo con quelli del DB."
         )
 
-        # Sub-gruppo: sovrascrittura selettiva per campo (visibile solo con preserve attivo)
-        self.xmp_override_frame = QFrame()
-        override_layout = QVBoxLayout(self.xmp_override_frame)
-        override_layout.setSpacing(3)
-        override_layout.setContentsMargins(20, 2, 0, 2)
-
-        override_label = QLabel("Sovrascrivi comunque (anche se già presente nel sidecar):")
-        override_label.setStyleSheet("color: #aaa; font-size: 10px;")
-        override_layout.addWidget(override_label)
-
-        self.xmp_overwrite_title = QCheckBox("Titolo")
-        self.xmp_overwrite_title.setChecked(False)
-        self.xmp_overwrite_title.setToolTip("Sovrascrive XMP-dc:Title anche se il sidecar ne ha già uno")
-
-        self.xmp_overwrite_description = QCheckBox("Descrizione")
-        self.xmp_overwrite_description.setChecked(False)
-        self.xmp_overwrite_description.setToolTip("Sovrascrive XMP-dc:Description anche se il sidecar ne ha già una")
-
-        self.xmp_overwrite_keywords = QCheckBox("Keywords (sostituisce invece di unire)")
-        self.xmp_overwrite_keywords.setChecked(False)
-        self.xmp_overwrite_keywords.setToolTip(
-            "Cancella i keyword esistenti nel sidecar e scrive solo quelli del DB.\n"
-            "Di default i keyword DB vengono uniti a quelli già presenti."
+        self.xmp_preserve_title = QCheckBox("Preserva Title se già presente nel sidecar")
+        self.xmp_preserve_title.setChecked(True)
+        self.xmp_preserve_title.setToolTip(
+            "Attivo: se il sidecar ha già un titolo, non viene sovrascritto.\n"
+            "Disattivo: il Title del DB sovrascrive sempre quello nel sidecar."
         )
 
-        for cb in [self.xmp_overwrite_title, self.xmp_overwrite_description, self.xmp_overwrite_keywords]:
-            override_layout.addWidget(cb)
-
-        # Collega stato preserve_existing all'abilitazione dei sotto-controlli
-        self.xmp_preserve_existing.stateChanged.connect(self._update_xmp_override_state)
+        self.xmp_preserve_description = QCheckBox("Preserva Descrizione se già presente nel sidecar")
+        self.xmp_preserve_description.setChecked(True)
+        self.xmp_preserve_description.setToolTip(
+            "Attivo: se il sidecar ha già una descrizione, non viene sovrascritta.\n"
+            "Disattivo: la Descrizione del DB sovrascrive sempre quella nel sidecar."
+        )
 
         # Nota: namespace Lightroom sempre preservati
         note = QLabel("✓ Namespace Lightroom (crs:, lr:, xmpMM:) sempre preservati")
         note.setStyleSheet("color: gray; font-style: italic; font-size: 10px;")
 
-        xmp_layout.addWidget(self.xmp_preserve_existing)
-        xmp_layout.addWidget(self.xmp_override_frame)
+        for cb in [self.xmp_merge_keywords, self.xmp_preserve_title, self.xmp_preserve_description]:
+            xmp_layout.addWidget(cb)
         xmp_layout.addWidget(note)
 
         layout.addWidget(xmp_section)
@@ -370,11 +354,6 @@ class ExportTab(QWidget):
         # Sezione AI/Scoring RIMOSSA - Non necessaria per export standard
 
         return box
-
-    def _update_xmp_override_state(self):
-        """Abilita/disabilita i controlli di sovrascrittura per campo in base a preserve_existing."""
-        preserve = self.xmp_preserve_existing.isChecked()
-        self.xmp_override_frame.setEnabled(preserve)
 
     # ------------------------------------------------------------------
     # SELECTION (Esistente)
@@ -484,32 +463,23 @@ class ExportTab(QWidget):
                 else f"directory: {options['path']['single_dir']}"
             )
 
-            # Avviso modalità XMP se pertinente
+            # Riepilogo comportamento per campo
             xmp_mode_note = ""
             if export_xmp:
-                preserve = options['advanced']['xmp_preserve_existing']
-                if preserve:
-                    ow_kw = options['advanced'].get('xmp_overwrite_keywords', False)
-                    ow_ti = options['advanced'].get('xmp_overwrite_title', False)
-                    ow_de = options['advanced'].get('xmp_overwrite_description', False)
-                    kw_mode = "sostituisce" if ow_kw else "merged con esistenti"
-                    ti_mode = "SOVRASCRIVE" if ow_ti else "preservato se presente"
-                    de_mode = "SOVRASCRIVE" if ow_de else "preservata se presente"
-                    xmp_mode_note = (
-                        f"\n\n🛡️ Modalità PRESERVA — sovrascritture per campo:\n"
-                        f"  • Keywords: {kw_mode}\n"
-                        f"  • Title: {ti_mode}\n"
-                        f"  • Descrizione: {de_mode}\n"
-                        f"  • Rating: preservato se già presente nel sidecar\n"
-                        f"  • Namespace Lightroom (crs:, lr:, xmpMM:): sempre preservati"
-                    )
-                else:
-                    xmp_mode_note = (
-                        "\n\n⚠️ Modalità SOSTITUZIONE (preserve disattivo):\n"
-                        "  • Keyword esistenti nel sidecar verranno cancellati e riscritti\n"
-                        "  • Title/Descrizione/Rating saranno sovrascritti\n"
-                        "  • Namespace Lightroom (crs:, lr:, xmpMM:): preservati comunque"
-                    )
+                merge_kw = options['advanced'].get('xmp_merge_keywords', True)
+                pres_ti  = options['advanced'].get('xmp_preserve_title', True)
+                pres_de  = options['advanced'].get('xmp_preserve_description', True)
+                kw_mode = "unisce con esistenti" if merge_kw else "sostituisce esistenti"
+                ti_mode = "preservato se presente" if pres_ti else "sovrascritto"
+                de_mode = "preservata se presente" if pres_de else "sovrascritta"
+                xmp_mode_note = (
+                    f"\n\n📋 Comportamento per campo:\n"
+                    f"  • Keywords: {kw_mode}\n"
+                    f"  • Title: {ti_mode}\n"
+                    f"  • Descrizione: {de_mode}\n"
+                    f"  • Rating: preservato se già presente nel sidecar\n"
+                    f"  • Namespace Lightroom (crs:, lr:, xmpMM:): sempre preservati"
+                )
 
             reply = QMessageBox.question(
                 self,
@@ -869,7 +839,8 @@ class ExportTab(QWidget):
             import subprocess
             cmd = ["exiftool", "-overwrite_original"]
 
-            if not options['advanced']['xmp_preserve_existing']:
+            # Embedded: se merge_keywords disattivo, azzera Subject prima di riscrivere
+            if not options['advanced'].get('xmp_merge_keywords', True):
                 cmd.append("-XMP-dc:Subject=")
 
             if keywords:
@@ -968,11 +939,10 @@ class ExportTab(QWidget):
                     output_dir.mkdir(parents=True, exist_ok=True)
                 sidecar_path = output_dir / f"{image_file.stem}.xmp"
 
-            # Calcola comportamento per campo in base alle opzioni
-            preserve = options['advanced']['xmp_preserve_existing']
-            do_merge_keywords = preserve and not options['advanced'].get('xmp_overwrite_keywords', False)
-            do_preserve_title = preserve and not options['advanced'].get('xmp_overwrite_title', False)
-            do_preserve_description = preserve and not options['advanced'].get('xmp_overwrite_description', False)
+            # Comportamento per campo — controllo indipendente
+            do_merge_keywords = options['advanced'].get('xmp_merge_keywords', True)
+            do_preserve_title = options['advanced'].get('xmp_preserve_title', True)
+            do_preserve_description = options['advanced'].get('xmp_preserve_description', True)
 
             # Merge keywords o sostituzione
             final_keywords = []
@@ -1006,10 +976,9 @@ class ExportTab(QWidget):
                 for kw in final_keywords:
                     cmd.append(f"-XMP-dc:Subject+={kw}")
 
-            # Leggi campi scalari esistenti nel sidecar se è attiva una qualsiasi forma di preserve
+            # Leggi campi scalari esistenti nel sidecar se almeno un campo è in modalità preserva
             existing_scalar = {}
-            needs_scalar_read = preserve and sidecar_path.exists()
-            if needs_scalar_read:
+            if (do_preserve_title or do_preserve_description) and sidecar_path.exists():
                 existing_scalar = self._read_existing_scalar_fields_from_xmp(sidecar_path)
 
             # TITLE
@@ -1017,7 +986,8 @@ class ExportTab(QWidget):
             if not title:
                 title = image_item.image_data.get('filename', '').split('.')[0]
             if title:
-                # Scrivi se: preserve disattivo, O sovrascrittura esplicita titolo, O sidecar non ha titolo
+                # Preserva: salta se il sidecar ha già un titolo
+                # Sovrascrivi: scrive sempre
                 if not do_preserve_title or not existing_scalar.get('title'):
                     cmd.append(f"-XMP-dc:Title={title}")
 
@@ -1025,15 +995,16 @@ class ExportTab(QWidget):
             description = image_item.image_data.get('description', '')
             if description:
                 description = description.replace("x-default ", "").strip()
-                # Scrivi se: preserve disattivo, O sovrascrittura esplicita descrizione, O sidecar non ha descrizione
+                # Preserva: salta se il sidecar ha già una descrizione
+                # Sovrascrivi: scrive sempre
                 if not do_preserve_description or not existing_scalar.get('description'):
                     cmd.append(f"-XMP-dc:Description={description}")
 
-            # RATING — sempre preservato se preserve attivo e sidecar ha già un valore
-            # (non c'è controllo per campo per il rating: si comporta come preserve globale)
+            # RATING — preservato se il sidecar ha già un valore (comportamento fisso, non configurabile)
             rating = image_item.image_data.get('lr_rating') or image_item.image_data.get('rating')
             if rating is not None and 1 <= int(rating) <= 5:
-                if not preserve or existing_scalar.get('rating') is None:
+                # Scrivi solo se il sidecar non ha già un rating
+                if existing_scalar.get('rating') is None:
                     cmd.append(f"-XMP-xmp:Rating={int(rating)}")
 
             # BIOCLIP HIERARCHICAL TAXONOMY → HierarchicalSubject
@@ -1304,12 +1275,10 @@ class ExportTab(QWidget):
             "advanced": {
                 # CSV options
                 "csv_include_gps": self.csv_include_gps.isChecked(),
-                # XMP options
-                "xmp_preserve_existing": self.xmp_preserve_existing.isChecked(),
-                # Sovrascrittura selettiva per campo (rilevante solo con preserve_existing=True)
-                "xmp_overwrite_title": self.xmp_overwrite_title.isChecked(),
-                "xmp_overwrite_description": self.xmp_overwrite_description.isChecked(),
-                "xmp_overwrite_keywords": self.xmp_overwrite_keywords.isChecked(),
+                # XMP options — controllo indipendente per campo
+                "xmp_merge_keywords": self.xmp_merge_keywords.isChecked(),
+                "xmp_preserve_title": self.xmp_preserve_title.isChecked(),
+                "xmp_preserve_description": self.xmp_preserve_description.isChecked(),
                 "xmp_lr_compatibility": True,  # Sempre attivo - standard integrato
                 # Performance options
                 "batch_processing": self.batch_processing.isChecked(),
