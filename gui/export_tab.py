@@ -952,7 +952,7 @@ class ExportTab(QWidget):
                 except Exception as e:
                     print(f"⚠️ Errore scrittura BioCLIP HierarchicalSubject embedded: {e}")
 
-            # GERARCHIA GEOGRAFICA → HierarchicalSubject (solo Geo|, separato da AI|Taxonomy)
+            # GERARCHIA GEOGRAFICA → HierarchicalSubject (solo GeOFF|, separato da AI|Taxonomy)
             geo_hierarchy = image_item.image_data.get('geo_hierarchy', '')
             if geo_hierarchy:
                 try:
@@ -968,7 +968,7 @@ class ExportTab(QWidget):
                                 hs = hier_data[0].get('HierarchicalSubject', [])
                                 if isinstance(hs, str):
                                     hs = [hs]
-                                existing_hier_geo = [s for s in hs if not s.startswith('Geo|')]
+                                existing_hier_geo = [s for s in hs if not s.startswith('GeOFF|')]
                     except Exception:
                         pass
                     cmd.append("-XMP-lr:HierarchicalSubject=")
@@ -1136,7 +1136,7 @@ class ExportTab(QWidget):
                 except Exception as e:
                     print(f"⚠️ Errore scrittura BioCLIP HierarchicalSubject: {e}")
 
-            # GERARCHIA GEOGRAFICA → HierarchicalSubject sidecar (solo Geo|, separato da AI|Taxonomy)
+            # GERARCHIA GEOGRAFICA → HierarchicalSubject sidecar (solo GeOFF|, separato da AI|Taxonomy)
             geo_hierarchy = image_item.image_data.get('geo_hierarchy', '')
             if geo_hierarchy:
                 try:
@@ -1153,7 +1153,7 @@ class ExportTab(QWidget):
                                     hs = hier_data[0].get('HierarchicalSubject', [])
                                     if isinstance(hs, str):
                                         hs = [hs]
-                                    existing_hier_geo = [s for s in hs if not s.startswith('Geo|')]
+                                    existing_hier_geo = [s for s in hs if not s.startswith('GeOFF|')]
                         except Exception:
                             pass
                     cmd.append("-XMP-lr:HierarchicalSubject=")

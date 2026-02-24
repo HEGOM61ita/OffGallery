@@ -744,7 +744,7 @@ class ImageCard(QFrame):
             geo_raw = self.image_data.get('geo_hierarchy', '')
             if geo_raw:
                 try:
-                    parts = [p for p in geo_raw.split('|') if p and p != 'Geo']
+                    parts = [p for p in geo_raw.split('|') if p and p != 'GeOFF']
                     if parts:
                         hierarchy = " > ".join(parts)
                         lines.append("🌍 GEO")
@@ -2213,7 +2213,7 @@ class ImageCard(QFrame):
                                     if item_val is not None:
                                         item_str = str(item_val).strip()
                                         # Filtra via rami AI|Taxonomy (BioCLIP gestito internamente)
-                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|Taxonomy') and not item_str.startswith('Geo|'):
+                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|Taxonomy') and not item_str.startswith('GeOFF|'):
                                             new_tags.append(item_str)
                             elif isinstance(value, str):
                                 separators = [',', '|', ';', '\n']
@@ -2227,7 +2227,7 @@ class ImageCard(QFrame):
 
                                 for tag in current_tags:
                                     # Filtra via rami AI|Taxonomy
-                                    if tag and tag not in new_tags and not tag.startswith('AI|Taxonomy') and not tag.startswith('Geo|'):
+                                    if tag and tag not in new_tags and not tag.startswith('AI|Taxonomy') and not tag.startswith('GeOFF|'):
                                         new_tags.append(tag)
                     
                     # Estrai descrizione
@@ -2507,7 +2507,7 @@ class ImageCard(QFrame):
                             try:
                                 xmp_manager.write_hierarchical_geo(filepath, geo_hierarchy)
                             except Exception as e:
-                                logger.warning(f"Errore HierarchicalSubject Geo per {filepath.name}: {e}")
+                                logger.warning(f"Errore HierarchicalSubject GeOFF per {filepath.name}: {e}")
 
                     if success:
                         success_count += 1
@@ -2596,7 +2596,7 @@ class ImageCard(QFrame):
                                 for item in value:
                                     if item is not None:
                                         item_str = str(item).strip()
-                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|Taxonomy') and not item_str.startswith('Geo|'):
+                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|Taxonomy') and not item_str.startswith('GeOFF|'):
                                             new_tags.append(item_str)
                             elif isinstance(value, str):
                                 separators = [',', '|', ';', '\n']
@@ -2609,7 +2609,7 @@ class ImageCard(QFrame):
                                     current_tags = expanded_tags
 
                                 for tag in current_tags:
-                                    if tag and tag not in new_tags and not tag.startswith('AI|Taxonomy') and not tag.startswith('Geo|'):
+                                    if tag and tag not in new_tags and not tag.startswith('AI|Taxonomy') and not tag.startswith('GeOFF|'):
                                         new_tags.append(tag)
                     
                     # Descrizione da XMP
@@ -2879,7 +2879,7 @@ class ImageCard(QFrame):
                     for item_val in value:
                         if item_val is not None:
                             item_str = str(item_val).strip()
-                            if item_str and not item_str.startswith('AI|Taxonomy') and not item_str.startswith('Geo|'):
+                            if item_str and not item_str.startswith('AI|Taxonomy') and not item_str.startswith('GeOFF|'):
                                 tags.add(item_str)
                 elif isinstance(value, str):
                     # Prima prova a parsare come lista (JSON o Python repr)

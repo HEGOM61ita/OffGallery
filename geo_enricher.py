@@ -3,8 +3,8 @@ Geo Enricher - Arricchimento geografico offline da coordinate GPS.
 Usa reverse_geocoder (offline, dati GeoNames bundled) per ottenere
 città/regione/paese e costruire gerarchia XMP compatibile Lightroom.
 
-Struttura gerarchia: Geo|{Continente}|{Paese}|{Regione}|{Città}
-Esempio: Geo|Europe|Italy|Toscana|Firenze
+Struttura gerarchia: GeOFF|{Continente}|{Paese}|{Regione}|{Città}
+Esempio: GeOFF|Europe|Italy|Toscana|Firenze
 """
 
 import logging
@@ -151,7 +151,7 @@ def get_geo_hierarchy(lat: float, lon: float) -> Optional[str]:
         lon: Longitudine decimale
 
     Returns:
-        Stringa tipo 'Geo|Europe|Italy|Toscana|Firenze' o None se fallisce
+        Stringa tipo 'GeOFF|Europe|Italy|Toscana|Firenze' o None se fallisce
     """
     try:
         import reverse_geocoder as rg  # import lazy: caricato solo durante il processing
@@ -170,7 +170,7 @@ def get_geo_hierarchy(lat: float, lon: float) -> Optional[str]:
         continent = CC_TO_CONTINENT.get(cc, 'World')
 
         # Costruisci gerarchia eliminando livelli vuoti o ridondanti
-        parts = ['Geo', continent, country]
+        parts = ['GeOFF', continent, country]
         if admin1 and admin1.lower() != country.lower():
             parts.append(admin1)
         if city and city.lower() != admin1.lower() and city.lower() != country.lower():
@@ -192,14 +192,14 @@ def get_geo_hierarchy(lat: float, lon: float) -> Optional[str]:
 def get_location_hint(geo_hierarchy: str) -> Optional[str]:
     """
     Ritorna una stringa di contesto leggibile per il LLM.
-    Esempio: 'Geo|Europe|Italy|Toscana|Firenze' → 'Firenze, Toscana, Italy'
+    Esempio: 'GeOFF|Europe|Italy|Toscana|Firenze' → 'Firenze, Toscana, Italy'
 
     Prende gli ultimi 3 livelli significativi (escluso 'Geo') in ordine inverso.
     """
     if not geo_hierarchy:
         return None
     try:
-        parts = [p for p in geo_hierarchy.split('|') if p and p != 'Geo']
+        parts = [p for p in geo_hierarchy.split('|') if p and p != 'GeOFF']
         if not parts:
             return None
         # Ultimi 3 livelli in ordine inverso: città, regione, paese
@@ -213,12 +213,12 @@ def get_location_hint(geo_hierarchy: str) -> Optional[str]:
 def get_geo_leaf(geo_hierarchy: str) -> Optional[str]:
     """
     Ritorna il nodo foglia della gerarchia (città o luogo più specifico).
-    Esempio: 'Geo|Europe|Italy|Toscana|Firenze' → 'Firenze'
+    Esempio: 'GeOFF|Europe|Italy|Toscana|Firenze' → 'Firenze'
     """
     if not geo_hierarchy:
         return None
     try:
-        parts = [p for p in geo_hierarchy.split('|') if p and p != 'Geo']
+        parts = [p for p in geo_hierarchy.split('|') if p and p != 'GeOFF']
         return parts[-1] if parts else None
     except Exception:
         return None

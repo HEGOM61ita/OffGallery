@@ -1061,7 +1061,7 @@ class XMPManagerExtended:
 
     def write_hierarchical_geo(self, file_path: Path, geo_hierarchy: str) -> bool:
         """Scrive gerarchia geografica nel campo HierarchicalSubject XMP.
-        Preserva keyword gerarchiche non-Geo esistenti, sovrascrive solo ramo Geo|.
+        Preserva keyword gerarchiche non-GeOFF esistenti, sovrascrive solo ramo GeOFF|.
         NON scrive in dc:Subject: la città è già nei tag LLM gestiti da processing_tab.
         """
         if not self.exiftool_available or not geo_hierarchy:
@@ -1076,7 +1076,7 @@ class XMPManagerExtended:
             else:
                 target = file_path
 
-            # Leggi HierarchicalSubject esistenti (filtra ramo Geo| precedente)
+            # Leggi HierarchicalSubject esistenti (filtra ramo GeOFF| precedente)
             existing_hier = []
             try:
                 result = subprocess.run(
@@ -1090,12 +1090,12 @@ class XMPManagerExtended:
                         hs = data[0].get('HierarchicalSubject', [])
                         if isinstance(hs, str):
                             hs = [hs]
-                        # Preserva tutto tranne il ramo Geo|
-                        existing_hier = [s for s in hs if not s.startswith('Geo|')]
+                        # Preserva tutto tranne il ramo GeOFF|
+                        existing_hier = [s for s in hs if not s.startswith('GeOFF|')]
             except Exception:
                 pass
 
-            # Scrivi: cancella ramo Geo| e riscrivi con il nuovo percorso
+            # Scrivi: cancella ramo GeOFF| e riscrivi con il nuovo percorso
             cmd = [*XMPManagerExtended._exiftool_cmd, '-overwrite_original', '-XMP-lr:HierarchicalSubject=']
             for subject in existing_hier:
                 cmd.append(f'-XMP-lr:HierarchicalSubject+={subject}')
@@ -1104,11 +1104,11 @@ class XMPManagerExtended:
 
             result = subprocess.run(cmd, capture_output=True, timeout=15)
             if result.returncode == 0:
-                logger.info(f"✓ HierarchicalSubject Geo scritto: {target.name} → {geo_hierarchy}")
+                logger.info(f"✓ HierarchicalSubject GeOFF scritto: {target.name} → {geo_hierarchy}")
                 return True
             else:
                 error_msg = result.stderr.decode() if result.stderr else "Unknown"
-                logger.error(f"Errore HierarchicalSubject Geo: {error_msg}")
+                logger.error(f"Errore HierarchicalSubject GeOFF: {error_msg}")
                 return False
 
         except Exception as e:

@@ -784,8 +784,10 @@ class RAWProcessor:
         mapped['datetime_modified'] = self._normalize_datetime(get_val(['FileModifyDate']))
         
         # ===== GPS =====
-        mapped['gps_latitude'] = self._parse_gps_coordinate(get_val(['GPSLatitude']))
-        mapped['gps_longitude'] = self._parse_gps_coordinate(get_val(['GPSLongitude']))
+        lat_ref = get_val(['GPSLatitudeRef'])
+        lon_ref = get_val(['GPSLongitudeRef'])
+        mapped['gps_latitude'] = self._parse_gps_coordinate(get_val(['GPSLatitude']), lat_ref)
+        mapped['gps_longitude'] = self._parse_gps_coordinate(get_val(['GPSLongitude']), lon_ref)
         mapped['gps_altitude'] = self._parse_numeric(get_val(['GPSAltitude']))
         mapped['gps_direction'] = self._parse_numeric(get_val(['GPSDirection', 'GPSImgDirection']))
         
@@ -1125,22 +1127,49 @@ class RAWProcessor:
             
             return None
     
-    def _parse_gps_coordinate(self, gps_value) -> Optional[float]:
-        """Converte coordinata GPS in decimali"""
+    def _parse_gps_coordinate(self, gps_value, ref=None) -> Optional[float]:
+        """Converte coordinata GPS in decimali (supporta decimale e DMS ExifTool).
+
+        Gestisce il formato DMS di ExifTool: "41 deg 3' 14.70""
+        e applica il segno corretto in base al riferimento (S/W → negativo).
+        """
         if not gps_value:
             return None
         try:
-            # Se già in formato decimale
+            import re
+
+            decimal = None
+
+            # Se già in formato numerico
             if isinstance(gps_value, (int, float)):
-                return float(gps_value)
-            
-            # Se stringa, prova a parsare
-            if isinstance(gps_value, str):
-                # Rimuovi caratteri non numerici eccetto punto e segno
-                clean_val = ''.join(c for c in gps_value if c.isdigit() or c in '.-')
-                if clean_val:
-                    return float(clean_val)
-                    
+                decimal = float(gps_value)
+
+            elif isinstance(gps_value, str):
+                gps_str = gps_value.strip()
+
+                # Formato DMS ExifTool: "41 deg 3' 14.70""
+                dms_match = re.match(
+                    r'(\d+(?:\.\d+)?)\s+deg\s+(\d+(?:\.\d+)?)[\'′]\s*([\d.]+)[\"″]?',
+                    gps_str
+                )
+                if dms_match:
+                    d = float(dms_match.group(1))
+                    m = float(dms_match.group(2))
+                    s = float(dms_match.group(3))
+                    decimal = d + m / 60.0 + s / 3600.0
+                else:
+                    # Prova come valore decimale diretto
+                    decimal = float(gps_str)
+
+            if decimal is None:
+                return None
+
+            # Applica segno in base al riferimento emisferiale (S o W → negativo)
+            if ref and str(ref).strip().upper() in ('S', 'W'):
+                decimal = -abs(decimal)
+
+            return decimal
+
         except:
             pass
         return None

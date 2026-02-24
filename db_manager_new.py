@@ -121,7 +121,7 @@ class DatabaseManager:
                 -- ===== TAGGING =====
                 tags TEXT,                     -- Tags LLM + user (JSON array, NO bioclip)
                 bioclip_taxonomy TEXT,          -- Tassonomia BioCLIP completa JSON [kingdom,phylum,class,order,family,genus,species]
-                geo_hierarchy TEXT,             -- Gerarchia geografica 'Geo|Continent|Country|Region|City'
+                geo_hierarchy TEXT,             -- Gerarchia geografica 'GeOFF|Continent|Country|Region|City'
                 
                 -- ===== LLM VISION =====
                 ai_description_hash TEXT,
