@@ -112,6 +112,10 @@ class ExportTab(QWidget):
         self.format_csv = QCheckBox("Export CSV completo (tutti i campi DB)")
         self.format_csv.setToolTip("Tabella con tutti i metadati database inclusi EXIF")
 
+        self.csv_include_gps = QCheckBox("Includi dati GPS completi")
+        self.csv_include_gps.setChecked(True)
+        self.csv_include_gps.setToolTip("Aggiunge coordinate GPS estese al CSV")
+
         self.format_copy = QCheckBox("Copia foto originali")
         self.format_copy.setToolTip("Copia i file immagine nella directory di destinazione")
 
@@ -124,7 +128,17 @@ class ExportTab(QWidget):
 
         layout.addWidget(self.format_sidecar)
         layout.addWidget(self.format_embedded)
-        layout.addWidget(self.format_csv)
+
+        # CSV con opzione GPS sulla stessa riga
+        csv_row_widget = QWidget()
+        csv_row = QHBoxLayout(csv_row_widget)
+        csv_row.setContentsMargins(0, 0, 0, 0)
+        csv_row.setSpacing(16)
+        csv_row.addWidget(self.format_csv)
+        csv_row.addWidget(self.csv_include_gps)
+        csv_row.addStretch()
+        layout.addWidget(csv_row_widget)
+
         layout.addWidget(self.format_copy)
 
         return box
@@ -286,17 +300,6 @@ class ExportTab(QWidget):
         layout = QVBoxLayout(box)
         layout.setSpacing(8)
         layout.setContentsMargins(12, 10, 12, 10)
-
-        # Sezione: Opzioni CSV
-        csv_section = QGroupBox("📊 Export CSV")
-        csv_layout = QVBoxLayout(csv_section)
-        
-        self.csv_include_gps = QCheckBox("Includi dati GPS completi")
-        self.csv_include_gps.setChecked(True)
-        
-        csv_layout.addWidget(self.csv_include_gps)
-        
-        layout.addWidget(csv_section)
 
         # Sezione: Opzioni XMP — controllo indipendente per campo
         xmp_section = QGroupBox("🏷️ Export XMP")
