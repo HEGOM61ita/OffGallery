@@ -303,41 +303,45 @@ class ExportTab(QWidget):
         xmp_layout = QVBoxLayout(xmp_section)
         xmp_layout.setSpacing(5)
 
-        self.xmp_merge_keywords = QCheckBox("Unisci keywords con esistenti nel sidecar")
+        self.xmp_merge_keywords = QCheckBox("Unisci keywords con esistenti nel file")
         self.xmp_merge_keywords.setChecked(True)
         self.xmp_merge_keywords.setToolTip(
-            "Attivo: i keyword del DB vengono aggiunti a quelli già presenti nel sidecar.\n"
-            "Disattivo: i keyword esistenti nel sidecar vengono cancellati e riscritti solo con quelli del DB."
+            "Attivo: i keyword del DB vengono aggiunti a quelli già presenti nel file (sidecar o embedded).\n"
+            "Disattivo: i keyword esistenti vengono cancellati e riscritti solo con quelli del DB.\n"
+            "Valido per: sidecar .xmp e embedded (JPG, TIFF, DNG)."
         )
 
-        self.xmp_preserve_title = QCheckBox("Preserva Title se già presente nel sidecar")
+        self.xmp_preserve_title = QCheckBox("Preserva Title se già presente nel file")
         self.xmp_preserve_title.setChecked(True)
         self.xmp_preserve_title.setToolTip(
-            "Attivo: se il sidecar ha già un titolo, non viene sovrascritto.\n"
-            "Disattivo: il Title del DB sovrascrive sempre quello nel sidecar."
+            "Attivo: se il file ha già un titolo, non viene sovrascritto.\n"
+            "Disattivo: il Title del DB sovrascrive sempre quello nel file.\n"
+            "Valido per: sidecar .xmp e embedded (JPG, TIFF, DNG)."
         )
 
-        self.xmp_preserve_description = QCheckBox("Preserva Descrizione se già presente nel sidecar")
+        self.xmp_preserve_description = QCheckBox("Preserva Descrizione se già presente nel file")
         self.xmp_preserve_description.setChecked(True)
         self.xmp_preserve_description.setToolTip(
-            "Attivo: se il sidecar ha già una descrizione, non viene sovrascritta.\n"
-            "Disattivo: la Descrizione del DB sovrascrive sempre quella nel sidecar."
+            "Attivo: se il file ha già una descrizione, non viene sovrascritta.\n"
+            "Disattivo: la Descrizione del DB sovrascrive sempre quella nel file.\n"
+            "Valido per: sidecar .xmp e embedded (JPG, TIFF, DNG)."
         )
 
-        self.xmp_preserve_rating = QCheckBox("Preserva Rating (stelle) se già presente nel sidecar")
+        self.xmp_preserve_rating = QCheckBox("Preserva Rating (stelle) se già presente nel file")
         self.xmp_preserve_rating.setChecked(True)
         self.xmp_preserve_rating.setToolTip(
-            "Attivo: se il sidecar ha già un rating, non viene sovrascritto.\n"
-            "Disattivo: il Rating del DB (stelle) sovrascrive sempre quello nel sidecar.\n"
-            "Campo: XMP-xmp:Rating"
+            "Attivo: se il file ha già un rating, non viene sovrascritto.\n"
+            "Disattivo: il Rating del DB (stelle) sovrascrive sempre quello nel file.\n"
+            "Campo: XMP-xmp:Rating. Valido per: sidecar .xmp e embedded (JPG, TIFF, DNG)."
         )
 
-        self.xmp_preserve_color_label = QCheckBox("Preserva Color Label se già presente nel sidecar")
+        self.xmp_preserve_color_label = QCheckBox("Preserva Color Label se già presente nel file")
         self.xmp_preserve_color_label.setChecked(True)
         self.xmp_preserve_color_label.setToolTip(
-            "Attivo: se il sidecar ha già un'etichetta colore, non viene sovrascritta.\n"
-            "Disattivo: il Color Label del DB sovrascrive sempre quello nel sidecar.\n"
-            "Campo: XMP-xmp:Label (Red, Yellow, Green, Blue, Purple)"
+            "Attivo: se il file ha già un'etichetta colore, non viene sovrascritta.\n"
+            "Disattivo: il Color Label del DB sovrascrive sempre quello nel file.\n"
+            "Campo: XMP-xmp:Label (Red, Yellow, Green, Blue, Purple).\n"
+            "Valido per: sidecar .xmp e embedded (JPG, TIFF, DNG)."
         )
 
         # Nota: namespace Lightroom sempre preservati
@@ -855,10 +859,24 @@ class ExportTab(QWidget):
                 keywords = list(dict.fromkeys(keywords))
 
             import subprocess
+
+            # Flag preserve — stessi del sidecar, applicati al file embedded
+            do_merge_kw   = options['advanced'].get('xmp_merge_keywords', True)
+            do_pres_title = options['advanced'].get('xmp_preserve_title', True)
+            do_pres_desc  = options['advanced'].get('xmp_preserve_description', True)
+            do_pres_rate  = options['advanced'].get('xmp_preserve_rating', True)
+            do_pres_color = options['advanced'].get('xmp_preserve_color_label', True)
+
+            # Leggi campi esistenti dal file embedded se almeno un flag preserve è attivo
+            existing_emb = {}
+            any_preserve = do_pres_title or do_pres_desc or do_pres_rate or do_pres_color
+            if any_preserve:
+                existing_emb = self._read_existing_scalar_fields_from_xmp(image_file)
+
             cmd = ["exiftool", "-overwrite_original"]
 
-            # Embedded: se merge_keywords disattivo, azzera Subject prima di riscrivere
-            if not options['advanced'].get('xmp_merge_keywords', True):
+            # KEYWORDS — azzera Subject se merge disattivo, altrimenti += aggiunge ai presenti
+            if not do_merge_kw:
                 cmd.append("-XMP-dc:Subject=")
 
             if keywords:
@@ -870,12 +888,15 @@ class ExportTab(QWidget):
             if not title:
                 title = image_item.image_data.get('filename', '').split('.')[0]
             if title:
-                cmd.append(f"-XMP-dc:Title={title}")
+                if not do_pres_title or not existing_emb.get('title'):
+                    cmd.append(f"-XMP-dc:Title={title}")
 
             # DESCRIPTION
             description = image_item.image_data.get('description', '')
             if description:
-                cmd.append(f"-XMP-dc:Description={description}")
+                description = description.replace("x-default ", "").strip()
+                if not do_pres_desc or not existing_emb.get('description'):
+                    cmd.append(f"-XMP-dc:Description={description}")
 
             # RATING (XMP-xmp:Rating)
             rating = image_item.image_data.get('lr_rating') or image_item.image_data.get('rating')
@@ -883,14 +904,16 @@ class ExportTab(QWidget):
                 try:
                     rating_int = int(rating)
                     if 1 <= rating_int <= 5:
-                        cmd.append(f"-XMP-xmp:Rating={rating_int}")
+                        if not do_pres_rate or existing_emb.get('rating') is None:
+                            cmd.append(f"-XMP-xmp:Rating={rating_int}")
                 except (ValueError, TypeError):
                     pass
 
             # COLOR LABEL (XMP-xmp:Label — standard Adobe/Lightroom)
             color_label = image_item.image_data.get('color_label', '') or ''
             if color_label:
-                cmd.append(f"-XMP-xmp:Label={color_label}")
+                if not do_pres_color or not existing_emb.get('color_label'):
+                    cmd.append(f"-XMP-xmp:Label={color_label}")
 
             # BIOCLIP HIERARCHICAL TAXONOMY → HierarchicalSubject
             bioclip_taxonomy_raw = image_item.image_data.get('bioclip_taxonomy', '')
