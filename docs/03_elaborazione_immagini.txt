@@ -344,6 +344,15 @@ RAW, il processo e' leggermente diverso:
     "full" (rawpy): decodifica il file RAW completo con rawpy.
     Massima qualita' ma significativamente piu' lento.
 
+  - OffGallery tenta i metodi nell'ordine configurato. Se il
+    metodo principale fallisce (ad esempio un NEF ad alta
+    efficienza non supportato da rawpy), prova automaticamente
+    tag ExifTool alternativi come -LargePreview, -PreviewTIFF,
+    ecc. Se tutti i tentativi falliscono, nel log appare un
+    avviso arancione: i metadati EXIF vengono comunque salvati
+    ma l'embedding e la generazione LLM vengono saltati. Vedi
+    il capitolo 9 per le soluzioni in questo caso.
+
   - Il thumbnail estratto viene memorizzato in cache (se l'opzione
     e' attiva) per velocizzare eventuali rielaborazioni future.
 

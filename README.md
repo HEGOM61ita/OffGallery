@@ -41,6 +41,7 @@
 | Data | Cosa | Note |
 |------|------|------|
 | 24 feb 2026 | **Geotag geografico offline** | GPS → gerarchia `GeOFF\|Europe\|Italy\|Sardegna\|Città` senza API, visibile nel tooltip gallery e scritto in XMP HierarchicalSubject |
+| 23 feb 2026 | **Fix estrazione RAW** | Fallback multi-stadio ExifTool per NEF/ARW high-efficiency; warning nel log se nessuna anteprima disponibile, metadati salvati comunque — [Discussion #11](https://github.com/HEGOM61ita/OffGallery/discussions/11) |
 | 22 feb 2026 | **Hardening installer Windows + Linux** | Robustezza conda su tutti i profili, ARM64, ToS bypass, pipefail — [Discussion #9](https://github.com/HEGOM61ita/OffGallery/discussions/9) |
 | 20 feb 2026 | **Fix Installer v2** | 13 bug risolti su Windows e Linux — [Discussion #8](https://github.com/HEGOM61ita/OffGallery/discussions/8) |
 | 18 feb 2026 | **v0.7 — Supporto Linux** | Installer bash, launcher, config cross-platform — [Discussion #7](https://github.com/HEGOM61ita/OffGallery/discussions/7) |

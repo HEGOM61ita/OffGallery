@@ -219,6 +219,40 @@ PROBLEMI DI ELABORAZIONE (PROCESSING)
 
   ──────────────────────────────────────────────
 
+  Il log mostra "nessuna immagine estraibile dal RAW" e
+  l'embedding non viene calcolato
+
+    Causa: il file RAW usa un formato di compressione non ancora
+    supportato da rawpy/LibRaw (ad esempio i NEF ad alta
+    efficienza delle Nikon piu' recenti) oppure e' corrotto.
+    In questi casi OffGallery non riesce a ricavare un'anteprima
+    utilizzabile per i modelli AI.
+
+    Cosa succede:
+    - OffGallery tenta in sequenza tutti i metodi di estrazione:
+        1. Thumbnail JPEG incorporata (-JpgFromRaw, -OtherImage)
+        2. Anteprima ExifTool alternativa (-LargePreview,
+           -SubIFD:PreviewImage, ecc.)
+        3. Decodifica completa con rawpy
+    - Se tutti falliscono, nel log Processing appare il messaggio:
+        "⚠️ nome_file.NEF: nessuna immagine estraibile dal RAW —
+         embedding e LLM saltati, solo metadati salvati"
+    - I metadati EXIF vengono comunque estratti e salvati nel
+      database. La foto e' ricercabile per metadati e filtri
+      EXIF, ma non per testo libero (CLIP) o "Trova simili".
+
+    Soluzione:
+    - Aggiorna ExifTool all'ultima versione: potrebbe supportare
+      il nuovo formato.
+    - Esporta una versione JPEG o DNG dalla tua fotocamera o
+      dal software di sviluppo (DxO, Lightroom, Capture NX)
+      e rielabora quella.
+    - Segnala il modello di fotocamera e la versione firmware
+      aprendo una Discussion su GitHub. Aggiornamenti di LibRaw
+      potrebbero risolvere il problema nelle versioni future.
+
+  ──────────────────────────────────────────────
+
   Le descrizioni LLM non vengono generate
 
     Causa: Ollama non e' in esecuzione o il modello non e'
