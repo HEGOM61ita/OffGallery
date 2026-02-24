@@ -2464,6 +2464,11 @@ class ImageCard(QFrame):
                     logger.error(f"Errore sincronizzazione DB→XMP per elemento {i+1}: {e}", exc_info=True)
                     error_count += 1
 
+            # Refresh badge XMP: il sidecar è stato appena creato/aggiornato
+            if success_count > 0:
+                updated_items = [item for item in items if hasattr(item, 'image_id') and item.image_id]
+                self._refresh_after_database_operation(updated_items, "xmp_export")
+
             # Report risultati
             result_msg = "Sincronizzazione DB → XMP completata!\n\n"
             result_msg += f"✅ Sincronizzati: {success_count}\n"
