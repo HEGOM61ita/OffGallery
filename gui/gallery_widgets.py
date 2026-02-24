@@ -1920,7 +1920,8 @@ class ImageCard(QFrame):
     # ═══════════════════════════════════════════════════════════════
     
     def _analyze_xmp_detailed(self, items):
-        """Analisi XMP dettagliata con confronto a tre vie: DB vs Sidecar vs Embedded"""
+        """Analisi XMP dettagliata con confronto format-aware: DB vs Sidecar vs Embedded.
+        Per i RAW (non DNG) l'embedded non viene considerato — solo il sidecar conta."""
         try:
             if not XMP_SUPPORT_AVAILABLE:
                 self._show_xmp_dialog("❌ Errore", "XMP Manager non disponibile")
@@ -1932,9 +1933,6 @@ class ImageCard(QFrame):
             results = []
             xmp_manager = XMPManagerExtended()
 
-            # Formati che supportano embedded XMP
-            embedded_formats = {'.jpg', '.jpeg', '.tif', '.tiff', '.dng', '.cr2', '.nef', '.orf', '.arw', '.rw2', '.pef', '.cr3', '.nrw', '.srf', '.sr2'}
-
             for item in items:
                 if not hasattr(item, 'filepath') or not item.filepath:
                     continue
@@ -1943,6 +1941,12 @@ class ImageCard(QFrame):
                 if not filepath.exists():
                     results.append(f"❌ {filepath.name}: File non trovato")
                     continue
+
+                # Categoria formato: determina se l'embedded è rilevante
+                file_category = xmp_manager._get_file_category(filepath)
+                # Per i RAW puri (non DNG) l'embedded è solo dati del produttore,
+                # non è un canale di scrittura gestito da OffGallery — lo ignoriamo.
+                embedded_supported = file_category in ('standard', 'dng')
 
                 # === DATI DA DATABASE ===
                 db_tags = set(item.get_unified_tags())
@@ -1961,11 +1965,10 @@ class ImageCard(QFrame):
                     if sidecar_data:
                         sidecar_tags, sidecar_desc, sidecar_title = self._extract_xmp_fields(sidecar_data)
 
-                # === DATI DA EMBEDDED XMP ===
+                # === DATI DA EMBEDDED XMP (solo standard e DNG) ===
                 embedded_tags = set()
                 embedded_desc = ""
                 embedded_title = ""
-                embedded_supported = filepath.suffix.lower() in embedded_formats
 
                 if embedded_supported:
                     embedded_data = self._read_xmp_with_exiftool(filepath)
@@ -1975,7 +1978,12 @@ class ImageCard(QFrame):
                 # === FORMATO OUTPUT ===
                 result = f"📂 {filepath.name}\n"
                 result += f"📍 Sidecar: {'✅ Presente' if sidecar_exists else '❌ Assente'}"
-                result += f" | Embedded: {'✅ Supportato' if embedded_supported else '⚪ Non supportato'}\n\n"
+                if file_category == 'raw':
+                    result += f" | Embedded: ⚪ Ignorato (RAW — solo sidecar conta)\n\n"
+                elif file_category == 'dng':
+                    result += f" | Embedded: {'✅ Presente' if embedded_tags or embedded_title or embedded_desc else '⚪ Vuoto'} (DNG)\n\n"
+                else:
+                    result += f" | Embedded: {'✅ Presente' if embedded_tags or embedded_title or embedded_desc else '⚪ Vuoto'}\n\n"
 
                 # --- SEZIONE TITOLO ---
                 result += f"📌 TITOLO:\n"
