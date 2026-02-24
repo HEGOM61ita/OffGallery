@@ -646,17 +646,20 @@ class XMPManagerExtended:
     def _dict_key_to_exiftool(self, key: str) -> str:
         """Converte chiave dict in formato ExifTool"""
         # Mappa comuni
+        # Tag ExifTool fully-qualified per evitare ambiguità.
+        # 'XMP:Keywords' si risolveva in XMP-xmp:Keywords (non supporta +=).
+        # Il campo standard per i tag è dc:Subject → 'XMP-dc:Subject'.
         key_mapping = {
-            'title': 'XMP:Title',
-            'description': 'XMP:Description',
-            'keywords': 'XMP:Keywords',
-            'creator': 'XMP:Creator',
-            'rights': 'XMP:Rights',
-            'subject': 'XMP:Subject',
-            'user_tags': 'XMP:Keywords',
-            'ai_tags': 'XMP:Subject',
-            'bioclip_tags': 'XMP:Keywords',
-            'ai_description': 'XMP:Description',
+            'title': 'XMP-dc:Title',
+            'description': 'XMP-dc:Description',
+            'keywords': 'XMP-dc:Subject',
+            'creator': 'XMP-dc:Creator',
+            'rights': 'XMP-dc:Rights',
+            'subject': 'XMP-dc:Subject',
+            'user_tags': 'XMP-dc:Subject',
+            'ai_tags': 'XMP-dc:Subject',
+            'bioclip_tags': 'XMP-dc:Subject',
+            'ai_description': 'XMP-dc:Description',
             'rating': 'XMP-xmp:Rating',
             'color_label': 'XMP-xmp:Label',
         }
