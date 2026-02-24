@@ -13,6 +13,9 @@ estratti e salvati nel database:
 
   - I metadati EXIF (fotocamera, obiettivo, ISO, apertura, ecc.)
   - Le coordinate GPS (se presenti e se l'opzione e' attiva)
+  - La gerarchia geografica offline: continente, paese, regione e citta'
+    ricavati dalle coordinate GPS senza connessione internet
+    (es. GeOFF|Europe|Italy|Sardegna|Trinita d'Agultu)
   - I tag XMP gia' presenti nella foto (da Lightroom, DxO, ecc.)
   - L'embedding CLIP (per la ricerca con testo libero)
   - L'embedding DINOv2 (per la ricerca di immagini simili)
@@ -234,23 +237,34 @@ durante l'elaborazione:
      Il modello identifica eventuali specie di flora o fauna
      nell'immagine e aggiunge i tag corrispondenti.
 
-  9. Generazione LLM (se abilitata)
+  9. Geolocalizzazione offline (se coordinate GPS presenti)
+     Se la foto ha coordinate GPS, OffGallery ricava la posizione
+     geografica (continente, paese, regione, citta') usando una
+     libreria offline con dati GeoNames bundled — senza alcuna
+     connessione internet.
+     La gerarchia risultante (es. GeOFF|Europe|Italy|Sardegna|Citta')
+     viene salvata nel database e usata come contesto per la
+     generazione LLM: il modello riceve l'informazione sulla
+     localita' e puo' menzionarla in tag, titolo e descrizione.
+     La citta' viene aggiunta anche come tag piatto.
+
+  10. Generazione LLM (se abilitata)
      Il modello Qwen3-VL (tramite Ollama) guarda l'immagine e
      genera tag descrittivi, una descrizione testuale e/o un
      titolo, secondo le impostazioni. Se sono attive piu'
      generazioni contemporaneamente (ad esempio tag + descrizione),
      vengono eseguite in parallelo per velocizzare.
 
-  10. Calcolo hash file
+  11. Calcolo hash file
       Calcola un codice univoco (MD5) del file per permettere
       il rilevamento di duplicati.
 
-  11. Salvataggio nel database
+  12. Salvataggio nel database
       Tutti i dati vengono scritti nel database SQLite. Se la
       foto era gia' presente (modalita' "Riprocessa tutte"),
       il record viene aggiornato.
 
-  12. Pulizia memoria GPU
+  13. Pulizia memoria GPU
       Dopo ogni immagine, la memoria della scheda video viene
       liberata per evitare accumuli.
 

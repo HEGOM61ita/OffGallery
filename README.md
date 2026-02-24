@@ -40,6 +40,7 @@
 
 | Data | Cosa | Note |
 |------|------|------|
+| 24 feb 2026 | **Geotag geografico offline** | GPS → gerarchia `GeOFF\|Europe\|Italy\|Sardegna\|Città` senza API, visibile nel tooltip gallery e scritto in XMP HierarchicalSubject |
 | 22 feb 2026 | **Hardening installer Windows + Linux** | Robustezza conda su tutti i profili, ARM64, ToS bypass, pipefail — [Discussion #9](https://github.com/HEGOM61ita/OffGallery/discussions/9) |
 | 20 feb 2026 | **Fix Installer v2** | 13 bug risolti su Windows e Linux — [Discussion #8](https://github.com/HEGOM61ita/OffGallery/discussions/8) |
 | 18 feb 2026 | **v0.7 — Supporto Linux** | Installer bash, launcher, config cross-platform — [Discussion #7](https://github.com/HEGOM61ita/OffGallery/discussions/7) |
@@ -63,6 +64,7 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 | **Integrazione Lightroom** | Sincronizzazione/edit bidirezionale XMP con rating, tag e metadati. Nessun dato proprietario viene modificato |
 | **Valutazione Estetica** | Score automatico della qualità artistica (0-10) |
 | **Identificazione Specie** | BioCLIP2 riconosce ~450.000 specie con tassonomia completa a 7 livelli |
+| **Geotag Offline** | Gerarchia geografica automatica da GPS: paese, regione, città — senza API esterne, dati GeoNames bundled |
 | **Statistiche** | Tipologia, Date, Metadati, Attributi, Strumentazione usata, Tempi di posa, Ratings etc. |
 
 <p align="center">
@@ -115,6 +117,7 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 - **Embedding CLIP**: 512 dimensioni per ricerca semantica
 - **Embedding DINOv2**: 768 dimensioni per similarità visiva
 - **Tassonomia BioCLIP**: Classificazione automatica specie con 7 livelli tassonomici (campo dedicato, separato dai tag)
+- **Gerarchia geografica**: Da coordinate GPS a `GeOFF|Europe|Italy|Sardegna|Città` — offline, dati GeoNames bundled, contestualizza anche i testi LLM
 - **Tag LLM**: Descrizioni e tag generati da modelli linguistici locali parametrizzabili
 - **Score Estetico**: Valutazione artistica automatica
 - **Score Tecnico**: Analisi qualità (nitidezza, rumore, esposizione, solo per non RAW)
@@ -123,7 +126,7 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 
 - **Import XMP**: Legge tag e rating da Lightroom/DxO/etc.
 - **Export XMP**: Scrive modifiche compatibili con editor esterni, inclusa tassonomia BioCLIP in `HierarchicalSubject`
-- **Export gerarchico**: BioCLIP esportato con prefisso `AI|Taxonomy|...` senza interferire con keyword utente
+- **Export gerarchico**: BioCLIP esportato con prefisso `AI|Taxonomy|...` e geotag con prefisso `GeOFF|...` — nessuna interferenza con le keyword utente
 - **Sync State**: Traccia stato sincronizzazione (PERFECT_SYNC, DIRTY, etc.)
 - **Badge Visivi**: Score, rating, ranking e stato colore nella gallery
 - **Ordinamento Gallery**: 7 criteri (rilevanza, data, nome, rating, score estetico/tecnico/composito) con direzione ASC/DESC

@@ -149,8 +149,14 @@ Passando il mouse sopra una card, appare un tooltip che mostra in
 modo compatto le informazioni semantiche della foto:
 
   - Il titolo (generato dall'LLM oppure derivato dal nome del file).
-  - I tag (tutti i tipi: utente, AI, BioCLIP), ordinati e formattati
-    con a capo ogni 45 caratteri.
+  - I tag LLM/utente, formattati con a capo ogni 45 caratteri.
+  - La sezione "BIOCLIP" (se presente): la tassonomia identificata
+    da BioCLIP (es. Animalia > Chordata > Aves > ... > specie),
+    separata dai tag normali e non modificabile dall'utente.
+  - La sezione "GEO" (se la foto ha coordinate GPS): la gerarchia
+    geografica offline ricavata dal GPS, ad esempio:
+      Europe > Italy > Sardegna > Trinita d'Agultu
+    Viene mostrata in sezione separata con prefisso 🌍 GEO.
   - La descrizione generata dall'LLM, se presente.
 
 Il tooltip si aggiorna automaticamente se modifichi titolo, tag o

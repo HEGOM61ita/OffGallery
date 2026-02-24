@@ -269,16 +269,29 @@ scrive i seguenti campi:
 
   Campo XMP                Contenuto
   ───────────────────────  ─────────────────────────────────────
-  dc:Subject (Keywords)    Tutti i tag unificati: tag Lightroom,
-                           tag utente, tag AI (LLM), tag BioCLIP
+  dc:Subject (Keywords)    Tag LLM + tag utente
+                           (BioCLIP e geotag sono esclusi per
+                           non inquinare le keyword normali)
   dc:Title                 Titolo (dal database, o il nome file
                            senza estensione come fallback)
   dc:Description           Descrizione (generata dall'LLM o
                            inserita manualmente)
   xmp:Rating               Valutazione in stelle (1-5)
+  lr:HierarchicalSubject   Keyword gerarchiche: contiene sia la
+                           tassonomia BioCLIP (prefisso AI|Taxonomy|)
+                           sia la gerarchia geografica (prefisso
+                           GeOFF|), separate dalle keyword normali.
+                           Esempio:
+                             AI|Taxonomy|Animalia|...|Columba palumbus
+                             GeOFF|Europe|Italy|Sardegna|Cagliari
 
 I tag vengono scritti come keywords separate, nel formato standard
 che Lightroom, Bridge e altri software riconoscono.
+
+Nota: la gerarchia geografica e' visibile in Lightroom nel pannello
+"Keyword List" come albero espandibile sotto il nodo "GeOFF".
+Usa "Read Metadata from File" in Lightroom dopo l'export per
+aggiornare la visualizzazione.
 
 
 ────────────────────────────────────────────────────────────────────────
@@ -318,7 +331,8 @@ raggruppate per categoria:
     Title, Description, Rating, Color_Label, Instructions
 
   Tag e AI
-    Tags (tutti i tag unificati, separati da punto e virgola),
+    Tags (tag LLM + utente, separati da punto e virgola),
+    BioCLIP_Taxonomy (JSON), Geo_Hierarchy (es. GeOFF|Europe|Italy|...),
     Aesthetic_Score, Technical_Score, Is_Monochrome,
     AI_Description, Model_Used
 
