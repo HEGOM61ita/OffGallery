@@ -453,11 +453,18 @@ class XMPManagerExtended:
                 keywords = tags_raw
         
         # 2. Costruzione Payload con fallback sicuri
+        # Il campo rating nel DB si chiama 'lr_rating'; 'rating' è un alias legacy
+        raw_rating = db_metadata.get('lr_rating') or db_metadata.get('rating') or 0
+        try:
+            rating_val = int(raw_rating)
+        except (ValueError, TypeError):
+            rating_val = 0
+
         return {
             'Title': str(db_metadata.get('title') or ''),
             'Description': str(db_metadata.get('description') or ''),
             'Keywords': keywords,
-            'Rating': db_metadata.get('rating') or 0
+            'Rating': rating_val
         }
 
     def analyze_xmp_sync_state(self, file_path: Path, db_metadata: Dict[str, Any]) -> Tuple[XMPSyncState, Dict[str, Any]]:
