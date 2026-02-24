@@ -918,7 +918,7 @@ class ExportTab(QWidget):
                 if not do_pres_color or not existing_emb.get('color_label'):
                     cmd.append(f"-XMP-xmp:Label={color_label}")
 
-            # BIOCLIP HIERARCHICAL TAXONOMY → HierarchicalSubject
+            # BIOCLIP HIERARCHICAL TAXONOMY → HierarchicalSubject + dc:Subject
             bioclip_taxonomy_raw = image_item.image_data.get('bioclip_taxonomy', '')
             if bioclip_taxonomy_raw:
                 try:
@@ -944,10 +944,20 @@ class ExportTab(QWidget):
                             except Exception:
                                 pass
 
+                            # HierarchicalSubject: cancella ramo AI e riscrivi
                             cmd.append("-XMP-lr:HierarchicalSubject=")
                             for subject in existing_hier:
                                 cmd.append(f"-XMP-lr:HierarchicalSubject+={subject}")
                             cmd.append(f"-XMP-lr:HierarchicalSubject+={hierarchical_path}")
+
+                            # Aggiungi livelli tassonomici a dc:Subject (deduplica con keywords)
+                            tax_levels = [p for p in hierarchical_path.split('|')
+                                          if p and p not in ('AI', 'Taxonomy')]
+                            existing_lower = {kw.lower() for kw in keywords}
+                            for lv in tax_levels:
+                                if lv.lower() not in existing_lower:
+                                    cmd.append(f"-XMP-dc:Subject+={lv}")
+                                    existing_lower.add(lv.lower())
                 except Exception as e:
                     print(f"⚠️ Errore scrittura BioCLIP HierarchicalSubject embedded: {e}")
 
@@ -1073,7 +1083,7 @@ class ExportTab(QWidget):
                 if not do_preserve_color_label or not existing_scalar.get('color_label'):
                     cmd.append(f"-XMP-xmp:Label={color_label}")
 
-            # BIOCLIP HIERARCHICAL TAXONOMY → HierarchicalSubject
+            # BIOCLIP HIERARCHICAL TAXONOMY → HierarchicalSubject + dc:Subject
             bioclip_taxonomy_raw = image_item.image_data.get('bioclip_taxonomy', '')
             if bioclip_taxonomy_raw:
                 try:
@@ -1100,11 +1110,20 @@ class ExportTab(QWidget):
                                 except Exception:
                                     pass
 
-                            # Cancella e riscrivi HierarchicalSubject
+                            # HierarchicalSubject: cancella ramo AI e riscrivi
                             cmd.append("-XMP-lr:HierarchicalSubject=")
                             for subject in existing_hier:
                                 cmd.append(f"-XMP-lr:HierarchicalSubject+={subject}")
                             cmd.append(f"-XMP-lr:HierarchicalSubject+={hierarchical_path}")
+
+                            # Aggiungi livelli tassonomici a dc:Subject (deduplica con final_keywords)
+                            tax_levels = [p for p in hierarchical_path.split('|')
+                                          if p and p not in ('AI', 'Taxonomy')]
+                            existing_lower = {kw.lower() for kw in final_keywords}
+                            for lv in tax_levels:
+                                if lv.lower() not in existing_lower:
+                                    cmd.append(f"-XMP-dc:Subject+={lv}")
+                                    existing_lower.add(lv.lower())
                 except Exception as e:
                     print(f"⚠️ Errore scrittura BioCLIP HierarchicalSubject: {e}")
 
