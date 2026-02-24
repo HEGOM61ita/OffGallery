@@ -2203,17 +2203,45 @@ class ImageCard(QFrame):
                                 if new_description:
                                     break
 
+                    # Estrai rating (XMP-xmp:Rating)
+                    new_rating = None
+                    for rating_field in ['Rating', 'XMP-xmp:Rating', 'XMP:Rating']:
+                        rating_raw = xmp_data.get(rating_field)
+                        if rating_raw is not None:
+                            try:
+                                rating_val = int(rating_raw)
+                                if 1 <= rating_val <= 5:
+                                    new_rating = rating_val
+                                    break
+                            except (ValueError, TypeError):
+                                pass
+
+                    # Estrai color label (XMP-xmp:Label)
+                    new_color_label = ''
+                    for label_field in ['Label', 'XMP-xmp:Label', 'XMP:Label']:
+                        label_raw = xmp_data.get(label_field)
+                        if label_raw:
+                            new_color_label = str(label_raw).strip()
+                            break
+
+                    # Estrai title
+                    new_title = ""
+                    for title_field in ['Title', 'XMP-dc:Title', 'XMP:Title', 'ObjectName', 'Headline']:
+                        if title_field in xmp_data and xmp_data[title_field]:
+                            new_title = str(xmp_data[title_field]).strip()
+                            if new_title:
+                                break
+
                     # Check 7: Hai dati da importare?
-                    if not new_tags and not new_description:
+                    if not new_tags and not new_description and not new_title and new_rating is None and not new_color_label:
                         no_xmp_count += 1
                         continue
-                    
+
                     # Check 8: Scrivi su database
                     db_updated = False
 
                     if new_tags:
                         try:
-                            # Prova diversi possibili nomi di metodi
                             if hasattr(db_manager, 'update_tags'):
                                 result = db_manager.update_tags(item.image_id, new_tags)
                             elif hasattr(db_manager, 'update_image_tags'):
@@ -2224,7 +2252,6 @@ class ImageCard(QFrame):
                                 result = db_manager.update_metadata(item.image_id, tags=new_tags)
                             else:
                                 continue
-
                             item.image_data['tags'] = json.dumps(new_tags)
                             db_updated = True
                         except Exception as e:
@@ -2234,7 +2261,6 @@ class ImageCard(QFrame):
 
                     if new_description:
                         try:
-                            # Prova diversi possibili nomi di metodi
                             if hasattr(db_manager, 'update_description'):
                                 result = db_manager.update_description(item.image_id, new_description)
                             elif hasattr(db_manager, 'update_image_description'):
@@ -2245,21 +2271,12 @@ class ImageCard(QFrame):
                                 result = db_manager.update_metadata(item.image_id, description=new_description)
                             else:
                                 continue
-
                             item.image_data['description'] = new_description
                             db_updated = True
                         except Exception as e:
                             print(f"Errore scrittura descrizione su DB: {e}")
                             import traceback
                             traceback.print_exc()
-                    # Estrai e aggiorna title se presente
-                    new_title = ""
-                    title_fields = ['Title', 'XMP-dc:Title', 'XMP:Title', 'ObjectName', 'Headline']
-                    for title_field in title_fields:
-                        if title_field in xmp_data and xmp_data[title_field]:
-                            new_title = str(xmp_data[title_field]).strip()
-                            if new_title:
-                                break
 
                     if new_title:
                         try:
@@ -2268,7 +2285,6 @@ class ImageCard(QFrame):
                                 title_updated = db_manager.update_title(item.image_id, new_title)
                             elif hasattr(db_manager, 'update_image_title'):
                                 title_updated = db_manager.update_image_title(item.image_id, new_title)
-
                             if title_updated:
                                 item.image_data['title'] = new_title
                                 db_updated = True
@@ -2276,6 +2292,28 @@ class ImageCard(QFrame):
                             print(f"Errore aggiornamento title: {e}")
                             import traceback
                             traceback.print_exc()
+
+                    # Importa rating e color_label con update_metadata (campo lr_rating e color_label nel DB)
+                    rating_color_kwargs = {}
+                    if new_rating is not None:
+                        rating_color_kwargs['lr_rating'] = new_rating
+                    if new_color_label:
+                        rating_color_kwargs['color_label'] = new_color_label
+
+                    if rating_color_kwargs and hasattr(db_manager, 'update_metadata'):
+                        try:
+                            db_manager.update_metadata(item.image_id, **rating_color_kwargs)
+                            if new_rating is not None:
+                                item.image_data['lr_rating'] = new_rating
+                                item.image_data['rating'] = new_rating
+                            if new_color_label:
+                                item.image_data['color_label'] = new_color_label
+                            db_updated = True
+                        except Exception as e:
+                            print(f"Errore aggiornamento rating/color_label su DB: {e}")
+                            import traceback
+                            traceback.print_exc()
+
                     if db_updated:
                         success_count += 1
 

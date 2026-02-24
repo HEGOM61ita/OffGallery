@@ -324,11 +324,28 @@ class ExportTab(QWidget):
             "Disattivo: la Descrizione del DB sovrascrive sempre quella nel sidecar."
         )
 
+        self.xmp_preserve_rating = QCheckBox("Preserva Rating (stelle) se già presente nel sidecar")
+        self.xmp_preserve_rating.setChecked(True)
+        self.xmp_preserve_rating.setToolTip(
+            "Attivo: se il sidecar ha già un rating, non viene sovrascritto.\n"
+            "Disattivo: il Rating del DB (stelle) sovrascrive sempre quello nel sidecar.\n"
+            "Campo: XMP-xmp:Rating"
+        )
+
+        self.xmp_preserve_color_label = QCheckBox("Preserva Color Label se già presente nel sidecar")
+        self.xmp_preserve_color_label.setChecked(True)
+        self.xmp_preserve_color_label.setToolTip(
+            "Attivo: se il sidecar ha già un'etichetta colore, non viene sovrascritta.\n"
+            "Disattivo: il Color Label del DB sovrascrive sempre quello nel sidecar.\n"
+            "Campo: XMP-xmp:Label (Red, Yellow, Green, Blue, Purple)"
+        )
+
         # Nota: namespace Lightroom sempre preservati
         note = QLabel("✓ Namespace Lightroom (crs:, lr:, xmpMM:) sempre preservati")
         note.setStyleSheet("color: gray; font-style: italic; font-size: 10px;")
 
-        for cb in [self.xmp_merge_keywords, self.xmp_preserve_title, self.xmp_preserve_description]:
+        for cb in [self.xmp_merge_keywords, self.xmp_preserve_title, self.xmp_preserve_description,
+                   self.xmp_preserve_rating, self.xmp_preserve_color_label]:
             xmp_layout.addWidget(cb)
         xmp_layout.addWidget(note)
 
@@ -466,18 +483,19 @@ class ExportTab(QWidget):
             # Riepilogo comportamento per campo
             xmp_mode_note = ""
             if export_xmp:
-                merge_kw = options['advanced'].get('xmp_merge_keywords', True)
-                pres_ti  = options['advanced'].get('xmp_preserve_title', True)
-                pres_de  = options['advanced'].get('xmp_preserve_description', True)
-                kw_mode = "unisce con esistenti" if merge_kw else "sostituisce esistenti"
-                ti_mode = "preservato se presente" if pres_ti else "sovrascritto"
-                de_mode = "preservata se presente" if pres_de else "sovrascritta"
+                adv = options['advanced']
+
+                def _mode(preserve_flag, preserve_label="preservato se presente", overwrite_label="sovrascritto"):
+                    return preserve_label if adv.get(preserve_flag, True) else overwrite_label
+
+                kw_mode = "unisce con esistenti" if adv.get('xmp_merge_keywords', True) else "sostituisce esistenti"
                 xmp_mode_note = (
                     f"\n\n📋 Comportamento per campo:\n"
-                    f"  • Keywords: {kw_mode}\n"
-                    f"  • Title: {ti_mode}\n"
-                    f"  • Descrizione: {de_mode}\n"
-                    f"  • Rating: preservato se già presente nel sidecar\n"
+                    f"  • Keywords:     {kw_mode}\n"
+                    f"  • Title:        {_mode('xmp_preserve_title')}\n"
+                    f"  • Descrizione:  {_mode('xmp_preserve_description')}\n"
+                    f"  • Rating:       {_mode('xmp_preserve_rating')}\n"
+                    f"  • Color Label:  {_mode('xmp_preserve_color_label')}\n"
                     f"  • Namespace Lightroom (crs:, lr:, xmpMM:): sempre preservati"
                 )
 
@@ -859,10 +877,20 @@ class ExportTab(QWidget):
             if description:
                 cmd.append(f"-XMP-dc:Description={description}")
 
-            # RATING
+            # RATING (XMP-xmp:Rating)
             rating = image_item.image_data.get('lr_rating') or image_item.image_data.get('rating')
-            if rating is not None and 1 <= int(rating) <= 5:
-                cmd.append(f"-XMP-xmp:Rating={int(rating)}")
+            if rating is not None:
+                try:
+                    rating_int = int(rating)
+                    if 1 <= rating_int <= 5:
+                        cmd.append(f"-XMP-xmp:Rating={rating_int}")
+                except (ValueError, TypeError):
+                    pass
+
+            # COLOR LABEL (XMP-xmp:Label — standard Adobe/Lightroom)
+            color_label = image_item.image_data.get('color_label', '') or ''
+            if color_label:
+                cmd.append(f"-XMP-xmp:Label={color_label}")
 
             # BIOCLIP HIERARCHICAL TAXONOMY → HierarchicalSubject
             bioclip_taxonomy_raw = image_item.image_data.get('bioclip_taxonomy', '')
@@ -976,9 +1004,15 @@ class ExportTab(QWidget):
                 for kw in final_keywords:
                     cmd.append(f"-XMP-dc:Subject+={kw}")
 
+            # Comportamento per campo — tutti i flag
+            do_preserve_rating = options['advanced'].get('xmp_preserve_rating', True)
+            do_preserve_color_label = options['advanced'].get('xmp_preserve_color_label', True)
+
             # Leggi campi scalari esistenti nel sidecar se almeno un campo è in modalità preserva
             existing_scalar = {}
-            if (do_preserve_title or do_preserve_description) and sidecar_path.exists():
+            any_preserve = (do_preserve_title or do_preserve_description
+                            or do_preserve_rating or do_preserve_color_label)
+            if any_preserve and sidecar_path.exists():
                 existing_scalar = self._read_existing_scalar_fields_from_xmp(sidecar_path)
 
             # TITLE
@@ -986,8 +1020,6 @@ class ExportTab(QWidget):
             if not title:
                 title = image_item.image_data.get('filename', '').split('.')[0]
             if title:
-                # Preserva: salta se il sidecar ha già un titolo
-                # Sovrascrivi: scrive sempre
                 if not do_preserve_title or not existing_scalar.get('title'):
                     cmd.append(f"-XMP-dc:Title={title}")
 
@@ -995,17 +1027,25 @@ class ExportTab(QWidget):
             description = image_item.image_data.get('description', '')
             if description:
                 description = description.replace("x-default ", "").strip()
-                # Preserva: salta se il sidecar ha già una descrizione
-                # Sovrascrivi: scrive sempre
                 if not do_preserve_description or not existing_scalar.get('description'):
                     cmd.append(f"-XMP-dc:Description={description}")
 
-            # RATING — preservato se il sidecar ha già un valore (comportamento fisso, non configurabile)
+            # RATING (XMP-xmp:Rating)
             rating = image_item.image_data.get('lr_rating') or image_item.image_data.get('rating')
-            if rating is not None and 1 <= int(rating) <= 5:
-                # Scrivi solo se il sidecar non ha già un rating
-                if existing_scalar.get('rating') is None:
-                    cmd.append(f"-XMP-xmp:Rating={int(rating)}")
+            if rating is not None:
+                try:
+                    rating_int = int(rating)
+                    if 1 <= rating_int <= 5:
+                        if not do_preserve_rating or existing_scalar.get('rating') is None:
+                            cmd.append(f"-XMP-xmp:Rating={rating_int}")
+                except (ValueError, TypeError):
+                    pass
+
+            # COLOR LABEL (XMP-xmp:Label — standard Adobe/Lightroom)
+            color_label = image_item.image_data.get('color_label', '') or ''
+            if color_label:
+                if not do_preserve_color_label or not existing_scalar.get('color_label'):
+                    cmd.append(f"-XMP-xmp:Label={color_label}")
 
             # BIOCLIP HIERARCHICAL TAXONOMY → HierarchicalSubject
             bioclip_taxonomy_raw = image_item.image_data.get('bioclip_taxonomy', '')
@@ -1077,19 +1117,23 @@ class ExportTab(QWidget):
             print(f"❌ Errore aggiornamento sync_state: {e}")
 
     def _read_existing_scalar_fields_from_xmp(self, xmp_path: Path) -> dict:
-        """Legge Title, Description e Rating esistenti dal sidecar per evitare sovrascritture."""
+        """Legge Title, Description, Rating e Color Label dal sidecar per evitare sovrascritture."""
         result = {}
         if not xmp_path.exists():
             return result
         try:
             import subprocess, json
-            cmd = ["exiftool", "-j", "-XMP-dc:Title", "-XMP-dc:Description", "-XMP-xmp:Rating", str(xmp_path)]
+            cmd = [
+                "exiftool", "-j",
+                "-XMP-dc:Title", "-XMP-dc:Description",
+                "-XMP-xmp:Rating", "-XMP-xmp:Label",
+                str(xmp_path)
+            ]
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             if r.returncode == 0 and r.stdout.strip():
                 data = json.loads(r.stdout)
                 if data:
                     title_raw = data[0].get('Title', '')
-                    # Normalizza titolo (può essere dict x-default da ExifTool)
                     if isinstance(title_raw, dict):
                         title_raw = title_raw.get('x-default', '') or next(iter(title_raw.values()), '')
                     result['title'] = str(title_raw).strip() if title_raw else ''
@@ -1105,6 +1149,10 @@ class ExportTab(QWidget):
                             result['rating'] = int(rating_raw)
                         except (ValueError, TypeError):
                             pass
+
+                    label_raw = data[0].get('Label', '')
+                    result['color_label'] = str(label_raw).strip() if label_raw else ''
+
         except Exception as e:
             print(f"⚠️ Errore lettura campi scalari da sidecar esistente: {e}")
         return result
@@ -1279,6 +1327,8 @@ class ExportTab(QWidget):
                 "xmp_merge_keywords": self.xmp_merge_keywords.isChecked(),
                 "xmp_preserve_title": self.xmp_preserve_title.isChecked(),
                 "xmp_preserve_description": self.xmp_preserve_description.isChecked(),
+                "xmp_preserve_rating": self.xmp_preserve_rating.isChecked(),
+                "xmp_preserve_color_label": self.xmp_preserve_color_label.isChecked(),
                 "xmp_lr_compatibility": True,  # Sempre attivo - standard integrato
                 # Performance options
                 "batch_processing": self.batch_processing.isChecked(),
