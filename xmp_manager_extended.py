@@ -1059,6 +1059,63 @@ class XMPManagerExtended:
             return False
 
 
+    def write_hierarchical_geo(self, file_path: Path, geo_hierarchy: str) -> bool:
+        """Scrive gerarchia geografica nel campo HierarchicalSubject XMP.
+        Preserva keyword gerarchiche non-Geo esistenti, sovrascrive solo ramo Geo|.
+        NON scrive in dc:Subject: la città è già nei tag LLM gestiti da processing_tab.
+        """
+        if not self.exiftool_available or not geo_hierarchy:
+            return False
+
+        try:
+            # Determina target via categoria
+            if self._get_file_category(file_path) == 'raw':
+                target = file_path.with_suffix('.xmp')
+                if not target.exists():
+                    return False
+            else:
+                target = file_path
+
+            # Leggi HierarchicalSubject esistenti (filtra ramo Geo| precedente)
+            existing_hier = []
+            try:
+                result = subprocess.run(
+                    [*XMPManagerExtended._exiftool_cmd, '-j',
+                     '-XMP-lr:HierarchicalSubject', str(target)],
+                    capture_output=True, text=True, timeout=10
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    data = json.loads(result.stdout)
+                    if data:
+                        hs = data[0].get('HierarchicalSubject', [])
+                        if isinstance(hs, str):
+                            hs = [hs]
+                        # Preserva tutto tranne il ramo Geo|
+                        existing_hier = [s for s in hs if not s.startswith('Geo|')]
+            except Exception:
+                pass
+
+            # Scrivi: cancella ramo Geo| e riscrivi con il nuovo percorso
+            cmd = [*XMPManagerExtended._exiftool_cmd, '-overwrite_original', '-XMP-lr:HierarchicalSubject=']
+            for subject in existing_hier:
+                cmd.append(f'-XMP-lr:HierarchicalSubject+={subject}')
+            cmd.append(f'-XMP-lr:HierarchicalSubject+={geo_hierarchy}')
+            cmd.append(str(target))
+
+            result = subprocess.run(cmd, capture_output=True, timeout=15)
+            if result.returncode == 0:
+                logger.info(f"✓ HierarchicalSubject Geo scritto: {target.name} → {geo_hierarchy}")
+                return True
+            else:
+                error_msg = result.stderr.decode() if result.stderr else "Unknown"
+                logger.error(f"Errore HierarchicalSubject Geo: {error_msg}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Errore write_hierarchical_geo: {e}")
+            return False
+
+
 # ===== UTILITY FUNCTIONS (invariate) =====
 
 def get_sync_ui_config(state: XMPSyncState) -> dict:

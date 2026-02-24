@@ -740,6 +740,32 @@ class ImageCard(QFrame):
                 except (json.JSONDecodeError, TypeError):
                     pass
 
+            # Sezione Geo (gerarchia geografica)
+            geo_raw = self.image_data.get('geo_hierarchy', '')
+            if geo_raw:
+                try:
+                    parts = [p for p in geo_raw.split('|') if p and p != 'Geo']
+                    if parts:
+                        hierarchy = " > ".join(parts)
+                        lines.append("🌍 GEO")
+                        if len(hierarchy) <= 45:
+                            lines.append(hierarchy)
+                        else:
+                            current_line = ""
+                            for part in parts:
+                                candidate = (current_line + " > " + part) if current_line else part
+                                if len(candidate) <= 45:
+                                    current_line = candidate
+                                else:
+                                    if current_line:
+                                        lines.append(current_line)
+                                    current_line = part
+                            if current_line:
+                                lines.append(current_line)
+                        lines.append("")
+                except Exception:
+                    pass
+
             # Descrizione
             description = self.image_data.get('description', '')
             if description and len(description) > 0:  # ← FIX: Controlla che esista E non sia vuoto
@@ -2187,7 +2213,7 @@ class ImageCard(QFrame):
                                     if item_val is not None:
                                         item_str = str(item_val).strip()
                                         # Filtra via rami AI|Taxonomy (BioCLIP gestito internamente)
-                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|Taxonomy'):
+                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|Taxonomy') and not item_str.startswith('Geo|'):
                                             new_tags.append(item_str)
                             elif isinstance(value, str):
                                 separators = [',', '|', ';', '\n']
@@ -2201,7 +2227,7 @@ class ImageCard(QFrame):
 
                                 for tag in current_tags:
                                     # Filtra via rami AI|Taxonomy
-                                    if tag and tag not in new_tags and not tag.startswith('AI|Taxonomy'):
+                                    if tag and tag not in new_tags and not tag.startswith('AI|Taxonomy') and not tag.startswith('Geo|'):
                                         new_tags.append(tag)
                     
                     # Estrai descrizione
@@ -2472,7 +2498,16 @@ class ImageCard(QFrame):
                                     if hier_path:
                                         xmp_manager.write_hierarchical_bioclip(filepath, hier_path)
                             except Exception as e:
-                                logger.warning(f"Errore HierarchicalSubject per {filepath.name}: {e}")
+                                logger.warning(f"Errore HierarchicalSubject BioCLIP per {filepath.name}: {e}")
+
+                    # Scrivi gerarchia geografica se presente
+                    if success:
+                        geo_hierarchy = item.image_data.get('geo_hierarchy', '')
+                        if geo_hierarchy:
+                            try:
+                                xmp_manager.write_hierarchical_geo(filepath, geo_hierarchy)
+                            except Exception as e:
+                                logger.warning(f"Errore HierarchicalSubject Geo per {filepath.name}: {e}")
 
                     if success:
                         success_count += 1
@@ -2561,7 +2596,7 @@ class ImageCard(QFrame):
                                 for item in value:
                                     if item is not None:
                                         item_str = str(item).strip()
-                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|Taxonomy'):
+                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|Taxonomy') and not item_str.startswith('Geo|'):
                                             new_tags.append(item_str)
                             elif isinstance(value, str):
                                 separators = [',', '|', ';', '\n']
@@ -2574,7 +2609,7 @@ class ImageCard(QFrame):
                                     current_tags = expanded_tags
 
                                 for tag in current_tags:
-                                    if tag and tag not in new_tags and not tag.startswith('AI|Taxonomy'):
+                                    if tag and tag not in new_tags and not tag.startswith('AI|Taxonomy') and not tag.startswith('Geo|'):
                                         new_tags.append(tag)
                     
                     # Descrizione da XMP
@@ -2844,7 +2879,7 @@ class ImageCard(QFrame):
                     for item_val in value:
                         if item_val is not None:
                             item_str = str(item_val).strip()
-                            if item_str and not item_str.startswith('AI|Taxonomy'):
+                            if item_str and not item_str.startswith('AI|Taxonomy') and not item_str.startswith('Geo|'):
                                 tags.add(item_str)
                 elif isinstance(value, str):
                     # Prima prova a parsare come lista (JSON o Python repr)

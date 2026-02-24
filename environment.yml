@@ -79,6 +79,7 @@ dependencies:
       - prettytable==3.17.0
       - protobuf==6.33.1
       - pybioclip==2.1.1
+      - reverse_geocoder
       - pydantic==2.12.5
       - pydantic-core==2.41.5
       - pyparsing==3.2.5

@@ -952,6 +952,32 @@ class ExportTab(QWidget):
                 except Exception as e:
                     print(f"⚠️ Errore scrittura BioCLIP HierarchicalSubject embedded: {e}")
 
+            # GERARCHIA GEOGRAFICA → HierarchicalSubject (solo Geo|, separato da AI|Taxonomy)
+            geo_hierarchy = image_item.image_data.get('geo_hierarchy', '')
+            if geo_hierarchy:
+                try:
+                    existing_hier_geo = []
+                    try:
+                        hier_result = subprocess.run(
+                            ['exiftool', '-j', '-XMP-lr:HierarchicalSubject', str(image_file)],
+                            capture_output=True, text=True, timeout=10
+                        )
+                        if hier_result.returncode == 0 and hier_result.stdout.strip():
+                            hier_data = json.loads(hier_result.stdout)
+                            if hier_data:
+                                hs = hier_data[0].get('HierarchicalSubject', [])
+                                if isinstance(hs, str):
+                                    hs = [hs]
+                                existing_hier_geo = [s for s in hs if not s.startswith('Geo|')]
+                    except Exception:
+                        pass
+                    cmd.append("-XMP-lr:HierarchicalSubject=")
+                    for subject in existing_hier_geo:
+                        cmd.append(f"-XMP-lr:HierarchicalSubject+={subject}")
+                    cmd.append(f"-XMP-lr:HierarchicalSubject+={geo_hierarchy}")
+                except Exception as e:
+                    print(f"⚠️ Errore scrittura Geo HierarchicalSubject embedded: {e}")
+
             cmd.append(str(image_file))
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
@@ -1109,6 +1135,33 @@ class ExportTab(QWidget):
                             cmd.append(f"-XMP-lr:HierarchicalSubject+={hierarchical_path}")
                 except Exception as e:
                     print(f"⚠️ Errore scrittura BioCLIP HierarchicalSubject: {e}")
+
+            # GERARCHIA GEOGRAFICA → HierarchicalSubject sidecar (solo Geo|, separato da AI|Taxonomy)
+            geo_hierarchy = image_item.image_data.get('geo_hierarchy', '')
+            if geo_hierarchy:
+                try:
+                    existing_hier_geo = []
+                    if sidecar_path.exists():
+                        try:
+                            hier_result = subprocess.run(
+                                ['exiftool', '-j', '-XMP-lr:HierarchicalSubject', str(sidecar_path)],
+                                capture_output=True, text=True, timeout=10
+                            )
+                            if hier_result.returncode == 0 and hier_result.stdout.strip():
+                                hier_data = json.loads(hier_result.stdout)
+                                if hier_data:
+                                    hs = hier_data[0].get('HierarchicalSubject', [])
+                                    if isinstance(hs, str):
+                                        hs = [hs]
+                                    existing_hier_geo = [s for s in hs if not s.startswith('Geo|')]
+                        except Exception:
+                            pass
+                    cmd.append("-XMP-lr:HierarchicalSubject=")
+                    for subject in existing_hier_geo:
+                        cmd.append(f"-XMP-lr:HierarchicalSubject+={subject}")
+                    cmd.append(f"-XMP-lr:HierarchicalSubject+={geo_hierarchy}")
+                except Exception as e:
+                    print(f"⚠️ Errore scrittura Geo HierarchicalSubject sidecar: {e}")
 
             cmd.append(str(sidecar_path))
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)

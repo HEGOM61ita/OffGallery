@@ -121,6 +121,7 @@ class DatabaseManager:
                 -- ===== TAGGING =====
                 tags TEXT,                     -- Tags LLM + user (JSON array, NO bioclip)
                 bioclip_taxonomy TEXT,          -- Tassonomia BioCLIP completa JSON [kingdom,phylum,class,order,family,genus,species]
+                geo_hierarchy TEXT,             -- Gerarchia geografica 'Geo|Continent|Country|Region|City'
                 
                 -- ===== LLM VISION =====
                 ai_description_hash TEXT,
@@ -199,7 +200,7 @@ class DatabaseManager:
                     gps_city, gps_state, gps_country, gps_location,
                     exif_json,
                     clip_embedding, dinov2_embedding, aesthetic_score, technical_score, is_monochrome,
-                    tags, bioclip_taxonomy,
+                    tags, bioclip_taxonomy, geo_hierarchy,
                     ai_description_hash, model_used,
                     processing_time, embedding_generated, llm_generated, success, error_message, app_version,
                     sync_state, last_xmp_mtime, last_sync_at, last_sync_check_at, last_import_mtime, processed_date
@@ -287,6 +288,8 @@ class DatabaseManager:
                 image_data.get('tags'),
                 # Tassonomia BioCLIP completa (JSON)
                 image_data.get('bioclip_taxonomy'),
+                # Gerarchia geografica
+                image_data.get('geo_hierarchy'),
 
                 # LLM
                 image_data.get('ai_description_hash'),
@@ -475,6 +478,38 @@ class DatabaseManager:
             return None
         except Exception as e:
             logger.error(f"Errore get_bioclip_taxonomy: {e}")
+            return None
+
+    def update_geo_hierarchy(self, image_id: int, geo_hierarchy: str) -> bool:
+        """Aggiorna gerarchia geografica per un'immagine"""
+        try:
+            self.cursor.execute(
+                "UPDATE images SET geo_hierarchy = ? WHERE id = ?",
+                (geo_hierarchy, image_id)
+            )
+            self.conn.commit()
+            if self.cursor.rowcount > 0:
+                logger.info(f"Geo hierarchy aggiornata per image_id {image_id}: {geo_hierarchy}")
+                return True
+            else:
+                logger.warning(f"Nessuna immagine trovata con id {image_id}")
+                return False
+        except Exception as e:
+            logger.error(f"Errore update_geo_hierarchy: {e}")
+            self.conn.rollback()
+            return False
+
+    def get_geo_hierarchy(self, image_id: int) -> Optional[str]:
+        """Ottieni gerarchia geografica per un'immagine"""
+        try:
+            self.cursor.execute(
+                "SELECT geo_hierarchy FROM images WHERE id = ?",
+                (image_id,)
+            )
+            result = self.cursor.fetchone()
+            return result[0] if result and result[0] else None
+        except Exception as e:
+            logger.error(f"Errore get_geo_hierarchy: {e}")
             return None
 
     def update_image_description(self, image_id: int, description: str) -> bool:

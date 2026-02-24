@@ -19,6 +19,9 @@ timm
 pybioclip>=1.0
 open-clip-torch
 
+# Geocoding offline (dati GeoNames bundled, ~3MB, nessuna API)
+reverse_geocoder
+
 # === IMAGE PROCESSING ===
 pillow
 rawpy

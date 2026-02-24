@@ -517,6 +517,24 @@ class ProcessingWorker(QThread):
                     if category_hint:
                         self.log_message.emit(f"🏷️ Hint categoria: {category_hint}", "info")
 
+                    # Calcola gerarchia geografica da GPS (import lazy, solo se coordinate disponibili)
+                    geo_hierarchy = None
+                    location_hint = None
+                    gps_lat = image_data.get('gps_latitude')
+                    gps_lon = image_data.get('gps_longitude')
+                    if gps_lat is not None and gps_lon is not None:
+                        try:
+                            from geo_enricher import get_geo_hierarchy, get_location_hint
+                            geo_hierarchy = get_geo_hierarchy(float(gps_lat), float(gps_lon))
+                            if geo_hierarchy:
+                                image_data['geo_hierarchy'] = geo_hierarchy
+                                location_hint = get_location_hint(geo_hierarchy)
+                                self.log_message.emit(f"🌍 Geo hierarchy: {geo_hierarchy}", "info")
+                                if location_hint:
+                                    self.log_message.emit(f"📍 Location hint per LLM: {location_hint}", "info")
+                        except Exception as geo_err:
+                            self.log_message.emit(f"⚠️ Errore geo enricher: {geo_err}", "warning")
+
                     # Flag embedding generato
                     has_embedding = any([clip_emb is not None, dinov2_emb is not None])
                     image_data['embedding_generated'] = has_embedding
@@ -580,7 +598,8 @@ class ProcessingWorker(QThread):
                             llm_input,
                             gen_tags_cfg.get('max', 10),
                             bioclip_context,
-                            category_hint
+                            category_hint,
+                            location_hint
                         )
 
                     if should_gen_desc:
@@ -589,7 +608,8 @@ class ProcessingWorker(QThread):
                             llm_input,
                             gen_desc_cfg.get('max', 100),
                             bioclip_context,
-                            category_hint
+                            category_hint,
+                            location_hint
                         )
 
                     if should_gen_title:
@@ -598,7 +618,8 @@ class ProcessingWorker(QThread):
                             llm_input,
                             gen_title_cfg.get('max', 5),
                             bioclip_context,
-                            category_hint
+                            category_hint,
+                            location_hint
                         )
 
                     # Raccogli risultati
@@ -625,6 +646,21 @@ class ProcessingWorker(QThread):
                         unified_tags = existing_tags + new_llm_tags
                         image_data['tags'] = json.dumps(unified_tags, ensure_ascii=False)
                         self.log_message.emit(f"🏷️ LLM tags aggiunti: {len(new_llm_tags)} nuovi tag", "info")
+
+                # Aggiungi città geo come tag se non già presente (come BioCLIP aggiunge il nome latino)
+                if geo_hierarchy:
+                    try:
+                        from geo_enricher import get_geo_leaf
+                        city_tag = get_geo_leaf(geo_hierarchy)
+                        if city_tag:
+                            current_tags_str = image_data.get('tags', '[]')
+                            current_tags = json.loads(current_tags_str) if current_tags_str else []
+                            if city_tag.lower() not in {t.lower() for t in current_tags}:
+                                current_tags.append(city_tag)
+                                image_data['tags'] = json.dumps(current_tags, ensure_ascii=False)
+                                self.log_message.emit(f"📍 Tag città aggiunto: {city_tag}", "info")
+                    except Exception as geo_tag_err:
+                        self.log_message.emit(f"⚠️ Errore aggiunta tag città: {geo_tag_err}", "warning")
 
                 # === APPLICA RISULTATI DESCRIZIONE ===
                 if llm_results['description']:
