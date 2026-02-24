@@ -1006,7 +1006,7 @@ class XMPManagerExtended:
     def write_hierarchical_bioclip(self, file_path: Path, hierarchical_path: str) -> bool:
         """Scrive tassonomia BioCLIP nel campo HierarchicalSubject XMP.
         Preserva keyword gerarchiche non-AI esistenti, sovrascrive solo ramo AI|Taxonomy.
-        Aggiunge anche i livelli tassonomici a dc:Subject per compatibilità Lightroom.
+        NON scrive in dc:Subject: i tag BioCLIP restano separati dai tag LLM/utente.
         """
         if not self.exiftool_available or not hierarchical_path:
             return False
@@ -1020,13 +1020,12 @@ class XMPManagerExtended:
             else:
                 target = file_path
 
-            # Leggi HierarchicalSubject e Subject esistenti in una sola chiamata
+            # Leggi HierarchicalSubject esistenti (filtra ramo AI|Taxonomy precedente)
             existing_hier = []
-            existing_subj = []
             try:
                 result = subprocess.run(
                     [*XMPManagerExtended._exiftool_cmd, '-j',
-                     '-XMP-lr:HierarchicalSubject', '-XMP-dc:Subject', str(target)],
+                     '-XMP-lr:HierarchicalSubject', str(target)],
                     capture_output=True, text=True, timeout=10
                 )
                 if result.returncode == 0 and result.stdout.strip():
@@ -1036,33 +1035,19 @@ class XMPManagerExtended:
                         if isinstance(hs, str):
                             hs = [hs]
                         existing_hier = [s for s in hs if not s.startswith('AI|Taxonomy')]
-
-                        subj = data[0].get('Subject', [])
-                        if isinstance(subj, str):
-                            subj = [subj]
-                        existing_subj = list(subj)
             except Exception:
                 pass
 
-            # Calcola livelli tassonomici da aggiungere a dc:Subject (escludi "AI" e "Taxonomy")
-            tax_levels = [p for p in hierarchical_path.split('|')
-                          if p and p not in ('AI', 'Taxonomy')]
-            existing_subj_lower = {s.lower() for s in existing_subj}
-            new_levels = [lv for lv in tax_levels if lv.lower() not in existing_subj_lower]
-
-            # Costruisci cmd unico: HierarchicalSubject (clear+rewrite) + dc:Subject (solo nuovi livelli)
+            # Scrivi: cancella ramo AI|Taxonomy e riscrivi con il nuovo percorso
             cmd = [*XMPManagerExtended._exiftool_cmd, '-overwrite_original', '-XMP-lr:HierarchicalSubject=']
             for subject in existing_hier:
                 cmd.append(f'-XMP-lr:HierarchicalSubject+={subject}')
             cmd.append(f'-XMP-lr:HierarchicalSubject+={hierarchical_path}')
-            for lv in new_levels:
-                cmd.append(f'-XMP-dc:Subject+={lv}')
             cmd.append(str(target))
 
             result = subprocess.run(cmd, capture_output=True, timeout=15)
             if result.returncode == 0:
-                logger.info(f"✓ HierarchicalSubject BioCLIP scritto: {target.name} "
-                            f"(+{len(new_levels)} livelli in dc:Subject)")
+                logger.info(f"✓ HierarchicalSubject BioCLIP scritto: {target.name}")
                 return True
             else:
                 error_msg = result.stderr.decode() if result.stderr else "Unknown"
