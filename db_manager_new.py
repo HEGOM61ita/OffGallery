@@ -166,7 +166,7 @@ class DatabaseManager:
         
         for index_sql in indices:
             self.cursor.execute(index_sql)
-        
+
         self.conn.commit()
         logger.info(f"Database schema completo inizializzato: {self.db_path}")
     
@@ -319,9 +319,9 @@ class DatabaseManager:
             return image_id
             
         except Exception as e:
-            logger.error(f"Errore insert_image: {e}")
-            return None
-    
+            logger.error(f"Errore insert_image: {e}", exc_info=True)
+            raise  # Propaga l'eccezione al chiamante per diagnostica dettagliata
+
     def _serialize_embedding(self, embedding) -> Optional[bytes]:
         """Serializza embedding numpy come raw float32 bytes per storage database"""
         if embedding is None:
