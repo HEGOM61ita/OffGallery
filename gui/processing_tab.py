@@ -1156,7 +1156,6 @@ class ProcessingTab(QWidget):
         self.log_display.setFont(QFont("Courier New", 10))
         
         # Scrollbar sempre visibile
-        from PyQt6.QtCore import Qt
         self.log_display.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.log_display.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         
