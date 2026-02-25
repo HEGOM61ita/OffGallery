@@ -641,7 +641,7 @@ class ConfigTab(QWidget):
 
     def create_llm_vision_section(self):
         """Crea sezione configurazione LLM Vision con controlli granulari per generazione"""
-        group_box = QGroupBox("🤖 Generazione AI (Tags/Descrizione/Titolo)")
+        group_box = QGroupBox("🤖 LLM Vision (Connessione & Parametri)")
         group_box.setObjectName("LLMVisionSection")
 
         group_box.setStyleSheet(f"""
@@ -691,78 +691,6 @@ class ConfigTab(QWidget):
         conn_layout.addWidget(self.llm_vision_timeout, 2, 1)
 
         layout.addLayout(conn_layout)
-
-        # --- SEZIONE GENERAZIONE AUTO-IMPORT ---
-        gen_group = QGroupBox("⚙️ Generazione durante Import Batch")
-        gen_group.setStyleSheet(f"QGroupBox {{ color: {COLORS['grigio_medio']}; font-size: 12px; }}")
-        gen_layout = QGridLayout()
-
-        # Header colonne
-        header_gen = QLabel("Genera")
-        header_gen.setStyleSheet(f"font-weight: bold; color: {COLORS['ambra']};")
-        gen_layout.addWidget(header_gen, 0, 0)
-
-        header_overwrite = QLabel("Sovrascrivi esistente")
-        header_overwrite.setStyleSheet(f"font-weight: bold; color: {COLORS['ambra']};")
-        gen_layout.addWidget(header_overwrite, 0, 1)
-
-        header_params = QLabel("Parametri")
-        header_params.setStyleSheet(f"font-weight: bold; color: {COLORS['ambra']};")
-        gen_layout.addWidget(header_params, 0, 2, 1, 2)
-
-        # --- TAGS ---
-        self.gen_tags_check = QCheckBox("Tags")
-        self.gen_tags_check.setToolTip("Genera tag automaticamente durante l'import batch")
-        self.gen_tags_check.stateChanged.connect(self._toggle_tags_controls)
-        gen_layout.addWidget(self.gen_tags_check, 1, 0)
-
-        self.gen_tags_overwrite = QCheckBox()
-        self.gen_tags_overwrite.setToolTip("Se attivo, sovrascrive i tag già presenti in XMP/Embedded")
-        gen_layout.addWidget(self.gen_tags_overwrite, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        gen_layout.addWidget(QLabel("Max Tags:"), 1, 2)
-        self.llm_vision_max_tags = NoWheelSpinBox()
-        self.llm_vision_max_tags.setRange(1, 20)
-        self.llm_vision_max_tags.setValue(10)
-        self.llm_vision_max_tags.setToolTip("Numero massimo di tag da generare")
-        gen_layout.addWidget(self.llm_vision_max_tags, 1, 3)
-
-        # --- DESCRIZIONE ---
-        self.gen_desc_check = QCheckBox("Descrizione")
-        self.gen_desc_check.setToolTip("Genera descrizione automaticamente durante l'import batch")
-        self.gen_desc_check.stateChanged.connect(self._toggle_desc_controls)
-        gen_layout.addWidget(self.gen_desc_check, 2, 0)
-
-        self.gen_desc_overwrite = QCheckBox()
-        self.gen_desc_overwrite.setToolTip("Se attivo, sovrascrive la descrizione già presente in XMP/Embedded")
-        gen_layout.addWidget(self.gen_desc_overwrite, 2, 1, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        gen_layout.addWidget(QLabel("Max Parole:"), 2, 2)
-        self.llm_vision_max_words = NoWheelSpinBox()
-        self.llm_vision_max_words.setRange(20, 300)
-        self.llm_vision_max_words.setValue(100)
-        self.llm_vision_max_words.setToolTip("Numero massimo di parole per descrizione")
-        gen_layout.addWidget(self.llm_vision_max_words, 2, 3)
-
-        # --- TITOLO ---
-        self.gen_title_check = QCheckBox("Titolo")
-        self.gen_title_check.setToolTip("Genera titolo automaticamente durante l'import batch")
-        self.gen_title_check.stateChanged.connect(self._toggle_title_controls)
-        gen_layout.addWidget(self.gen_title_check, 3, 0)
-
-        self.gen_title_overwrite = QCheckBox()
-        self.gen_title_overwrite.setToolTip("Se attivo, sovrascrive il titolo già presente in XMP/Embedded")
-        gen_layout.addWidget(self.gen_title_overwrite, 3, 1, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        gen_layout.addWidget(QLabel("Max Parole:"), 3, 2)
-        self.llm_vision_max_title_chars = NoWheelSpinBox()
-        self.llm_vision_max_title_chars.setRange(1, 10)
-        self.llm_vision_max_title_chars.setValue(5)
-        self.llm_vision_max_title_chars.setToolTip("Numero massimo di parole per il titolo generato")
-        gen_layout.addWidget(self.llm_vision_max_title_chars, 3, 3)
-
-        gen_group.setLayout(gen_layout)
-        layout.addWidget(gen_group)
 
         # --- SEZIONE PARAMETRI LLM AVANZATI ---
         adv_group = QGroupBox("🎛️ Parametri LLM Avanzati")
@@ -822,37 +750,8 @@ class ConfigTab(QWidget):
         adv_group.toggled.connect(lambda checked: [w.setVisible(checked) for w in [self.llm_temperature, self.llm_top_k, self.llm_top_p, self.llm_num_ctx, self.llm_num_batch, self.llm_keep_alive]])
         layout.addWidget(adv_group)
 
-        # Info
-        info_label = QLabel("ℹ️ Quando 'Sovrascrivi' è disattivo, i dati esistenti in XMP/Embedded vengono preservati")
-        info_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; font-style: italic; padding: 5px;")
-        info_label.setWordWrap(True)
-        layout.addWidget(info_label)
-
-        # Inizializza stato controlli
-        self._toggle_tags_controls(False)
-        self._toggle_desc_controls(False)
-        self._toggle_title_controls(False)
-
         group_box.setLayout(layout)
         return group_box
-
-    def _toggle_tags_controls(self, state):
-        """Abilita/disabilita controlli tag"""
-        enabled = self.gen_tags_check.isChecked()
-        self.gen_tags_overwrite.setEnabled(enabled)
-        self.llm_vision_max_tags.setEnabled(enabled)
-
-    def _toggle_desc_controls(self, state):
-        """Abilita/disabilita controlli descrizione"""
-        enabled = self.gen_desc_check.isChecked()
-        self.gen_desc_overwrite.setEnabled(enabled)
-        self.llm_vision_max_words.setEnabled(enabled)
-
-    def _toggle_title_controls(self, state):
-        """Abilita/disabilita controlli titolo"""
-        enabled = self.gen_title_check.isChecked()
-        self.gen_title_overwrite.setEnabled(enabled)
-        self.llm_vision_max_title_chars.setEnabled(enabled)
 
     def create_image_processing_section(self):
         """Crea sezione configurazione formati file supportati"""
@@ -1200,30 +1099,6 @@ class ConfigTab(QWidget):
             self.llm_num_batch.setValue(gen_params.get('num_batch', 1024))
             self.llm_keep_alive.setChecked(gen_params.get('keep_alive', -1) == -1)
 
-            # Parametri auto_import granulari (nuova struttura)
-            auto_import = llm.get('auto_import', {})
-
-            # Tags
-            tags_cfg = auto_import.get('tags', {})
-            self.gen_tags_check.setChecked(tags_cfg.get('enabled', False))
-            self.gen_tags_overwrite.setChecked(tags_cfg.get('overwrite', False))
-            self.llm_vision_max_tags.setValue(tags_cfg.get('max_tags', 10))
-            self._toggle_tags_controls(self.gen_tags_check.isChecked())
-
-            # Descrizione
-            desc_cfg = auto_import.get('description', {})
-            self.gen_desc_check.setChecked(desc_cfg.get('enabled', False))
-            self.gen_desc_overwrite.setChecked(desc_cfg.get('overwrite', False))
-            self.llm_vision_max_words.setValue(desc_cfg.get('max_words', 100))
-            self._toggle_desc_controls(self.gen_desc_check.isChecked())
-
-            # Titolo
-            title_cfg = auto_import.get('title', {})
-            self.gen_title_check.setChecked(title_cfg.get('enabled', False))
-            self.gen_title_overwrite.setChecked(title_cfg.get('overwrite', False))
-            self.llm_vision_max_title_chars.setValue(title_cfg.get('max_words', 5))
-            self._toggle_title_controls(self.gen_title_check.isChecked())
-
             # --------------------------------------------------
             # IMAGE PROCESSING
             # --------------------------------------------------
@@ -1357,22 +1232,6 @@ class ConfigTab(QWidget):
             self.llm_num_batch.setValue(1024)
             self.llm_keep_alive.setChecked(True)
 
-            # Generazione Auto-Import (default: tutto disabilitato, no sovrascrittura)
-            self.gen_tags_check.setChecked(False)
-            self.gen_tags_overwrite.setChecked(False)
-            self.llm_vision_max_tags.setValue(10)
-            self._toggle_tags_controls(False)
-
-            self.gen_desc_check.setChecked(False)
-            self.gen_desc_overwrite.setChecked(False)
-            self.llm_vision_max_words.setValue(100)
-            self._toggle_desc_controls(False)
-
-            self.gen_title_check.setChecked(False)
-            self.gen_title_overwrite.setChecked(False)
-            self.llm_vision_max_title_chars.setValue(5)
-            self._toggle_title_controls(False)
-            
             # Supported Formats (Default: Extended)
             self.set_extended_formats()
             
@@ -1503,23 +1362,11 @@ class ConfigTab(QWidget):
                     'num_batch': self.llm_num_batch.value(),
                     'keep_alive': -1 if self.llm_keep_alive.isChecked() else 300,
                 },
-                'auto_import': {
-                    'tags': {
-                        'enabled': self.gen_tags_check.isChecked(),
-                        'overwrite': self.gen_tags_overwrite.isChecked(),
-                        'max_tags': self.llm_vision_max_tags.value(),
-                    },
-                    'description': {
-                        'enabled': self.gen_desc_check.isChecked(),
-                        'overwrite': self.gen_desc_overwrite.isChecked(),
-                        'max_words': self.llm_vision_max_words.value(),
-                    },
-                    'title': {
-                        'enabled': self.gen_title_check.isChecked(),
-                        'overwrite': self.gen_title_overwrite.isChecked(),
-                        'max_words': self.llm_vision_max_title_chars.value(),
-                    },
-                }
+                'auto_import': self.config.get('embedding', {}).get('models', {}).get('llm_vision', {}).get('auto_import', {
+                    'tags': {'enabled': False, 'overwrite': False, 'max_tags': 10},
+                    'description': {'enabled': False, 'overwrite': False, 'max_words': 100},
+                    'title': {'enabled': False, 'overwrite': False, 'max_words': 5},
+                })
             }
             
             # Image Processing

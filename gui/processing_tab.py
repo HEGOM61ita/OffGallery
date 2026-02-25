@@ -11,7 +11,8 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
     QLabel, QPushButton, QProgressBar, QTextEdit,
-    QMessageBox, QDialog, QScrollArea, QApplication
+    QMessageBox, QDialog, QScrollArea, QApplication,
+    QCheckBox, QRadioButton, QButtonGroup, QSpinBox, QFileDialog
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
@@ -21,6 +22,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.paths import get_app_dir
+from catalog_readers.lightroom_reader import LightroomCatalogReader
 
 
 class ProcessingWorker(QThread):
@@ -32,13 +34,15 @@ class ProcessingWorker(QThread):
     stats_update = pyqtSignal(dict)  # statistiche live
     finished = pyqtSignal(dict)  # statistiche finali
     
-    def __init__(self, config_path, input_directory, embedding_gen=None, options=None, include_subdirs=False):
+    def __init__(self, config_path, input_directory, embedding_gen=None, options=None,
+                 include_subdirs=False, image_list=None):
         super().__init__()
         self.config_path = config_path
-        self.input_directory = Path(input_directory)
+        self.input_directory = Path(input_directory) if input_directory else None
         self.embedding_gen = embedding_gen
         self.options = options or {}
         self.include_subdirs = include_subdirs
+        self.image_list = image_list  # Se non None, bypassa la scansione directory
         self.is_running = True
         self.is_paused = False
 
@@ -139,36 +143,40 @@ class ProcessingWorker(QThread):
             else:
                 self.log_message.emit("➡️ Embedding disabilitato nel config", "info")
             
-            # Trova immagini da processare (usa directory passata al worker)
-            input_dir = self.input_directory
+            # Trova immagini da processare
             supported_formats = config.get('image_processing', {}).get('supported_formats', [])
-            
+
             if not supported_formats:
                 self.log_message.emit("❌ Nessun formato supportato configurato", "error")
                 self.finished.emit({'total': 0, 'processed': 0, 'errors': 1})
                 return
-            
-            if not input_dir.exists():
-                self.log_message.emit(f"❌ Directory input non trovata: {input_dir}", "error")
-                self.finished.emit({'total': 0, 'processed': 0, 'errors': 1})
-                return
-            
-            all_images = []
-            seen_files = set()
 
-            for ext in supported_formats:
-                # Cerca sia minuscole che maiuscole
-                for pattern in [f"*{ext}", f"*{ext.upper()}"]:
-                    if self.include_subdirs:
-                        found_files = input_dir.rglob(pattern)
-                    else:
-                        found_files = input_dir.glob(pattern)
-                    for file_path in found_files:
-                        # Con sotto-cartelle usa path completo per dedup, altrimenti solo nome
-                        dedup_key = str(file_path).lower() if self.include_subdirs else file_path.name.lower()
-                        if dedup_key not in seen_files:
-                            seen_files.add(dedup_key)
-                            all_images.append(file_path)
+            if self.image_list is not None:
+                # Sorgente catalogo: usa la lista fornita direttamente
+                all_images = list(self.image_list)
+                self.log_message.emit(f"📋 Sorgente: catalogo — {len(all_images)} immagini", "info")
+            else:
+                # Sorgente directory: scansiona il filesystem
+                input_dir = self.input_directory
+                if not input_dir or not input_dir.exists():
+                    self.log_message.emit(f"❌ Directory input non trovata: {input_dir}", "error")
+                    self.finished.emit({'total': 0, 'processed': 0, 'errors': 1})
+                    return
+
+                all_images = []
+                seen_files = set()
+
+                for ext in supported_formats:
+                    for pattern in [f"*{ext}", f"*{ext.upper()}"]:
+                        if self.include_subdirs:
+                            found_files = input_dir.rglob(pattern)
+                        else:
+                            found_files = input_dir.glob(pattern)
+                        for file_path in found_files:
+                            dedup_key = str(file_path).lower() if self.include_subdirs else file_path.name.lower()
+                            if dedup_key not in seen_files:
+                                seen_files.add(dedup_key)
+                                all_images.append(file_path)
             
             if not all_images:
                 self.log_message.emit("⚠️ Nessuna immagine trovata nella directory input", "warning")
@@ -797,6 +805,8 @@ class ProcessingTab(QWidget):
         self.worker = None
         self.images_to_process_count = 0
         self.processing_log_file = None  # File handle per log processing su disco
+        self.catalog_path = None          # Path catalogo selezionato
+        self.catalog_files = []           # Lista file dal catalogo
         self.init_ui()
     
     def _get_config_path(self):
@@ -852,7 +862,6 @@ class ProcessingTab(QWidget):
         self.refresh_btn.setToolTip("Aggiorna scansione directory e stato database")
         input_layout.addWidget(self.refresh_btn)
 
-        from PyQt6.QtWidgets import QCheckBox
         self.include_subdirs_cb = QCheckBox("Includi sotto-cartelle")
         self.include_subdirs_cb.setToolTip("Scansiona ricorsivamente anche le sotto-cartelle della directory selezionata")
         self.include_subdirs_cb.stateChanged.connect(self._on_subdirs_changed)
@@ -860,7 +869,60 @@ class ProcessingTab(QWidget):
 
         input_group.setLayout(input_layout)
         layout.addWidget(input_group)
-        
+
+        # ===== SORGENTE (radio: Directory / Catalogo) =====
+        source_group = QGroupBox("📥 Sorgente Immagini")
+        source_layout = QHBoxLayout()
+
+        self.source_btn_group = QButtonGroup()
+
+        self.source_dir_radio = QRadioButton("Directory")
+        self.source_dir_radio.setChecked(True)
+        self.source_dir_radio.setToolTip("Leggi immagini dalla directory selezionata sopra")
+        self.source_btn_group.addButton(self.source_dir_radio, 0)
+        source_layout.addWidget(self.source_dir_radio)
+
+        self.source_catalog_radio = QRadioButton("Catalogo Lightroom (.lrcat)")
+        self.source_catalog_radio.setToolTip("Leggi l'elenco delle immagini dal catalogo Lightroom")
+        self.source_btn_group.addButton(self.source_catalog_radio, 1)
+        source_layout.addWidget(self.source_catalog_radio)
+
+        source_layout.addStretch()
+        source_group.setLayout(source_layout)
+        layout.addWidget(source_group)
+
+        self.source_btn_group.idClicked.connect(self._on_source_changed)
+
+        # ===== CATALOGO LIGHTROOM =====
+        self.catalog_group = QGroupBox("📋 Catalogo Lightroom")
+        catalog_layout = QHBoxLayout()
+
+        self.catalog_path_label = QLabel("Nessun catalogo selezionato")
+        self.catalog_path_label.setStyleSheet("""
+            QLabel {
+                color: #2c3e50; padding: 8px 12px;
+                background-color: #ecf0f1;
+                border: 1px solid #bdc3c7;
+                border-radius: 4px; font-size: 11px;
+                min-height: 16px;
+            }
+        """)
+        catalog_layout.addWidget(self.catalog_path_label)
+
+        self.catalog_browse_btn = QPushButton("📁 Seleziona .lrcat")
+        self.catalog_browse_btn.setMinimumWidth(150)
+        self.catalog_browse_btn.clicked.connect(self.select_catalog)
+        catalog_layout.addWidget(self.catalog_browse_btn)
+
+        self.catalog_group.setLayout(catalog_layout)
+        self.catalog_group.setEnabled(False)  # Disabilitato finché non si seleziona "Catalogo"
+        layout.addWidget(self.catalog_group)
+
+        self.catalog_info_label = QLabel("")
+        self.catalog_info_label.setStyleSheet("color: #27ae60; font-size: 11px; padding: 2px 4px;")
+        self.catalog_info_label.setVisible(False)
+        layout.addWidget(self.catalog_info_label)
+
         # ===== STATUS (solo, senza statistiche) =====
         status_group = QGroupBox("📊 Status")
         status_layout = QVBoxLayout()
@@ -878,7 +940,6 @@ class ProcessingTab(QWidget):
         options_group = QGroupBox("⚙️ Modalità Processing")
         options_layout = QVBoxLayout()
         
-        from PyQt6.QtWidgets import QRadioButton, QButtonGroup
         self.processing_mode_group = QButtonGroup()
         
         mode_layout = QHBoxLayout()
@@ -908,7 +969,6 @@ class ProcessingTab(QWidget):
         self.processing_mode_group.idClicked.connect(self.update_start_button_state)
 
         # Checkbox per salvataggio log completo su file
-        from PyQt6.QtWidgets import QCheckBox
         log_layout = QHBoxLayout()
         self.enable_file_log_cb = QCheckBox("Salva log completo su file")
         self.enable_file_log_cb.setToolTip("Scrive tutti i messaggi su file nella directory log configurata (Impostazioni → Dir Log)")
@@ -919,7 +979,90 @@ class ProcessingTab(QWidget):
 
         options_group.setLayout(options_layout)
         layout.addWidget(options_group)
-        
+
+        # ===== GENERAZIONE AI (Tags / Descrizione / Titolo) =====
+        gen_ai_group = QGroupBox("🤖 Generazione AI (Tags / Descrizione / Titolo)")
+        gen_ai_layout = QVBoxLayout()
+
+        from PyQt6.QtWidgets import QGridLayout
+        gen_grid = QGridLayout()
+
+        # Header
+        lbl_genera = QLabel("Genera")
+        lbl_genera.setStyleSheet("font-weight: bold;")
+        gen_grid.addWidget(lbl_genera, 0, 0)
+
+        lbl_sovr = QLabel("Sovrascrivi esistente")
+        lbl_sovr.setStyleSheet("font-weight: bold;")
+        gen_grid.addWidget(lbl_sovr, 0, 1)
+
+        lbl_params = QLabel("Parametri")
+        lbl_params.setStyleSheet("font-weight: bold;")
+        gen_grid.addWidget(lbl_params, 0, 2, 1, 2)
+
+        # Tags
+        self.pt_gen_tags_check = QCheckBox("Tags")
+        self.pt_gen_tags_check.setToolTip("Genera tag automaticamente durante il processing")
+        self.pt_gen_tags_check.stateChanged.connect(self._toggle_pt_tags)
+        gen_grid.addWidget(self.pt_gen_tags_check, 1, 0)
+
+        self.pt_gen_tags_overwrite = QCheckBox()
+        self.pt_gen_tags_overwrite.setToolTip("Sovrascrive i tag già presenti in XMP/Embedded")
+        self.pt_gen_tags_overwrite.setEnabled(False)
+        gen_grid.addWidget(self.pt_gen_tags_overwrite, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        gen_grid.addWidget(QLabel("Max Tags:"), 1, 2)
+        self.pt_llm_max_tags = QSpinBox()
+        self.pt_llm_max_tags.setRange(1, 20)
+        self.pt_llm_max_tags.setValue(10)
+        self.pt_llm_max_tags.setEnabled(False)
+        gen_grid.addWidget(self.pt_llm_max_tags, 1, 3)
+
+        # Descrizione
+        self.pt_gen_desc_check = QCheckBox("Descrizione")
+        self.pt_gen_desc_check.setToolTip("Genera descrizione automaticamente durante il processing")
+        self.pt_gen_desc_check.stateChanged.connect(self._toggle_pt_desc)
+        gen_grid.addWidget(self.pt_gen_desc_check, 2, 0)
+
+        self.pt_gen_desc_overwrite = QCheckBox()
+        self.pt_gen_desc_overwrite.setToolTip("Sovrascrive la descrizione già presente in XMP/Embedded")
+        self.pt_gen_desc_overwrite.setEnabled(False)
+        gen_grid.addWidget(self.pt_gen_desc_overwrite, 2, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        gen_grid.addWidget(QLabel("Max Parole:"), 2, 2)
+        self.pt_llm_max_words = QSpinBox()
+        self.pt_llm_max_words.setRange(20, 300)
+        self.pt_llm_max_words.setValue(100)
+        self.pt_llm_max_words.setEnabled(False)
+        gen_grid.addWidget(self.pt_llm_max_words, 2, 3)
+
+        # Titolo
+        self.pt_gen_title_check = QCheckBox("Titolo")
+        self.pt_gen_title_check.setToolTip("Genera titolo automaticamente durante il processing")
+        self.pt_gen_title_check.stateChanged.connect(self._toggle_pt_title)
+        gen_grid.addWidget(self.pt_gen_title_check, 3, 0)
+
+        self.pt_gen_title_overwrite = QCheckBox()
+        self.pt_gen_title_overwrite.setToolTip("Sovrascrive il titolo già presente in XMP/Embedded")
+        self.pt_gen_title_overwrite.setEnabled(False)
+        gen_grid.addWidget(self.pt_gen_title_overwrite, 3, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        gen_grid.addWidget(QLabel("Max Parole:"), 3, 2)
+        self.pt_llm_max_title = QSpinBox()
+        self.pt_llm_max_title.setRange(1, 10)
+        self.pt_llm_max_title.setValue(5)
+        self.pt_llm_max_title.setEnabled(False)
+        gen_grid.addWidget(self.pt_llm_max_title, 3, 3)
+
+        gen_ai_layout.addLayout(gen_grid)
+
+        info_lbl = QLabel("ℹ️ Quando 'Sovrascrivi' è disattivo, i dati esistenti vengono preservati")
+        info_lbl.setStyleSheet("color: #7f8c8d; font-size: 10px; font-style: italic;")
+        gen_ai_layout.addWidget(info_lbl)
+
+        gen_ai_group.setLayout(gen_ai_layout)
+        layout.addWidget(gen_ai_group)
+
         # Controlli principali
         controls_group = QGroupBox("🎮 Controlli")
         controls_layout = QHBoxLayout()
@@ -1152,6 +1295,40 @@ class ProcessingTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Errore impostazione directory: {e}")
     
+    def _save_llm_config_to_yaml(self, llm_gen_config: dict):
+        """Salva impostazioni generazione AI nel YAML per la prossima sessione"""
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+
+            llm = (config.setdefault('embedding', {})
+                         .setdefault('models', {})
+                         .setdefault('llm_vision', {}))
+            ai = llm.setdefault('auto_import', {})
+
+            ai['tags'] = {
+                'enabled': llm_gen_config['tags']['enabled'],
+                'overwrite': llm_gen_config['tags']['overwrite'],
+                'max_tags': llm_gen_config['tags']['max'],
+            }
+            ai['description'] = {
+                'enabled': llm_gen_config['description']['enabled'],
+                'overwrite': llm_gen_config['description']['overwrite'],
+                'max_words': llm_gen_config['description']['max'],
+            }
+            ai['title'] = {
+                'enabled': llm_gen_config['title']['enabled'],
+                'overwrite': llm_gen_config['title']['overwrite'],
+                'max_words': llm_gen_config['title']['max'],
+            }
+
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Errore salvataggio config LLM: {e}")
+
     def save_input_directory_to_config(self, directory_path):
         """Salva directory input nel config YAML"""
         try:
@@ -1174,32 +1351,131 @@ class ProcessingTab(QWidget):
             print(f"Errore salvataggio directory in config: {e}")
     
     def load_saved_input_directory(self):
-        """Carica directory input salvata dal config se presente"""
+        """Carica directory input e impostazioni LLM dal config YAML"""
         try:
             if not Path(self.config_path).exists():
                 return
-                
+
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
-            
-            # Controlla se esiste input_dir in paths
+
+            # Carica directory salvata
             if 'paths' in config and 'input_dir' in config['paths']:
                 input_dir = config['paths']['input_dir']
                 if Path(input_dir).exists():
                     self.set_input_directory(input_dir)
                 else:
-                    # Directory salvata non esiste più
                     self.input_dir_label.setText("Directory salvata non più disponibile")
                     self.input_dir_label.setStyleSheet("color: #cc3333;")
-            
+
+            # Carica impostazioni generazione AI (tags/desc/title)
+            auto_import = (config.get('embedding', {})
+                           .get('models', {})
+                           .get('llm_vision', {})
+                           .get('auto_import', {}))
+
+            tags_cfg = auto_import.get('tags', {})
+            self.pt_gen_tags_check.setChecked(tags_cfg.get('enabled', False))
+            self.pt_gen_tags_overwrite.setChecked(tags_cfg.get('overwrite', False))
+            self.pt_llm_max_tags.setValue(tags_cfg.get('max_tags', 10))
+            self._toggle_pt_tags(self.pt_gen_tags_check.isChecked())
+
+            desc_cfg = auto_import.get('description', {})
+            self.pt_gen_desc_check.setChecked(desc_cfg.get('enabled', False))
+            self.pt_gen_desc_overwrite.setChecked(desc_cfg.get('overwrite', False))
+            self.pt_llm_max_words.setValue(desc_cfg.get('max_words', 100))
+            self._toggle_pt_desc(self.pt_gen_desc_check.isChecked())
+
+            title_cfg = auto_import.get('title', {})
+            self.pt_gen_title_check.setChecked(title_cfg.get('enabled', False))
+            self.pt_gen_title_overwrite.setChecked(title_cfg.get('overwrite', False))
+            self.pt_llm_max_title.setValue(title_cfg.get('max_words', 5))
+            self._toggle_pt_title(self.pt_gen_title_check.isChecked())
+
         except Exception as e:
-            print(f"Errore caricamento directory salvata: {e}")
+            import logging
+            logging.getLogger(__name__).warning(f"Errore caricamento config in processing tab: {e}")
 
     def _on_subdirs_changed(self, state):
         """Ri-scansiona quando cambia il checkbox sotto-cartelle"""
         input_dir_text = self.input_dir_label.text()
         if input_dir_text not in ["Nessuna directory selezionata", "Directory salvata non più disponibile"]:
             self.scan_directory()
+
+    def _on_source_changed(self, source_id):
+        """Abilita/disabilita sezioni in base alla sorgente selezionata"""
+        is_catalog = (source_id == 1)
+        # Abilita/disabilita controlli directory
+        self.browse_btn.setEnabled(not is_catalog)
+        self.refresh_btn.setEnabled(not is_catalog)
+        self.include_subdirs_cb.setEnabled(not is_catalog)
+        # Abilita/disabilita sezione catalogo
+        self.catalog_group.setEnabled(is_catalog)
+        # Aggiorna stato pulsante avvia
+        self.update_start_button_state()
+
+    def _toggle_pt_tags(self, state):
+        """Abilita/disabilita controlli tag in processing tab"""
+        enabled = self.pt_gen_tags_check.isChecked()
+        self.pt_gen_tags_overwrite.setEnabled(enabled)
+        self.pt_llm_max_tags.setEnabled(enabled)
+
+    def _toggle_pt_desc(self, state):
+        """Abilita/disabilita controlli descrizione in processing tab"""
+        enabled = self.pt_gen_desc_check.isChecked()
+        self.pt_gen_desc_overwrite.setEnabled(enabled)
+        self.pt_llm_max_words.setEnabled(enabled)
+
+    def _toggle_pt_title(self, state):
+        """Abilita/disabilita controlli titolo in processing tab"""
+        enabled = self.pt_gen_title_check.isChecked()
+        self.pt_gen_title_overwrite.setEnabled(enabled)
+        self.pt_llm_max_title.setEnabled(enabled)
+
+    def select_catalog(self):
+        """Apre dialog per selezione catalogo Lightroom"""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Seleziona Catalogo Lightroom",
+            str(Path.home()),
+            "Catalogo Lightroom (*.lrcat);;Tutti i file (*.*)"
+        )
+        if not path:
+            return
+
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            supported_formats = config.get('image_processing', {}).get('supported_formats', [])
+
+            reader = LightroomCatalogReader()
+            result = reader.read_catalog(Path(path), supported_formats)
+
+            self.catalog_path = Path(path)
+            self.catalog_files = result['files']
+            stats = result['stats']
+
+            self.catalog_path_label.setText(str(self.catalog_path))
+
+            info_parts = [
+                f"Catalogo: {stats['catalog_name']}",
+                f"{stats['found_on_disk']} foto compatibili",
+            ]
+            if stats['missing_on_disk'] > 0:
+                info_parts.append(f"⚠️ {stats['missing_on_disk']} non trovate su disco")
+            self.catalog_info_label.setText("  |  ".join(info_parts))
+            self.catalog_info_label.setVisible(True)
+
+            # Aggiorna status
+            self.scan_label.setText(
+                f"Catalogo: {stats['found_on_disk']} immagini disponibili "
+                f"({stats['total_in_catalog']} nel catalogo)"
+            )
+            self.images_to_process_count = stats['found_on_disk']
+            self.update_start_button_state()
+
+        except Exception as e:
+            QMessageBox.warning(self, "Errore lettura catalogo", str(e))
 
     def refresh_scan(self):
         """Aggiorna scansione directory e stato database"""
@@ -1347,21 +1623,50 @@ class ProcessingTab(QWidget):
         """Avvia processing"""
         if self.worker and self.worker.isRunning():
             return
-        
-        # Verifica che sia selezionata una directory
-        input_dir_text = self.input_dir_label.text()
-        if input_dir_text in ["Nessuna directory selezionata", "Directory salvata non più disponibile"]:
-            QMessageBox.warning(self, "Errore", "Seleziona prima una directory input")
-            return
-        
-        if not Path(input_dir_text).exists():
-            QMessageBox.warning(self, "Errore", f"Directory non esistente: {input_dir_text}")
-            return
-        
+
+        # Determina sorgente
+        use_catalog = self.source_catalog_radio.isChecked()
+
+        if use_catalog:
+            # Verifica catalogo selezionato
+            if not self.catalog_files:
+                QMessageBox.warning(self, "Errore", "Seleziona prima un catalogo Lightroom (.lrcat)")
+                return
+        else:
+            # Verifica directory selezionata
+            input_dir_text = self.input_dir_label.text()
+            if input_dir_text in ["Nessuna directory selezionata", "Directory salvata non più disponibile"]:
+                QMessageBox.warning(self, "Errore", "Seleziona prima una directory input")
+                return
+            if not Path(input_dir_text).exists():
+                QMessageBox.warning(self, "Errore", f"Directory non esistente: {input_dir_text}")
+                return
+
         try:
+            # Costruisce llm_gen_config dai widget locali
+            llm_gen_config = {
+                'tags': {
+                    'enabled': self.pt_gen_tags_check.isChecked(),
+                    'overwrite': self.pt_gen_tags_overwrite.isChecked(),
+                    'max': self.pt_llm_max_tags.value(),
+                },
+                'description': {
+                    'enabled': self.pt_gen_desc_check.isChecked(),
+                    'overwrite': self.pt_gen_desc_overwrite.isChecked(),
+                    'max': self.pt_llm_max_words.value(),
+                },
+                'title': {
+                    'enabled': self.pt_gen_title_check.isChecked(),
+                    'overwrite': self.pt_gen_title_overwrite.isChecked(),
+                    'max': self.pt_llm_max_title.value(),
+                },
+            }
+
+            # Salva valori LLM nel YAML per la prossima sessione
+            self._save_llm_config_to_yaml(llm_gen_config)
+
             # Reset progress bar
             self.progress_bar.setValue(0)
-
             self.log_display.clear()
 
             # Apri file log se richiesto
@@ -1372,7 +1677,7 @@ class ProcessingTab(QWidget):
                 datetime.now().strftime("%H:%M:%S")
             ))
 
-            # Determina modalità processing (nuovo ordinamento)
+            # Determina modalità processing
             mode_id = self.processing_mode_group.checkedId()
             if mode_id == 0:
                 processing_mode = 'new_only'
@@ -1386,17 +1691,27 @@ class ProcessingTab(QWidget):
 
             self.log_display.append(f"Modalità: {mode_text}")
 
-            # Scrivi header nel file log (i messaggi sopra non passano da add_log_message)
             if self.processing_log_file:
                 timestamp = datetime.now().strftime("%H:%M:%S")
                 self.processing_log_file.write(f"[{timestamp}] [INFO] Avvio processing...\n")
                 self.processing_log_file.write(f"[{timestamp}] [INFO] Modalità: {mode_text}\n")
                 self.processing_log_file.flush()
 
-            # Crea worker passando directory e opzioni
-            self.worker = ProcessingWorker(self.config_path, input_dir_text, self.embedding_gen, {
-                'processing_mode': processing_mode
-            }, include_subdirs=self.include_subdirs_cb.isChecked())
+            # Crea worker
+            if use_catalog:
+                input_dir_text = None
+                image_list = self.catalog_files
+            else:
+                image_list = None
+
+            self.worker = ProcessingWorker(
+                self.config_path,
+                input_dir_text,
+                self.embedding_gen,
+                {'processing_mode': processing_mode},
+                include_subdirs=self.include_subdirs_cb.isChecked(),
+                image_list=image_list
+            )
 
             # Connetti segnali
             self.worker.progress.connect(self.update_progress)

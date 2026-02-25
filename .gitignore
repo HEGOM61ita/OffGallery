@@ -18,6 +18,8 @@
 !gui/*.py
 !utils/
 !utils/*.py
+!catalog_readers/
+!catalog_readers/*.py
 
 # Configurazione
 !*.yaml
