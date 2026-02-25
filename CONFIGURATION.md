@@ -334,6 +334,99 @@ Il tab Log mostra le elaborazioni in tempo reale con:
 
 ---
 
+---
+
+## Sorgente Immagini (Tab Elaborazione)
+
+Il tab **Elaborazione** permette di scegliere da dove provengono le immagini da processare.
+
+### Modalità Directory
+
+Comportamento classico: OffGallery scansiona ricorsivamente una cartella e processa tutti i file immagine con formato supportato.
+
+La cartella predefinita è configurabile in `config_new.yaml` → `paths.input_dir` (default: `INPUT/`).
+
+### Modalità Catalogo Lightroom (.lrcat)
+
+Permette di usare un catalogo **Adobe Lightroom Classic** come sorgente di input. OffGallery legge il file `.lrcat` (un database SQLite) ed estrae i percorsi assoluti di tutte le immagini indicizzate.
+
+**Come si usa:**
+1. Nel tab Elaborazione, seleziona il radio **"Catalogo .lrcat"**
+2. Clicca 📂 e seleziona il file `.lrcat` del catalogo
+3. OffGallery mostra il numero di file trovati
+4. Avvia l'elaborazione normalmente con i modelli selezionati
+
+**Note importanti:**
+- Il file `.lrcat` viene aperto **in sola lettura** — il catalogo Lightroom non viene mai modificato
+- Chiudere Lightroom prima di selezionare il catalogo, per evitare conflitti con il lock SQLite
+- I file assenti su disco (offline, rimossi) vengono saltati automaticamente
+- Compatibile con Lightroom Classic 6 e superiori (formato SQLite standard)
+- Utile per ri-processare selettivamente file già catalogati in Lightroom senza dover specificare manualmente le cartelle
+
+---
+
+## Export (Tab Esportazione)
+
+Il tab Export permette di esportare metadati e/o copiare fisicamente i file delle immagini selezionate nella Gallery. Le operazioni sono **combinabili** tra loro.
+
+### Operazioni disponibili
+
+| Operazione | Descrizione |
+|---|---|
+| **XMP sidecar (.xmp)** | Crea un file `.xmp` accanto all'immagine (o in directory di output) con tag, titolo, descrizione, rating, colore, tassonomia BioCLIP e gerarchia geografica |
+| **XMP embedded** | Scrive i metadati nel file immagine (JPG / TIFF / DNG). Non supportato per RAW nativi |
+| **Consenti DNG embedded** | Abilita la scrittura embedded nei file DNG (modifica il file originale) |
+| **CSV completo** | Esporta tutti i campi DB + EXIF in formato tabellare, compatibile con Lightroom e Capture One |
+| **Copia file originali** | Copia fisica dei file nella directory di output |
+
+### Destinazione XMP
+
+Il blocco "Destinazione XMP" è **visibile solo quando XMP sidecar o embedded è attivo**. Scompare automaticamente se si seleziona solo la copia file.
+
+| Opzione | Descrizione |
+|---|---|
+| **Accanto ai file originali** *(default)* | XMP scritto nella stessa cartella del file sorgente — raccomandato per workflow Lightroom e Darktable |
+| **In directory di output** | XMP scritto nella directory di output specificata |
+
+### Copia file originali
+
+La directory di output è sempre richiesta quando la copia è attiva.
+
+| Opzione | Default | Descrizione |
+|---|---|---|
+| **Mantieni struttura directory** | Off | Ricrea nella destinazione la gerarchia di cartelle originale |
+| **Sovrascrivi se esiste** | Off | Se disattivo, i file già presenti vengono saltati e conteggiati separatamente |
+
+**Gestione multi-disco con struttura attiva:**
+
+Con foto da dischi o volumi diversi, OffGallery crea una sottocartella per ciascun dispositivo:
+
+| Sistema | Prefisso sottocartella |
+|---|---|
+| Windows | `C_drive/`, `D_drive/`, ecc. |
+| macOS | Nome volume da `/Volumes/` (es. `SSD/`, `ExternalDisk/`) |
+| Linux | Nome mount point da `/mnt/` o `/media/` (es. `ssd/`, `usb/`) |
+
+**XMP e copia sono indipendenti:** è possibile scrivere XMP accanto agli originali e contemporaneamente copiare i file su un disco esterno in directory di output separata.
+
+### Comportamento XMP (campi già presenti)
+
+| Opzione | Default | Descrizione |
+|---|---|---|
+| **Unisci keywords** | ✅ | Aggiunge i keyword OffGallery a quelli già presenti nel file |
+| **Preserva Titolo** | ✅ | Non sovrascrive il titolo se già presente |
+| **Preserva Descrizione** | ✅ | Non sovrascrive la descrizione se già presente |
+| **Preserva Rating** | ✅ | Non sovrascrive il rating (stelle) se già presente |
+| **Preserva Color Label** | ✅ | Non sovrascrive l'etichetta colore se già presente |
+
+I namespace Lightroom (`crs:`, `lr:`, `xmpMM:`) sono sempre preservati automaticamente.
+
+### Directory CSV
+
+La directory CSV è opzionale e separata dalla directory di output principale. Se lasciata vuota, il CSV viene salvato nella directory di output; se anche quella è vuota, nella cartella della prima immagine selezionata.
+
+---
+
 ## Note
 
 - Le modifiche al file YAML richiedono il riavvio dell'applicazione

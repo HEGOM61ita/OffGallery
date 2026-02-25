@@ -17,6 +17,7 @@
   <img src="https://img.shields.io/badge/100%25-Offline-brightgreen" alt="Offline"/>
   <img src="https://img.shields.io/badge/Windows-10%2F11-blue?logo=windows" alt="Windows"/>
   <img src="https://img.shields.io/badge/Linux-Ubuntu%20|%20Fedora%20|%20Arch-orange?logo=linux" alt="Linux"/>
+  <img src="https://img.shields.io/badge/macOS-13%2B-lightgrey?logo=apple" alt="macOS"/>
 </p>
 
 <p align="center">
@@ -40,6 +41,7 @@
 
 | Data | Cosa | Note |
 |------|------|------|
+| 25 feb 2026 | **Import da catalogo Lightroom + Export con struttura** | Elaborazione direttamente da `.lrcat`; copia file con struttura directory originale multi-disco; destinazione XMP disaccoppiata dalla copia; UI Export semplificata e contestuale |
 | 24 feb 2026 | **Geotag geografico offline** | GPS → gerarchia `GeOFF\|Europe\|Italy\|Sardegna\|Città` senza API, visibile nel tooltip gallery e scritto in XMP HierarchicalSubject |
 | 23 feb 2026 | **Fix estrazione RAW** | Fallback multi-stadio ExifTool per NEF/ARW high-efficiency; warning nel log se nessuna anteprima disponibile, metadati salvati comunque — [Discussion #11](https://github.com/HEGOM61ita/OffGallery/discussions/11) |
 | 22 feb 2026 | **Hardening installer Windows + Linux** | Robustezza conda su tutti i profili, ARM64, ToS bypass, pipefail — [Discussion #9](https://github.com/HEGOM61ita/OffGallery/discussions/9) |
@@ -62,7 +64,8 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 | **Potente ricerca Semantica /tags/Exif/+vari** | Cerca in ITALIANO con linguaggio naturale e/o combo complesse con traduzione automatica |
 | **Supporto RAW Nativo** | 25+ formati RAW supportati (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF...) |
 | **Ricerca similarità visiva** | Un semplice click per trovare immagini simili, doppioni, etc. |
-| **Integrazione Lightroom** | Sincronizzazione/edit bidirezionale XMP con rating, tag e metadati. Nessun dato proprietario viene modificato |
+| **Import da catalogo Lightroom** | Elabora direttamente i file indicizzati in un catalogo `.lrcat` come sorgente di input, senza dover specificare cartelle manualmente |
+| **Integrazione Lightroom** | Sincronizzazione/export bidirezionale XMP con rating, tag e metadati. Nessun dato proprietario viene modificato |
 | **Valutazione Estetica** | Score automatico della qualità artistica (0-10) |
 | **Identificazione Specie** | BioCLIP2 riconosce ~450.000 specie con tassonomia completa a 7 livelli |
 | **Geotag Offline** | Gerarchia geografica automatica da GPS: paese, regione, città — senza API esterne, dati GeoNames bundled |
@@ -125,9 +128,12 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 
 ### Workflow Fotografico
 
+- **Import da catalogo Lightroom**: Nel tab Elaborazione, seleziona un file `.lrcat` come sorgente — OffGallery legge il catalogo in sola lettura e processa tutti i file indicizzati, mantenendo intatto il catalogo originale
 - **Import XMP**: Legge tag e rating da Lightroom/DxO/etc.
 - **Export XMP**: Scrive modifiche compatibili con editor esterni, inclusa tassonomia BioCLIP in `HierarchicalSubject`
 - **Export gerarchico**: BioCLIP esportato con prefisso `AI|Taxonomy|...` e geotag con prefisso `GeOFF|...` — nessuna interferenza con le keyword utente
+- **Copia con struttura**: Copia i file originali mantenendo la gerarchia di cartelle, anche con foto da dischi diversi (Windows: `C_drive/` `D_drive/`, macOS: nome volume, Linux: nome mount point)
+- **Destinazione indipendente**: XMP e copia possono avere destinazioni diverse — es. XMP accanto agli originali e copia su disco esterno
 - **Sync State**: Traccia stato sincronizzazione (PERFECT_SYNC, DIRTY, etc.)
 - **Badge Visivi**: Score, rating, ranking e stato colore nella gallery
 - **Ordinamento Gallery**: 7 criteri (rilevanza, data, nome, rating, score estetico/tecnico/composito) con direzione ASC/DESC
@@ -142,12 +148,13 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 | **RAM** | 8 GB | 16 GB |
 | **Disco** | 15 GB | 25 GB |
 | **GPU** | - | NVIDIA con CUDA |
-| **OS** | Windows 10/11 oppure Linux 64-bit | Windows 11 / Ubuntu 22.04+ |
+| **OS** | Windows 10/11, Linux 64-bit o macOS 13+ | Windows 11 / Ubuntu 22.04+ |
 
 > **Note**:
 > - GPU NVIDIA raccomandata per prestazioni ottimali. Funziona anche su CPU (più lento)
 > - Connessione internet richiesta solo al primo avvio per download modelli AI (~7 GB)
 > - **Linux**: testato su Ubuntu, Fedora e Arch. Altre distribuzioni con supporto conda dovrebbero funzionare
+> - **macOS**: supportato su Apple Silicon (M1/M2/M3) e Intel. Installer in lavorazione — seguire la procedura di installazione manuale
 
 ### WSL2 (Windows Subsystem for Linux)
 
@@ -230,20 +237,20 @@ L'applicazione presenta 7 tab principali:
 
 | Tab | Funzione |
 |-----|----------|
-| **Elaborazione** | Processa nuove immagini con tutti i modelli AI |
+| **Elaborazione** | Processa immagini con tutti i modelli AI. Sorgente: cartella o catalogo Lightroom `.lrcat` |
 | **Ricerca** | Query semantica e filtri avanzati |
 | **Galleria** | Visualizza risultati con badge, preview e ordinamento intelligente |
 | **Statistiche** | Analisi del database e pattern di scatto |
-| **Esportazione** | Export metadati su XMP e CSV |
+| **Esportazione** | Export XMP, CSV e copia file con struttura directory originale |
 | **Configurazione** | Impostazioni modelli, parametri ed editor esterni |
 | **Log** | Monitoraggio elaborazioni in tempo reale |
 
 ### Esempio di Workflow
 
-1. **Importa**: Scegli una cartella (`INPUT/` predefinita) e avvia il processo
+1. **Importa**: Scegli una cartella (`INPUT/` predefinita) **oppure seleziona direttamente un catalogo Lightroom `.lrcat`** e avvia il processo
 2. **Cerca**: Usa "Ricerca" per trovare le foto ("ritratto controluce") dal database
 3. **Visualizza**: Seleziona / edita / gestisci i risultati dalla Gallery
-4. **Esporta**: Sincronizza i tag con Lightroom/altri via XMP
+4. **Esporta**: Sincronizza i tag con Lightroom/altri via XMP, o copia i file con struttura originale verso un disco di backup
 
 ---
 
@@ -258,15 +265,22 @@ Per la documentazione completa delle opzioni di configurazione, consulta **[CONF
 ```
 offgallery/
 ├── gui/                      # Moduli interfaccia PyQt6
-│   ├── processing_tab.py     # Orchestrazione elaborazione
+│   ├── processing_tab.py     # Orchestrazione elaborazione + sorgente catalogo
 │   ├── search_tab.py         # Ricerca semantica + filtri
 │   ├── gallery_tab.py        # Visualizzazione risultati
+│   ├── export_tab.py         # Export XMP/CSV + copia con struttura
 │   └── ...
 ├── embedding_generator.py    # Generazione embedding multi-modello
 ├── retrieval.py              # Motore di ricerca
 ├── db_manager_new.py         # Gestione database SQLite
 ├── raw_processor.py          # Estrazione RAW ottimizzata
 ├── xmp_manager_extended.py   # Lettura/scrittura XMP
+├── geo_enricher.py           # Geolocalizzazione offline GPS → GeOFF
+├── catalog_readers/          # Lettori cataloghi esterni
+│   └── lightroom_reader.py   # Legge .lrcat (SQLite) → lista file
+├── utils/                    # Utility cross-platform
+│   ├── paths.py              # Path resolver (script/EXE/WSL)
+│   └── copy_helpers.py       # Copia con struttura multi-disco
 ├── aesthetic/                # Modelli valutazione estetica
 ├── brisque_models/           # Modelli qualità tecnica
 ├── exiftool_files/           # ExifTool per metadati EXIF
