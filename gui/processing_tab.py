@@ -829,401 +829,309 @@ class ProcessingTab(QWidget):
     
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 5)  # Margine inferiore ridotto
-        layout.setSpacing(6)  # Spacing ancora più ridotto
-        
-        # Selezione Directory Input
-        input_group = QGroupBox("📂 Directory Input")
-        input_layout = QHBoxLayout()
-        
-        self.input_dir_label = QLabel("Nessuna directory selezionata")
-        self.input_dir_label.setStyleSheet("""
+        layout.setContentsMargins(8, 8, 8, 4)
+        layout.setSpacing(4)
+
+        path_label_style = """
             QLabel {
-                color: #2c3e50;
-                padding: 8px 12px;
+                color: #2c3e50; padding: 4px 8px;
                 background-color: #ecf0f1;
                 border: 1px solid #bdc3c7;
-                border-radius: 4px;
-                font-size: 11px;
-                font-weight: normal;
-                min-height: 16px;
+                border-radius: 3px; font-size: 11px;
             }
-        """)
-        input_layout.addWidget(self.input_dir_label)
-        
-        self.browse_btn = QPushButton("📁 Seleziona Directory")
-        self.browse_btn.clicked.connect(self.select_input_directory)
-        self.browse_btn.setMinimumWidth(150)
-        input_layout.addWidget(self.browse_btn)
+        """
 
-        self.refresh_btn = QPushButton("🔄 Refresh")
-        self.refresh_btn.clicked.connect(self.refresh_scan)
-        self.refresh_btn.setMinimumWidth(80)
-        self.refresh_btn.setToolTip("Aggiorna scansione directory e stato database")
-        input_layout.addWidget(self.refresh_btn)
-
-        self.include_subdirs_cb = QCheckBox("Includi sotto-cartelle")
-        self.include_subdirs_cb.setToolTip("Scansiona ricorsivamente anche le sotto-cartelle della directory selezionata")
-        self.include_subdirs_cb.stateChanged.connect(self._on_subdirs_changed)
-        input_layout.addWidget(self.include_subdirs_cb)
-
-        input_group.setLayout(input_layout)
-        layout.addWidget(input_group)
-
-        # ===== SORGENTE (radio: Directory / Catalogo) =====
+        # ===== SORGENTE IMMAGINI (unica sezione per dir + catalogo) =====
         source_group = QGroupBox("📥 Sorgente Immagini")
-        source_layout = QHBoxLayout()
+        from PyQt6.QtWidgets import QGridLayout
+        source_grid = QGridLayout()
+        source_grid.setVerticalSpacing(4)
+        source_grid.setHorizontalSpacing(6)
 
         self.source_btn_group = QButtonGroup()
 
-        self.source_dir_radio = QRadioButton("Directory")
+        # --- Riga 0: Directory ---
+        self.source_dir_radio = QRadioButton("Directory:")
         self.source_dir_radio.setChecked(True)
-        self.source_dir_radio.setToolTip("Leggi immagini dalla directory selezionata sopra")
+        self.source_dir_radio.setToolTip("Leggi immagini dalla directory selezionata")
         self.source_btn_group.addButton(self.source_dir_radio, 0)
-        source_layout.addWidget(self.source_dir_radio)
+        source_grid.addWidget(self.source_dir_radio, 0, 0)
 
-        self.source_catalog_radio = QRadioButton("Catalogo Lightroom (.lrcat)")
+        self.input_dir_label = QLabel("Nessuna directory selezionata")
+        self.input_dir_label.setStyleSheet(path_label_style)
+        source_grid.addWidget(self.input_dir_label, 0, 1)
+
+        self.browse_btn = QPushButton("📁 Seleziona")
+        self.browse_btn.clicked.connect(self.select_input_directory)
+        self.browse_btn.setFixedWidth(90)
+        source_grid.addWidget(self.browse_btn, 0, 2)
+
+        self.refresh_btn = QPushButton("🔄")
+        self.refresh_btn.clicked.connect(self.refresh_scan)
+        self.refresh_btn.setFixedWidth(32)
+        self.refresh_btn.setToolTip("Aggiorna scansione directory")
+        source_grid.addWidget(self.refresh_btn, 0, 3)
+
+        self.include_subdirs_cb = QCheckBox("Sotto-cartelle")
+        self.include_subdirs_cb.setToolTip("Scansiona ricorsivamente le sotto-cartelle")
+        self.include_subdirs_cb.stateChanged.connect(self._on_subdirs_changed)
+        source_grid.addWidget(self.include_subdirs_cb, 0, 4)
+
+        # --- Riga 1: Catalogo Lightroom ---
+        self.source_catalog_radio = QRadioButton("Catalogo .lrcat:")
         self.source_catalog_radio.setToolTip("Leggi l'elenco delle immagini dal catalogo Lightroom")
         self.source_btn_group.addButton(self.source_catalog_radio, 1)
-        source_layout.addWidget(self.source_catalog_radio)
+        source_grid.addWidget(self.source_catalog_radio, 1, 0)
 
-        source_layout.addStretch()
-        source_group.setLayout(source_layout)
+        self.catalog_path_label = QLabel("Nessun catalogo selezionato")
+        self.catalog_path_label.setStyleSheet(path_label_style)
+        source_grid.addWidget(self.catalog_path_label, 1, 1)
+
+        self.catalog_browse_btn = QPushButton("📁 Seleziona")
+        self.catalog_browse_btn.setFixedWidth(90)
+        self.catalog_browse_btn.clicked.connect(self.select_catalog)
+        self.catalog_browse_btn.setEnabled(False)
+        source_grid.addWidget(self.catalog_browse_btn, 1, 2)
+
+        # Info catalogo (span colonne 1-4)
+        self.catalog_info_label = QLabel("")
+        self.catalog_info_label.setStyleSheet("color: #27ae60; font-size: 10px; font-style: italic;")
+        self.catalog_info_label.setVisible(False)
+        source_grid.addWidget(self.catalog_info_label, 2, 1, 1, 4)
+
+        source_grid.setColumnStretch(1, 1)  # Path label si espande
+        source_group.setLayout(source_grid)
         layout.addWidget(source_group)
 
         self.source_btn_group.idClicked.connect(self._on_source_changed)
 
-        # ===== CATALOGO LIGHTROOM =====
-        self.catalog_group = QGroupBox("📋 Catalogo Lightroom")
-        catalog_layout = QHBoxLayout()
-
-        self.catalog_path_label = QLabel("Nessun catalogo selezionato")
-        self.catalog_path_label.setStyleSheet("""
-            QLabel {
-                color: #2c3e50; padding: 8px 12px;
-                background-color: #ecf0f1;
-                border: 1px solid #bdc3c7;
-                border-radius: 4px; font-size: 11px;
-                min-height: 16px;
-            }
-        """)
-        catalog_layout.addWidget(self.catalog_path_label)
-
-        self.catalog_browse_btn = QPushButton("📁 Seleziona .lrcat")
-        self.catalog_browse_btn.setMinimumWidth(150)
-        self.catalog_browse_btn.clicked.connect(self.select_catalog)
-        catalog_layout.addWidget(self.catalog_browse_btn)
-
-        self.catalog_group.setLayout(catalog_layout)
-        self.catalog_group.setEnabled(False)  # Disabilitato finché non si seleziona "Catalogo"
-        layout.addWidget(self.catalog_group)
-
-        self.catalog_info_label = QLabel("")
-        self.catalog_info_label.setStyleSheet("color: #27ae60; font-size: 11px; padding: 2px 4px;")
-        self.catalog_info_label.setVisible(False)
-        layout.addWidget(self.catalog_info_label)
-
-        # ===== STATUS (solo, senza statistiche) =====
+        # ===== STATUS (riga singola compatta) =====
         status_group = QGroupBox("📊 Status")
-        status_layout = QVBoxLayout()
-        
+        status_layout = QHBoxLayout()
+        status_layout.setContentsMargins(8, 4, 8, 4)
+
         self.db_label = QLabel("Database: ...")
-        self.scan_label = QLabel("Seleziona una directory per iniziare")
-        
+        self.db_label.setStyleSheet("font-size: 11px;")
         status_layout.addWidget(self.db_label)
+
+        sep = QLabel("|")
+        sep.setStyleSheet("color: #bdc3c7; margin: 0 6px;")
+        status_layout.addWidget(sep)
+
+        self.scan_label = QLabel("Seleziona una sorgente per iniziare")
+        self.scan_label.setStyleSheet("font-size: 11px;")
         status_layout.addWidget(self.scan_label)
-        
+        status_layout.addStretch()
+
         status_group.setLayout(status_layout)
         layout.addWidget(status_group)
-        
-        # ===== OPZIONI PROCESSING (3 modalità radio) =====
+
+        # ===== MODALITÀ + GENERAZIONE AI (fianco a fianco) =====
+        mid_layout = QHBoxLayout()
+        mid_layout.setSpacing(4)
+
+        # --- Modalità Processing ---
         options_group = QGroupBox("⚙️ Modalità Processing")
         options_layout = QVBoxLayout()
-        
+        options_layout.setContentsMargins(8, 6, 8, 6)
+        options_layout.setSpacing(4)
+
         self.processing_mode_group = QButtonGroup()
-        
-        mode_layout = QHBoxLayout()
-        
+
         self.mode_new_only = QRadioButton("Solo nuove immagini")
         self.mode_new_only.setChecked(True)
         self.mode_new_only.setToolTip("Processa solo immagini non ancora nel database")
         self.processing_mode_group.addButton(self.mode_new_only, 0)
-        mode_layout.addWidget(self.mode_new_only)
-        
+        options_layout.addWidget(self.mode_new_only)
+
         self.mode_new_plus_errors = QRadioButton("Nuove + errori precedenti")
         self.mode_new_plus_errors.setToolTip("Processa nuove immagini e riprova quelle che avevano dato errore")
-        # Bianco (nessuno stile speciale)
         self.processing_mode_group.addButton(self.mode_new_plus_errors, 1)
-        mode_layout.addWidget(self.mode_new_plus_errors)
-        
+        options_layout.addWidget(self.mode_new_plus_errors)
+
         self.mode_reprocess_all = QRadioButton("Riprocessa tutte")
         self.mode_reprocess_all.setToolTip("Riprocessa tutte le immagini, anche quelle già elaborate")
-        self.mode_reprocess_all.setStyleSheet("color: #f57500; font-weight: bold;")  # Giallo/Arancione
+        self.mode_reprocess_all.setStyleSheet("color: #f57500; font-weight: bold;")
         self.processing_mode_group.addButton(self.mode_reprocess_all, 2)
-        mode_layout.addWidget(self.mode_reprocess_all)
-        
-        mode_layout.addStretch()
-        options_layout.addLayout(mode_layout)
-        
-        # Connetti cambio modalità all'aggiornamento pulsante
+        options_layout.addWidget(self.mode_reprocess_all)
+
         self.processing_mode_group.idClicked.connect(self.update_start_button_state)
 
-        # Checkbox per salvataggio log completo su file
-        log_layout = QHBoxLayout()
-        self.enable_file_log_cb = QCheckBox("Salva log completo su file")
-        self.enable_file_log_cb.setToolTip("Scrive tutti i messaggi su file nella directory log configurata (Impostazioni → Dir Log)")
+        self.enable_file_log_cb = QCheckBox("Salva log su file")
+        self.enable_file_log_cb.setToolTip("Scrive tutti i messaggi su file nella directory log (Impostazioni → Dir Log)")
         self.enable_file_log_cb.setChecked(False)
-        log_layout.addWidget(self.enable_file_log_cb)
-        log_layout.addStretch()
-        options_layout.addLayout(log_layout)
+        options_layout.addWidget(self.enable_file_log_cb)
+        options_layout.addStretch()
 
         options_group.setLayout(options_layout)
-        layout.addWidget(options_group)
+        mid_layout.addWidget(options_group, stretch=1)
 
-        # ===== GENERAZIONE AI (Tags / Descrizione / Titolo) =====
-        gen_ai_group = QGroupBox("🤖 Generazione AI (Tags / Descrizione / Titolo)")
+        # --- Generazione AI ---
+        gen_ai_group = QGroupBox("🤖 Generazione AI")
         gen_ai_layout = QVBoxLayout()
+        gen_ai_layout.setContentsMargins(8, 6, 8, 4)
+        gen_ai_layout.setSpacing(3)
 
-        from PyQt6.QtWidgets import QGridLayout
-        gen_grid = QGridLayout()
+        # Header riga
+        hdr_layout = QHBoxLayout()
+        hdr_layout.addWidget(QLabel(""))          # spazio allineamento checkbox
+        hdr_lbl = QLabel("Genera")
+        hdr_lbl.setStyleSheet("font-weight: bold; font-size: 10px;")
+        hdr_layout.addWidget(hdr_lbl)
+        hdr_sovr = QLabel("Sovrascrivi")
+        hdr_sovr.setStyleSheet("font-weight: bold; font-size: 10px;")
+        hdr_layout.addWidget(hdr_sovr)
+        hdr_max = QLabel("Max")
+        hdr_max.setStyleSheet("font-weight: bold; font-size: 10px;")
+        hdr_layout.addWidget(hdr_max)
+        gen_ai_layout.addLayout(hdr_layout)
 
-        # Header
-        lbl_genera = QLabel("Genera")
-        lbl_genera.setStyleSheet("font-weight: bold;")
-        gen_grid.addWidget(lbl_genera, 0, 0)
+        def _gen_row(label, tooltip_check, tooltip_sovr):
+            row = QHBoxLayout()
+            row.setSpacing(6)
+            lbl = QLabel(label)
+            lbl.setFixedWidth(68)
+            lbl.setStyleSheet("font-size: 11px;")
+            row.addWidget(lbl)
+            chk = QCheckBox()
+            chk.setToolTip(tooltip_check)
+            row.addWidget(chk, alignment=Qt.AlignmentFlag.AlignHCenter)
+            sovr = QCheckBox()
+            sovr.setToolTip(tooltip_sovr)
+            sovr.setEnabled(False)
+            row.addWidget(sovr, alignment=Qt.AlignmentFlag.AlignHCenter)
+            spin = QSpinBox()
+            spin.setEnabled(False)
+            spin.setFixedWidth(52)
+            row.addWidget(spin)
+            return row, chk, sovr, spin
 
-        lbl_sovr = QLabel("Sovrascrivi esistente")
-        lbl_sovr.setStyleSheet("font-weight: bold;")
-        gen_grid.addWidget(lbl_sovr, 0, 1)
-
-        lbl_params = QLabel("Parametri")
-        lbl_params.setStyleSheet("font-weight: bold;")
-        gen_grid.addWidget(lbl_params, 0, 2, 1, 2)
-
-        # Tags
-        self.pt_gen_tags_check = QCheckBox("Tags")
-        self.pt_gen_tags_check.setToolTip("Genera tag automaticamente durante il processing")
-        self.pt_gen_tags_check.stateChanged.connect(self._toggle_pt_tags)
-        gen_grid.addWidget(self.pt_gen_tags_check, 1, 0)
-
-        self.pt_gen_tags_overwrite = QCheckBox()
-        self.pt_gen_tags_overwrite.setToolTip("Sovrascrive i tag già presenti in XMP/Embedded")
-        self.pt_gen_tags_overwrite.setEnabled(False)
-        gen_grid.addWidget(self.pt_gen_tags_overwrite, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        gen_grid.addWidget(QLabel("Max Tags:"), 1, 2)
-        self.pt_llm_max_tags = QSpinBox()
+        row_t, self.pt_gen_tags_check, self.pt_gen_tags_overwrite, self.pt_llm_max_tags = \
+            _gen_row("Tags:", "Genera tag durante il processing", "Sovrascrive tag già presenti")
         self.pt_llm_max_tags.setRange(1, 20)
         self.pt_llm_max_tags.setValue(10)
-        self.pt_llm_max_tags.setEnabled(False)
-        gen_grid.addWidget(self.pt_llm_max_tags, 1, 3)
+        self.pt_gen_tags_check.stateChanged.connect(self._toggle_pt_tags)
+        gen_ai_layout.addLayout(row_t)
 
-        # Descrizione
-        self.pt_gen_desc_check = QCheckBox("Descrizione")
-        self.pt_gen_desc_check.setToolTip("Genera descrizione automaticamente durante il processing")
-        self.pt_gen_desc_check.stateChanged.connect(self._toggle_pt_desc)
-        gen_grid.addWidget(self.pt_gen_desc_check, 2, 0)
-
-        self.pt_gen_desc_overwrite = QCheckBox()
-        self.pt_gen_desc_overwrite.setToolTip("Sovrascrive la descrizione già presente in XMP/Embedded")
-        self.pt_gen_desc_overwrite.setEnabled(False)
-        gen_grid.addWidget(self.pt_gen_desc_overwrite, 2, 1, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        gen_grid.addWidget(QLabel("Max Parole:"), 2, 2)
-        self.pt_llm_max_words = QSpinBox()
+        row_d, self.pt_gen_desc_check, self.pt_gen_desc_overwrite, self.pt_llm_max_words = \
+            _gen_row("Descrizione:", "Genera descrizione durante il processing", "Sovrascrive descrizione già presente")
         self.pt_llm_max_words.setRange(20, 300)
         self.pt_llm_max_words.setValue(100)
-        self.pt_llm_max_words.setEnabled(False)
-        gen_grid.addWidget(self.pt_llm_max_words, 2, 3)
+        self.pt_gen_desc_check.stateChanged.connect(self._toggle_pt_desc)
+        gen_ai_layout.addLayout(row_d)
 
-        # Titolo
-        self.pt_gen_title_check = QCheckBox("Titolo")
-        self.pt_gen_title_check.setToolTip("Genera titolo automaticamente durante il processing")
-        self.pt_gen_title_check.stateChanged.connect(self._toggle_pt_title)
-        gen_grid.addWidget(self.pt_gen_title_check, 3, 0)
-
-        self.pt_gen_title_overwrite = QCheckBox()
-        self.pt_gen_title_overwrite.setToolTip("Sovrascrive il titolo già presente in XMP/Embedded")
-        self.pt_gen_title_overwrite.setEnabled(False)
-        gen_grid.addWidget(self.pt_gen_title_overwrite, 3, 1, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        gen_grid.addWidget(QLabel("Max Parole:"), 3, 2)
-        self.pt_llm_max_title = QSpinBox()
+        row_ti, self.pt_gen_title_check, self.pt_gen_title_overwrite, self.pt_llm_max_title = \
+            _gen_row("Titolo:", "Genera titolo durante il processing", "Sovrascrive titolo già presente")
         self.pt_llm_max_title.setRange(1, 10)
         self.pt_llm_max_title.setValue(5)
-        self.pt_llm_max_title.setEnabled(False)
-        gen_grid.addWidget(self.pt_llm_max_title, 3, 3)
+        self.pt_gen_title_check.stateChanged.connect(self._toggle_pt_title)
+        gen_ai_layout.addLayout(row_ti)
 
-        gen_ai_layout.addLayout(gen_grid)
-
-        info_lbl = QLabel("ℹ️ Quando 'Sovrascrivi' è disattivo, i dati esistenti vengono preservati")
-        info_lbl.setStyleSheet("color: #7f8c8d; font-size: 10px; font-style: italic;")
+        info_lbl = QLabel("ℹ️ Sovrascrivi disattivo = dati esistenti preservati")
+        info_lbl.setStyleSheet("color: #7f8c8d; font-size: 9px; font-style: italic;")
         gen_ai_layout.addWidget(info_lbl)
+        gen_ai_layout.addStretch()
 
         gen_ai_group.setLayout(gen_ai_layout)
-        layout.addWidget(gen_ai_group)
+        mid_layout.addWidget(gen_ai_group, stretch=1)
 
-        # Controlli principali
+        layout.addLayout(mid_layout)
+
+        # ===== CONTROLLI =====
         controls_group = QGroupBox("🎮 Controlli")
         controls_layout = QHBoxLayout()
-        
-        # Start
+        controls_layout.setContentsMargins(8, 4, 8, 4)
+
         self.start_btn = QPushButton("▶️ AVVIA")
         self.start_btn.clicked.connect(self.start_processing)
-        self.start_btn.setStyleSheet("font-weight: bold; background-color: #2e7d32; min-width: 100px;")
+        self.start_btn.setStyleSheet("font-weight: bold; background-color: #2e7d32; min-width: 90px;")
         controls_layout.addWidget(self.start_btn)
-        
-        # Pausa
+
         self.pause_btn = QPushButton("⏸️ PAUSA")
         self.pause_btn.clicked.connect(self.pause_processing)
         self.pause_btn.setEnabled(False)
-        self.pause_btn.setStyleSheet("min-width: 100px;")
+        self.pause_btn.setStyleSheet("min-width: 90px;")
         controls_layout.addWidget(self.pause_btn)
-        
-        # Stop
+
         self.stop_btn = QPushButton("⏹️ STOP")
         self.stop_btn.clicked.connect(self.stop_processing)
         self.stop_btn.setEnabled(False)
-        self.stop_btn.setStyleSheet("min-width: 100px;")
+        self.stop_btn.setStyleSheet("min-width: 90px;")
         controls_layout.addWidget(self.stop_btn)
-        
-        # Save Log
+
         self.log_btn = QPushButton("💾 SALVA LOG")
         self.log_btn.clicked.connect(self.save_log)
-        self.log_btn.setStyleSheet("min-width: 100px;")
+        self.log_btn.setStyleSheet("min-width: 90px;")
         controls_layout.addWidget(self.log_btn)
-        
+
+        controls_layout.addStretch()
         controls_group.setLayout(controls_layout)
         layout.addWidget(controls_group)
-        
-        # ===== PROGRESSO (SOLO LABEL DINAMICA) =====
+
+        # ===== PROGRESSO =====
         progress_group = QGroupBox("📊 Progresso")
         progress_layout = QVBoxLayout()
+        progress_layout.setContentsMargins(8, 4, 8, 4)
+        progress_layout.setSpacing(3)
 
-        # Progress bar grafica (stile splash screen)
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        self.progress_bar.setFixedHeight(12)
+        self.progress_bar.setFixedHeight(10)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #3A3A3A;
-                background-color: #1E1E1E;
-                border-radius: 6px;
-            }
-            QProgressBar::chunk {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #C88B2E, stop:1 #E0A84A);
-                border-radius: 5px;
-            }
+            QProgressBar { border: 1px solid #3A3A3A; background-color: #1E1E1E; border-radius: 5px; }
+            QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+                stop:0 #C88B2E, stop:1 #E0A84A); border-radius: 4px; }
         """)
         progress_layout.addWidget(self.progress_bar)
 
-        # Label progress testuale
         self.progress_label = QLabel("In attesa di avvio processing...")
         self.progress_label.setStyleSheet("""
-            QLabel {
-                font-size: 12px;
-                color: white;
-                padding: 10px;
-                background-color: #616161;
-                border-radius: 4px;
-                border: 1px solid #424242;
-                font-family: 'Consolas', 'Courier New', monospace;
-                font-weight: bold;
-                min-height: 20px;
-            }
+            QLabel { font-size: 11px; color: white; padding: 6px 10px;
+                background-color: #616161; border-radius: 3px; border: 1px solid #424242;
+                font-family: 'Consolas', 'Courier New', monospace; font-weight: bold; }
         """)
-        # Word wrap per testi lunghi
         self.progress_label.setWordWrap(True)
         progress_layout.addWidget(self.progress_label)
-        
+
         progress_group.setLayout(progress_layout)
         layout.addWidget(progress_group)
-        
-        # ===== LOG TERMINALE (NUOVO) =====
+
+        # ===== TERMINAL LOG (si espande per riempire lo spazio disponibile) =====
         terminal_group = QGroupBox("💻 Terminal Log")
         terminal_layout = QVBoxLayout()
         terminal_layout.setContentsMargins(5, 5, 5, 5)
-        
+
         self.log_display = QTextEdit()
-        
-        # Dimensioni ottimali per terminale
-        self.log_display.setFixedHeight(140)
-        
-        # Font monospaziato per terminale
+        self.log_display.setMinimumHeight(120)
         self.log_display.setFont(QFont("Courier New", 10))
-        
-        # Scrollbar sempre visibile
         self.log_display.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.log_display.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        
-        # Stile terminale classico: nero con verde
         self.log_display.setStyleSheet("""
             QTextEdit {
-                background-color: #000000;
-                color: #00ff00;
-                border: 2px solid #333333;
-                border-radius: 8px;
-                padding: 8px;
-                font-family: 'Courier New', 'Monaco', monospace;
-                font-size: 10px;
-                line-height: 1.2;
+                background-color: #000000; color: #00ff00;
+                border: 2px solid #333333; border-radius: 6px; padding: 6px;
+                font-family: 'Courier New', 'Monaco', monospace; font-size: 10px;
             }
-            QScrollBar:vertical {
-                background-color: #1a1a1a;
-                width: 16px;
-                border: 1px solid #333333;
-                border-radius: 8px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #00ff00;
-                border-radius: 7px;
-                min-height: 20px;
-                margin: 2px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #00cc00;
-            }
-            QScrollBar::handle:vertical:pressed {
-                background-color: #00aa00;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-            QScrollBar:horizontal {
-                background-color: #1a1a1a;
-                height: 16px;
-                border: 1px solid #333333;
-                border-radius: 8px;
-            }
-            QScrollBar::handle:horizontal {
-                background-color: #00ff00;
-                border-radius: 7px;
-                min-width: 20px;
-                margin: 2px;
-            }
-            QScrollBar::handle:horizontal:hover {
-                background-color: #00cc00;
-            }
+            QScrollBar:vertical { background-color: #1a1a1a; width: 14px;
+                border: 1px solid #333333; border-radius: 7px; }
+            QScrollBar::handle:vertical { background-color: #00ff00; border-radius: 6px;
+                min-height: 20px; margin: 2px; }
+            QScrollBar::handle:vertical:hover { background-color: #00cc00; }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
         """)
-        
-        # Proprietà di sola lettura ma mantiene scrolling
         self.log_display.setReadOnly(True)
-        
-        # Auto-scroll alle ultime righe
         self.log_display.textChanged.connect(self._auto_scroll_terminal)
-        
+
         terminal_layout.addWidget(self.log_display)
-        
         terminal_group.setLayout(terminal_layout)
-        layout.addWidget(terminal_group)
-        
-        # Carica directory salvata se presente
+        layout.addWidget(terminal_group, stretch=1)  # stretch=1: prende tutto lo spazio rimanente
+
+        # Carica directory salvata e impostazioni LLM
         self.load_saved_input_directory()
-        
-        # Inizializza terminale con messaggio di benvenuto
+
+        # Messaggio di benvenuto nel terminale
         self._init_terminal_welcome()
     
     def _auto_scroll_terminal(self):
