@@ -74,6 +74,13 @@ class ExportTab(QWidget):
 
         scroll_layout.addStretch(1)
 
+        # Connetti format_sidecar alla sezione destinazione
+        # (embedded e copy sono già collegati nei rispettivi toggle)
+        self.format_sidecar.toggled.connect(self._update_destination_ui)
+
+        # Stato iniziale della sezione destinazione
+        self._update_destination_ui()
+
         scroll.setWidget(container)
         root_layout.addWidget(scroll)
 
@@ -206,16 +213,17 @@ class ExportTab(QWidget):
         return box
 
     def _on_embedded_toggled(self, checked):
-        """Abilita/disabilita opzione DNG embedded"""
+        """Abilita/disabilita opzione DNG embedded e aggiorna sezione destinazione"""
         self.dng_allow_embedded.setEnabled(checked)
         if not checked:
             self.dng_allow_embedded.setChecked(False)
+        self._update_destination_ui()
 
     def _on_copy_toggled(self, checked):
-        """Abilita opzioni copia e aggiorna stato directory output"""
+        """Abilita opzioni copia e aggiorna sezione destinazione"""
         self.copy_preserve_structure.setEnabled(checked)
         self.copy_overwrite.setEnabled(checked)
-        self._update_output_dir_state()
+        self._update_destination_ui()
     
     # ------------------------------------------------------------------
     # EXPORT PATH
@@ -227,56 +235,61 @@ class ExportTab(QWidget):
         layout.setSpacing(8)
         layout.setContentsMargins(12, 10, 12, 10)
 
-        # Radio XMP: accanto agli originali oppure in directory di output
-        self.path_original = QRadioButton("Accanto ai file originali  (raccomandato per XMP/Lightroom)")
+        # --- Blocco XMP: visibile solo quando XMP sidecar/embedded è attivo ---
+        xmp_dest_widget = QWidget()
+        xmp_dest_layout = QVBoxLayout(xmp_dest_widget)
+        xmp_dest_layout.setContentsMargins(0, 0, 0, 4)
+        xmp_dest_layout.setSpacing(4)
+
+        xmp_dest_header = QLabel("Destinazione XMP:")
+        xmp_dest_header.setStyleSheet("font-weight: bold;")
+
+        self.path_original = QRadioButton("Accanto ai file originali  (raccomandato per Lightroom / Darktable)")
         self.path_original.setToolTip(
-            "XMP sidecar scritto nella stessa cartella del file sorgente.\n"
-            "Lightroom e Darktable lo rilevano automaticamente."
+            "Il file .xmp viene creato nella stessa cartella del file sorgente.\n"
+            "Lightroom e Darktable lo rilevano automaticamente.\n"
+            "Non richiede una directory di output separata."
         )
-        self.path_single = QRadioButton("Directory di output:")
-        self.path_single.setToolTip(
-            "XMP scritto nella directory di output specificata.\n"
-            "Sempre usata per la copia file, indipendentemente da questa scelta."
-        )
+        self.path_single = QRadioButton("In directory di output  (vedi sotto)")
+        self.path_single.setToolTip("Il file .xmp viene scritto nella directory di output specificata sotto.")
 
         self.path_original.setChecked(True)
-
         self.path_group = QButtonGroup(self)
         self.path_group.addButton(self.path_original, 0)
         self.path_group.addButton(self.path_single, 1)
 
-        layout.addWidget(self.path_original)
+        xmp_dest_layout.addWidget(xmp_dest_header)
+        xmp_dest_layout.addWidget(self.path_original)
+        xmp_dest_layout.addWidget(self.path_single)
+        self.xmp_dest_widget = xmp_dest_widget
 
-        # Directory di output — usata da: copia file (sempre) + XMP (se radio single)
-        single_layout = QHBoxLayout()
-        single_layout.addWidget(self.path_single)
+        # --- Picker directory di output: label e visibilità dinamiche ---
+        dir_row_widget = QWidget()
+        dir_row_layout = QHBoxLayout(dir_row_widget)
+        dir_row_layout.setContentsMargins(0, 0, 0, 0)
 
+        self.output_dir_label = QLabel("Directory di output:")
         self.output_dir_input = QLineEdit()
         self.output_dir_input.setPlaceholderText("Seleziona directory…")
-        self.output_dir_input.setEnabled(False)
 
         self.browse_btn = QPushButton("📂")
         self.browse_btn.setMaximumWidth(40)
-        self.browse_btn.setEnabled(False)
         self.browse_btn.clicked.connect(self._browse_output_dir)
 
-        single_layout.addWidget(self.output_dir_input)
-        single_layout.addWidget(self.browse_btn)
-        layout.addLayout(single_layout)
+        dir_row_layout.addWidget(self.output_dir_label)
+        dir_row_layout.addWidget(self.output_dir_input)
+        dir_row_layout.addWidget(self.browse_btn)
+        self.dir_row_widget = dir_row_widget
 
-        # Nota esplicativa
-        info = QLabel(
-            "La directory di output è richiesta per la copia file e, "
-            "se selezionato, per XMP in directory unica."
-        )
-        info.setWordWrap(True)
-        info.setStyleSheet("opacity: 0.7; font-size: 10px;")
-        layout.addWidget(info)
+        # --- Info contestuale (testo dinamico) ---
+        self.path_info = QLabel()
+        self.path_info.setWordWrap(True)
+        self.path_info.setStyleSheet("color: gray; font-size: 10px;")
 
-        # --- Directory CSV dedicata (opzionale) ---
-        csv_dir_label = QLabel("Directory CSV:")
+        # --- Directory CSV dedicata (opzionale, visibile solo con CSV attivo) ---
+        csv_dir_label = QLabel("Directory CSV (opzionale):")
         self.csv_dir_input = QLineEdit()
-        self.csv_dir_input.setPlaceholderText("Lascia vuoto per usare la directory di output…")
+        self.csv_dir_input.setPlaceholderText("Lascia vuoto per usare la directory di output sopra…")
         self.csv_dir_input.setEnabled(False)
 
         self.csv_browse_btn = QPushButton("📂")
@@ -292,11 +305,15 @@ class ExportTab(QWidget):
         self.csv_dir_label = csv_dir_label
         self.csv_dir_label.setEnabled(False)
 
-        layout.addLayout(csv_dir_layout)
-
-        # Segnali
+        # Segnali radio XMP
         self.path_original.toggled.connect(self._on_path_mode_changed)
         self.path_single.toggled.connect(self._on_path_mode_changed)
+
+        # Layout finale
+        layout.addWidget(self.xmp_dest_widget)
+        layout.addWidget(self.dir_row_widget)
+        layout.addWidget(self.path_info)
+        layout.addLayout(csv_dir_layout)
 
         return box
 
@@ -327,18 +344,46 @@ class ExportTab(QWidget):
         self.csv_browse_btn.setEnabled(checked)
 
     def _on_path_mode_changed(self):
-        """Aggiorna stato directory output al cambio radio XMP"""
-        self._update_output_dir_state()
+        """Aggiorna UI destinazione al cambio radio XMP"""
+        self._update_destination_ui()
 
-    def _update_output_dir_state(self):
+    def _update_destination_ui(self):
         """
-        Abilita il campo directory output quando è necessario:
-        - Copia file attiva (sempre richiesta)
-        - XMP in modalità 'directory di output'
+        Aggiorna la sezione Destinazione in base a cosa è selezionato:
+        - Blocco radio XMP visibile solo se XMP (sidecar/embedded) è attivo
+        - Picker directory visibile e con label contestuale
+        - Info text esplicativo della combinazione attiva
         """
-        need_dir = self.path_single.isChecked() or self.format_copy.isChecked()
-        self.output_dir_input.setEnabled(need_dir)
-        self.browse_btn.setEnabled(need_dir)
+        has_xmp  = self.format_sidecar.isChecked() or self.format_embedded.isChecked()
+        has_copy = self.format_copy.isChecked()
+        xmp_to_output = has_xmp and self.path_single.isChecked()
+
+        # Radio XMP: compare solo se c'è qualcosa da scrivere come XMP
+        self.xmp_dest_widget.setVisible(has_xmp)
+
+        # Picker directory: serve per copia (sempre) e per XMP→directory
+        need_dir = has_copy or xmp_to_output
+        self.dir_row_widget.setVisible(need_dir)
+
+        # Label e info contestuali
+        if has_copy and has_xmp:
+            self.output_dir_label.setText("Directory di output:")
+            if self.path_original.isChecked():
+                self.path_info.setText(
+                    "XMP → accanto agli originali  ·  Copia → directory di output"
+                )
+            else:
+                self.path_info.setText(
+                    "XMP e copia → entrambi nella directory di output"
+                )
+        elif has_copy:
+            self.output_dir_label.setText("Copia verso:")
+            self.path_info.setText("")
+        elif xmp_to_output:
+            self.output_dir_label.setText("Directory XMP:")
+            self.path_info.setText("")
+        else:
+            self.path_info.setText("")
 
     # ------------------------------------------------------------------
     # ADVANCED
