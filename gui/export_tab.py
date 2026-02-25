@@ -23,8 +23,12 @@ import yaml
 import shutil
 import json
 from datetime import datetime
+import logging
 from gui.gallery_widgets import apply_popup_style
 from xmp_badge_manager import refresh_xmp_badges
+from utils.copy_helpers import compute_common_roots, compute_dest_path
+
+logger = logging.getLogger(__name__)
 
 
 class ExportTab(QWidget):
@@ -64,7 +68,6 @@ class ExportTab(QWidget):
         # === SEZIONI ===
         scroll_layout.addWidget(self._export_format_group())
         scroll_layout.addWidget(self._export_path_group())
-        scroll_layout.addWidget(self._metadata_group())
         scroll_layout.addWidget(self._advanced_group())
         scroll_layout.addWidget(self._selection_group())
         scroll_layout.addWidget(self._export_group())
@@ -98,38 +101,96 @@ class ExportTab(QWidget):
     # ------------------------------------------------------------------
     
     def _export_format_group(self) -> QGroupBox:
-        box = QGroupBox("📄 Modalità Export (combinabili)")
+        box = QGroupBox("📄 Cosa esportare (combinabile)")
         layout = QVBoxLayout(box)
         layout.setSpacing(8)
         layout.setContentsMargins(12, 10, 12, 10)
 
-        self.format_sidecar = QCheckBox("Scrivi sidecar XMP (.xmp)")
-        self.format_sidecar.setToolTip("File separato accanto all'immagine - standard per RAW")
+        # --- XMP sidecar ---
+        self.format_sidecar = QCheckBox("XMP sidecar (.xmp)  —  file separato, standard per RAW")
+        self.format_sidecar.setToolTip(
+            "Crea un file .xmp accanto all'immagine con tutti i metadati OffGallery.\n"
+            "Raccomandato per workflow Lightroom / Darktable / Capture One.\n"
+            "Non modifica il file originale."
+        )
 
-        self.format_embedded = QCheckBox("Scrivi metadati nel file (JPG/DNG)")
-        self.format_embedded.setToolTip("Metadati dentro il file immagine stesso")
+        # --- XMP embedded + opzione DNG indentata ---
+        self.format_embedded = QCheckBox("XMP embedded nel file  (solo JPG / TIFF / DNG)")
+        self.format_embedded.setToolTip(
+            "Scrive i metadati direttamente nel file immagine.\n"
+            "Non supportato per RAW nativi (NEF, ARW, CR2, ORF…): su quei file\n"
+            "viene usato automaticamente il sidecar."
+        )
 
-        self.format_csv = QCheckBox("Export CSV completo (tutti i campi DB)")
-        self.format_csv.setToolTip("Tabella con tutti i metadati database inclusi EXIF")
+        self.dng_allow_embedded = QCheckBox("Consenti embedded per DNG")
+        self.dng_allow_embedded.setChecked(False)
+        self.dng_allow_embedded.setEnabled(False)
+        self.dng_allow_embedded.setToolTip(
+            "I DNG supportano la scrittura embedded, ma il file viene modificato.\n"
+            "Abilitare solo se si è consapevoli delle implicazioni."
+        )
+        dng_widget = QWidget()
+        dng_layout = QVBoxLayout(dng_widget)
+        dng_layout.setContentsMargins(24, 2, 0, 2)
+        dng_layout.setSpacing(0)
+        dng_layout.addWidget(self.dng_allow_embedded)
+        self.dng_options_widget = dng_widget
 
-        self.csv_include_gps = QCheckBox("Includi dati GPS completi")
+        self.format_embedded.toggled.connect(self._on_embedded_toggled)
+
+        # --- CSV ---
+        self.format_csv = QCheckBox("CSV completo  (tutti i campi DB + EXIF)")
+        self.format_csv.setToolTip(
+            "Tabella con tutti i metadati: EXIF, AI, GPS, rating, tag, score…\n"
+            "Utile per import in Lightroom, Capture One o fogli di calcolo."
+        )
+
+        self.csv_include_gps = QCheckBox("Includi GPS")
         self.csv_include_gps.setChecked(True)
         self.csv_include_gps.setToolTip("Aggiunge coordinate GPS estese al CSV")
 
-        self.format_copy = QCheckBox("Copia foto originali")
-        self.format_copy.setToolTip("Copia i file immagine nella directory di destinazione")
+        # --- Copia file + opzioni indentate ---
+        self.format_copy = QCheckBox("Copia file originali")
+        self.format_copy.setToolTip(
+            "Copia i file immagine nella directory di output.\n"
+            "Richiede la 'Directory di output' nella sezione Destinazione."
+        )
 
+        self.copy_preserve_structure = QCheckBox("Mantieni struttura directory originale")
+        self.copy_preserve_structure.setToolTip(
+            "Ricrea la struttura di cartelle originale nella destinazione.\n"
+            "Con foto da dischi diversi crea una sottocartella per ciascun disco:\n"
+            "  Windows → C_drive/  D_drive/\n"
+            "  macOS   → SSD/  ExternalDisk/\n"
+            "  Linux   → ssd/  usb/"
+        )
+        self.copy_preserve_structure.setEnabled(False)
+
+        self.copy_overwrite = QCheckBox("Sovrascrivi se esiste  (default: salta)")
+        self.copy_overwrite.setToolTip(
+            "Attivo: sovrascrive i file già presenti nella destinazione.\n"
+            "Disattivo: i file già presenti vengono saltati e conteggiati."
+        )
+        self.copy_overwrite.setEnabled(False)
+
+        copy_options_widget = QWidget()
+        copy_options_layout = QVBoxLayout(copy_options_widget)
+        copy_options_layout.setContentsMargins(24, 2, 0, 2)
+        copy_options_layout.setSpacing(4)
+        copy_options_layout.addWidget(self.copy_preserve_structure)
+        copy_options_layout.addWidget(self.copy_overwrite)
+        self.copy_options_widget = copy_options_widget
+
+        # --- Default e segnali ---
         self.format_sidecar.setChecked(True)
-
-        # Copia foto richiede directory unica
         self.format_copy.toggled.connect(self._on_copy_toggled)
-        # CSV toggle abilita/disabilita campo directory CSV
         self.format_csv.toggled.connect(self._on_csv_toggled)
 
+        # --- Layout ---
         layout.addWidget(self.format_sidecar)
         layout.addWidget(self.format_embedded)
+        layout.addWidget(self.dng_options_widget)
 
-        # CSV con opzione GPS sulla stessa riga
         csv_row_widget = QWidget()
         csv_row = QHBoxLayout(csv_row_widget)
         csv_row.setContentsMargins(0, 0, 0, 0)
@@ -140,63 +201,82 @@ class ExportTab(QWidget):
         layout.addWidget(csv_row_widget)
 
         layout.addWidget(self.format_copy)
+        layout.addWidget(self.copy_options_widget)
 
         return box
 
+    def _on_embedded_toggled(self, checked):
+        """Abilita/disabilita opzione DNG embedded"""
+        self.dng_allow_embedded.setEnabled(checked)
+        if not checked:
+            self.dng_allow_embedded.setChecked(False)
+
     def _on_copy_toggled(self, checked):
-        """Quando copia foto attiva, forza directory unica"""
-        if checked:
-            self.path_single.setChecked(True)
-            self.path_original.setEnabled(False)
-        else:
-            self.path_original.setEnabled(True)
+        """Abilita opzioni copia e aggiorna stato directory output"""
+        self.copy_preserve_structure.setEnabled(checked)
+        self.copy_overwrite.setEnabled(checked)
+        self._update_output_dir_state()
     
     # ------------------------------------------------------------------
     # EXPORT PATH
     # ------------------------------------------------------------------
     
     def _export_path_group(self) -> QGroupBox:
-        box = QGroupBox("📁 Destinazione Export")
+        box = QGroupBox("📁 Destinazione")
         layout = QVBoxLayout(box)
         layout.setSpacing(8)
         layout.setContentsMargins(12, 10, 12, 10)
 
-        self.path_original = QRadioButton("Directory originali delle immagini")
-        self.path_single = QRadioButton("Directory unica:")
-        
+        # Radio XMP: accanto agli originali oppure in directory di output
+        self.path_original = QRadioButton("Accanto ai file originali  (raccomandato per XMP/Lightroom)")
+        self.path_original.setToolTip(
+            "XMP sidecar scritto nella stessa cartella del file sorgente.\n"
+            "Lightroom e Darktable lo rilevano automaticamente."
+        )
+        self.path_single = QRadioButton("Directory di output:")
+        self.path_single.setToolTip(
+            "XMP scritto nella directory di output specificata.\n"
+            "Sempre usata per la copia file, indipendentemente da questa scelta."
+        )
+
         self.path_original.setChecked(True)
-        
+
         self.path_group = QButtonGroup(self)
         self.path_group.addButton(self.path_original, 0)
         self.path_group.addButton(self.path_single, 1)
-        
+
         layout.addWidget(self.path_original)
-        
-        # Single directory option with picker
+
+        # Directory di output — usata da: copia file (sempre) + XMP (se radio single)
         single_layout = QHBoxLayout()
         single_layout.addWidget(self.path_single)
-        
+
         self.output_dir_input = QLineEdit()
-        self.output_dir_input.setPlaceholderText("Seleziona directory...")
+        self.output_dir_input.setPlaceholderText("Seleziona directory…")
         self.output_dir_input.setEnabled(False)
-        
+
         self.browse_btn = QPushButton("📂")
         self.browse_btn.setMaximumWidth(40)
         self.browse_btn.setEnabled(False)
         self.browse_btn.clicked.connect(self._browse_output_dir)
-        
+
         single_layout.addWidget(self.output_dir_input)
         single_layout.addWidget(self.browse_btn)
         layout.addLayout(single_layout)
-        
-        # Connect radio buttons to enable/disable controls
-        self.path_original.toggled.connect(self._on_path_mode_changed)
-        self.path_single.toggled.connect(self._on_path_mode_changed)
-        
-        # --- Directory CSV dedicata ---
+
+        # Nota esplicativa
+        info = QLabel(
+            "La directory di output è richiesta per la copia file e, "
+            "se selezionato, per XMP in directory unica."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("opacity: 0.7; font-size: 10px;")
+        layout.addWidget(info)
+
+        # --- Directory CSV dedicata (opzionale) ---
         csv_dir_label = QLabel("Directory CSV:")
         self.csv_dir_input = QLineEdit()
-        self.csv_dir_input.setPlaceholderText("Seleziona directory per CSV...")
+        self.csv_dir_input.setPlaceholderText("Lascia vuoto per usare la directory di output…")
         self.csv_dir_input.setEnabled(False)
 
         self.csv_browse_btn = QPushButton("📂")
@@ -214,24 +294,22 @@ class ExportTab(QWidget):
 
         layout.addLayout(csv_dir_layout)
 
-        # Info text
-        info = QLabel("Directory originali: XMP accanto alle immagini (raccomandato per Lightroom)")
-        info.setWordWrap(True)
-        info.setStyleSheet("opacity: 0.7; font-size: 10px;")
-        layout.addWidget(info)
+        # Segnali
+        self.path_original.toggled.connect(self._on_path_mode_changed)
+        self.path_single.toggled.connect(self._on_path_mode_changed)
 
         return box
-    
+
     def _browse_output_dir(self):
         """Seleziona directory output"""
         directory = QFileDialog.getExistingDirectory(
-            self, 
-            "Seleziona Directory Export",
+            self,
+            "Seleziona Directory di Output",
             self.output_dir_input.text() or ""
         )
         if directory:
             self.output_dir_input.setText(directory)
-    
+
     def _browse_csv_dir(self):
         """Seleziona directory output CSV"""
         directory = QFileDialog.getExistingDirectory(
@@ -243,60 +321,31 @@ class ExportTab(QWidget):
             self.csv_dir_input.setText(directory)
 
     def _on_csv_toggled(self, checked):
-        """Abilita/disabilita campo directory CSV in base al checkbox CSV"""
+        """Abilita/disabilita campo directory CSV"""
         self.csv_dir_label.setEnabled(checked)
         self.csv_dir_input.setEnabled(checked)
         self.csv_browse_btn.setEnabled(checked)
 
     def _on_path_mode_changed(self):
-        """Abilita/disabilita controlli directory in base a selezione"""
-        single_mode = self.path_single.isChecked()
-        self.output_dir_input.setEnabled(single_mode)
-        self.browse_btn.setEnabled(single_mode)
+        """Aggiorna stato directory output al cambio radio XMP"""
+        self._update_output_dir_state()
 
-    # ------------------------------------------------------------------
-    # METADATA (existing)
-    # ------------------------------------------------------------------
-
-    def _metadata_group(self) -> QGroupBox:
-        box = QGroupBox("Metadati XMP")
-        layout = QVBoxLayout(box)
-        layout.setSpacing(8)
-        layout.setContentsMargins(12, 10, 12, 10)
-
-        self.meta_db = QCheckBox("Includi metadati dal database")
-        self.meta_embedded = QCheckBox("Scrivi XMP embedded (se supportato)")
-        self.meta_sidecar = QCheckBox("Scrivi XMP sidecar (.xmp)")
-        
-        # Opzione speciale per DNG
-        self.dng_allow_embedded = QCheckBox("Consenti embedded per DNG (richiede conferma)")
-        self.dng_allow_embedded.setChecked(False)
-        self.dng_allow_embedded.setToolTip("Abilita scrittura metadati embedded nei file DNG")
-
-        self.meta_db.setChecked(True)
-        self.meta_sidecar.setChecked(True)
-
-        layout.addWidget(self.meta_db)
-        layout.addWidget(self.meta_embedded)
-        layout.addWidget(self.meta_sidecar)
-        layout.addWidget(self.dng_allow_embedded)
-
-        note = QLabel(
-            "Nota: per molti RAW la scrittura embedded può non essere supportata "
-            "e verrà automaticamente usato il sidecar."
-        )
-        note.setWordWrap(True)
-        note.setStyleSheet("opacity: 0.7;")
-        layout.addWidget(note)
-
-        return box
+    def _update_output_dir_state(self):
+        """
+        Abilita il campo directory output quando è necessario:
+        - Copia file attiva (sempre richiesta)
+        - XMP in modalità 'directory di output'
+        """
+        need_dir = self.path_single.isChecked() or self.format_copy.isChecked()
+        self.output_dir_input.setEnabled(need_dir)
+        self.browse_btn.setEnabled(need_dir)
 
     # ------------------------------------------------------------------
     # ADVANCED
     # ------------------------------------------------------------------
 
     def _advanced_group(self) -> QGroupBox:
-        box = QGroupBox("🔧 Opzioni Avanzate")
+        box = QGroupBox("🔧 Comportamento XMP (cosa fare se il campo esiste già)")
         layout = QVBoxLayout(box)
         layout.setSpacing(8)
         layout.setContentsMargins(12, 10, 12, 10)
@@ -357,25 +406,6 @@ class ExportTab(QWidget):
         xmp_layout.addWidget(note)
 
         layout.addWidget(xmp_section)
-
-        # Sezione: Performance
-        perf_section = QGroupBox("⚡ Performance")
-        perf_layout = QVBoxLayout(perf_section)
-        
-        self.batch_processing = QCheckBox("Elaborazione batch (più veloce)")
-        self.batch_processing.setChecked(True)
-        self.batch_processing.setToolTip("Processa più file insieme, riduce I/O")
-        
-        self.verify_export = QCheckBox("Verifica integrità dopo export")
-        self.verify_export.setChecked(False)
-        self.verify_export.setToolTip("Rilegge i metadati scritti per verifica")
-        
-        for cb in [self.batch_processing, self.verify_export]:
-            perf_layout.addWidget(cb)
-            
-        layout.addWidget(perf_section)
-
-        # Sezione AI/Scoring RIMOSSA - Non necessaria per export standard
 
         return box
 
@@ -445,25 +475,21 @@ class ExportTab(QWidget):
 
         # Validazione: almeno un formato selezionato
         if not any([options['format']['sidecar'], options['format']['embedded'],
-                     options['format']['csv'], options['format']['copy']]):
-            QMessageBox.warning(self, "Errore", "Seleziona almeno un formato di export!")
+                    options['format']['csv'], options['format']['copy']]):
+            QMessageBox.warning(self, "Errore", "Seleziona almeno un'operazione da eseguire.")
             return
 
-        # Validazione: directory unica richiesta
-        if options['path']['single'] and not options['path']['single_dir']:
-            QMessageBox.warning(self, "Errore", "Seleziona directory di output per l'opzione 'Directory unica'!")
-            return
-
-        if options['format']['copy'] and not options['path']['single_dir']:
-            QMessageBox.warning(self, "Errore",
-                "La copia foto richiede una directory di destinazione!\n"
-                "Seleziona 'Directory unica' e specifica il percorso.")
-            return
-
-        # Validazione: directory CSV richiesta se CSV selezionato
-        if options['format']['csv'] and not options['path']['csv_dir']:
-            QMessageBox.warning(self, "Errore",
-                "Seleziona una directory di destinazione per il file CSV!")
+        # Validazione: directory output richiesta per copia e/o XMP in directory unica
+        need_output_dir = options['path']['single'] or options['format']['copy']
+        if need_output_dir and not options['path']['single_dir']:
+            motivi = []
+            if options['format']['copy']:
+                motivi.append("copia file")
+            if options['path']['single']:
+                motivi.append("XMP in directory di output")
+            QMessageBox.warning(self, "Directory mancante",
+                f"Specifica una directory di output.\n"
+                f"Richiesta per: {', '.join(motivi)}.")
             return
 
         try:
@@ -482,10 +508,19 @@ class ExportTab(QWidget):
             if export_copy:
                 export_types.append("Copia foto")
 
-            location_msg = (
-                "directory originali" if options['path']['original']
-                else f"directory: {options['path']['single_dir']}"
+            xmp_location = (
+                "accanto agli originali" if options['path']['original']
+                else options['path']['single_dir']
             )
+            copy_location = options['path']['single_dir'] or "(directory non specificata)"
+            if export_xmp and export_copy:
+                location_msg = f"XMP → {xmp_location}  |  Copia → {copy_location}"
+            elif export_xmp:
+                location_msg = f"XMP → {xmp_location}"
+            elif export_copy:
+                location_msg = f"Copia → {copy_location}"
+            else:
+                location_msg = options['path']['single_dir'] or "directory originali"
 
             # Riepilogo comportamento per campo
             xmp_mode_note = ""
@@ -571,7 +606,7 @@ class ExportTab(QWidget):
                             should_skip = False
                             if caps['is_raw'] and not caps['is_dng']:
                                 should_skip = True
-                            elif caps['is_dng'] and not options['metadata']['dng_allow_embedded']:
+                            elif caps['is_dng'] and not options['format']['dng_allow_embedded']:
                                 should_skip = True
                             elif not caps['can_embedded']:
                                 should_skip = True
@@ -594,8 +629,9 @@ class ExportTab(QWidget):
             # --- Copia foto ---
             copy_count = 0
             copy_failed = 0
+            copy_skipped = 0
             if export_copy:
-                copy_count, copy_failed = self._copy_photos(self.images_to_export, options)
+                copy_count, copy_failed, copy_skipped = self._copy_photos(self.images_to_export, options)
 
             # --- Report finale ---
             try:
@@ -612,6 +648,8 @@ class ExportTab(QWidget):
                     report_parts.append(f"❌ Errore CSV")
                 if export_copy and copy_count > 0:
                     report_parts.append(f"✅ Foto copiate: {copy_count}")
+                if export_copy and copy_skipped > 0:
+                    report_parts.append(f"⏭ Foto saltate (già presenti): {copy_skipped}")
                 if export_copy and copy_failed > 0:
                     report_parts.append(f"❌ Errori copia: {copy_failed}")
 
@@ -838,8 +876,6 @@ class ExportTab(QWidget):
     def _write_xmp_embedded(self, image_file: Path, image_item, options):
         """Scrivi metadati XMP embedded nel file (JPG, TIFF, DNG)"""
         try:
-            if not options['metadata']['db']:
-                return False
 
             # Costruisci lista keywords unificata
             tags_data = image_item.image_data.get('tags', '')
@@ -994,8 +1030,6 @@ class ExportTab(QWidget):
     def _write_xmp_sidecar(self, image_file: Path, image_item, options: dict):
         """Scrive XMP sidecar compatibile con Lightroom"""
         try:
-            if not options['metadata']['db']:
-                return False
 
             import subprocess
 
@@ -1286,16 +1320,38 @@ class ExportTab(QWidget):
             return []
 
     def _copy_photos(self, image_items, options):
-        """Copia foto originali nella directory di destinazione"""
+        """
+        Copia foto originali nella directory di destinazione.
+
+        Se copy_preserve_structure=True usa compute_common_roots/compute_dest_path
+        per ricreare la struttura originale, gestendo foto da dischi diversi
+        (Windows: C_drive/D_drive, macOS: /Volumes/<Nome>, Linux: /mnt/<nome>).
+
+        Returns:
+            tuple: (copy_count, copy_failed, copy_skipped)
+        """
         single_dir = options['path']['single_dir']
         if not single_dir:
-            return 0, 0
+            return 0, 0, 0
 
         output_dir = Path(single_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        preserve_structure = options['format'].get('copy_preserve_structure', False)
+        overwrite = options['format'].get('copy_overwrite', False)
+
         copy_count = 0
         copy_failed = 0
+        copy_skipped = 0
+
+        # Pre-calcola radici comuni per device se struttura attiva
+        common_roots = {}
+        if preserve_structure:
+            common_roots = compute_common_roots(image_items)
+            logger.debug(
+                f"Struttura attiva: {len(common_roots)} device rilevati, "
+                f"multi-disco={'Sì' if len(common_roots) > 1 else 'No'}"
+            )
 
         progress = QProgressDialog(
             "Copia foto in corso...",
@@ -1322,32 +1378,37 @@ class ExportTab(QWidget):
             try:
                 source_path = Path(image_item.image_data.get('filepath', ''))
                 if not source_path.exists():
-                    print(f"❌ File non trovato per copia: {source_path}")
+                    logger.warning(f"File non trovato per copia: {source_path}")
                     copy_failed += 1
                     continue
 
-                stem = source_path.stem
-                suffix = source_path.suffix
-                dest_path = output_dir / f"{stem} Ofglry{suffix}"
+                if preserve_structure:
+                    # Calcola destinazione mantenendo la struttura originale
+                    dest_path = compute_dest_path(source_path, output_dir, common_roots)
+                    dest_path.parent.mkdir(parents=True, exist_ok=True)
+                else:
+                    # Copia piatta: nome file invariato nella directory di output
+                    dest_path = output_dir / source_path.name
 
-                # Gestione conflitti nome (file con stesso nome da directory diverse)
+                # Gestione conflitti coerente in entrambe le modalità
                 if dest_path.exists():
-                    counter = 2
-                    while dest_path.exists():
-                        dest_path = output_dir / f"{stem} Ofglry_{counter}{suffix}"
-                        counter += 1
+                    if not overwrite:
+                        logger.debug(f"File già presente, saltato: {dest_path.name}")
+                        copy_skipped += 1
+                        continue
+                    # overwrite=True: shutil.copy2 sovrascrive silenziosamente
 
                 shutil.copy2(source_path, dest_path)
                 copy_count += 1
 
             except Exception as e:
-                print(f"❌ Errore copia {filename}: {e}")
+                logger.error(f"Errore copia {filename}: {e}")
                 copy_failed += 1
 
         progress.setValue(len(image_items))
         progress.close()
 
-        return copy_count, copy_failed
+        return copy_count, copy_failed, copy_skipped
 
     def _get_file_capabilities(self, filepath):
         """Analizza le capacità di scrittura metadata per tipo file"""
@@ -1381,13 +1442,16 @@ class ExportTab(QWidget):
         self.set_images(selected_items)
 
     def get_export_options(self) -> dict:
-        """Restituisce opzioni export complete per workflow professionale"""
+        """Restituisce opzioni export complete"""
         return {
             "format": {
                 "sidecar": self.format_sidecar.isChecked(),
                 "embedded": self.format_embedded.isChecked(),
+                "dng_allow_embedded": self.dng_allow_embedded.isChecked(),
                 "csv": self.format_csv.isChecked(),
                 "copy": self.format_copy.isChecked(),
+                "copy_preserve_structure": self.copy_preserve_structure.isChecked(),
+                "copy_overwrite": self.copy_overwrite.isChecked(),
             },
             "path": {
                 "original": self.path_original.isChecked(),
@@ -1395,25 +1459,14 @@ class ExportTab(QWidget):
                 "single_dir": self.output_dir_input.text().strip(),
                 "csv_dir": self.csv_dir_input.text().strip(),
             },
-            "metadata": {
-                "db": self.meta_db.isChecked(),
-                "embedded": self.meta_embedded.isChecked(),
-                "sidecar": self.meta_sidecar.isChecked(),
-                "dng_allow_embedded": self.dng_allow_embedded.isChecked(),
-            },
             "advanced": {
-                # CSV options
                 "csv_include_gps": self.csv_include_gps.isChecked(),
-                # XMP options — controllo indipendente per campo
                 "xmp_merge_keywords": self.xmp_merge_keywords.isChecked(),
                 "xmp_preserve_title": self.xmp_preserve_title.isChecked(),
                 "xmp_preserve_description": self.xmp_preserve_description.isChecked(),
                 "xmp_preserve_rating": self.xmp_preserve_rating.isChecked(),
                 "xmp_preserve_color_label": self.xmp_preserve_color_label.isChecked(),
-                "xmp_lr_compatibility": True,  # Sempre attivo - standard integrato
-                # Performance options
-                "batch_processing": self.batch_processing.isChecked(),
-                "verify_export": self.verify_export.isChecked(),
+                "xmp_lr_compatibility": True,
             }
         }
 
