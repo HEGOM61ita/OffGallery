@@ -1310,14 +1310,14 @@ class ProcessingTab(QWidget):
             self.scan_directory()
 
     def _on_source_changed(self, source_id):
-        """Abilita/disabilita sezioni in base alla sorgente selezionata"""
+        """Abilita/disabilita controlli in base alla sorgente selezionata"""
         is_catalog = (source_id == 1)
-        # Abilita/disabilita controlli directory
+        # Controlli directory
         self.browse_btn.setEnabled(not is_catalog)
         self.refresh_btn.setEnabled(not is_catalog)
         self.include_subdirs_cb.setEnabled(not is_catalog)
-        # Abilita/disabilita sezione catalogo
-        self.catalog_group.setEnabled(is_catalog)
+        # Controlli catalogo
+        self.catalog_browse_btn.setEnabled(is_catalog)
         # Aggiorna stato pulsante avvia
         self.update_start_button_state()
 
