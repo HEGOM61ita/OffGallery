@@ -288,6 +288,7 @@ class _ThumbnailLoader(QRunnable):
     """
     Carica thumbnail in background thread (fallback per cache miss).
     Per RAW usa ExifTool -PreviewImage, per altri file legge i bytes raw.
+    Salva anche nella cache disco (worker thread — PIL/I-O sicuri qui).
     Emette bytes al main thread tramite signals — QPixmap creato lì.
     """
     _RAW_EXT = {'.cr2', '.cr3', '.nef', '.arw', '.orf', '.rw2',
@@ -300,6 +301,7 @@ class _ThumbnailLoader(QRunnable):
         self.setAutoDelete(True)
 
     def run(self):
+        data = None
         try:
             if self.filepath.suffix.lower() in self._RAW_EXT:
                 result = subprocess.run(
@@ -307,15 +309,31 @@ class _ThumbnailLoader(QRunnable):
                     capture_output=True, timeout=10
                 )
                 if result.returncode == 0 and result.stdout:
-                    self.signals.loaded.emit(result.stdout)
-                else:
-                    self.signals.failed.emit()
+                    data = result.stdout
             else:
                 with open(str(self.filepath), 'rb') as f:
-                    self.signals.loaded.emit(f.read())
+                    data = f.read()
         except Exception as e:
-            logger.debug(f"Thumbnail async load error {self.filepath.name}: {e}")
+            logger.debug(f"Thumbnail load error {self.filepath.name}: {e}")
+
+        if data:
+            self._populate_cache(data)
+            self.signals.loaded.emit(data)
+        else:
             self.signals.failed.emit()
+
+    def _populate_cache(self, data: bytes):
+        """Salva thumbnail 150px in cache (worker thread — sicuro per I/O)."""
+        try:
+            from PIL import Image
+            import io
+            from utils.thumb_cache import save_gallery_thumb
+            img = Image.open(io.BytesIO(data))
+            img.load()  # Forza decodifica completa prima che BytesIO esca dallo scope
+            save_gallery_thumb(self.filepath, img)
+            logger.debug(f"Cache thumbnail salvata: {self.filepath.name}")
+        except Exception as e:
+            logger.warning(f"Cache write fallita per {self.filepath.name}: {e}")
 
 
 class ImageCard(QFrame):
@@ -482,7 +500,7 @@ class ImageCard(QFrame):
 
     def _on_thumb_loaded(self, data: bytes):
         """Riceve bytes dal worker thread, crea QPixmap nel main thread.
-        Salva anche in cache disco per i caricamenti successivi."""
+        Il salvataggio cache è già avvenuto nel worker thread."""
         pixmap = QPixmap()
         if pixmap.loadFromData(data):
             scaled = pixmap.scaled(
@@ -492,17 +510,6 @@ class ImageCard(QFrame):
             )
             self.thumbnail_label.setPixmap(scaled)
             self.thumbnail_label.setStyleSheet("")
-
-            # Popola cache disco: prossimo caricamento sarà istantaneo
-            if self.filepath:
-                try:
-                    from utils.thumb_cache import save_gallery_thumb
-                    from PIL import Image
-                    import io
-                    pil_img = Image.open(io.BytesIO(data))
-                    save_gallery_thumb(self.filepath, pil_img)
-                except Exception:
-                    pass
         else:
             self._on_thumb_failed()
 
