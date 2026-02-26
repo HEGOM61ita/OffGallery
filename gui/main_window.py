@@ -434,11 +434,27 @@ class MainWindow(QMainWindow):
         self.search_tab.search_executed.connect(self.on_search_completed)
         self.tabs.currentChanged.connect(self.on_tab_changed)
         self.export_tab.export_completed.connect(self.on_export_completed)
+        self.config_tab.config_saved.connect(self._on_config_saved)
         
         layout.addWidget(self.tabs)
         
            
    
+    def _on_config_saved(self, new_config):
+        """
+        Aggiorna il config in-memory dopo un salvataggio da ConfigTab.
+        Propaga il nuovo embedding_config all'EmbeddingGenerator condiviso
+        senza ricaricare i modelli (già in VRAM).
+        """
+        import logging
+        log = logging.getLogger(__name__)
+        self.config = new_config
+        emb_gen = self.ai_models.get('embedding_generator')
+        if emb_gen is not None:
+            emb_gen.config = new_config
+            emb_gen.embedding_config = new_config.get('embedding', {})
+            log.info("✅ Config ricaricato in EmbeddingGenerator senza riavvio modelli")
+
     def on_tab_changed(self, index):
         tab_names = [
             "Configurazione",
