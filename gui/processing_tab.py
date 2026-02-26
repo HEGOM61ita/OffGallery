@@ -458,6 +458,12 @@ class ProcessingWorker(QThread):
             if cached_thumbnail:
                 thumb_size = cached_thumbnail.size if hasattr(cached_thumbnail, 'size') else 'N/A'
                 self.log_message.emit(f"📥 Thumbnail cached per AI: {thumb_size}", "info")
+                # Salva thumbnail nella cache gallery (150px) per display veloce in gallery
+                try:
+                    from utils.thumb_cache import save_gallery_thumb
+                    save_gallery_thumb(image_path, cached_thumbnail)
+                except Exception as _e:
+                    logger.warning(f"Errore salvataggio thumbnail cache gallery: {_e}")
             elif is_raw:
                 self.log_message.emit(
                     f"⚠️ {image_path.name}: nessuna immagine estraibile dal RAW — "

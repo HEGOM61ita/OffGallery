@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QRadioButton, QButtonGroup, QTextEdit, QMessageBox, QScrollArea,
     QPushButton
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThreadPool, QRunnable
 from PyQt6.QtGui import QPixmap, QCursor, QAction
 from PyQt6.QtWidgets import QToolTip
 from PyQt6 import QtCore
@@ -278,6 +278,46 @@ class FlowLayout(QLayout):
                 break
 
 
+class _ThumbSignals(QObject):
+    """Segnali per _ThumbnailLoader cross-thread (QRunnable non è QObject)"""
+    loaded = pyqtSignal(bytes)
+    failed = pyqtSignal()
+
+
+class _ThumbnailLoader(QRunnable):
+    """
+    Carica thumbnail in background thread (fallback per cache miss).
+    Per RAW usa ExifTool -PreviewImage, per altri file legge i bytes raw.
+    Emette bytes al main thread tramite signals — QPixmap creato lì.
+    """
+    _RAW_EXT = {'.cr2', '.cr3', '.nef', '.arw', '.orf', '.rw2',
+                '.pef', '.dng', '.nrw', '.srf', '.sr2'}
+
+    def __init__(self, filepath: Path, signals: '_ThumbSignals'):
+        super().__init__()
+        self.filepath = filepath
+        self.signals = signals
+        self.setAutoDelete(True)
+
+    def run(self):
+        try:
+            if self.filepath.suffix.lower() in self._RAW_EXT:
+                result = subprocess.run(
+                    ['exiftool', '-b', '-PreviewImage', str(self.filepath)],
+                    capture_output=True, timeout=10
+                )
+                if result.returncode == 0 and result.stdout:
+                    self.signals.loaded.emit(result.stdout)
+                else:
+                    self.signals.failed.emit()
+            else:
+                with open(str(self.filepath), 'rb') as f:
+                    self.signals.loaded.emit(f.read())
+        except Exception as e:
+            logger.debug(f"Thumbnail async load error {self.filepath.name}: {e}")
+            self.signals.failed.emit()
+
+
 class ImageCard(QFrame):
     """
     Card verticale: thumbnail sopra, info sotto
@@ -388,7 +428,11 @@ class ImageCard(QFrame):
         return 'ok'
 
     def _load_thumbnail(self):
-        """Carica thumbnail dell'immagine"""
+        """
+        Carica thumbnail dell'immagine.
+        1) Cache disco (veloce, ~5ms) — popolata dal processing
+        2) Fallback asincrono: ExifTool in background thread (cache miss)
+        """
         try:
             file_status = self._check_file_status()
             if file_status != 'ok':
@@ -407,52 +451,52 @@ class ImageCard(QFrame):
                     font-weight: bold;
                 """)
                 return
-            
-            # Carica thumbnail
-            pixmap = QPixmap(str(self.filepath))
-            if not pixmap.isNull():
-                # Scala mantenendo aspect ratio
-                scaled_pixmap = pixmap.scaled(
-                    self.THUMB_SIZE, self.THUMB_SIZE,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation
-                )
-                self.thumbnail_label.setPixmap(scaled_pixmap)
-            else:
-                # Prova con ExifTool per RAW
-                self._try_raw_thumbnail()
-                
-        except Exception as e:
-            print(f"Errore load_thumbnail: {e}")
-            self.thumbnail_label.setText("❌\nError")
-    
-    def _try_raw_thumbnail(self):
-        """Prova a estrarre thumbnail da file RAW"""
-        try:
+
+            # 1) CACHE HIT: lettura veloce (~5ms), sincrona nel main thread
+            if self.filepath:
+                try:
+                    from utils.thumb_cache import load_gallery_thumb_bytes
+                    cached_bytes = load_gallery_thumb_bytes(self.filepath)
+                    if cached_bytes:
+                        pixmap = QPixmap()
+                        if pixmap.loadFromData(cached_bytes):
+                            self.thumbnail_label.setPixmap(pixmap)
+                            return
+                except Exception as _ce:
+                    logger.debug(f"Cache read error: {_ce}")
+
+            # 2) CACHE MISS: placeholder + caricamento asincrono in background
+            self.thumbnail_label.setText("⏳")
             if not self.filepath:
                 return
-                
-            # Comando ExifTool per estrarre preview
-            cmd = ['exiftool', '-b', '-PreviewImage', str(self.filepath)]
-            result = subprocess.run(cmd, capture_output=True, timeout=10)
-            
-            if result.returncode == 0 and result.stdout:
-                pixmap = QPixmap()
-                if pixmap.loadFromData(result.stdout):
-                    scaled_pixmap = pixmap.scaled(
-                        self.THUMB_SIZE, self.THUMB_SIZE,
-                        Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation
-                    )
-                    self.thumbnail_label.setPixmap(scaled_pixmap)
-                    return
-            
-            # Fallback
-            self.thumbnail_label.setText("📁\nRAW")
-            
+
+            self._thumb_signals = _ThumbSignals()
+            self._thumb_signals.loaded.connect(self._on_thumb_loaded)
+            self._thumb_signals.failed.connect(self._on_thumb_failed)
+            loader = _ThumbnailLoader(self.filepath, self._thumb_signals)
+            QThreadPool.globalInstance().start(loader)
+
         except Exception as e:
-            print(f"❌ Errore estrazione thumbnail RAW {self.filepath.name}: {e}")
-            self.thumbnail_label.setText("📷\nRAW")
+            logger.debug(f"Errore _load_thumbnail: {e}")
+            self.thumbnail_label.setText("❌\nError")
+
+    def _on_thumb_loaded(self, data: bytes):
+        """Riceve bytes dal worker thread, crea QPixmap nel main thread"""
+        pixmap = QPixmap()
+        if pixmap.loadFromData(data):
+            scaled = pixmap.scaled(
+                self.THUMB_SIZE, self.THUMB_SIZE,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            self.thumbnail_label.setPixmap(scaled)
+            self.thumbnail_label.setStyleSheet("")
+        else:
+            self._on_thumb_failed()
+
+    def _on_thumb_failed(self):
+        """Fallback quando thumbnail non disponibile neanche via ExifTool"""
+        self.thumbnail_label.setText("📷\nRAW")
     
     def _build_scores_and_indicators(self, layout):
         """Costruisce badge qualità su due righe: scores + status XMP/sync"""

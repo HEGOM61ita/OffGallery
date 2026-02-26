@@ -134,20 +134,28 @@ class ViewportXMPManager:
             print(f"Error viewport XMP check: {e}")
     
     def _get_visible_cards(self):
-        """Calcola card attualmente visibili - versione semplificata"""
-        if not hasattr(self.gallery, 'cards'):
+        """
+        Calcola card attualmente visibili nel viewport dello scroll area.
+        Usa geometria reale: mapTo(viewport) + rect intersection.
+        (isVisible() ritorna True per tutte le card nel DOM — non usare)
+        """
+        if not hasattr(self.gallery, 'cards') or not hasattr(self.gallery, 'scroll_area'):
             return []
-    
-        # Strategia semplice: restituisce TUTTE le cards visibili
-        # Il FlowLayout rende difficile calcolare viewport preciso
+
+        from PyQt6.QtCore import QPoint, QRect
+        viewport = self.gallery.scroll_area.viewport()
+        viewport_rect = viewport.rect()
+
         visible_cards = []
         for card in self.gallery.cards:
             try:
-                if card.isVisible():
+                pos = card.mapTo(viewport, QPoint(0, 0))
+                card_rect = QRect(pos.x(), pos.y(), card.width(), card.height())
+                if viewport_rect.intersects(card_rect):
                     visible_cards.append(card)
-            except:
+            except Exception:
                 continue
-    
+
         return visible_cards
 #----------------------------------------------------------------
 
@@ -492,13 +500,24 @@ class GalleryTab(QWidget):
             self.flow_layout.addWidget(card)
         
         QTimer.singleShot(10, self._do_relayout)
-               
-        # Refresh badge XMP per tutte le card caricate  
-        QTimer.singleShot(100, lambda: refresh_xmp_badges(self.cards, "gallery_loaded"))
 
-        # Mantieni il check viewport esistente
-        QTimer.singleShot(1500, lambda: self.viewport_xmp_manager._check_viewport_xmp())
+        # Refresh badge XMP: card visibili nel viewport elaborate per prime
+        QTimer.singleShot(200, self._refresh_badges_viewport_first)
     
+    def _refresh_badges_viewport_first(self):
+        """
+        Avvia refresh badge XMP con priorità alle card visibili nel viewport.
+        Le card visibili vengono elaborate per prime, poi le restanti in ordine.
+        """
+        all_cards = self.cards
+        if not all_cards:
+            return
+        visible = self.viewport_xmp_manager._get_visible_cards()
+        visible_ids = {id(c) for c in visible}
+        ordered = ([c for c in all_cards if id(c) in visible_ids] +
+                   [c for c in all_cards if id(c) not in visible_ids])
+        refresh_xmp_badges(ordered, "gallery_loaded")
+
     def _on_item_selection_changed(self, item, selected):
         if selected:
             if item not in self.selected_items:
