@@ -1284,10 +1284,36 @@ class EmbeddingGenerator:
             logger.error(f"Input non supportato per BioCLIP: {type(input_data)}")
             return [], None
 
+        # Scarta predizioni con regno non biologico (falsi positivi a threshold bassi)
+        predictions = self._filter_by_known_kingdom(predictions)
+
         flat_tags = self._format_bioclip_tags(predictions)
         taxonomy = self._extract_best_taxonomy(predictions)
         return flat_tags, taxonomy
     
+    def _filter_by_known_kingdom(self, predictions):
+        """
+        Filtra le predizioni BioCLIP mantenendo solo quelle con un regno biologico riconoscibile.
+        Evita falsi positivi su oggetti non biologici (rocce, edifici, ecc.)
+        che a threshold bassi possono ricevere score > 0 per qualche specie.
+        Taxonomy[0] = kingdom nella struttura dati BioCLIP.
+        """
+        if not predictions:
+            return []
+        known = self.BIOCLIP_KNOWN_KINGDOMS
+        filtered = [
+            p for p in predictions
+            if p.get('taxonomy') and len(p['taxonomy']) > 0 and p['taxonomy'][0] in known
+        ]
+        if len(filtered) < len(predictions):
+            skipped = len(predictions) - len(filtered)
+            kingdoms_found = {p.get('taxonomy', [None])[0] for p in predictions if p.get('taxonomy')}
+            logger.debug(
+                f"BioCLIP kingdom filter: {skipped} predizioni scartate "
+                f"(regni non riconosciuti: {kingdoms_found - known})"
+            )
+        return filtered
+
     def _format_bioclip_tags(self, predictions_list):
         """Formatta predizioni BioCLIP in tag (metodo originale)"""
         if not predictions_list or not isinstance(predictions_list, list):
@@ -1403,6 +1429,19 @@ class EmbeddingGenerator:
         if confidence is not None:
             result = f"{result}, conf:{confidence:.2f}"
         return result
+
+    # Regni biologici validi nel dataset TreeOfLife di BioCLIP.
+    # Usato per scartare falsi positivi su oggetti non biologici (sassi, edifici, ecc.)
+    # con threshold bassi (< 0.1).
+    BIOCLIP_KNOWN_KINGDOMS = {
+        'Animalia',   # animali
+        'Plantae',    # piante
+        'Fungi',      # funghi
+        'Chromista',  # alghe brune, diatomee, ecc.
+        'Protozoa',   # protozoi
+        'Bacteria',   # batteri (raro in foto, ma presente nel dataset)
+        'Archaea',    # archei (molto raro in foto)
+    }
 
     # Mappa classe tassonomica BioCLIP → hint italiano per il prompt LLM
     TAXONOMY_CLASS_HINTS = {
