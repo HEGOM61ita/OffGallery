@@ -50,8 +50,12 @@ def save_gallery_thumb(filepath: Path, pil_image) -> bool:
         True se salvato con successo, False altrimenti
     """
     try:
-        from PIL import Image
+        from PIL import Image, ImageOps
         img = pil_image.copy()
+        # Corregge orientazione EXIF (tag 0x0112) prima del salvataggio.
+        # PIL non applica la rotazione automaticamente: senza questo le foto
+        # scattate in verticale appaiono ruotate di 90° in gallery.
+        img = ImageOps.exif_transpose(img)
         if img.mode not in ('RGB', 'L'):
             img = img.convert('RGB')
         img.thumbnail((THUMB_CACHE_SIZE, THUMB_CACHE_SIZE), Image.Resampling.LANCZOS)

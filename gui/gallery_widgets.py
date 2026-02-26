@@ -317,23 +317,37 @@ class _ThumbnailLoader(QRunnable):
             logger.debug(f"Thumbnail load error {self.filepath.name}: {e}")
 
         if data:
-            self._populate_cache(data)
-            self.signals.loaded.emit(data)
+            # Usa i byte orientati (ritornati da _populate_cache) per il display
+            # immediato — evita flash di orientazione sbagliata al primo caricamento.
+            corrected = self._populate_cache(data)
+            self.signals.loaded.emit(corrected if corrected else data)
         else:
             self.signals.failed.emit()
 
-    def _populate_cache(self, data: bytes):
-        """Salva thumbnail 150px in cache (worker thread — sicuro per I/O)."""
+    def _populate_cache(self, data: bytes) -> Optional[bytes]:
+        """
+        Salva thumbnail 150px in cache (worker thread — sicuro per I/O).
+        Applica orientazione EXIF e ritorna i byte JPEG corretti
+        per il display immediato (evita flash di orientazione sbagliata).
+        """
         try:
-            from PIL import Image
+            from PIL import Image, ImageOps
             import io
             from utils.thumb_cache import save_gallery_thumb
             img = Image.open(io.BytesIO(data))
             img.load()  # Forza decodifica completa prima che BytesIO esca dallo scope
-            save_gallery_thumb(self.filepath, img)
+            img = ImageOps.exif_transpose(img)  # Corregge tag orientazione EXIF
+            save_gallery_thumb(self.filepath, img)  # Già orientato correttamente
             logger.debug(f"Cache thumbnail salvata: {self.filepath.name}")
+            # Ritorna bytes corretti per display immediato (senza ulteriore disk I/O)
+            buf = io.BytesIO()
+            if img.mode not in ('RGB', 'L'):
+                img = img.convert('RGB')
+            img.save(buf, 'JPEG', quality=82)
+            return buf.getvalue()
         except Exception as e:
             logger.warning(f"Cache write fallita per {self.filepath.name}: {e}")
+            return None
 
 
 class ImageCard(QFrame):
