@@ -24,6 +24,14 @@ class XMPBadgeWorker(QObject):
         self.processing = False
         self.mutex = QMutex()
         
+    def clear_queue(self):
+        """Svuota la coda (thread-safe). Chiamare prima di ogni nuovo batch gallery."""
+        with QMutexLocker(self.mutex):
+            discarded = len(self.queue)
+            self.queue.clear()
+            if discarded:
+                logger.debug(f"🗑️ XMP Worker: coda svuotata ({discarded} card stale scartate)")
+
     def queue_refresh(self, image_cards: List, reason: str):
         """Accoda cards per refresh (thread-safe)"""
         with QMutexLocker(self.mutex):
@@ -31,9 +39,9 @@ class XMPBadgeWorker(QObject):
             for card in image_cards:
                 if card not in [item[0] for item in self.queue]:
                     self.queue.append((card, reason))
-            
+
             logger.info(f"🔄 XMP Worker: accodate {len(image_cards)} cards - coda totale: {len(self.queue)}")
-        
+
         # Avvia processing se non già attivo
         if not self.processing:
             QTimer.singleShot(0, self.process_queue)
@@ -146,6 +154,9 @@ class XMPBadgeManager(QObject):
             return
         
         logger.info(f"🔄 XMP Badge Manager: refresh {len(valid_cards)} cards - reason: {reason}")
+
+        # Scarta card stale di ricerche precedenti prima di accodare il nuovo batch
+        self.worker.clear_queue()
         
         # Invalida cache su tutte le cards (UI thread)
         for card in valid_cards:

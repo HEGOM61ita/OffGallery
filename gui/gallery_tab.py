@@ -75,6 +75,17 @@ class LightweightXMPChecker(QThread):
             except:
                 break
 
+    def reset(self):
+        """Resetta stato tra una gallery load e l'altra.
+        Svuota checked_cards e scarica card stale dalla xmp_queue."""
+        self.checked_cards.clear()
+        # Drena la coda senza bloccare
+        while not self.xmp_queue.empty():
+            try:
+                self.xmp_queue.get_nowait()
+            except Exception:
+                break
+
     def stop(self):
         self.running = False
         self.quit()
@@ -110,6 +121,10 @@ class ViewportXMPManager:
         finally:
             if hasattr(card, '_xmp_processing'):
                 delattr(card, '_xmp_processing')
+
+    def reset_for_new_gallery(self):
+        """Resetta stato per nuova gallery load: libera riferimenti a card stale."""
+        self.xmp_checker.reset()
 
     def _force_initial_check(self):
         """Check iniziale XMP per le prime card visibili"""
@@ -460,6 +475,10 @@ class GalleryTab(QWidget):
 
     def display_results(self, results):
         """Mostra risultati come griglia di card"""
+        # Resetta checker e badge queue prima di ogni nuova gallery
+        # per liberare riferimenti a card stale di ricerche precedenti
+        self.viewport_xmp_manager.reset_for_new_gallery()
+
         self.flow_layout.clear_items()
         self.cards.clear()
         self.selected_items.clear()
