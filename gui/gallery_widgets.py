@@ -317,38 +317,23 @@ class _ThumbnailLoader(QRunnable):
             logger.debug(f"Thumbnail load error {self.filepath.name}: {e}")
 
         if data:
-            # Usa i byte orientati (ritornati da _populate_cache) per il display
-            # immediato — evita flash di orientazione sbagliata al primo caricamento.
-            corrected = self._populate_cache(data)
-            self.signals.loaded.emit(corrected if corrected else data)
+            self._populate_cache(data)
+            self.signals.loaded.emit(data)
         else:
             self.signals.failed.emit()
 
-    def _populate_cache(self, data: bytes) -> Optional[bytes]:
-        """
-        Salva thumbnail 150px in cache (worker thread — sicuro per I/O).
-        Ritorna bytes JPEG corretti per il display immediato
-        (evita flash di orientazione sbagliata al primo caricamento).
-        La correzione orientazione avviene in save_gallery_thumb leggendo
-        il tag EXIF dal file originale su disco.
-        """
+    def _populate_cache(self, data: bytes):
+        """Salva thumbnail 150px in cache (worker thread — sicuro per I/O)."""
         try:
             from PIL import Image
             import io
-            from utils.thumb_cache import save_gallery_thumb, THUMB_CACHE_SIZE
+            from utils.thumb_cache import save_gallery_thumb
             img = Image.open(io.BytesIO(data))
             img.load()  # Forza decodifica completa prima che BytesIO esca dallo scope
-            # Delega correzione orientazione a save_gallery_thumb
-            # (legge EXIF dal file originale self.filepath, non da data che può non averlo)
             save_gallery_thumb(self.filepath, img)
             logger.debug(f"Cache thumbnail salvata: {self.filepath.name}")
-            # Rilegge dalla cache per restituire bytes già corretti e scalati
-            from utils.thumb_cache import load_gallery_thumb_bytes
-            cached = load_gallery_thumb_bytes(self.filepath)
-            return cached
         except Exception as e:
             logger.warning(f"Cache write fallita per {self.filepath.name}: {e}")
-            return None
 
 
 class ImageCard(QFrame):
