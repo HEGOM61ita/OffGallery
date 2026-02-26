@@ -481,7 +481,8 @@ class ImageCard(QFrame):
             self.thumbnail_label.setText("❌\nError")
 
     def _on_thumb_loaded(self, data: bytes):
-        """Riceve bytes dal worker thread, crea QPixmap nel main thread"""
+        """Riceve bytes dal worker thread, crea QPixmap nel main thread.
+        Salva anche in cache disco per i caricamenti successivi."""
         pixmap = QPixmap()
         if pixmap.loadFromData(data):
             scaled = pixmap.scaled(
@@ -491,6 +492,17 @@ class ImageCard(QFrame):
             )
             self.thumbnail_label.setPixmap(scaled)
             self.thumbnail_label.setStyleSheet("")
+
+            # Popola cache disco: prossimo caricamento sarà istantaneo
+            if self.filepath:
+                try:
+                    from utils.thumb_cache import save_gallery_thumb
+                    from PIL import Image
+                    import io
+                    pil_img = Image.open(io.BytesIO(data))
+                    save_gallery_thumb(self.filepath, pil_img)
+                except Exception:
+                    pass
         else:
             self._on_thumb_failed()
 
