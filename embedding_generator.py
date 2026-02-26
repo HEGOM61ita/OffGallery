@@ -1292,12 +1292,16 @@ class EmbeddingGenerator:
         """Formatta predizioni BioCLIP in tag (metodo originale)"""
         if not predictions_list or not isinstance(predictions_list, list):
             return []
-    
+
         try:
             # Prendi la predizione con score più alto
             best_prediction = max(predictions_list, key=lambda x: x.get('score', 0))
-        
-            if best_prediction.get('score', 0) < 0.1:  # Soglia minima confidenza
+
+            # Usa soglia dal config (stessa usata in _predict_bioclip come min_prob)
+            threshold = float(
+                self.embedding_config.get('models', {}).get('bioclip', {}).get('threshold', 0.1)
+            )
+            if best_prediction.get('score', 0) < threshold:
                 return []
         
             species = best_prediction.get('species', 'Unknown')
@@ -1328,7 +1332,11 @@ class EmbeddingGenerator:
             return None
         try:
             best = max(predictions_list, key=lambda x: x.get('score', 0))
-            if best.get('score', 0) < 0.1:
+            # Usa soglia dal config (stessa usata in _predict_bioclip come min_prob)
+            threshold = float(
+                self.embedding_config.get('models', {}).get('bioclip', {}).get('threshold', 0.1)
+            )
+            if best.get('score', 0) < threshold:
                 return None
             return best.get('taxonomy')
         except Exception as e:
