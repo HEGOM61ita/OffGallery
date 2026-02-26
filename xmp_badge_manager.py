@@ -40,18 +40,24 @@ class XMPBadgeWorker(QObject):
     
     def process_queue(self):
         """
-        Sequenziatore badge in background.
-        NON tocca widget Qt — emette solo segnali al main thread.
-        refresh_xmp_state() (che aggiorna UI) viene chiamato nel main thread
-        tramite la connessione queued di badge_computed.
+        Calcola stato XMP nel worker thread (I/O disco, nessun widget Qt).
+        Pre-popola la cache sulla card, poi emette il signal al main thread.
+        Il main thread trova la cache pronta → aggiorna solo l'UI (~1ms, nessun blocco).
         """
         self.processing = True
         processed = 0
         current_reason = ""
 
+        # Istanzia XMP manager una sola volta nel worker thread
+        xmp_manager = None
+        try:
+            from xmp_manager_extended import XMPManagerExtended
+            xmp_manager = XMPManagerExtended()
+        except ImportError:
+            logger.warning("XMPManagerExtended non disponibile nel worker thread")
+
         try:
             while True:
-                # Prendi prossimo item (thread-safe)
                 with QMutexLocker(self.mutex):
                     if not self.queue:
                         break
@@ -59,17 +65,30 @@ class XMPBadgeWorker(QObject):
                     current_reason = reason
 
                 try:
-                    logger.debug(f"🔄 Badge queued: {getattr(card, 'image_data', {}).get('filename', 'unknown')}")
+                    filename = getattr(card, 'image_data', {}).get('filename', 'unknown')
+                    logger.debug(f"🔄 XMP analisi: {filename}")
 
-                    # Emetti signal — refresh_xmp_state() avviene nel main thread
+                    # Lettura disco nel worker thread (sicuro, non tocca Qt)
+                    if xmp_manager and getattr(card, 'filepath', None):
+                        from pathlib import Path
+                        state, info = xmp_manager.analyze_xmp_sync_state(
+                            Path(card.filepath), card.image_data
+                        )
+                        if state is not None and info is not None:
+                            # Pre-popola cache: il main thread userà questi valori
+                            # senza ulteriore disk I/O
+                            card._xmp_state_cache = state
+                            card._xmp_info_cache = info
+
+                    # Segnala al main thread di aggiornare l'UI con la cache pronta
                     self.badge_computed.emit(card, reason)
                     processed += 1
 
-                    # Pausa tra un badge e l'altro per non inondare il main thread
-                    time.sleep(0.05)
+                    # Pausa minima per lasciare respiro al main thread tra un badge e l'altro
+                    time.sleep(0.01)
 
                 except Exception as e:
-                    logger.error(f"❌ Errore queue badge: {e}")
+                    logger.error(f"❌ Errore calcolo badge XMP: {e}")
                     continue
 
         finally:
