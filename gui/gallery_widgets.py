@@ -327,24 +327,25 @@ class _ThumbnailLoader(QRunnable):
     def _populate_cache(self, data: bytes) -> Optional[bytes]:
         """
         Salva thumbnail 150px in cache (worker thread — sicuro per I/O).
-        Applica orientazione EXIF e ritorna i byte JPEG corretti
-        per il display immediato (evita flash di orientazione sbagliata).
+        Ritorna bytes JPEG corretti per il display immediato
+        (evita flash di orientazione sbagliata al primo caricamento).
+        La correzione orientazione avviene in save_gallery_thumb leggendo
+        il tag EXIF dal file originale su disco.
         """
         try:
-            from PIL import Image, ImageOps
+            from PIL import Image
             import io
-            from utils.thumb_cache import save_gallery_thumb
+            from utils.thumb_cache import save_gallery_thumb, THUMB_CACHE_SIZE
             img = Image.open(io.BytesIO(data))
             img.load()  # Forza decodifica completa prima che BytesIO esca dallo scope
-            img = ImageOps.exif_transpose(img)  # Corregge tag orientazione EXIF
-            save_gallery_thumb(self.filepath, img)  # Già orientato correttamente
+            # Delega correzione orientazione a save_gallery_thumb
+            # (legge EXIF dal file originale self.filepath, non da data che può non averlo)
+            save_gallery_thumb(self.filepath, img)
             logger.debug(f"Cache thumbnail salvata: {self.filepath.name}")
-            # Ritorna bytes corretti per display immediato (senza ulteriore disk I/O)
-            buf = io.BytesIO()
-            if img.mode not in ('RGB', 'L'):
-                img = img.convert('RGB')
-            img.save(buf, 'JPEG', quality=82)
-            return buf.getvalue()
+            # Rilegge dalla cache per restituire bytes già corretti e scalati
+            from utils.thumb_cache import load_gallery_thumb_bytes
+            cached = load_gallery_thumb_bytes(self.filepath)
+            return cached
         except Exception as e:
             logger.warning(f"Cache write fallita per {self.filepath.name}: {e}")
             return None
