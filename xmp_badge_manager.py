@@ -8,7 +8,6 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Set
 from PyQt6.QtCore import QObject, QThread, pyqtSignal, QTimer, QMutex, QMutexLocker
-from PyQt6.QtWidgets import QApplication
 import time
 
 logger = logging.getLogger(__name__)
@@ -40,11 +39,16 @@ class XMPBadgeWorker(QObject):
             QTimer.singleShot(0, self.process_queue)
     
     def process_queue(self):
-        """Processa coda in background"""
+        """
+        Sequenziatore badge in background.
+        NON tocca widget Qt — emette solo segnali al main thread.
+        refresh_xmp_state() (che aggiorna UI) viene chiamato nel main thread
+        tramite la connessione queued di badge_computed.
+        """
         self.processing = True
         processed = 0
         current_reason = ""
-        
+
         try:
             while True:
                 # Prendi prossimo item (thread-safe)
@@ -53,28 +57,24 @@ class XMPBadgeWorker(QObject):
                         break
                     card, reason = self.queue.pop(0)
                     current_reason = reason
-                
-                # Processa card (fuori dal mutex)
+
                 try:
-                    logger.debug(f"🔄 Processing badge per {getattr(card, 'image_data', {}).get('filename', 'unknown')}")
-                    
-                    # Usa la logica esistente (preservata)
-                    card.refresh_xmp_state()
-                    
-                    # Emetti signal per UI update
+                    logger.debug(f"🔄 Badge queued: {getattr(card, 'image_data', {}).get('filename', 'unknown')}")
+
+                    # Emetti signal — refresh_xmp_state() avviene nel main thread
                     self.badge_computed.emit(card, reason)
                     processed += 1
-                    
-                    # Small delay per non bloccare UI
-                    time.sleep(0.01)
-                    
+
+                    # Pausa tra un badge e l'altro per non inondare il main thread
+                    time.sleep(0.05)
+
                 except Exception as e:
-                    logger.error(f"❌ Errore processing badge: {e}")
+                    logger.error(f"❌ Errore queue badge: {e}")
                     continue
-        
+
         finally:
             self.processing = False
-            
+
         if processed > 0:
             self.batch_completed.emit(processed, current_reason)
             logger.info(f"✅ XMP Worker: completato batch {processed} badges - reason: {current_reason}")
@@ -148,23 +148,26 @@ class XMPBadgeManager(QObject):
         self.worker.queue_refresh(valid_cards, reason)
     
     def _on_badge_computed(self, card, reason):
-        """Callback quando singolo badge è pronto"""
+        """
+        Chiamato nel main thread (queued connection dal worker thread).
+        Qui è sicuro aggiornare widget Qt.
+        """
         try:
-            # Forza update UI se necessario
+            # refresh_xmp_state() aggiorna xmp_label — deve stare nel main thread
+            if hasattr(card, 'refresh_xmp_state'):
+                card.refresh_xmp_state()
             if hasattr(card, 'update'):
                 card.update()
-            
+
             logger.debug(f"✅ Badge aggiornato: {card.image_data.get('filename', 'unknown')}")
         except Exception as e:
             logger.error(f"❌ Errore update badge UI: {e}")
-    
+
     def _on_batch_completed(self, processed_count, reason):
         """Callback quando batch è completato"""
         self.refresh_completed.emit(processed_count, reason)
         logger.info(f"🎯 Batch XMP completato: {processed_count} badges - reason: {reason}")
-        
-        # Force refresh UI globale se necessario
-        QApplication.processEvents()
+        # Rimosso QApplication.processEvents() — potrebbe causare re-entrancy
     
     def shutdown(self):
         """Cleanup per shutdown applicazione"""
