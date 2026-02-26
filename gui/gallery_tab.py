@@ -672,17 +672,23 @@ class GalleryTab(QWidget):
                 return
         
             try:
-                # Prova pickle prima
-                ref_embedding = pickle.loads(row[0])
-            except:
-                try:
-                    # Se pickle fallisce, prova frombuffer
-                    ref_embedding = np.frombuffer(row[0], dtype=np.float32)
-                except Exception as e:
-                    print(f"Errore deserializzazione embedding: {e}")
-                    progress.close()
-                    db_manager.close()
-                    return
+                # Deserializzazione corretta: raw float32 bytes (768 float = 3072 bytes)
+                # oppure pickle (formato legacy)
+                emb_raw = row[0]
+                if isinstance(emb_raw, bytes) and len(emb_raw) == 3072:
+                    ref_embedding = np.frombuffer(emb_raw, dtype=np.float32)
+                else:
+                    try:
+                        ref_embedding = np.frombuffer(emb_raw, dtype=np.float32)
+                        if ref_embedding.shape[0] != 768:
+                            ref_embedding = pickle.loads(emb_raw)
+                    except Exception:
+                        ref_embedding = pickle.loads(emb_raw)
+            except Exception as e:
+                logger.error(f"Errore deserializzazione embedding riferimento: {e}")
+                progress.close()
+                db_manager.close()
+                return
         
             ref_norm = ref_embedding / np.linalg.norm(ref_embedding)
         
@@ -715,15 +721,25 @@ class GalleryTab(QWidget):
                     continue
                 
                 try:
-                    img_embedding = pickle.loads(emb_blob)
+                    # Deserializzazione corretta: raw float32 bytes (formato nuovo)
+                    # oppure pickle (formato legacy)
+                    if isinstance(emb_blob, bytes) and len(emb_blob) == 3072:
+                        img_embedding = np.frombuffer(emb_blob, dtype=np.float32)
+                    else:
+                        try:
+                            img_embedding = np.frombuffer(emb_blob, dtype=np.float32)
+                            if img_embedding.shape[0] != 768:
+                                img_embedding = pickle.loads(emb_blob)
+                        except Exception:
+                            img_embedding = pickle.loads(emb_blob)
                     img_norm = img_embedding / np.linalg.norm(img_embedding)
                     similarity = float(np.dot(ref_norm, img_norm))
-                    
+
                     if similarity >= threshold:
                         image_data['similarity_score'] = similarity
                         results.append(image_data)
                 except Exception as e:
-                    print(f"Errore deserializzazione embedding: {e}")
+                    logger.debug(f"Errore deserializzazione embedding DINOv2: {e}")
                     continue
                 
             
