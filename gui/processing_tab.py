@@ -458,30 +458,6 @@ class ProcessingWorker(QThread):
             if cached_thumbnail:
                 thumb_size = cached_thumbnail.size if hasattr(cached_thumbnail, 'size') else 'N/A'
                 self.log_message.emit(f"📥 Thumbnail cached per AI: {thumb_size}", "info")
-
-                # Corregge orientazione EXIF usando il valore già estratto da ExifTool
-                # (nessun I/O aggiuntivo — image_data['orientation'] è già disponibile)
-                orientation = image_data.get('orientation', 1)
-                if orientation and orientation not in (None, 1):
-                    try:
-                        from PIL import Image as _PILImage
-                        _OPS = {
-                            2: [_PILImage.Transpose.FLIP_LEFT_RIGHT],
-                            3: [_PILImage.Transpose.ROTATE_180],
-                            4: [_PILImage.Transpose.FLIP_TOP_BOTTOM],
-                            5: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_90],
-                            6: [_PILImage.Transpose.ROTATE_270],
-                            7: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_270],
-                            8: [_PILImage.Transpose.ROTATE_90],
-                        }
-                        for op in _OPS.get(int(orientation), []):
-                            cached_thumbnail = cached_thumbnail.transpose(op)
-                        self.log_message.emit(
-                            f"🔄 Orientazione corretta: tag={orientation} → {image_path.name}", "info"
-                        )
-                    except Exception as _e:
-                        logger.warning(f"Errore correzione orientazione thumbnail: {_e}")
-
                 # Salva thumbnail nella cache gallery (150px) per display veloce in gallery
                 try:
                     from utils.thumb_cache import save_gallery_thumb
