@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QRadioButton, QButtonGroup, QTextEdit, QMessageBox, QScrollArea,
     QPushButton
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThreadPool, QRunnable
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThreadPool, QRunnable, QObject
 from PyQt6.QtGui import QPixmap, QCursor, QAction
 from PyQt6.QtWidgets import QToolTip
 from PyQt6 import QtCore
