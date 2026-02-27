@@ -7,8 +7,7 @@ preservando la logica esistente in refresh_xmp_state()
 import logging
 from pathlib import Path
 from typing import List, Optional, Set
-from PyQt6.QtCore import QObject, QThread, pyqtSignal, QTimer, QMutex, QMutexLocker
-import time
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, QTimer, QMutex, QMutexLocker, pyqtSlot
 
 logger = logging.getLogger(__name__)
 
@@ -42,15 +41,18 @@ class XMPBadgeWorker(QObject):
 
             logger.info(f"🔄 XMP Worker: accodate {len(image_cards)} cards - coda totale: {len(self.queue)}")
 
-        # Avvia processing se non già attivo
+        # Avvia processing se non già attivo.
+        # Forma 3-arg: self come receiver → slot eseguito nel worker thread (non nel main thread)
         if not self.processing:
-            QTimer.singleShot(0, self.process_queue)
+            QTimer.singleShot(0, self, self.process_queue)
     
+    @pyqtSlot()
     def process_queue(self):
         """
         Calcola stato XMP nel worker thread (I/O disco, nessun widget Qt).
         Pre-popola la cache sulla card, poi emette il signal al main thread.
         Il main thread trova la cache pronta → aggiorna solo l'UI (~1ms, nessun blocco).
+        Invocato nel worker thread tramite QTimer.singleShot 3-arg: non blocca il main thread.
         """
         self.processing = True
         processed = 0
@@ -88,12 +90,10 @@ class XMPBadgeWorker(QObject):
                             card._xmp_state_cache = state
                             card._xmp_info_cache = info
 
-                    # Segnala al main thread di aggiornare l'UI con la cache pronta
+                    # Segnala al main thread di aggiornare l'UI con la cache pronta.
+                    # Connessione queued (cross-thread) → main thread la processa tra gli eventi scroll.
                     self.badge_computed.emit(card, reason)
                     processed += 1
-
-                    # Pausa minima per lasciare respiro al main thread tra un badge e l'altro
-                    time.sleep(0.01)
 
                 except Exception as e:
                     logger.error(f"❌ Errore calcolo badge XMP: {e}")

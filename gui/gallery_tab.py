@@ -194,9 +194,6 @@ class GalleryTab(QWidget):
         
         # Inizializza viewport XMP manager
         self.viewport_xmp_manager = ViewportXMPManager(self)
-
-        # Inizializza viewport XMP manager
-        self.viewport_xmp_manager = ViewportXMPManager(self)
         
         self.init_ui()
 
