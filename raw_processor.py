@@ -924,27 +924,43 @@ class RAWProcessor:
         return exposure_map.get(exposure_str)
     
     def _parse_orientation(self, orientation_str) -> Optional[int]:
-        """Converte orientation da stringa EXIF a numero standard"""
+        """Converte orientation da stringa EXIF a numero standard (1-8)"""
         if not orientation_str:
             return None
-        
-        orientation_str = str(orientation_str).lower()
-        
-        # Mapping EXIF standard
-        if 'horizontal' in orientation_str and 'normal' in orientation_str:
-            return 1  # Normal
-        elif 'rotate 180' in orientation_str:
-            return 3  # 180°
-        elif 'rotate 90 cw' in orientation_str or 'right' in orientation_str:
-            return 6  # 90° CW
-        elif 'rotate 90 ccw' in orientation_str or 'left' in orientation_str:
-            return 8  # 90° CCW
-        
-        # Prova parsing diretto se è già un numero
+
+        # Prova parsing diretto prima (ExifTool con flag -# o valori numerici)
         try:
-            return int(float(orientation_str))
-        except:
-            return 1  # Default: normal
+            val = int(float(str(orientation_str)))
+            if 1 <= val <= 8:
+                return val
+        except (ValueError, TypeError):
+            pass
+
+        s = str(orientation_str).lower()
+
+        # Controlla pattern specifici prima di quelli generici (ordine critico)
+        if 'mirror horizontal and rotate 270' in s:
+            return 5  # Specchio orizzontale + 270° CW
+        elif 'mirror horizontal and rotate 90' in s:
+            return 7  # Specchio orizzontale + 90° CW
+        elif 'rotate 270' in s:
+            return 8  # 270° CW (identico a 90° CCW per display)
+        elif 'rotate 180' in s:
+            return 3  # 180°
+        elif 'rotate 90' in s:
+            return 6  # 90° CW
+        elif 'mirror horizontal' in s or 'flip horizontal' in s:
+            return 2  # Specchio orizzontale
+        elif 'mirror vertical' in s or 'flip vertical' in s:
+            return 4  # Specchio verticale
+        elif 'horizontal' in s and 'normal' in s:
+            return 1  # Normale
+        elif 'right' in s:
+            return 6  # Compatibilità short-form ExifTool ("right-top")
+        elif 'left' in s:
+            return 8  # Compatibilità short-form ExifTool ("left-bottom")
+
+        return 1  # Default: normale
     
     def _parse_numeric(self, value) -> Optional[float]:
         """Converte valore in float"""

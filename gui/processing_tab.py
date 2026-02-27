@@ -458,10 +458,29 @@ class ProcessingWorker(QThread):
             if cached_thumbnail:
                 thumb_size = cached_thumbnail.size if hasattr(cached_thumbnail, 'size') else 'N/A'
                 self.log_message.emit(f"📥 Thumbnail cached per AI: {thumb_size}", "info")
-                # Salva thumbnail nella cache gallery (150px) per display veloce in gallery
+                # Salva thumbnail nella cache gallery (150px) per display veloce in gallery.
+                # Applica correzione orientazione (PIL transpose in-memory, zero I/O aggiuntivo).
                 try:
                     from utils.thumb_cache import save_gallery_thumb
-                    save_gallery_thumb(image_path, cached_thumbnail)
+                    from PIL import Image as _PILImage
+                    _ORIENT_OPS = {
+                        2: [_PILImage.Transpose.FLIP_LEFT_RIGHT],
+                        3: [_PILImage.Transpose.ROTATE_180],
+                        4: [_PILImage.Transpose.FLIP_TOP_BOTTOM],
+                        5: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_90],
+                        6: [_PILImage.Transpose.ROTATE_270],
+                        7: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_270],
+                        8: [_PILImage.Transpose.ROTATE_90],
+                    }
+                    orientation = image_data.get('orientation')
+                    ops = _ORIENT_OPS.get(int(orientation), []) if orientation and orientation != 1 else []
+                    if ops:
+                        thumb_oriented = cached_thumbnail.copy()
+                        for op in ops:
+                            thumb_oriented = thumb_oriented.transpose(op)
+                        save_gallery_thumb(image_path, thumb_oriented)
+                    else:
+                        save_gallery_thumb(image_path, cached_thumbnail)
                 except Exception as _e:
                     logger.warning(f"Errore salvataggio thumbnail cache gallery: {_e}")
             elif is_raw:
