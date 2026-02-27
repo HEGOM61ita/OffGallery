@@ -7,7 +7,7 @@ preservando la logica esistente in refresh_xmp_state()
 import logging
 from pathlib import Path
 from typing import List, Optional, Set
-from PyQt6.QtCore import QObject, QThread, pyqtSignal, QTimer, QMutex, QMutexLocker, pyqtSlot
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, QTimer, QMutex, QMutexLocker, pyqtSlot, QMetaObject, Qt
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +42,10 @@ class XMPBadgeWorker(QObject):
             logger.info(f"🔄 XMP Worker: accodate {len(image_cards)} cards - coda totale: {len(self.queue)}")
 
         # Avvia processing se non già attivo.
-        # Forma 3-arg: self come receiver → slot eseguito nel worker thread (non nel main thread)
+        # QMetaObject.invokeMethod con QueuedConnection: slot eseguito nel thread del worker
+        # (non nel main thread che chiama queue_refresh).
         if not self.processing:
-            QTimer.singleShot(0, self, self.process_queue)
+            QMetaObject.invokeMethod(self, 'process_queue', Qt.ConnectionType.QueuedConnection)
     
     @pyqtSlot()
     def process_queue(self):
