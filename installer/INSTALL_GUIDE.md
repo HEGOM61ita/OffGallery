@@ -88,7 +88,7 @@ Il modo piu' semplice per installare OffGallery e' usare il **wizard di installa
 | Ollama | Opzionale | Opzionale | Opzionale (via Homebrew o script ufficiale) |
 | Collegamento | `OffGallery.lnk` sul Desktop | Voce nel menu applicazioni | `OffGallery.app` in `~/Applications` (Spotlight + Launchpad) + `OffGallery.command` sul Desktop |
 
-**Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarichera' automaticamente ~7 GB di modelli AI. Gli avvii successivi saranno completamente offline.
+**Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarichera' automaticamente ~6.7 GB di modelli AI. Gli avvii successivi saranno completamente offline.
 
 > **Rieseguibile**: Se il wizard viene interrotto, puoi rieseguirlo. Gli step gia' completati verranno rilevati e saltati automaticamente.
 
