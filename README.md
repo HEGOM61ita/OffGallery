@@ -42,7 +42,7 @@
 
 | Data | Cosa | Note |
 |------|------|------|
-| 1 mar 2026 | **Installer macOS** | Wizard completo per Intel e Apple Silicon; Homebrew per ExifTool e Ollama; PyTorch con MPS per GPU Metal; collegamento Desktop `.command`; percorso Miniconda configurabile dal wizard su Windows |
+| 1 mar 2026 | **Installer macOS** | Wizard completo per Intel e Apple Silicon; Homebrew per ExifTool e Ollama; PyTorch con MPS per GPU Metal; `OffGallery.app` in `~/Applications` cercabile via Spotlight e Launchpad; percorso Miniconda configurabile dal wizard su Windows |
 | 25 feb 2026 | **Import da catalogo Lightroom + Export con struttura** | Elaborazione direttamente da `.lrcat`; copia file con struttura directory originale multi-disco; destinazione XMP disaccoppiata dalla copia; UI Export semplificata e contestuale |
 | 24 feb 2026 | **Geotag geografico offline** | GPS → gerarchia `GeOFF\|Europe\|Italy\|Sardegna\|Città` senza API, visibile nel tooltip gallery e scritto in XMP HierarchicalSubject |
 | 23 feb 2026 | **Migliorata estrazione RAW** | Supporto ampliato per NEF/ARW high-efficiency con fallback multi-stadio; i metadati vengono sempre salvati anche quando l'anteprima non è disponibile |
@@ -215,7 +215,7 @@ git clone https://github.com/HEGOM61ita/OffGallery.git
 
 > **Apple Silicon (M1/M2/M3/M4)**: PyTorch utilizza automaticamente Metal/MPS per l'accelerazione GPU — nessuna configurazione aggiuntiva necessaria.
 >
-> **Nota Gatekeeper**: al primo doppio click sul collegamento Desktop (`OffGallery.command`), macOS potrebbe mostrare un avviso di sicurezza. Usa **tasto destro → Apri** per confermarlo la prima volta. L'installer rimuove già l'attributo quarantine automaticamente, quindi l'avviso dovrebbe non comparire.
+> **Nota Gatekeeper**: al primo avvio di `OffGallery.app` o `OffGallery.command`, macOS potrebbe mostrare un avviso di sicurezza. Usa **tasto destro → Apri** per confermarlo. L'installer rimuove già l'attributo quarantine automaticamente, quindi l'avviso normalmente non compare.
 
 Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Python, librerie, ExifTool e opzionalmente Ollama per le descrizioni AI. Al termine crea un collegamento per avviare l'app (`.lnk` sul Desktop su Windows, voce nel menu applicazioni su Linux, `OffGallery.app` in `~/Applications` cercabile via Spotlight su macOS).
 
