@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/100%25-Offline-brightgreen" alt="Offline"/>
   <img src="https://img.shields.io/badge/Windows-10%2F11-blue?logo=windows" alt="Windows"/>
   <img src="https://img.shields.io/badge/Linux-Ubuntu%20|%20Fedora%20|%20Arch-orange?logo=linux" alt="Linux"/>
-  <img src="https://img.shields.io/badge/macOS-13%2B-lightgrey?logo=apple" alt="macOS"/>
+  <img src="https://img.shields.io/badge/macOS-12%2B-lightgrey?logo=apple" alt="macOS"/>
 </p>
 
 <p align="center">
@@ -150,7 +150,7 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 | **RAM** | 8 GB | 16 GB |
 | **Disco** | 15 GB | 25 GB |
 | **GPU** | - | NVIDIA con CUDA |
-| **OS** | Windows 10/11, Linux 64-bit o macOS 13+ | Windows 11 / Ubuntu 22.04+ |
+| **OS** | Windows 10/11, Linux 64-bit o macOS 12+ | Windows 11 / Ubuntu 22.04+ / macOS 13+ |
 
 > **Note**:
 > - GPU NVIDIA raccomandata per prestazioni ottimali. Funziona anche su CPU (più lento)
