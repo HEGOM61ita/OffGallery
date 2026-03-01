@@ -27,11 +27,12 @@
 ---
 
 > [!NOTE]
-> **🔧 Installer Windows + Linux — Hardening Completato**
+> **🔧 Installer Windows + Linux + macOS — Hardening Completato**
 >
-> Tutti i problemi noti di entrambi gli installer sono stati identificati e risolti.
-> **Windows**: `CondaToSNonInteractiveError`, mancato salvataggio modelli AI in `Models/`, crash di `from_pretrained` dopo il 100% di caricamento.
-> **Linux**: `conda env list` inaffidabile, mancanza di `--override-channels`, percorsi conda incompleti, URL Miniconda hardcoded x86_64, pipefail su `ollama list`.
+> Tutti i problemi noti degli installer Windows e Linux sono stati risolti. L'installer macOS è ora disponibile per Intel e Apple Silicon.
+> **Windows**: percorso Miniconda configurabile (default `C:\miniconda3`) con validazione spazi — risolve il blocco su nomi utente con spazi.
+> **Linux**: `conda env list` inaffidabile, `--override-channels`, percorsi conda incompleti, ARM64, pipefail su `ollama list`.
+> **macOS**: wizard completo con rilevamento architettura, Homebrew, MPS per Apple Silicon e file `.command` sul Desktop.
 >
 > **In attesa di verifica finale su installazione fresh.** Per problemi durante l'installazione, apri una [Discussion](https://github.com/HEGOM61ita/OffGallery/discussions).
 
@@ -41,6 +42,7 @@
 
 | Data | Cosa | Note |
 |------|------|------|
+| 1 mar 2026 | **Installer macOS** | Wizard completo per Intel e Apple Silicon; Homebrew per ExifTool e Ollama; PyTorch con MPS per GPU Metal; collegamento Desktop `.command`; fix percorso Miniconda Windows per nomi utente con spazi |
 | 25 feb 2026 | **Import da catalogo Lightroom + Export con struttura** | Elaborazione direttamente da `.lrcat`; copia file con struttura directory originale multi-disco; destinazione XMP disaccoppiata dalla copia; UI Export semplificata e contestuale |
 | 24 feb 2026 | **Geotag geografico offline** | GPS → gerarchia `GeOFF\|Europe\|Italy\|Sardegna\|Città` senza API, visibile nel tooltip gallery e scritto in XMP HierarchicalSubject |
 | 23 feb 2026 | **Fix estrazione RAW** | Fallback multi-stadio ExifTool per NEF/ARW high-efficiency; warning nel log se nessuna anteprima disponibile, metadati salvati comunque — [Discussion #11](https://github.com/HEGOM61ita/OffGallery/discussions/11) |
@@ -154,7 +156,7 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 > - GPU NVIDIA raccomandata per prestazioni ottimali. Funziona anche su CPU (più lento)
 > - Connessione internet richiesta solo al primo avvio per download modelli AI (~7 GB)
 > - **Linux**: testato su Ubuntu, Fedora e Arch. Altre distribuzioni con supporto conda dovrebbero funzionare
-> - **macOS**: supportato su Apple Silicon (M1/M2/M3) e Intel. Installer in lavorazione — seguire la procedura di installazione manuale
+> - **macOS**: supportato su Apple Silicon (M1/M2/M3/M4) e Intel (x86_64). Wizard di installazione disponibile
 
 ### WSL2 (Windows Subsystem for Linux)
 
@@ -204,7 +206,20 @@ git clone https://github.com/HEGOM61ita/OffGallery.git
    ```
 3. Segui le istruzioni a schermo
 
-Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Python, librerie (+ ExifTool su Linux), e opzionalmente Ollama per le descrizioni AI. Al termine crea un collegamento (Desktop su Windows, menu applicazioni su Linux).
+#### macOS
+
+1. Apri un terminale nella cartella OffGallery
+2. Esegui:
+   ```bash
+   bash installer/install_offgallery_mac.sh
+   ```
+3. Segui le istruzioni a schermo
+
+> **Apple Silicon (M1/M2/M3/M4)**: PyTorch utilizza automaticamente Metal/MPS per l'accelerazione GPU — nessuna configurazione aggiuntiva necessaria.
+>
+> **Nota Gatekeeper**: al primo doppio click sul collegamento Desktop (`OffGallery.command`), macOS potrebbe mostrare un avviso di sicurezza. Usa **tasto destro → Apri** per confermarlo la prima volta. L'installer rimuove già l'attributo quarantine automaticamente, quindi l'avviso dovrebbe non comparire.
+
+Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Python, librerie, ExifTool e opzionalmente Ollama per le descrizioni AI. Al termine crea un collegamento sul Desktop (`.lnk` su Windows, `OffGallery.command` su macOS, voce nel menu applicazioni su Linux).
 
 > **Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarica automaticamente i modelli AI (~7 GB). Gli avvii successivi saranno completamente offline.
 
@@ -218,10 +233,18 @@ Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Pyth
 
 **Linux** - usa il wizard `install_offgallery.sh` che copre tutti gli step, oppure installa manualmente:
 1. Installa [Miniconda](https://docs.anaconda.com/miniconda/install/) per Linux
-2. `conda create -n OffGallery python=3.12 -y`
+2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
 3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
 4. Installa ExifTool: `sudo apt install libimage-exiftool-perl` (Ubuntu/Debian) o equivalente
 5. (Opzionale) Installa [Ollama](https://ollama.com/download) e `ollama pull qwen3-vl:4b-instruct`
+
+**macOS** - usa il wizard `install_offgallery_mac.sh` che copre tutti gli step, oppure installa manualmente:
+1. Installa [Miniconda](https://docs.anaconda.com/miniconda/install/) per macOS (scegli la versione arm64 per Apple Silicon, x86_64 per Intel)
+2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
+3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
+4. Installa ExifTool: `brew install exiftool` (richiede [Homebrew](https://brew.sh)) o scarica il `.pkg` da [exiftool.org](https://exiftool.org)
+5. (Opzionale) Installa [Ollama](https://ollama.com/download) e `ollama pull qwen3-vl:4b-instruct`
+6. Avvia: `conda run -n OffGallery python gui_launcher.py`
 
 ### Istruzioni Dettagliate
 
