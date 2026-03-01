@@ -146,15 +146,16 @@ Tutti i componenti girano localmente, completamente offline:
 | Componente | Minimo | Consigliato |
 |------------|--------|-------------|
 | **RAM** | 8 GB | 16 GB |
-| **Disco** | 14 GB (CPU) / 18 GB (NVIDIA GPU) | 25 GB |
+| **Disco** | 14 GB (CPU) / 18 GB (NVIDIA GPU) | 20 GB |
 | **GPU** | - | NVIDIA con CUDA |
 | **OS** | Windows 10/11, Linux 64-bit o macOS 12+ | Windows 11 / Ubuntu 22.04+ / macOS 13+ |
 
 > **Note**:
 > - GPU NVIDIA raccomandata per prestazioni ottimali. Funziona anche su CPU (più lento)
-> - Connessione internet richiesta solo al primo avvio per download modelli AI (~7 GB)
+> - **Spazio disco**: l'ambiente Python occupa ~3.5 GB senza GPU, ~7 GB con NVIDIA (PyTorch CUDA + runtime libraries). I modelli AI pesano ~6.7 GB indipendentemente dalla GPU
+> - Connessione internet richiesta solo al primo avvio per download modelli AI (~6.7 GB)
 > - **Linux**: testato su Ubuntu, Fedora e Arch. Altre distribuzioni con supporto conda dovrebbero funzionare
-> - **macOS**: supportato su Apple Silicon (M1/M2/M3/M4) e Intel (x86_64). Wizard di installazione disponibile
+> - **macOS**: supportato su Apple Silicon (M1/M2/M3/M4) e Intel (x86_64). Su Apple Silicon PyTorch usa Metal/MPS senza CUDA
 
 ### WSL2 (Windows Subsystem for Linux)
 
