@@ -313,9 +313,16 @@ python gui_launcher.py
 
 ### macOS
 
-**Metodo 1 - Doppio click (Consigliato):**
+**Metodo 1 - Spotlight / Launchpad (Consigliato):**
 
-Se hai usato il wizard, trovi `OffGallery.command` sul **Desktop**. Doppio click per avviare.
+Se hai usato il wizard, `OffGallery.app` viene installata in `~/Applications` ed è immediatamente cercabile:
+- **Spotlight**: `Cmd+Space` → digita *OffGallery* → Invio
+- **Launchpad**: cerca *OffGallery* tra le app
+- **Dock**: trascina `OffGallery.app` dalla cartella `~/Applications`
+
+**Metodo 2 - Doppio click sul Desktop:**
+
+Il wizard crea anche `OffGallery.command` sul Desktop come scorciatoia rapida.
 
 > Al primo avvio macOS potrebbe chiedere conferma. Usa **tasto destro → Apri**.
 

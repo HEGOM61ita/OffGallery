@@ -619,7 +619,6 @@ print_header "$STEP_CURRENT" "Launcher e Collegamento Desktop"
 # Rendi eseguibile il launcher
 if [ -f "$LAUNCHER" ]; then
     chmod +x "$LAUNCHER" || true
-    # Rimuovi attributo quarantine (Gatekeeper) se presente
     xattr -c "$LAUNCHER" 2>/dev/null || true
     print_ok "Launcher reso eseguibile: $LAUNCHER"
 else
@@ -627,7 +626,7 @@ else
     STATUS_DESKTOP="Fallito"
 fi
 
-# Crea file .command sul Desktop (doppio click lo esegue in Terminale su macOS)
+# --- .command sul Desktop (fallback doppio-click immediato) ---
 DESKTOP="$HOME/Desktop"
 COMMAND_FILE="$DESKTOP/OffGallery.command"
 
@@ -638,11 +637,54 @@ bash "${LAUNCHER}"
 COMMAND_EOF
 
 chmod +x "$COMMAND_FILE"
-# Rimuovi quarantine per evitare il blocco Gatekeeper al doppio click
 xattr -c "$COMMAND_FILE" 2>/dev/null || true
-
-print_ok "Collegamento creato sul Desktop: OffGallery.command"
+print_ok "Collegamento Desktop creato: OffGallery.command"
 STATUS_DESKTOP="Creato"
+
+# --- .app bundle in ~/Applications (Spotlight + Launchpad + Dock) ---
+USER_APPS="$HOME/Applications"
+APP_BUNDLE="$USER_APPS/OffGallery.app"
+_AS_TMP="/tmp/offgallery_launcher.applescript"
+
+mkdir -p "$USER_APPS"
+
+# AppleScript: apre una finestra Terminale ed esegue il launcher
+cat > "$_AS_TMP" << APPLESCRIPT_EOF
+tell application "Terminal"
+    do script "bash '${LAUNCHER}'"
+    activate
+end tell
+APPLESCRIPT_EOF
+
+if command -v osacompile &>/dev/null; then
+    rm -rf "$APP_BUNDLE"
+    if osacompile -o "$APP_BUNDLE" "$_AS_TMP" 2>/dev/null; then
+        rm -f "$_AS_TMP"
+        # Rimuovi quarantine ricorsivo sul bundle (directory)
+        xattr -cr "$APP_BUNDLE" 2>/dev/null || true
+
+        # Prova ad applicare icona personalizzata se esiste assets/icon.png
+        # Usa sips per convertire PNG → ICNS-compatibile e fileicon se disponibile
+        _ICON_SRC=""
+        for _IC in "$APP_ROOT/assets/icon.icns" "$APP_ROOT/assets/icon.png"; do
+            [ -f "$_IC" ] && _ICON_SRC="$_IC" && break
+        done
+        if [ -n "$_ICON_SRC" ] && command -v fileicon &>/dev/null; then
+            fileicon set "$APP_BUNDLE" "$_ICON_SRC" 2>/dev/null || true
+        fi
+
+        print_ok "App creata: $APP_BUNDLE"
+        print_info "Cercabile via Spotlight (Cmd+Space → OffGallery) e nel Launchpad"
+        STATUS_DESKTOP="Creato (.command + .app)"
+    else
+        rm -f "$_AS_TMP"
+        print_warn "Creazione .app fallita. Il collegamento .command sul Desktop è comunque disponibile."
+    fi
+else
+    rm -f "$_AS_TMP" 2>/dev/null || true
+    print_warn "osacompile non trovato — .app non creata."
+    print_info "Installa Xcode Command Line Tools per abilitare la creazione dell'app: xcode-select --install"
+fi
 
 # Crea cartelle di lavoro necessarie all'app
 mkdir -p "$APP_ROOT/database" "$APP_ROOT/INPUT" "$APP_ROOT/logs"
@@ -685,8 +727,10 @@ echo "  ----------------------------------------------------------------"
 echo ""
 echo "   PER AVVIARE OFFGALLERY:"
 echo ""
-echo "     Doppio click su 'OffGallery.command' sul Desktop"
-echo "     Da terminale: bash $LAUNCHER"
+echo "     Spotlight:   Cmd+Space → digita 'OffGallery' → Invio"
+echo "     Launchpad:   cerca 'OffGallery' tra le app"
+echo "     Desktop:     doppio click su 'OffGallery.command'"
+echo "     Terminale:   bash $LAUNCHER"
 echo ""
 
 if [ "$STATUS_MINICONDA" = "Installato" ]; then

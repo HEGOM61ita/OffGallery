@@ -217,7 +217,7 @@ git clone https://github.com/HEGOM61ita/OffGallery.git
 >
 > **Nota Gatekeeper**: al primo doppio click sul collegamento Desktop (`OffGallery.command`), macOS potrebbe mostrare un avviso di sicurezza. Usa **tasto destro → Apri** per confermarlo la prima volta. L'installer rimuove già l'attributo quarantine automaticamente, quindi l'avviso dovrebbe non comparire.
 
-Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Python, librerie, ExifTool e opzionalmente Ollama per le descrizioni AI. Al termine crea un collegamento sul Desktop (`.lnk` su Windows, `OffGallery.command` su macOS, voce nel menu applicazioni su Linux).
+Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Python, librerie, ExifTool e opzionalmente Ollama per le descrizioni AI. Al termine crea un collegamento per avviare l'app (`.lnk` sul Desktop su Windows, voce nel menu applicazioni su Linux, `OffGallery.app` in `~/Applications` cercabile via Spotlight su macOS).
 
 > **Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarica automaticamente i modelli AI (~7 GB). Gli avvii successivi saranno completamente offline.
 
