@@ -218,9 +218,9 @@ git clone https://github.com/HEGOM61ita/OffGallery.git
 >
 > **Nota Gatekeeper**: al primo avvio di `OffGallery.app` o `OffGallery.command`, macOS potrebbe mostrare un avviso di sicurezza. Usa **tasto destro → Apri** per confermarlo. L'installer rimuove già l'attributo quarantine automaticamente, quindi l'avviso normalmente non compare.
 
-Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Python, librerie, ExifTool e opzionalmente Ollama per le descrizioni AI. Al termine crea un collegamento per avviare l'app (`.lnk` sul Desktop su Windows, voce nel menu applicazioni su Linux, `OffGallery.app` in `~/Applications` cercabile via Spotlight su macOS).
+Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Python, librerie, ExifTool e opzionalmente Ollama per le descrizioni AI. Al termine crea un collegamento per avviare l'app (`.lnk` sul Desktop su Windows, voce nel menu applicazioni su Linux, `OffGallery.app` in `~/Applications` cercabile via Spotlight e Launchpad su macOS).
 
-> **Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarica automaticamente i modelli AI (~7 GB). Gli avvii successivi saranno completamente offline.
+> **Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarica automaticamente i modelli AI (~6.7 GB). Gli avvii successivi saranno completamente offline.
 
 ### Installazione manuale (alternativa)
 
@@ -330,7 +330,7 @@ offgallery/
 | **Pentax** | PEF, DNG |
 | **Leica** | DNG, RWL |
 | **Adobe** | DNG |
-| **Altri** | 3FR, IIQ, RWL, X3F |
+| **Altri** | 3FR, IIQ, X3F |
 
 ---
 
@@ -384,7 +384,7 @@ Distribuito sotto licenza **AGPL-3.0**. Vedi `LICENSE` per maggiori informazioni
 - [OpenAI CLIP](https://github.com/openai/CLIP) - Ricerca semantica
 - [Meta DINOv2](https://github.com/facebookresearch/dinov2) - Embedding visivi
 - [BioCLIP](https://github.com/Imageomics/bioclip) - Classificazione flora/fauna
-- [Ollama](https://ollama.ai/) - LLM locali
+- [Ollama](https://ollama.com) - LLM locali
 - [ExifTool](https://exiftool.org/) - Metadati EXIF/XMP
 - [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) - Framework UI
 
