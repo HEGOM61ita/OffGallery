@@ -16,7 +16,7 @@ set "ENV_NAME=OffGallery"
 set "PYTHON_VER=3.12"
 set "MINICONDA_URL=https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe"
 set "MINICONDA_INSTALLER=%TEMP%\miniconda_installer.exe"
-set "MINICONDA_DIR=%USERPROFILE%\miniconda3"
+set "MINICONDA_DIR=C:\miniconda3"
 set "CONDA_BAT=%MINICONDA_DIR%\condabin\conda.bat"
 set "OLLAMA_URL=https://ollama.com/download/OllamaSetup.exe"
 set "OLLAMA_INSTALLER=%TEMP%\OllamaSetup.exe"
@@ -66,6 +66,35 @@ echo  ----------------------------------------------------------------
 echo.
 set /p "CONFIRM_START=  Vuoi procedere con l'installazione? (S/N): "
 if /i "!CONFIRM_START!" NEQ "S" goto :END_CANCELLED
+
+:: ═══════════════════════════════════════════════════════════════════
+:: SCELTA PERCORSO INSTALLAZIONE MINICONDA
+:: ═══════════════════════════════════════════════════════════════════
+echo.
+echo  ----------------------------------------------------------------
+echo.
+echo   Dove vuoi installare Miniconda?
+echo   Premi INVIO per accettare il default oppure digita un altro percorso.
+echo   ATTENZIONE: il percorso NON deve contenere spazi!
+echo   Esempi validi: C:\miniconda3   D:\miniconda3   E:\tools\miniconda3
+echo.
+set /p "MINICONDA_DIR_INPUT=  Percorso [!MINICONDA_DIR!]: "
+if not "!MINICONDA_DIR_INPUT!"=="" set "MINICONDA_DIR=!MINICONDA_DIR_INPUT!"
+
+:: Verifica assenza spazi nel percorso scelto
+echo !MINICONDA_DIR! | findstr " " >nul
+if !ERRORLEVEL! EQU 0 (
+    echo.
+    echo   [ERRORE] Il percorso "!MINICONDA_DIR!" contiene spazi.
+    echo   Scegli un percorso senza spazi ^(es. D:\miniconda3^).
+    echo.
+    pause
+    goto :END_ERROR
+)
+
+:: Aggiorna CONDA_BAT con il percorso definitivo scelto dall'utente
+set "CONDA_BAT=!MINICONDA_DIR!\condabin\conda.bat"
+echo.
 
 :: ═══════════════════════════════════════════════════════════════════
 :: STEP 1/5: MINICONDA
