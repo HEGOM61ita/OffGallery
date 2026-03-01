@@ -663,14 +663,46 @@ if command -v osacompile &>/dev/null; then
         # Rimuovi quarantine ricorsivo sul bundle (directory)
         xattr -cr "$APP_BUNDLE" 2>/dev/null || true
 
-        # Prova ad applicare icona personalizzata se esiste assets/icon.png
-        # Usa sips per convertire PNG → ICNS-compatibile e fileicon se disponibile
+        # Applica icona personalizzata al bundle usando sips + iconutil (built-in macOS)
+        # Cerca la sorgente migliore disponibile in assets/
         _ICON_SRC=""
-        for _IC in "$APP_ROOT/assets/icon.icns" "$APP_ROOT/assets/icon.png"; do
+        for _IC in "$APP_ROOT/assets/icon.icns" \
+                   "$APP_ROOT/assets/icon.png" \
+                   "$APP_ROOT/assets/logo3.jpg" \
+                   "$APP_ROOT/assets/logo3.png"; do
             [ -f "$_IC" ] && _ICON_SRC="$_IC" && break
         done
-        if [ -n "$_ICON_SRC" ] && command -v fileicon &>/dev/null; then
-            fileicon set "$APP_BUNDLE" "$_ICON_SRC" 2>/dev/null || true
+
+        if [ -n "$_ICON_SRC" ] && command -v sips &>/dev/null && command -v iconutil &>/dev/null; then
+            _ICONSET="/tmp/OffGallery.iconset"
+            _ICNS_OUT="/tmp/OffGallery.icns"
+            rm -rf "$_ICONSET"
+            mkdir -p "$_ICONSET"
+
+            # Genera tutte le dimensioni richieste dal formato iconset macOS
+            _ICON_OK=true
+            for _SPEC in "16x16:16" "16x16@2x:32" "32x32:32" "32x32@2x:64" \
+                         "128x128:128" "128x128@2x:256" \
+                         "256x256:256" "256x256@2x:512" \
+                         "512x512:512" "512x512@2x:1024"; do
+                _NAME="${_SPEC%%:*}"
+                _PX="${_SPEC##*:}"
+                sips -z "$_PX" "$_PX" "$_ICON_SRC" \
+                    --out "$_ICONSET/icon_${_NAME}.png" &>/dev/null || { _ICON_OK=false; break; }
+            done
+
+            if [ "$_ICON_OK" = true ] && iconutil -c icns "$_ICONSET" -o "$_ICNS_OUT" 2>/dev/null; then
+                # Copia l'ICNS nella cartella Resources del bundle
+                cp "$_ICNS_OUT" "$APP_BUNDLE/Contents/Resources/OffGallery.icns"
+                # Registra il nome icona in Info.plist
+                defaults write "$APP_BUNDLE/Contents/Info" CFBundleIconFile "OffGallery" 2>/dev/null || true
+                # Aggiorna timestamp per far ricaricare l'icona al Finder
+                touch "$APP_BUNDLE"
+                print_ok "Icona applicata al bundle .app"
+            else
+                print_warn "Conversione icona fallita — il bundle usa l'icona di default."
+            fi
+            rm -rf "$_ICONSET" "$_ICNS_OUT" 2>/dev/null || true
         fi
 
         print_ok "App creata: $APP_BUNDLE"
