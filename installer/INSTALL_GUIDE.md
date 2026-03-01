@@ -75,7 +75,7 @@ Il modo piu' semplice per installare OffGallery e' usare il **wizard di installa
 
 > **Apple Silicon**: il wizard rileva automaticamente l'architettura (arm64 o x86_64) e scarica la versione corretta di Miniconda.
 >
-> **Gatekeeper**: al primo doppio click su `OffGallery.command` sul Desktop, macOS potrebbe mostrare un avviso. Usa **tasto destro → Apri** per confermarlo. L'installer rimuove già l'attributo quarantine, quindi l'avviso non dovrebbe comparire.
+> **Gatekeeper**: al primo avvio di `OffGallery.app` o `OffGallery.command`, macOS potrebbe mostrare un avviso di sicurezza. Usa **tasto destro → Apri** per confermarlo. L'installer rimuove già l'attributo quarantine, quindi l'avviso normalmente non compare.
 
 ### Cosa fa il wizard
 
@@ -86,7 +86,7 @@ Il modo piu' semplice per installare OffGallery e' usare il **wizard di installa
 | Librerie Python | Installa tutto da requirements | Installa tutto da requirements | Installa tutto da requirements |
 | ExifTool | Bundled in `exiftool_files/` | Via apt/dnf/pacman/zypper o tar.gz locale | Via Homebrew o tar.gz locale |
 | Ollama | Opzionale | Opzionale | Opzionale (via Homebrew o script ufficiale) |
-| Collegamento Desktop | `OffGallery.lnk` sul Desktop | Voce nel menu applicazioni | `OffGallery.command` sul Desktop |
+| Collegamento | `OffGallery.lnk` sul Desktop | Voce nel menu applicazioni | `OffGallery.app` in `~/Applications` (Spotlight + Launchpad) + `OffGallery.command` sul Desktop |
 
 **Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarichera' automaticamente ~7 GB di modelli AI. Gli avvii successivi saranno completamente offline.
 
@@ -398,8 +398,12 @@ I modelli vengono scaricati dal repository congelato `HEGOM/OffGallery-models` e
 - Oppure scarica il `.pkg` da [exiftool.org](https://exiftool.org)
 
 ### macOS: avviso "non può essere aperto" (Gatekeeper)
-- Usa **tasto destro → Apri** sul file `OffGallery.command`
-- Oppure da terminale: `xattr -c ~/Desktop/OffGallery.command`
+- Usa **tasto destro → Apri** su `OffGallery.app` o `OffGallery.command`
+- Oppure da terminale:
+  ```bash
+  xattr -cr ~/Applications/OffGallery.app
+  xattr -c ~/Desktop/OffGallery.command
+  ```
 
 ### macOS: PyQt6 non si avvia / finestra nera
 - Verifica che Xcode Command Line Tools siano installati: `xcode-select --install`
