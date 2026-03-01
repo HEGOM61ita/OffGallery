@@ -27,14 +27,14 @@
 ---
 
 > [!NOTE]
-> **🔧 Installer Windows + Linux + macOS — Hardening Completato**
+> **🔧 Installer aggiornato — Windows · Linux · macOS**
 >
-> Tutti i problemi noti degli installer Windows e Linux sono stati risolti. L'installer macOS è ora disponibile per Intel e Apple Silicon.
-> **Windows**: percorso Miniconda configurabile (default `C:\miniconda3`) con validazione spazi — risolve il blocco su nomi utente con spazi.
-> **Linux**: `conda env list` inaffidabile, `--override-channels`, percorsi conda incompleti, ARM64, pipefail su `ollama list`.
-> **macOS**: wizard completo con rilevamento architettura, Homebrew, MPS per Apple Silicon e file `.command` sul Desktop.
+> Gli installer sono stati migliorati e stabilizzati su tutte e tre le piattaforme.
+> **Windows**: risolto il blocco dell'installazione per utenti con spazi nel nome utente Windows. Il percorso di installazione di Miniconda è ora configurabile dal wizard.
+> **Linux**: maggiore compatibilità con distribuzioni diverse, ARM64 e installazioni Anaconda/Miniforge preesistenti.
+> **macOS**: wizard completo disponibile per Intel e Apple Silicon, con supporto GPU Metal integrato.
 >
-> **In attesa di verifica finale su installazione fresh.** Per problemi durante l'installazione, apri una [Discussion](https://github.com/HEGOM61ita/OffGallery/discussions).
+> Per problemi durante l'installazione, apri una [Discussion](https://github.com/HEGOM61ita/OffGallery/discussions).
 
 ---
 
@@ -42,13 +42,10 @@
 
 | Data | Cosa | Note |
 |------|------|------|
-| 1 mar 2026 | **Installer macOS** | Wizard completo per Intel e Apple Silicon; Homebrew per ExifTool e Ollama; PyTorch con MPS per GPU Metal; collegamento Desktop `.command`; fix percorso Miniconda Windows per nomi utente con spazi |
+| 1 mar 2026 | **Installer macOS** | Wizard completo per Intel e Apple Silicon; Homebrew per ExifTool e Ollama; PyTorch con MPS per GPU Metal; collegamento Desktop `.command`; percorso Miniconda configurabile dal wizard su Windows |
 | 25 feb 2026 | **Import da catalogo Lightroom + Export con struttura** | Elaborazione direttamente da `.lrcat`; copia file con struttura directory originale multi-disco; destinazione XMP disaccoppiata dalla copia; UI Export semplificata e contestuale |
 | 24 feb 2026 | **Geotag geografico offline** | GPS → gerarchia `GeOFF\|Europe\|Italy\|Sardegna\|Città` senza API, visibile nel tooltip gallery e scritto in XMP HierarchicalSubject |
-| 23 feb 2026 | **Fix estrazione RAW** | Fallback multi-stadio ExifTool per NEF/ARW high-efficiency; warning nel log se nessuna anteprima disponibile, metadati salvati comunque — [Discussion #11](https://github.com/HEGOM61ita/OffGallery/discussions/11) |
-| 22 feb 2026 | **Hardening installer Windows + Linux** | Robustezza conda su tutti i profili, ARM64, ToS bypass, pipefail — [Discussion #9](https://github.com/HEGOM61ita/OffGallery/discussions/9) |
-| 20 feb 2026 | **Fix Installer v2** | 13 bug risolti su Windows e Linux — [Discussion #8](https://github.com/HEGOM61ita/OffGallery/discussions/8) |
-| 18 feb 2026 | **v0.7 — Supporto Linux** | Installer bash, launcher, config cross-platform — [Discussion #7](https://github.com/HEGOM61ita/OffGallery/discussions/7) |
+| 23 feb 2026 | **Migliorata estrazione RAW** | Supporto ampliato per NEF/ARW high-efficiency con fallback multi-stadio; i metadati vengono sempre salvati anche quando l'anteprima non è disponibile |
 
 Storico completo nelle [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
