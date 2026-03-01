@@ -76,9 +76,9 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 
 ---
 
-## Stack AI Locale
+## Motori di Analisi
 
-OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offline:
+Tutti i componenti girano localmente, completamente offline:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -93,9 +93,10 @@ OffGallery orchestra **6 modelli AI** che lavorano insieme, completamente offlin
 │  │  Aesthetic Predictor │  │  MUSIQ (Technical Quality)     │   │
 │  │  Valutazione 0-10    │  │  Analisi nitidezza/rumore      │   │
 │  └──────────────────────┘  └────────────────────────────────┘   │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  Argos Translate (IT→EN) per query multilingue           │   │
-│  └──────────────────────────────────────────────────────────┘   │
+│  ┌──────────────────────────┐  ┌──────────────────────────┐   │
+│  │  Argos Translate (IT→EN) │  │  Geocoding Inverso       │   │
+│  │  Query multilingue       │  │  GPS → Paese/Regione/Città│   │
+│  └──────────────────────────┘  └──────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
