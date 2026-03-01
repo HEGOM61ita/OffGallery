@@ -413,38 +413,44 @@ I modelli vengono scaricati dal repository congelato `HEGOM/OffGallery-models` e
 
 ## Spazio Disco Utilizzato
 
+> **Nota GPU**: l'ambiente Python ha dimensioni molto diverse a seconda della GPU.
+> PyTorch CPU pesa ~700 MB; PyTorch CUDA 11.8 pesa ~2.2 GB + ~1 GB di CUDA runtime libraries.
+> Le stime sotto riportano entrambi i casi.
+
 ### Windows
 
-| Componente | Posizione | Dimensione |
-|------------|-----------|------------|
-| Miniconda | `C:\miniconda3` (default wizard) | ~400 MB |
-| Ambiente OffGallery | `C:\miniconda3\envs\OffGallery` | ~6 GB |
-| **Modelli AI** | **`OffGallery\Models\`** | **~6.7 GB** |
-| Argos Translate | `%USERPROFILE%\.local\share\argos-translate` | ~92 MB |
-| Ollama + modello | `%LOCALAPPDATA%\Ollama` | ~3.5 GB |
-| **Totale** | | **~17 GB** |
+| Componente | Posizione | CPU only | NVIDIA GPU (CUDA) |
+|------------|-----------|----------|-------------------|
+| Miniconda base | `C:\miniconda3` | ~400 MB | ~400 MB |
+| Ambiente OffGallery | `C:\miniconda3\envs\OffGallery` | ~3.5 GB | ~7 GB |
+| **Modelli AI** | **`OffGallery\Models\`** | **~6.7 GB** | **~6.7 GB** |
+| Argos Translate | `%USERPROFILE%\.local\share\argos-translate` | ~92 MB | ~92 MB |
+| Ollama + modello | `%LOCALAPPDATA%\Ollama` | ~3.5 GB | ~3.5 GB |
+| **Totale** | | **~14 GB** | **~18 GB** |
 
 ### Linux
 
-| Componente | Posizione | Dimensione |
-|------------|-----------|------------|
-| Miniconda | `~/miniconda3` | ~400 MB |
-| Ambiente OffGallery | `~/miniconda3/envs/OffGallery` | ~6 GB |
-| **Modelli AI** | **`OffGallery/Models/`** | **~6.7 GB** |
-| Argos Translate | `~/.local/share/argos-translate` | ~92 MB |
-| Ollama + modello | `~/.ollama` | ~3.5 GB |
-| **Totale** | | **~17 GB** |
+| Componente | Posizione | CPU only | NVIDIA GPU (CUDA) |
+|------------|-----------|----------|-------------------|
+| Miniconda base | `~/miniconda3` | ~400 MB | ~400 MB |
+| Ambiente OffGallery | `~/miniconda3/envs/OffGallery` | ~3.5 GB | ~7 GB |
+| **Modelli AI** | **`OffGallery/Models/`** | **~6.7 GB** | **~6.7 GB** |
+| Argos Translate | `~/.local/share/argos-translate` | ~92 MB | ~92 MB |
+| Ollama + modello | `~/.ollama` | ~3.5 GB | ~3.5 GB |
+| **Totale** | | **~14 GB** | **~18 GB** |
 
 ### macOS
 
+> Su macOS non è disponibile CUDA. Apple Silicon usa Metal/MPS (incluso in PyTorch standard, nessun overhead aggiuntivo).
+
 | Componente | Posizione | Dimensione |
 |------------|-----------|------------|
-| Miniconda | `~/miniconda3` | ~400 MB |
-| Ambiente OffGallery | `~/miniconda3/envs/OffGallery` | ~6 GB |
+| Miniconda base | `~/miniconda3` | ~400 MB |
+| Ambiente OffGallery | `~/miniconda3/envs/OffGallery` | ~3.5 GB |
 | **Modelli AI** | **`OffGallery/Models/`** | **~6.7 GB** |
 | Argos Translate | `~/Library/Application Support/argos-translate` | ~92 MB |
 | Ollama + modello | `~/.ollama` | ~3.5 GB |
-| **Totale** | | **~17 GB** |
+| **Totale** | | **~14 GB** |
 
 ---
 

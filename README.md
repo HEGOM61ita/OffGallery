@@ -146,7 +146,7 @@ Tutti i componenti girano localmente, completamente offline:
 | Componente | Minimo | Consigliato |
 |------------|--------|-------------|
 | **RAM** | 8 GB | 16 GB |
-| **Disco** | 15 GB | 25 GB |
+| **Disco** | 14 GB (CPU) / 18 GB (NVIDIA GPU) | 25 GB |
 | **GPU** | - | NVIDIA con CUDA |
 | **OS** | Windows 10/11, Linux 64-bit o macOS 12+ | Windows 11 / Ubuntu 22.04+ / macOS 13+ |
 
