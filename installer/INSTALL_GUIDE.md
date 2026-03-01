@@ -4,15 +4,19 @@
 
 | Componente | Minimo | Consigliato |
 |------------|--------|-------------|
-| **Sistema Operativo** | Windows 10 64-bit / Linux 64-bit | Windows 11 / Ubuntu 22.04+ |
+| **Sistema Operativo** | Windows 10 64-bit / Linux 64-bit / macOS 12+ | Windows 11 / Ubuntu 22.04+ / macOS 13+ |
 | **RAM** | 8 GB | 16 GB |
 | **Spazio Disco** | 15 GB | 25 GB |
-| **GPU (opzionale)** | - | NVIDIA con 4+ GB VRAM |
+| **GPU (opzionale)** | - | NVIDIA con 4+ GB VRAM (Windows/Linux) · Apple Silicon M1+ (macOS) |
 | **Connessione Internet** | Richiesta solo al primo avvio | - |
 
-> **Nota GPU**: OffGallery funziona anche senza GPU NVIDIA, ma l'elaborazione sarà più lenta. Puoi scegliere CPU/GPU nelle impostazioni.
+> **Nota GPU Windows/Linux**: OffGallery funziona anche senza GPU NVIDIA, ma l'elaborazione sarà più lenta. Puoi scegliere CPU/GPU nelle impostazioni.
+>
+> **Nota GPU macOS**: Su Apple Silicon (M1/M2/M3/M4) PyTorch usa automaticamente Metal/MPS per l'accelerazione GPU. Su Intel Mac funziona in modalità CPU.
 >
 > **Nota Linux**: Testato su Ubuntu, Fedora e Arch Linux. Altre distribuzioni con supporto conda dovrebbero funzionare.
+>
+> **Nota macOS**: Supportato su Apple Silicon (arm64) e Intel (x86_64). Richiede macOS 12 Monterey o successivo.
 
 ---
 
@@ -60,13 +64,29 @@ Il modo piu' semplice per installare OffGallery e' usare il **wizard di installa
    ```
 3. Segui le istruzioni a schermo (rispondi s/n alle domande)
 
-### Cosa fa il wizard (entrambe le piattaforme)
+### macOS
 
-- Scarica e installa Miniconda automaticamente (se non presente)
-- Crea l'ambiente Python e installa tutte le librerie
-- **Solo Linux**: installa ExifTool tramite il gestore pacchetti del sistema (apt, dnf, pacman, zypper)
-- Offre l'installazione opzionale di Ollama (per descrizioni AI)
-- Crea un collegamento (Desktop su Windows, menu applicazioni su Linux)
+1. Apri un **Terminale** nella cartella OffGallery
+2. Esegui:
+   ```bash
+   bash installer/install_offgallery_mac.sh
+   ```
+3. Segui le istruzioni a schermo (rispondi s/n alle domande)
+
+> **Apple Silicon**: il wizard rileva automaticamente l'architettura (arm64 o x86_64) e scarica la versione corretta di Miniconda.
+>
+> **Gatekeeper**: al primo doppio click su `OffGallery.command` sul Desktop, macOS potrebbe mostrare un avviso. Usa **tasto destro → Apri** per confermarlo. L'installer rimuove già l'attributo quarantine, quindi l'avviso non dovrebbe comparire.
+
+### Cosa fa il wizard
+
+| | Windows | Linux | macOS |
+|---|---------|-------|-------|
+| Miniconda | Scarica e installa (default `C:\miniconda3`) | Scarica e installa (`~/miniconda3`) | Scarica e installa (`~/miniconda3`), rileva arm64/x86_64 |
+| Ambiente Python | Crea `OffGallery` con Python 3.12 | Crea `OffGallery` con Python 3.12 | Crea `OffGallery` con Python 3.12 |
+| Librerie Python | Installa tutto da requirements | Installa tutto da requirements | Installa tutto da requirements |
+| ExifTool | Bundled in `exiftool_files/` | Via apt/dnf/pacman/zypper o tar.gz locale | Via Homebrew o tar.gz locale |
+| Ollama | Opzionale | Opzionale | Opzionale (via Homebrew o script ufficiale) |
+| Collegamento Desktop | `OffGallery.lnk` sul Desktop | Voce nel menu applicazioni | `OffGallery.command` sul Desktop |
 
 **Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarichera' automaticamente ~7 GB di modelli AI. Gli avvii successivi saranno completamente offline.
 
@@ -100,7 +120,7 @@ $HOME/miniconda3/bin/conda init bash
 # Riapri il terminale dopo questo comando
 
 # 2. Crea ambiente Python
-conda create -n OffGallery python=3.12 -y
+conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y
 
 # 3. Installa librerie Python
 conda run -n OffGallery pip install -r installer/requirements_offgallery.txt
@@ -116,6 +136,40 @@ sudo pacman -S perl-image-exiftool
 # 5. Ollama (opzionale)
 curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen3-vl:4b-instruct
+```
+
+### macOS - Installazione manuale
+
+```bash
+# 1. Installa Miniconda (se non presente)
+#    Scegli arm64 per Apple Silicon, x86_64 per Intel
+# Apple Silicon:
+curl -fSL https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh -o /tmp/miniconda.sh
+# Intel:
+# curl -fSL https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -o /tmp/miniconda.sh
+
+bash /tmp/miniconda.sh -b -p $HOME/miniconda3
+$HOME/miniconda3/bin/conda init zsh    # zsh è la shell default su macOS
+$HOME/miniconda3/bin/conda init bash
+# Riapri il terminale dopo questo comando
+
+# 2. Crea ambiente Python
+conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y
+
+# 3. Installa librerie Python
+conda run -n OffGallery pip install -r installer/requirements_offgallery.txt
+
+# 4. Installa ExifTool
+brew install exiftool
+# Se non hai Homebrew: https://brew.sh — oppure scarica il .pkg da https://exiftool.org
+
+# 5. Ollama (opzionale)
+brew install ollama
+# oppure: curl -fsSL https://ollama.com/install.sh | sh
+ollama pull qwen3-vl:4b-instruct
+
+# 6. Avvia
+conda run -n OffGallery python gui_launcher.py
 ```
 
 ### Step 1: Installa Miniconda
@@ -257,6 +311,28 @@ cd ~/percorso/di/OffGallery
 python gui_launcher.py
 ```
 
+### macOS
+
+**Metodo 1 - Doppio click (Consigliato):**
+
+Se hai usato il wizard, trovi `OffGallery.command` sul **Desktop**. Doppio click per avviare.
+
+> Al primo avvio macOS potrebbe chiedere conferma. Usa **tasto destro → Apri**.
+
+**Metodo 2 - Da terminale:**
+
+```bash
+bash installer/offgallery_launcher_mac.sh
+```
+
+**Metodo 3 - Manuale:**
+
+```bash
+conda activate OffGallery
+cd ~/percorso/di/OffGallery
+python gui_launcher.py
+```
+
 ---
 
 ## Primo Avvio
@@ -284,6 +360,7 @@ I modelli vengono scaricati dal repository congelato `HEGOM/OffGallery-models` e
 ### "conda non è riconosciuto come comando"
 - **Windows**: Riavvia il terminale dopo aver installato Miniconda. Verifica che "Add to PATH" sia stato selezionato durante l'installazione
 - **Linux**: Esegui `~/miniconda3/bin/conda init bash` e riapri il terminale
+- **macOS**: Esegui `~/miniconda3/bin/conda init zsh` (o `init bash`) e riapri il terminale
 
 ### "CUDA not available" / Elaborazione lenta
 - Normale se non hai una GPU NVIDIA
@@ -297,6 +374,7 @@ I modelli vengono scaricati dal repository congelato `HEGOM/OffGallery-models` e
 ### Ollama non risponde
 - **Windows**: Assicurati che Ollama sia in esecuzione (icona nella system tray). Riavvia Ollama
 - **Linux**: Verifica con `systemctl status ollama` oppure avvia con `ollama serve`
+- **macOS**: Avvia Ollama dall'app o esegui `ollama serve` dal terminale
 
 ### Linux: ExifTool non trovato
 - Installa tramite il gestore pacchetti del sistema:
@@ -308,6 +386,18 @@ I modelli vengono scaricati dal repository congelato `HEGOM/OffGallery-models` e
 - Prova da terminale: `bash installer/offgallery_launcher.sh`
 - Verifica che conda sia inizializzato: `conda --version`
 
+### macOS: ExifTool non trovato
+- Installa tramite Homebrew: `brew install exiftool`
+- Oppure scarica il `.pkg` da [exiftool.org](https://exiftool.org)
+
+### macOS: avviso "non può essere aperto" (Gatekeeper)
+- Usa **tasto destro → Apri** sul file `OffGallery.command`
+- Oppure da terminale: `xattr -c ~/Desktop/OffGallery.command`
+
+### macOS: PyQt6 non si avvia / finestra nera
+- Verifica che Xcode Command Line Tools siano installati: `xcode-select --install`
+- Se su macOS 11+, assicurati che `QT_MAC_WANTS_LAYER=1` sia impostato (il launcher lo fa automaticamente)
+
 ---
 
 ## Spazio Disco Utilizzato
@@ -316,8 +406,8 @@ I modelli vengono scaricati dal repository congelato `HEGOM/OffGallery-models` e
 
 | Componente | Posizione | Dimensione |
 |------------|-----------|------------|
-| Miniconda | `%USERPROFILE%\miniconda3` | ~400 MB |
-| Ambiente OffGallery | `%USERPROFILE%\miniconda3\envs\OffGallery` | ~6 GB |
+| Miniconda | `C:\miniconda3` (default wizard) | ~400 MB |
+| Ambiente OffGallery | `C:\miniconda3\envs\OffGallery` | ~6 GB |
 | **Modelli AI** | **`OffGallery\Models\`** | **~6.7 GB** |
 | Argos Translate | `%USERPROFILE%\.local\share\argos-translate` | ~92 MB |
 | Ollama + modello | `%LOCALAPPDATA%\Ollama` | ~3.5 GB |
@@ -331,6 +421,17 @@ I modelli vengono scaricati dal repository congelato `HEGOM/OffGallery-models` e
 | Ambiente OffGallery | `~/miniconda3/envs/OffGallery` | ~6 GB |
 | **Modelli AI** | **`OffGallery/Models/`** | **~6.7 GB** |
 | Argos Translate | `~/.local/share/argos-translate` | ~92 MB |
+| Ollama + modello | `~/.ollama` | ~3.5 GB |
+| **Totale** | | **~17 GB** |
+
+### macOS
+
+| Componente | Posizione | Dimensione |
+|------------|-----------|------------|
+| Miniconda | `~/miniconda3` | ~400 MB |
+| Ambiente OffGallery | `~/miniconda3/envs/OffGallery` | ~6 GB |
+| **Modelli AI** | **`OffGallery/Models/`** | **~6.7 GB** |
+| Argos Translate | `~/Library/Application Support/argos-translate` | ~92 MB |
 | Ollama + modello | `~/.ollama` | ~3.5 GB |
 | **Totale** | | **~17 GB** |
 
