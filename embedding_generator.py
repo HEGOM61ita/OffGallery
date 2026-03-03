@@ -1720,19 +1720,32 @@ class EmbeddingGenerator:
             # Se abbiamo hint di categoria (BioCLIP) o luogo (geo), li usiamo nel prompt
             category_line = ""
             if category_hint:
-                category_line = f"- IMPORTANT: The main subject is a type of: {category_hint}. Use this as context.\n"
+                if mode == "title":
+                    # Nel titolo il nome latino viene già preposto programmaticamente:
+                    # il LLM deve usare il termine generico (es. "mammifero") come soggetto,
+                    # non evitare ogni riferimento all'animale (causa descrizioni astratte tipo "mezzaluna")
+                    category_line = (
+                        f"- The main subject is a {category_hint}. Refer to it as \"{category_hint}\" in the title.\n"
+                        "- DO NOT use species names, common names or English animal names.\n"
+                    )
+                else:
+                    # Per tag e descrizione: BioCLIP ha già identificato la specie,
+                    # il LLM descrive solo attributi visivi, comportamento, ambiente
+                    category_line = (
+                        f"- The main subject is a {category_hint}. The species is already identified externally.\n"
+                        "- DO NOT name the species, animal or plant. NEVER use species names, common names or English names.\n"
+                        "- Focus ONLY on: visual attributes, behavior, environment, colors, composition, context.\n"
+                    )
 
             location_line = ""
             if location_hint:
-                location_line = f"- LOCATION: This photo was taken in: {location_hint}. Mention the location naturally if relevant.\n"
+                location_line = f"- LOCATION: This photo was taken in: {location_hint}. Translate ALL place names to Italian (e.g. Sardinia→Sardegna, Italy→Italia, Sicily→Sicilia). Mention the location naturally if relevant.\n"
 
             italian_rules = (
                 "LANGUAGE: ALL output MUST be in ITALIAN. NEVER use English words.\n"
-                "ANIMAL/PLANT IDENTIFICATION:\n"
                 f"{category_line}"
                 f"{location_line}"
-                "- If you clearly recognize the species, use its common Italian name (e.g. cervo, delfino, girasole)\n"
-                "- If you are NOT sure, use a generic Italian term (uccello, animale, fiore, albero, pesce)\n"
+                "- If NO species hint is provided and you recognize an animal/plant, use a generic Italian term (uccello, animale, fiore, albero)\n"
                 "- NEVER guess a species name. A generic term is ALWAYS better than a wrong name\n"
                 "- Do NOT use scientific/Latin names\n"
             )
@@ -1755,7 +1768,7 @@ class EmbeddingGenerator:
                     f"{italian_rules}"
                     "\nSTRICT RULES:\n"
                     f"- Maximum {max_tags} tags\n"
-                    "- lowercase, singular form\n"
+                    "- singular form, preserve capitalization for proper nouns (place names, etc.)\n"
                     "- Only tag what you clearly see in the image\n"
                 )
             elif mode == "title":

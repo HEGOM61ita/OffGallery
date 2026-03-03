@@ -21,7 +21,7 @@ embedding:
       description: Similarità visiva (composizione, texture, forma)
       enabled: true
       model_name: facebook/dinov2-base
-      similarity_threshold: 0.25
+      similarity_threshold: 0.2
     llm_vision:
       auto_import:
         description:
@@ -42,11 +42,11 @@ embedding:
       generation:
         keep_alive: -1
         num_batch: 1024
-        num_ctx: 2048
+        num_ctx: 4096
         temperature: 0.2
-        top_k: 20
+        top_k: 40
         top_p: 0.8
-      model: qwen3-vl:4b-instruct
+      model: qwen3.5:4b-q4_K_M
       timeout: 240
     technical:
       description: Punteggio tecnico qualità MUSIQ offline
@@ -219,7 +219,7 @@ models_repository:
   models_dir: Models
 paths:
   database: database/offgallery.sqlite
-  input_dir: INPUT
+  input_dir: D:\AI\Scripts\Descrittore\INPUT
   log_dir: logs
 search:
   fuzzy_enabled: true
