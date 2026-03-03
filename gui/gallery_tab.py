@@ -919,7 +919,7 @@ class GalleryTab(QWidget):
 
             progress = QProgressDialog(self)
             progress.setWindowTitle(f"🤖 Generazione {mode_text}")
-            progress.setLabelText(f"Connessione a Ollama ({llm_config.get('model', 'qwen3-vl:4b')})...")
+            progress.setLabelText(f"Connessione a Ollama ({llm_config.get('model', 'qwen3.5:4b')})...")
             progress.setCancelButtonText("Annulla")
             progress.setMinimumWidth(450)
             progress.setMinimumDuration(0)

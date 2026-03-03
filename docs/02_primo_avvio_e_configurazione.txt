@@ -258,7 +258,7 @@ SEZIONE: MODELLI DI CLASSIFICAZIONE E ANALISI
       Il pulsante "Test" verifica la connessione e mostra i modelli
       disponibili.
     - Modello LLM: il nome del modello da usare.
-      Valore predefinito: qwen3-vl:4b-instruct
+      Valore predefinito: qwen3.5:4b-q4_K_M
     - Timeout: quanti secondi attendere prima di considerare la
       richiesta fallita (utile per computer lenti).
 

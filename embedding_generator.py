@@ -84,7 +84,7 @@ class EmbeddingGenerator:
             if not llm_config.get('enabled', False):
                 return
             endpoint = llm_config.get('endpoint', 'http://localhost:11434')
-            model = llm_config.get('model', 'qwen3-vl:4b-instruct')
+            model = llm_config.get('model', 'qwen3.5:4b-q4_K_M')
             generation = llm_config.get('generation', {})
             keep_alive = generation.get('keep_alive', -1)
             # Metodo ufficiale Ollama: invia solo il nome modello per forzare il preload
@@ -1695,7 +1695,7 @@ class EmbeddingGenerator:
             llm_config = self.embedding_config.get('models', {}).get('llm_vision', {})
 
             endpoint = llm_config.get('endpoint', 'http://localhost:11434')
-            model = llm_config.get('model', 'qwen3-vl:4b-instruct')
+            model = llm_config.get('model', 'qwen3.5:4b-q4_K_M')
             timeout = llm_config.get('timeout', 180)
             # Calcolo num_predict: ~3 token/tag, ~1.3 token/parola + margine
             if mode == "description":

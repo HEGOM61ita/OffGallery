@@ -170,7 +170,7 @@ class AppHeader(QFrame):
             "CLIP v1.5.1",
             "DINOv2 v2.0", 
             "BioCLIP v1.0",
-            "qwen3-vl:4b-instruct",
+            "qwen3.5:4b-q4_K_M",
             "ChromaDB v0.4.x",
             "Ollama v0.14.1"
         ]

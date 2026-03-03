@@ -20,7 +20,7 @@ set "MINICONDA_DIR=C:\miniconda3"
 set "CONDA_BAT=%MINICONDA_DIR%\condabin\conda.bat"
 set "OLLAMA_URL=https://ollama.com/download/OllamaSetup.exe"
 set "OLLAMA_INSTALLER=%TEMP%\OllamaSetup.exe"
-set "OLLAMA_MODEL=qwen3-vl:4b-instruct"
+set "OLLAMA_MODEL=qwen3.5:4b-q4_K_M"
 set "STEP_TOTAL=5"
 
 :: Flag di stato per riepilogo

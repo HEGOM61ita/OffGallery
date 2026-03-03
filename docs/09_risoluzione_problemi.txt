@@ -266,7 +266,7 @@ PROBLEMI DI ELABORAZIONE (PROCESSING)
       raggiungibile.
     - Se Ollama e' attivo ma il modello non c'e', installalo:
       apri un terminale e digita:
-        ollama pull qwen3-vl:4b-instruct
+        ollama pull qwen3.5:4b-q4_K_M
     - Verifica che nella configurazione sia attivata almeno una
       delle tre opzioni di generazione (Tags, Descrizione, Titolo).
 

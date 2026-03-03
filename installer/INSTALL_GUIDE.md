@@ -135,7 +135,7 @@ sudo pacman -S perl-image-exiftool
 
 # 5. Ollama (opzionale)
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull qwen3-vl:4b-instruct
+ollama pull qwen3.5:4b-q4_K_M
 ```
 
 ### macOS - Installazione manuale
@@ -166,7 +166,7 @@ brew install exiftool
 # 5. Ollama (opzionale)
 brew install ollama
 # oppure: curl -fsSL https://ollama.com/install.sh | sh
-ollama pull qwen3-vl:4b-instruct
+ollama pull qwen3.5:4b-q4_K_M
 
 # 6. Avvia
 conda run -n OffGallery python gui_launcher.py
@@ -266,7 +266,7 @@ Se non ti interessa questa funzionalità, puoi saltare questo step.
    - Premi `S` per aprire la pagina di download
    - Scarica e installa **Ollama for Windows**
    - Riesegui lo script
-3. Premi `S` per scaricare il modello `qwen3-vl:4b-instruct` (~3.3 GB)
+3. Premi `S` per scaricare il modello `qwen3.5:4b-q4_K_M` (~3.3 GB)
 
 ---
 

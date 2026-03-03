@@ -131,10 +131,10 @@ def check_ollama():
         if response.status_code == 200:
             models = response.json().get('models', [])
             for m in models:
-                if 'qwen3-vl:4b-instruct' in m.get('name', ''):
-                    return True, "Ollama + qwen3-vl:4b-instruct"
+                if 'qwen3.5:4b-q4_K_M' in m.get('name', ''):
+                    return True, "Ollama + qwen3.5:4b-q4_K_M"
 
-            return True, "Ollama attivo (ma modello qwen3-vl non trovato)"
+            return True, "Ollama attivo (ma modello qwen3.5 non trovato)"
         return False, "Ollama non risponde"
     except:
         return False, "Ollama NON raggiungibile (avvialo o esegui 06_setup_ollama.bat)"

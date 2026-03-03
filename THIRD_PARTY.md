@@ -15,9 +15,9 @@
 - Link: [https://github.com/Imageomics/bioclip](https://github.com/Imageomics/bioclip)
 - Uso / Usage: Identificazione flora/fauna / Flora & fauna identification
 
-**Ollama / Qwen3-VL**
-- Licenza / License: MIT (Ollama), Apache-2.0 (Qwen3-VL)
-- Link: [https://ollama.ai/](https://ollama.ai/)
+**Ollama / Qwen3.5**
+- Licenza / License: MIT (Ollama), Apache-2.0 (Qwen3.5)
+- Link: [https://ollama.com/](https://ollama.com/)
 - Uso / Usage: Generazione tag e descrizioni / Tag & description generation
 
 **ExifTool**

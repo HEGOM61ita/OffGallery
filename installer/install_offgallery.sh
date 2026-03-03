@@ -31,7 +31,7 @@ esac
 MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-${_MINICONDA_ARCH}.sh"
 MINICONDA_INSTALLER="/tmp/miniconda_installer.sh"
 MINICONDA_DIR="$HOME/miniconda3"
-OLLAMA_MODEL="qwen3-vl:4b-instruct"
+OLLAMA_MODEL="qwen3.5:4b-q4_K_M"
 STEP_TOTAL=5
 
 # Flag di stato per riepilogo

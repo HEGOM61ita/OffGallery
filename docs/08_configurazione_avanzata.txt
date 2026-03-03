@@ -246,7 +246,7 @@ modello LLM vision (Qwen3-VL via Ollama).
                      (fallita) per 3 secondi dopo il test.
 
     Modello LLM      Il nome del modello da usare.
-                     Default: qwen3-vl:4b-instruct
+                     Default: qwen3.5:4b-q4_K_M
 
     Timeout          Secondi di attesa massima per una risposta.
                      Default: 240 secondi

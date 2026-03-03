@@ -86,7 +86,7 @@ Tutti i componenti girano localmente, completamente offline:
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
 │  │   CLIP   │  │  DINOv2  │  │ BioCLIP  │  │ LLM Vision       │ │
-│  │ Ricerca  │  │Similarità│  │  Flora   │  │ (Qwen3-VL/Ollama)│ │
+│  │ Ricerca  │  │Similarità│  │  Flora   │  │ (Qwen3.5/Ollama) │ │
 │  │Semantica │  │  Visiva  │  │  Fauna   │  │ Tag & Descrizioni│ │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ │
 │  ┌──────────────────────┐  ┌────────────────────────────────┐   │
@@ -235,14 +235,14 @@ Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Pyth
 2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
 3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
 4. Installa ExifTool: `sudo apt install libimage-exiftool-perl` (Ubuntu/Debian) o equivalente
-5. (Opzionale) Installa [Ollama](https://ollama.com/download) e `ollama pull qwen3-vl:4b-instruct`
+5. (Opzionale) Installa [Ollama](https://ollama.com/download) e `ollama pull qwen3.5:4b-q4_K_M`
 
 **macOS** - usa il wizard `install_offgallery_mac.sh` che copre tutti gli step, oppure installa manualmente:
 1. Installa [Miniconda](https://docs.anaconda.com/miniconda/install/) per macOS (scegli la versione arm64 per Apple Silicon, x86_64 per Intel)
 2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
 3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
 4. Installa ExifTool: `brew install exiftool` (richiede [Homebrew](https://brew.sh)) o scarica il `.pkg` da [exiftool.org](https://exiftool.org)
-5. (Opzionale) Installa [Ollama](https://ollama.com/download) e `ollama pull qwen3-vl:4b-instruct`
+5. (Opzionale) Installa [Ollama](https://ollama.com/download) e `ollama pull qwen3.5:4b-q4_K_M`
 6. Avvia: `conda run -n OffGallery python gui_launcher.py`
 
 ### Istruzioni Dettagliate

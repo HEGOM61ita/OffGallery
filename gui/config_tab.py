@@ -1221,7 +1221,7 @@ class ConfigTab(QWidget):
             
             # LLM Vision
             self.llm_vision_endpoint.setText('http://localhost:11434')
-            self.llm_vision_model.setText('qwen3-vl:4b-instruct')
+            self.llm_vision_model.setText('qwen3.5:4b-q4_K_M')
             self.llm_vision_timeout.setValue(240)
 
             # Parametri generation LLM

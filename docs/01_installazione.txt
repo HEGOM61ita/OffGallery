@@ -324,15 +324,15 @@ Puoi sempre installare Ollama in un secondo momento.
      - Dopo l'installazione, chiudi e riesegui lo script.
 
   3. Se Ollama e' gia' installato, lo script verifica se il modello
-     qwen3-vl:4b-instruct e' presente.
+     qwen3.5:4b-q4_K_M e' presente.
 
   4. Se il modello non c'e', lo script ti chiede:
        "Vuoi scaricare il modello ora? (S/N):"
-     Rispondi S. Il download e' di circa 3.3 GB e richiede 5-15 minuti.
+     Rispondi S. Il download e' di circa 3.4 GB e richiede 5-15 minuti.
 
   5. Al termine vedrai:
        [OK] Ollama configurato con successo!
-       Modello installato: qwen3-vl:4b-instruct (3.3 GB)
+       Modello installato: qwen3.5:4b-q4_K_M (3.4 GB)
 
   Nota: quando usi OffGallery con la generazione di descrizioni attiva,
   Ollama deve essere in esecuzione in background. Di solito si avvia
