@@ -362,6 +362,27 @@ I modelli vengono scaricati dal repository congelato `HEGOM/OffGallery-models` e
 
 ---
 
+## Ricerche Salvate
+
+La scheda **Ricerca** consente di salvare e richiamare configurazioni di ricerca complete, così da non dover reimpostare ogni volta filtri e parametri usati di frequente (es. "uccelli Sardegna, stelle 4+").
+
+### Salvare una ricerca
+
+1. Imposta la ricerca normalmente: query, modalità (semantica/tag), soglia, tutti i filtri EXIF, score, data, GPS, ecc.
+2. Clicca **💾 Salva ricerca** (sotto il tasto RESET).
+3. Inserisci un nome descrittivo e conferma.
+   - Se il nome esiste già, verrà chiesto se sovrascrivere o scegliere un nome diverso.
+
+### Richiamare una ricerca
+
+1. Clicca **📋 Ricerche salvate**.
+2. Seleziona la voce desiderata dall'elenco (mostra nome e data di creazione).
+3. Clicca **Carica** oppure fai doppio click — tutti i parametri vengono ripristinati istantaneamente.
+
+> Le ricerche vengono salvate in `database/saved_searches.json` nella cartella del progetto. Il file può essere copiato insieme al database per portarsi dietro le ricerche su un'altra macchina.
+
+---
+
 ## Risoluzione Problemi
 
 ### "conda non è riconosciuto come comando"

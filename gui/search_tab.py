@@ -7,16 +7,18 @@ CORRECTED: Fix ricerca semantica con embedding_generator corretto
 import yaml
 import sys
 from pathlib import Path
+import json
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
     QLabel, QLineEdit, QPushButton, QCheckBox,
     QDoubleSpinBox, QSpinBox, QComboBox, QDateEdit,
     QRadioButton, QButtonGroup, QFrame, QSlider, QScrollArea,
-    QMessageBox
+    QMessageBox, QInputDialog, QDialog, QListWidget, QDialogButtonBox,
+    QListWidgetItem
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QDate, QCoreApplication
 
-from utils.paths import get_app_dir
+from utils.paths import get_app_dir, get_database_dir
 
 # Importa la black box
 from retrieval import ImageRetrieval
@@ -993,21 +995,276 @@ class SearchTab(QWidget):
         group.setLayout(layout)
         return group
     
+    # ------------------------------------------------------------------
+    # Ricerche salvate
+    # ------------------------------------------------------------------
+
+    def _searches_path(self):
+        """Percorso del file JSON delle ricerche salvate"""
+        return get_database_dir() / 'saved_searches.json'
+
+    def _load_saved_searches(self):
+        """Carica la lista di ricerche salvate dal JSON ([] se assente o errore)"""
+        path = self._searches_path()
+        try:
+            if path.exists():
+                with open(path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return []
+
+    def _save_saved_searches(self, searches):
+        """Scrive la lista di ricerche salvate nel JSON"""
+        path = self._searches_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(searches, f, ensure_ascii=False, indent=2)
+
+    def _get_search_params(self):
+        """Legge tutti i widget e ritorna un dict con i valori correnti"""
+        return {
+            'query': self.search_input.text(),
+            'mode': 'semantic' if self.semantic_radio.isChecked() else 'tags',
+            'threshold': self.threshold_spin.value(),
+            'deep_search': self.deep_search_check.isChecked(),
+            'strictness': self.strict_slider.value(),
+            'include_description': self.description_check.isChecked(),
+            'include_title': self.title_search_check.isChecked(),
+            'fuzzy': self.fuzzy_check.isChecked(),
+            'max_results': self.max_results_spin.value(),
+            'camera': self.camera_combo.currentText(),
+            'lens': self.lens_combo.currentText(),
+            'filetype_index': self.filetype_combo.currentIndex(),
+            'raw_format_index': self.raw_format_combo.currentIndex(),
+            'focal_min': self.focal_min.value(),
+            'focal_max': self.focal_max.value(),
+            'iso_min': self.iso_min.value(),
+            'iso_max': self.iso_max.value(),
+            'aperture_min': self.aperture_min.value(),
+            'aperture_max': self.aperture_max.value(),
+            'focal35_min': self.focal35_min.value(),
+            'focal35_max': self.focal35_max.value(),
+            'ev_min': self.ev_min.value(),
+            'ev_max': self.ev_max.value(),
+            'flash_index': self.flash_combo.currentIndex(),
+            'exposure_index': self.exposure_combo.currentIndex(),
+            'orientation_index': self.orientation_combo.currentIndex(),
+            'rating_index': self.rating_min.currentIndex(),
+            'color_label_index': self.color_label_filter.currentIndex(),
+            'aesthetic_min': self.aesthetic_min.value(),
+            'aesthetic_max': self.aesthetic_max.value(),
+            'technical_min': self.technical_min.value(),
+            'technical_max': self.technical_max.value(),
+            'gps_only': self.gps_only.isChecked(),
+            'monochrome_index': self.monochrome_combo.currentIndex(),
+            'sync_filter': self.sync_filter.isChecked(),
+            'date_filter_enabled': self.date_filter_enabled.isChecked(),
+            'date_from': self.date_from.date().toString("yyyy-MM-dd"),
+            'date_to': self.date_to.date().toString("yyyy-MM-dd"),
+        }
+
+    def _set_search_params(self, params):
+        """Applica un dict di parametri a tutti i widget"""
+        # Raccogli tutti i widget da bloccare
+        widget_names = [
+            'search_input', 'semantic_radio', 'tags_radio',
+            'threshold_spin', 'deep_search_check', 'strict_slider',
+            'description_check', 'title_search_check', 'fuzzy_check',
+            'max_results_spin', 'camera_combo', 'lens_combo',
+            'filetype_combo', 'raw_format_combo',
+            'focal_min', 'focal_max', 'iso_min', 'iso_max',
+            'aperture_min', 'aperture_max', 'focal35_min', 'focal35_max',
+            'ev_min', 'ev_max', 'flash_combo', 'exposure_combo',
+            'orientation_combo', 'rating_min', 'color_label_filter',
+            'aesthetic_min', 'aesthetic_max', 'technical_min', 'technical_max',
+            'gps_only', 'monochrome_combo', 'sync_filter',
+            'date_filter_enabled', 'date_from', 'date_to',
+        ]
+        widgets = [getattr(self, n, None) for n in widget_names if getattr(self, n, None)]
+
+        for w in widgets:
+            w.blockSignals(True)
+
+        try:
+            self.search_input.setText(params.get('query', ''))
+
+            mode = params.get('mode', 'semantic')
+            self.semantic_radio.setChecked(mode == 'semantic')
+            self.tags_radio.setChecked(mode == 'tags')
+
+            self.threshold_spin.setValue(params.get('threshold', 0.2))
+            self.deep_search_check.setChecked(params.get('deep_search', False))
+            self.strict_slider.setValue(params.get('strictness', 40))
+            if hasattr(self, 'strict_val_label'):
+                self.strict_val_label.setText(f"{params.get('strictness', 40)}%")
+            self.description_check.setChecked(params.get('include_description', True))
+            self.title_search_check.setChecked(params.get('include_title', True))
+            self.fuzzy_check.setChecked(params.get('fuzzy', True))
+            self.max_results_spin.setValue(params.get('max_results', 100))
+
+            # Camera e lens: testo (dinamico dal DB)
+            self.camera_combo.setCurrentText(params.get('camera', ''))
+            self.lens_combo.setCurrentText(params.get('lens', ''))
+
+            # Combo statici: indice
+            self.filetype_combo.setCurrentIndex(params.get('filetype_index', 0))
+            self.raw_format_combo.setCurrentIndex(params.get('raw_format_index', 0))
+            self.flash_combo.setCurrentIndex(params.get('flash_index', 0))
+            self.exposure_combo.setCurrentIndex(params.get('exposure_index', 0))
+            self.orientation_combo.setCurrentIndex(params.get('orientation_index', 0))
+            self.rating_min.setCurrentIndex(params.get('rating_index', 0))
+            self.color_label_filter.setCurrentIndex(params.get('color_label_index', 0))
+            self.monochrome_combo.setCurrentIndex(params.get('monochrome_index', 0))
+
+            # Spinbox numerici
+            self.focal_min.setValue(params.get('focal_min', 0))
+            self.focal_max.setValue(params.get('focal_max', 2000))
+            self.iso_min.setValue(params.get('iso_min', 0))
+            self.iso_max.setValue(params.get('iso_max', 204800))
+            self.aperture_min.setValue(params.get('aperture_min', 0.0))
+            self.aperture_max.setValue(params.get('aperture_max', 64.0))
+            self.focal35_min.setValue(params.get('focal35_min', 0))
+            self.focal35_max.setValue(params.get('focal35_max', 2000))
+            self.ev_min.setValue(params.get('ev_min', -5.0))
+            self.ev_max.setValue(params.get('ev_max', 5.0))
+            self.aesthetic_min.setValue(params.get('aesthetic_min', 0.0))
+            self.aesthetic_max.setValue(params.get('aesthetic_max', 10.0))
+            self.technical_min.setValue(params.get('technical_min', 0.0))
+            self.technical_max.setValue(params.get('technical_max', 100.0))
+
+            # Checkbox
+            self.gps_only.setChecked(params.get('gps_only', False))
+            self.sync_filter.setChecked(params.get('sync_filter', False))
+            self.date_filter_enabled.setChecked(params.get('date_filter_enabled', False))
+
+            # Date
+            date_from = QDate.fromString(params.get('date_from', '2000-01-01'), "yyyy-MM-dd")
+            if date_from.isValid():
+                self.date_from.setDate(date_from)
+            date_to = QDate.fromString(params.get('date_to', '2099-12-31'), "yyyy-MM-dd")
+            if date_to.isValid():
+                self.date_to.setDate(date_to)
+
+        finally:
+            for w in widgets:
+                w.blockSignals(False)
+            self.update_search_mode()
+            self.update_deep_search_mode()
+
+    def save_search_dialog(self):
+        """Dialog per salvare la ricerca corrente con un nome"""
+        params = self._get_search_params()
+
+        name, ok = QInputDialog.getText(self, "Salva ricerca", "Nome della ricerca:")
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+
+        searches = self._load_saved_searches()
+
+        # Controlla duplicati
+        existing_names = [s['name'] for s in searches]
+        while name in existing_names:
+            choice = QMessageBox.question(
+                self,
+                "Nome già esistente",
+                f'Esiste già una ricerca chiamata "{name}".\nSovrascrivere?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if choice == QMessageBox.StandardButton.Yes:
+                searches = [s for s in searches if s['name'] != name]
+                break
+            else:
+                new_name, ok2 = QInputDialog.getText(
+                    self, "Salva ricerca", "Scegli un nome diverso:", text=name
+                )
+                if not ok2 or not new_name.strip():
+                    return
+                name = new_name.strip()
+
+        searches.append({
+            'name': name,
+            'created': QDate.currentDate().toString("yyyy-MM-dd"),
+            'params': params,
+        })
+        self._save_saved_searches(searches)
+        QMessageBox.information(self, "Ricerca salvata", f'Ricerca "{name}" salvata.')
+
+    def load_search_dialog(self):
+        """Dialog per caricare una ricerca salvata"""
+        searches = self._load_saved_searches()
+        if not searches:
+            QMessageBox.information(self, "Ricerche salvate", "Nessuna ricerca salvata.")
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Ricerche salvate")
+        dialog.setMinimumWidth(360)
+        layout = QVBoxLayout(dialog)
+
+        list_widget = QListWidget()
+        for s in searches:
+            item = QListWidgetItem(f"{s['name']}  ({s.get('created', '')})")
+            item.setData(Qt.ItemDataRole.UserRole, s)
+            list_widget.addItem(item)
+        layout.addWidget(list_widget)
+
+        btn_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        btn_box.button(QDialogButtonBox.StandardButton.Ok).setText("Carica")
+        btn_box.button(QDialogButtonBox.StandardButton.Cancel).setText("Annulla")
+        btn_box.accepted.connect(dialog.accept)
+        btn_box.rejected.connect(dialog.reject)
+        layout.addWidget(btn_box)
+
+        # Doppio click = carica direttamente
+        list_widget.itemDoubleClicked.connect(lambda _: dialog.accept())
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        selected_items = list_widget.selectedItems()
+        if not selected_items:
+            return
+
+        entry = selected_items[0].data(Qt.ItemDataRole.UserRole)
+        self._set_search_params(entry['params'])
+
+    # ------------------------------------------------------------------
+    # Fine ricerche salvate
+    # ------------------------------------------------------------------
+
     def create_action_buttons(self):
         """Bottoni azione"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(5)
-        
+
         self.search_btn = QPushButton("🔍 CERCA")
         self.search_btn.clicked.connect(self.execute_search)
         self.search_btn.setStyleSheet("font-weight: bold; padding: 8px; background-color: #2e7d32;")
         layout.addWidget(self.search_btn)
-        
+
         self.clear_btn = QPushButton("🗑 RESET")
         self.clear_btn.clicked.connect(self.clear_filters)
         layout.addWidget(self.clear_btn)
-        
+
+        # Separatore visivo
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(separator)
+
+        self.save_search_btn = QPushButton("💾 Salva ricerca")
+        self.save_search_btn.clicked.connect(self.save_search_dialog)
+        layout.addWidget(self.save_search_btn)
+
+        self.load_search_btn = QPushButton("📋 Ricerche salvate")
+        self.load_search_btn.clicked.connect(self.load_search_dialog)
+        layout.addWidget(self.load_search_btn)
+
         return widget
     
     def load_config_defaults(self):

@@ -42,6 +42,7 @@
 
 | Data | Cosa | Note |
 |------|------|------|
+| 3 mar 2026 | **Ricerche salvate** | Salva e richiama configurazioni di ricerca complete (query, mode, soglia, tutti i filtri EXIF/score/date) con un click; archivio in `database/saved_searches.json` |
 | 3 mar 2026 | **Nuovo modello LLM Vision: Qwen3.5 4B** | Migrazione a `qwen3.5:4b-q4_K_M` (early fusion); descrizioni più ricche; prompt ottimizzato: specie da BioCLIP, toponymi tradotti in italiano, parametri generation aggiornati (`num_ctx: 4096`, `top_k: 40`) |
 | 1 mar 2026 | **Installer macOS** | Wizard completo per Intel e Apple Silicon; Homebrew per ExifTool e Ollama; PyTorch con MPS per GPU Metal; `OffGallery.app` in `~/Applications` cercabile via Spotlight e Launchpad; percorso Miniconda configurabile dal wizard su Windows |
 | 25 feb 2026 | **Import da catalogo Lightroom + Export con struttura** | Elaborazione direttamente da `.lrcat`; copia file con struttura directory originale multi-disco; destinazione XMP disaccoppiata dalla copia; UI Export semplificata e contestuale |
@@ -61,7 +62,7 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 | Funzionalità | Descrizione |
 |--------------|-------------|
 | **100% Offline** | Nessun dato lascia mai il tuo computer. Tutti i modelli AI girano localmente |
-| **Potente ricerca Semantica /tags/Exif/+vari** | Cerca in ITALIANO con linguaggio naturale e/o combo complesse con traduzione automatica |
+| **Potente ricerca Semantica /tags/Exif/+vari** | Cerca in ITALIANO con linguaggio naturale e/o combo complesse con traduzione automatica; salva e richiama ricerche preferite in un click |
 | **Supporto RAW Nativo** | 25+ formati RAW supportati (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF...) |
 | **Ricerca similarità visiva** | Un semplice click per trovare immagini simili, doppioni, etc. |
 | **Import da catalogo Lightroom** | Elabora direttamente i file indicizzati in un catalogo `.lrcat` come sorgente di input, senza dover specificare cartelle manualmente |
