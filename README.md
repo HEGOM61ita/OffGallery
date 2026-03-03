@@ -27,14 +27,14 @@
 ---
 
 > [!NOTE]
-> **🔧 Installer aggiornato — Windows · Linux · macOS**
+> **🤖 Nuovo modello LLM Vision — Qwen3.5 4B**
 >
-> Gli installer sono stati migliorati e stabilizzati su tutte e tre le piattaforme.
-> **Windows**: risolto il blocco dell'installazione per utenti con spazi nel nome utente Windows. Il percorso di installazione di Miniconda è ora configurabile dal wizard.
-> **Linux**: maggiore compatibilità con distribuzioni diverse, ARM64 e installazioni Anaconda/Miniforge preesistenti.
-> **macOS**: wizard completo disponibile per Intel e Apple Silicon, con supporto GPU Metal integrato.
+> Il modello predefinito per la generazione di tag, descrizioni e titoli è stato aggiornato da `qwen3-vl:4b-instruct` a **`qwen3.5:4b-q4_K_M`** (early fusion, 3.4 GB).
+> Descrizioni più ricche e dettagliate, migliore italiano, output più coerente con il contenuto visivo.
 >
-> Per problemi durante l'installazione, apri una [Discussion](https://github.com/HEGOM61ita/OffGallery/discussions).
+> **Chi installa da zero**: nessuna azione, il wizard scarica automaticamente il nuovo modello.
+> **Chi aggiorna**: esegui `git pull`, poi `ollama pull qwen3.5:4b-q4_K_M`.
+> Puoi liberare spazio con `ollama rm qwen3-vl:4b-instruct` (~3.3 GB).
 
 ---
 
@@ -42,6 +42,7 @@
 
 | Data | Cosa | Note |
 |------|------|------|
+| 3 mar 2026 | **Nuovo modello LLM Vision: Qwen3.5 4B** | Migrazione a `qwen3.5:4b-q4_K_M` (early fusion); descrizioni più ricche; prompt ottimizzato: specie da BioCLIP, toponymi tradotti in italiano, parametri generation aggiornati (`num_ctx: 4096`, `top_k: 40`) |
 | 1 mar 2026 | **Installer macOS** | Wizard completo per Intel e Apple Silicon; Homebrew per ExifTool e Ollama; PyTorch con MPS per GPU Metal; `OffGallery.app` in `~/Applications` cercabile via Spotlight e Launchpad; percorso Miniconda configurabile dal wizard su Windows |
 | 25 feb 2026 | **Import da catalogo Lightroom + Export con struttura** | Elaborazione direttamente da `.lrcat`; copia file con struttura directory originale multi-disco; destinazione XMP disaccoppiata dalla copia; UI Export semplificata e contestuale |
 | 24 feb 2026 | **Geotag geografico offline** | GPS → gerarchia `GeOFF\|Europe\|Italy\|Sardegna\|Città` senza API, visibile nel tooltip gallery e scritto in XMP HierarchicalSubject |
