@@ -59,9 +59,10 @@ print_warn() { echo -e "  ${YELLOW}[!!]${NC} $1"; }
 print_info() { echo -e "  ${CYAN}[INFO]${NC} $1"; }
 
 ask_yes_no() {
-    local answer
+    local answer answer_lower
     read -rp "  $1 (s/n): " answer
-    [[ "${answer,,}" == "s" || "${answer,,}" == "si" || "${answer,,}" == "y" || "${answer,,}" == "yes" ]]
+    answer_lower=$(echo "$answer" | tr '[:upper:]' '[:lower:]')
+    [[ "$answer_lower" == "s" || "$answer_lower" == "si" || "$answer_lower" == "y" || "$answer_lower" == "yes" ]]
 }
 
 # Verifica ambiente conda via filesystem (più affidabile di 'conda env list')
