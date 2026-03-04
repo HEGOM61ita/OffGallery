@@ -54,6 +54,13 @@ def main():
     print("=" * 60)
     print()
 
+    # In modalità sviluppo (repo git locale) l'updater non è applicabile
+    if (app_dir / ".git").exists():
+        print("  Modalità sviluppo rilevata (.git presente).")
+        print("  Usa git pull per aggiornare il codice.")
+        input("\n  Premi INVIO per chiudere.")
+        return
+
     # Confronta versioni
     local  = get_local_version(app_dir)
     print(f"  Versione installata : {local}")
