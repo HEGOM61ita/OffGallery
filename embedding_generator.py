@@ -1887,11 +1887,12 @@ class EmbeddingGenerator:
                 # Pulisci tag singolo
                 clean_tag = tag.strip().strip('"').strip("'").strip()
                 
-                # Filtra tag validi
-                if (clean_tag and 
-                    len(clean_tag) > 2 and 
+                # Filtra tag validi e deduplicati (case-insensitive)
+                if (clean_tag and
+                    len(clean_tag) > 2 and
                     len(clean_tag) < 50 and
-                    not clean_tag.startswith(('http', 'www'))):
+                    not clean_tag.startswith(('http', 'www')) and
+                    clean_tag.lower() not in {t.lower() for t in tags}):
                     tags.append(clean_tag)
             
             return tags[:max_tags]
