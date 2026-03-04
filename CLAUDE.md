@@ -75,15 +75,14 @@ Sistema di catalogazione automatica e retrieval di immagini fotografiche (RAW, J
 | `config_new.yaml` | Configurazione modelli, profili estrazione, path |
 
 ### Storage Embedding (CRITICO)
-- **Formato**: CLIP embeddings salvati come **raw float32 bytes** (2048 bytes = 512 floats)
-- **Deserializzazione corretta**:
+- **Formato**: CLIP embeddings salvati come **raw float32 bytes** (3072 bytes = 768 floats, modello ViT-L/14)
+- **Deserializzazione corretta** (flessibile per qualsiasi dimensione):
 ```python
 if isinstance(raw_data, bytes):
-    if len(raw_data) == 2048:
-        img_emb = np.frombuffer(raw_data, dtype=np.float32)
-    else:
-        # Fallback pickle per vecchi formati
-        img_emb = pickle.loads(raw_data)
+    if raw_data[0] == 0x80 and raw_data[1] in (2, 3, 4, 5):
+        img_emb = pickle.loads(raw_data)  # vecchi formati pickle
+    elif len(raw_data) % 4 == 0:
+        img_emb = np.frombuffer(raw_data, dtype=np.float32).copy()  # raw float32
 ```
 - **NON usare** `pickle.loads()` direttamente su embedding recenti
 
@@ -105,7 +104,7 @@ if isinstance(raw_data, bytes):
 ### Modelli AI e Configurazione
 | Modello | Config Key | Output | Directory in /Models |
 |---------|------------|--------|----------------------|
-| CLIP | `embedding.models.clip` | `clip_embedding` (512 floats) | `Models/clip/` |
+| CLIP | `embedding.models.clip` | `clip_embedding` (768 floats, ViT-L/14) | `Models/clip/` |
 | DINOv2 | `embedding.models.dinov2` | `dinov2_embedding` (768 floats) | `Models/dinov2/` |
 | BioCLIP v2 | `embedding.models.bioclip` | `bioclip_taxonomy` (7 livelli, ~450k TreeOfLife) | `Models/bioclip/` |
 | TreeOfLife | (scaricato con BioCLIP) | — | `Models/treeoflife/` |

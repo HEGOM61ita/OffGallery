@@ -128,7 +128,7 @@ class EmbeddingGenerator:
 
         # Profili di default (fallback)
         default_profiles = {
-            'clip_embedding': {'target_size': 224, 'resampling': Image.Resampling.LANCZOS},  # ViT-B/32 input 224x224
+            'clip_embedding': {'target_size': 224, 'resampling': Image.Resampling.LANCZOS},  # ViT-L/14 input 224x224
             'dinov2_embedding': {'target_size': 518, 'resampling': Image.Resampling.LANCZOS},  # DINOv2 input 518x518 (14x37)
             'bioclip_classification': {'target_size': 224, 'resampling': Image.Resampling.LANCZOS},  # ViT-B/16 input 224x224
             'aesthetic_score': {'target_size': 224, 'resampling': Image.Resampling.BILINEAR},  # CLIP-based input 224x224
