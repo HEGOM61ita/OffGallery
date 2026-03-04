@@ -1039,19 +1039,19 @@ class EmbeddingGenerator:
             inputs = self.clip_processor(images=image, return_tensors="pt").to(self.device)
             with torch.no_grad():
                 try:
-                    features = self.clip_model.get_image_features(**inputs)
-                    # Compatibilità transformers: alcune versioni restituiscono
-                    # BaseModelOutputWithPooling invece del tensore proiettato
+                    features = self.clip_model.get_image_features(pixel_values=inputs['pixel_values'])
                     if not isinstance(features, torch.Tensor):
-                        features = self.clip_model.visual_projection(features.pooler_output)
-                except RuntimeError as shape_err:
-                    # Architettura del modello CLIP incompatibile con il config attuale.
-                    # Di solito indica un modello corrotto o scaricato da un repo diverso.
-                    logger.error(
-                        f"CLIP embedding: architettura modello incompatibile ({shape_err}). "
-                        f"Elimina la cartella Models/clip/ e riavvia per ri-scaricare il modello corretto."
-                    )
-                    return None
+                        raise ValueError("get_image_features non ha restituito un tensore")
+                except (RuntimeError, ValueError):
+                    # Fallback robusto: bypassa get_image_features() e costruisce
+                    # le feature manualmente dal vision_model, garantendo dimensioni corrette.
+                    # Necessario quando alcune versioni di transformers producono pooler_output
+                    # già proiettato (768-dim) invece del token CLS raw (1024-dim per ViT-L).
+                    vision_out = self.clip_model.vision_model(pixel_values=inputs['pixel_values'])
+                    cls_token = vision_out.last_hidden_state[:, 0, :]  # CLS token raw: (1, hidden_size)
+                    if hasattr(self.clip_model.vision_model, 'post_layernorm'):
+                        cls_token = self.clip_model.vision_model.post_layernorm(cls_token)
+                    features = self.clip_model.visual_projection(cls_token)
             embedding = features.cpu().numpy()[0]
             return (embedding / np.linalg.norm(embedding)).astype(np.float32)
         except Exception as e:
