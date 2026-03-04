@@ -1810,11 +1810,13 @@ class ProcessingTab(QWidget):
         total = stats.get('total', 0)
         success = stats.get('success', 0)
         errors = stats.get('errors', 0)
+        processed = stats.get('processed', 0)  # foto effettivamente elaborate (non skip)
         processing_time = stats.get('processing_time', 0)
-        
+
         if total > 0:
             success_rate = round((success / total) * 100, 1)
-            time_per_image = round(processing_time / total, 1) if total > 0 else 0
+            # Divide per le foto elaborate, non per il totale della sessione
+            time_per_image = round(processing_time / processed, 1) if processed > 0 else 0
             
             # Mostra statistiche di completamento
             completion_text = f"✅ Completato! {success}/{total} ({success_rate}%) - ⏱️ {time_per_image}s/img"
