@@ -1177,8 +1177,17 @@ class RAWProcessor:
             if decimal is None:
                 return None
 
-            # Applica segno in base al riferimento emisferiale (S o W → negativo)
-            if ref and str(ref).strip().upper() in ('S', 'W'):
+            # Applica segno in base al riferimento emisferiale (S o W → negativo).
+            # Fallback: estrae la direzione dalla stringa stessa quando ref è assente
+            # (Composite:GPSLongitude di ExifTool include la direzione nel valore,
+            # es. "8 deg 0' 32.04\" W", ma GPS:GPSLongitudeRef non viene trovato
+            # da get_val perché il prefisso 'GPS:' non è nella lista di ricerca).
+            effective_ref = ref
+            if not effective_ref and isinstance(gps_value, str):
+                tail = gps_value.strip().upper()
+                if tail.endswith(' W') or tail.endswith(' S'):
+                    effective_ref = tail[-1]
+            if effective_ref and str(effective_ref).strip().upper() in ('S', 'W'):
                 decimal = -abs(decimal)
 
             return decimal
