@@ -66,14 +66,22 @@ export QT_MAC_WANTS_LAYER=1
 # di girare nel processo principale → segfault. Chiamiamo il python dell'env direttamente.
 CONDA_ENV_PATH=""
 
-# 1. Prova con 'conda info --envs' (il più affidabile)
-CONDA_ENV_PATH=$(
-    "$CONDA_CMD" info --envs 2>/dev/null \
-    | grep -E "^$ENV_NAME[[:space:]]" \
-    | awk '{print $NF}'
-)
+# 1. Metodo primario: conda info --base → costruisce il path direttamente (più affidabile)
+_CONDA_BASE=$("$CONDA_CMD" info --base 2>/dev/null | tr -d '[:space:]')
+if [ -n "$_CONDA_BASE" ] && [ -x "$_CONDA_BASE/envs/$ENV_NAME/bin/python" ]; then
+    CONDA_ENV_PATH="$_CONDA_BASE/envs/$ENV_NAME"
+fi
 
-# 2. Fallback filesystem: cerca nei percorsi standard
+# 2. Fallback: conda info --envs con parsing per nome
+if [ -z "$CONDA_ENV_PATH" ] || [ ! -x "$CONDA_ENV_PATH/bin/python" ]; then
+    CONDA_ENV_PATH=$(
+        "$CONDA_CMD" info --envs 2>/dev/null \
+        | grep -E "^$ENV_NAME[[:space:]]" \
+        | awk '{print $NF}'
+    )
+fi
+
+# 3. Fallback filesystem: cerca nei percorsi standard
 if [ -z "$CONDA_ENV_PATH" ] || [ ! -x "$CONDA_ENV_PATH/bin/python" ]; then
     for base in \
         "$HOME/miniconda3" "$HOME/opt/miniconda3" "$HOME/anaconda3" \
@@ -95,9 +103,20 @@ if [ -n "$CONDA_ENV_PATH" ] && [ -x "$CONDA_ENV_PATH/bin/python" ]; then
     export PATH="$CONDA_ENV_PATH/bin:$PATH"
     "$CONDA_ENV_PATH/bin/python" gui_launcher.py
 else
-    # Ultimo fallback: conda run (può causare segfault su alcune configurazioni macOS)
-    echo "  [ATTENZIONE] Python dell'env non trovato direttamente, uso conda run..."
-    "$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" python gui_launcher.py
+    # NOTA: NON usare 'conda run' qui — su macOS causa segfault con app Qt/Cocoa.
+    # Se arriviamo qui, l'ambiente OffGallery non è stato trovato: mostrare diagnostica.
+    echo ""
+    echo "  [ERRORE] Ambiente Python 'OffGallery' non trovato."
+    echo ""
+    echo "  Diagnosi:"
+    echo "    Base conda: ${_CONDA_BASE:-non rilevata}"
+    echo "    Ambienti disponibili:"
+    "$CONDA_CMD" env list 2>/dev/null | sed 's/^/      /' || echo "      (nessuno)"
+    echo ""
+    echo "  Soluzione: esegui il wizard di installazione:"
+    echo "    bash \"$OFFGALLERY_PATH/installer/install_offgallery_mac.sh\""
+    echo ""
+    exit 1
 fi
 
 EXIT_CODE=$?
