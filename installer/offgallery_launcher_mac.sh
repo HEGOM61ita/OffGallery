@@ -61,7 +61,44 @@ export PATH="$HOME/.local/bin:$PATH"
 # su alcuni Mac con macOS 11+).
 export QT_MAC_WANTS_LAYER=1
 
-"$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" python gui_launcher.py
+# Ricava il percorso dell'ambiente conda (necessario per chiamare python direttamente).
+# Su macOS, 'conda run' lancia l'app in un subprocess: il framework Cocoa/Qt richiede
+# di girare nel processo principale → segfault. Chiamiamo il python dell'env direttamente.
+CONDA_ENV_PATH=""
+
+# 1. Prova con 'conda info --envs' (il più affidabile)
+CONDA_ENV_PATH=$(
+    "$CONDA_CMD" info --envs 2>/dev/null \
+    | grep -E "^$ENV_NAME[[:space:]]" \
+    | awk '{print $NF}'
+)
+
+# 2. Fallback filesystem: cerca nei percorsi standard
+if [ -z "$CONDA_ENV_PATH" ] || [ ! -x "$CONDA_ENV_PATH/bin/python" ]; then
+    for base in \
+        "$HOME/miniconda3" "$HOME/opt/miniconda3" "$HOME/anaconda3" \
+        "$HOME/miniforge3" "$HOME/mambaforge" \
+        "/opt/homebrew/Caskroom/miniconda/base" \
+        "/usr/local/Caskroom/miniconda/base" \
+        "/opt/miniconda3"
+    do
+        if [ -x "$base/envs/$ENV_NAME/bin/python" ]; then
+            CONDA_ENV_PATH="$base/envs/$ENV_NAME"
+            break
+        fi
+    done
+fi
+
+if [ -n "$CONDA_ENV_PATH" ] && [ -x "$CONDA_ENV_PATH/bin/python" ]; then
+    # Attiva le variabili d'ambiente dell'env senza usare conda run
+    export CONDA_PREFIX="$CONDA_ENV_PATH"
+    export PATH="$CONDA_ENV_PATH/bin:$PATH"
+    "$CONDA_ENV_PATH/bin/python" gui_launcher.py
+else
+    # Ultimo fallback: conda run (può causare segfault su alcune configurazioni macOS)
+    echo "  [ATTENZIONE] Python dell'env non trovato direttamente, uso conda run..."
+    "$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" python gui_launcher.py
+fi
 
 EXIT_CODE=$?
 if [ $EXIT_CODE -ne 0 ]; then
