@@ -875,7 +875,11 @@ class EmbeddingGenerator:
                 with torch.no_grad():
                     # Il metodo corretto per CLIPModel di HuggingFace è get_text_features
                     text_features = self.clip_model.get_text_features(**inputs)
-                
+                    # Compatibilità transformers: alcune versioni restituiscono
+                    # BaseModelOutputWithPooling invece del tensore proiettato
+                    if not isinstance(text_features, torch.Tensor):
+                        text_features = self.clip_model.text_projection(text_features.pooler_output)
+
                 # Convertiamo in array numpy per la similarità
                 text_emb = text_features.cpu().numpy().flatten()
                 
@@ -1035,6 +1039,10 @@ class EmbeddingGenerator:
             inputs = self.clip_processor(images=image, return_tensors="pt").to(self.device)
             with torch.no_grad():
                 features = self.clip_model.get_image_features(**inputs)
+                # Compatibilità transformers: alcune versioni restituiscono
+                # BaseModelOutputWithPooling invece del tensore proiettato
+                if not isinstance(features, torch.Tensor):
+                    features = self.clip_model.visual_projection(features.pooler_output)
             embedding = features.cpu().numpy()[0]
             return (embedding / np.linalg.norm(embedding)).astype(np.float32)
         except Exception as e:
@@ -1156,6 +1164,10 @@ class EmbeddingGenerator:
             inputs = self.clip_processor(text=[translated], return_tensors="pt", padding=True).to(self.device)
             with torch.no_grad():
                 text_features = self.clip_model.get_text_features(**inputs)
+                # Compatibilità transformers: alcune versioni restituiscono
+                # BaseModelOutputWithPooling invece del tensore proiettato
+                if not isinstance(text_features, torch.Tensor):
+                    text_features = self.clip_model.text_projection(text_features.pooler_output)
             embedding = text_features.cpu().numpy()[0]
             return (embedding / np.linalg.norm(embedding)).astype(np.float32)
         except Exception as e:
