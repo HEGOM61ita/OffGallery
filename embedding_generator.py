@@ -419,6 +419,18 @@ class EmbeddingGenerator:
 
             self.clip_model.eval()
             self.clip_enabled = True
+            # Log diagnostico: mostra architettura effettiva del modello caricato
+            try:
+                _vcfg = self.clip_model.vision_model.config
+                _proj  = self.clip_model.visual_projection.weight.shape  # (projection_dim, hidden_size)
+                logger.info(
+                    f"CLIP architettura — hidden_size={_vcfg.hidden_size}, "
+                    f"projection_dim={_proj[0]}, "
+                    f"patch_size={getattr(_vcfg, 'patch_size', '?')}, "
+                    f"num_hidden_layers={getattr(_vcfg, 'num_hidden_layers', '?')}"
+                )
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"CLIP: {e}")
             self.clip_enabled = False
@@ -1053,7 +1065,9 @@ class EmbeddingGenerator:
                         cls_token = self.clip_model.vision_model.post_layernorm(cls_token)
                     features = self.clip_model.visual_projection(cls_token)
             embedding = features.cpu().numpy()[0]
-            return (embedding / np.linalg.norm(embedding)).astype(np.float32)
+            normalized = (embedding / np.linalg.norm(embedding)).astype(np.float32)
+            logger.debug(f"CLIP embedding generato: shape={normalized.shape}, norm={np.linalg.norm(normalized):.4f}")
+            return normalized
         except Exception as e:
             logger.error(f"CLIP embedding: {e}")
             return None
