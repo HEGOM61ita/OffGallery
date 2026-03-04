@@ -14,6 +14,7 @@
 !VERSION
 !update.bat
 !update.command
+!update.sh
 
 # Codice Python
 !*.py
