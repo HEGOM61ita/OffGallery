@@ -11,6 +11,9 @@
 !LICENSE
 !OffGallery.spec
 !requirements_frozen.txt
+!VERSION
+!update.bat
+!update.command
 
 # Codice Python
 !*.py
