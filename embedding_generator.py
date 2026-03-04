@@ -1038,11 +1038,20 @@ class EmbeddingGenerator:
             image = self._prepare_image_for_model(image, 'clip_embedding')
             inputs = self.clip_processor(images=image, return_tensors="pt").to(self.device)
             with torch.no_grad():
-                features = self.clip_model.get_image_features(**inputs)
-                # Compatibilità transformers: alcune versioni restituiscono
-                # BaseModelOutputWithPooling invece del tensore proiettato
-                if not isinstance(features, torch.Tensor):
-                    features = self.clip_model.visual_projection(features.pooler_output)
+                try:
+                    features = self.clip_model.get_image_features(**inputs)
+                    # Compatibilità transformers: alcune versioni restituiscono
+                    # BaseModelOutputWithPooling invece del tensore proiettato
+                    if not isinstance(features, torch.Tensor):
+                        features = self.clip_model.visual_projection(features.pooler_output)
+                except RuntimeError as shape_err:
+                    # Architettura del modello CLIP incompatibile con il config attuale.
+                    # Di solito indica un modello corrotto o scaricato da un repo diverso.
+                    logger.error(
+                        f"CLIP embedding: architettura modello incompatibile ({shape_err}). "
+                        f"Elimina la cartella Models/clip/ e riavvia per ri-scaricare il modello corretto."
+                    )
+                    return None
             embedding = features.cpu().numpy()[0]
             return (embedding / np.linalg.norm(embedding)).astype(np.float32)
         except Exception as e:
