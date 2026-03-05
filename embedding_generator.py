@@ -894,7 +894,8 @@ class EmbeddingGenerator:
 
                 # Convertiamo in array numpy per la similarità
                 text_emb = text_features.cpu().numpy().flatten()
-                
+                logger.debug(f"CLIP text embedding: shape={text_emb.shape}, norm={np.linalg.norm(text_emb):.4f}")
+
                 return {'text_embedding': text_emb}
                 
             except Exception as e:
