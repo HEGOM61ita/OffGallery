@@ -101,6 +101,28 @@ if [ -n "$CONDA_ENV_PATH" ] && [ -x "$CONDA_ENV_PATH/bin/python" ]; then
     # Attiva le variabili d'ambiente dell'env senza usare conda run
     export CONDA_PREFIX="$CONDA_ENV_PATH"
     export PATH="$CONDA_ENV_PATH/bin:$PATH"
+
+    # Scarica i modelli AI PRIMA di avviare Qt se non sono già presenti.
+    # Su macOS, il download dentro il processo Qt causa segfault per conflitti
+    # tra le librerie native (torch/transformers) e il framework Cocoa/Metal.
+    MODELS_DIR="$OFFGALLERY_PATH/Models"
+    if [ ! -f "$MODELS_DIR/clip/config.json" ] || [ ! -f "$MODELS_DIR/dinov2/config.json" ]; then
+        echo ""
+        echo "  Primo avvio: download modelli AI in corso..."
+        echo "  (operazione unica, richiede connessione internet)"
+        echo ""
+        "$CONDA_ENV_PATH/bin/python" gui_launcher.py --download-models
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo "  [ERRORE] Download modelli fallito. Verifica la connessione e riprova."
+            echo ""
+            exit 1
+        fi
+        echo ""
+        echo "  Download completato. Avvio OffGallery..."
+        echo ""
+    fi
+
     "$CONDA_ENV_PATH/bin/python" gui_launcher.py
 else
     # NOTA: NON usare 'conda run' qui — su macOS causa segfault con app Qt/Cocoa.
