@@ -10,14 +10,16 @@ torch
 torchvision
 
 # Transformers (HuggingFace) per CLIP, DINOv2, Aesthetic
-transformers
-huggingface-hub
+# VERSIONI PINNATE: get_image_features() e get_text_features() hanno comportamenti
+# diversi tra versioni — un mismatch causa score CLIP vicini a zero nella ricerca semantica
+transformers==4.57.3
+huggingface-hub==0.36.0
 safetensors
 timm
 
 # BioCLIP v2 per classificazione flora/fauna
 pybioclip>=1.0
-open-clip-torch
+open-clip-torch==3.2.0
 
 # Geocoding offline (dati GeoNames bundled, ~3MB, nessuna API)
 reverse_geocoder
