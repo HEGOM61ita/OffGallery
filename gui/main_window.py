@@ -369,6 +369,13 @@ class MainWindow(QMainWindow):
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
                 height: 0;
             }}
+            QToolTip {{
+                background-color: {COLORS['grafite_dark']};
+                color: {COLORS['grigio_chiaro']};
+                border: 1px solid {COLORS['ambra']};
+                padding: 4px;
+                font-size: 12px;
+            }}
         """)
         
         # Widget centrale
