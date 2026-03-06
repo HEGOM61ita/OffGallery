@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtGui import QFont, QColor, QPainter
+from i18n import t
 
 # Palette professionale
 COLORS = {
@@ -400,7 +401,7 @@ class StatsTab(QWidget):
         header_layout = QHBoxLayout()
         
         # Titolo
-        title = QLabel("Dashboard Fotografico")
+        title = QLabel(t("stats.label.dashboard_title"))
         title.setStyleSheet(f"""
             color: {COLORS['grigio_chiaro']};
             font-size: 24px;
@@ -408,7 +409,7 @@ class StatsTab(QWidget):
             margin-bottom: 4px;
         """)
         
-        subtitle = QLabel("Analisi database per workflow professionale • Auto-aggiornamento a ogni accesso")
+        subtitle = QLabel(t("stats.label.subtitle"))
         subtitle.setStyleSheet(f"""
             color: {COLORS['grigio_medio']};
             font-size: 13px;
@@ -432,9 +433,9 @@ class StatsTab(QWidget):
         kpi_layout.setSpacing(16)
         
         # Cards principali (3 KPI)
-        self.kpi_total = KPICard("Archivio Totale", "0", "", "📁", COLORS['blu_petrolio'])
-        self.kpi_processing = KPICard("Processing AI", "0%", "", "🤖", COLORS['viola']) 
-        self.kpi_coverage = KPICard("Metadata", "0%", "", "📋", COLORS['ambra'])
+        self.kpi_total = KPICard(t("stats.kpi.total_archive"), "0", "", "📁", COLORS['blu_petrolio'])
+        self.kpi_processing = KPICard(t("stats.kpi.ai_processing"), "0%", "", "🤖", COLORS['viola'])
+        self.kpi_coverage = KPICard(t("stats.kpi.metadata"), "0%", "", "📋", COLORS['ambra'])
         
         kpi_layout.addWidget(self.kpi_total)
         kpi_layout.addWidget(self.kpi_processing)
@@ -473,19 +474,19 @@ class StatsTab(QWidget):
         
         # Tab 1: Database Health
         self.tab_database = self.create_database_tab()
-        self.tab_widget.addTab(self.tab_database, "🗄️ Database")
-        
+        self.tab_widget.addTab(self.tab_database, t("stats.tab.database"))
+
         # Tab 2: Gear Analysis
         self.tab_gear = self.create_gear_tab()
-        self.tab_widget.addTab(self.tab_gear, "📸 Attrezzatura")
-        
+        self.tab_widget.addTab(self.tab_gear, t("stats.tab.equipment"))
+
         # Tab 3: Shooting Analytics
         self.tab_shooting = self.create_shooting_tab()
-        self.tab_widget.addTab(self.tab_shooting, "📊 Shooting")
-        
+        self.tab_widget.addTab(self.tab_shooting, t("stats.tab.shooting"))
+
         # Tab 4: Workflow Stats
         self.tab_workflow = self.create_workflow_tab()
-        self.tab_widget.addTab(self.tab_workflow, "⚡ Workflow")
+        self.tab_widget.addTab(self.tab_workflow, t("stats.tab.workflow"))
         
         layout.addWidget(self.tab_widget)
     
@@ -559,7 +560,7 @@ class StatsTab(QWidget):
         grid.setSpacing(16)
         
         # Database Summary
-        db_group = QGroupBox("📊 Riepilogo Database")
+        db_group = QGroupBox(t("stats.group.db_summary"))
         db_group.setStyleSheet(self.get_groupbox_style())
         db_layout = QVBoxLayout(db_group)
         
@@ -569,7 +570,7 @@ class StatsTab(QWidget):
             ("File Size", "db_size"),
             ("RAW Files", "raw_count"),
             ("Standard Files", "std_count"),
-            ("Duplicati (hash)", "duplicates")
+            (t("stats.metric.db_duplicates"), "duplicates")
         ]
         
         for i, (label, key) in enumerate(db_metrics):
@@ -577,7 +578,7 @@ class StatsTab(QWidget):
             db_layout.addWidget(row)
         
         # Processing Status
-        proc_group = QGroupBox("🤖 Processing AI")
+        proc_group = QGroupBox(t("stats.kpi.ai_processing"))
         proc_group.setStyleSheet(self.get_groupbox_style())
         proc_layout = QVBoxLayout(proc_group)
         
@@ -585,7 +586,7 @@ class StatsTab(QWidget):
         proc_metrics = [
             ("CLIP Embeddings", "clip_done"),
             ("LLM Descriptions", "llm_done"),
-            ("Errori Processing", "error_count"),
+            (t("stats.metric.proc_errors"), "error_count"),
             ("Avg Processing Time", "avg_time")
         ]
         
@@ -594,11 +595,11 @@ class StatsTab(QWidget):
             proc_layout.addWidget(row)
         
         # Timeline Distribution
-        timeline_group = QGroupBox("📅 Distribuzione Temporale")
+        timeline_group = QGroupBox(t("stats.group.timeline"))
         timeline_group.setStyleSheet(self.get_groupbox_style())
         timeline_layout = QVBoxLayout(timeline_group)
         
-        self.timeline_chart = ProBarChart({}, "Foto per Anno", COLORS['blu_petrolio'])
+        self.timeline_chart = ProBarChart({}, t("stats.chart.photos_per_year"), COLORS['blu_petrolio'])
         timeline_layout.addWidget(self.timeline_chart)
         
         # Add to grid (2x2 senza sync)
@@ -624,24 +625,24 @@ class StatsTab(QWidget):
         charts_layout.setSpacing(16)
         
         # Camera Bodies
-        cameras_group = QGroupBox("📷 Fotocamere")
+        cameras_group = QGroupBox(t("stats.group.cameras"))
         cameras_group.setStyleSheet(self.get_groupbox_style())
         cameras_layout = QVBoxLayout(cameras_group)
-        self.cameras_chart = GearBarChart({}, "Uso per Fotocamera", COLORS['verde'], max_bars=8)
+        self.cameras_chart = GearBarChart({}, t("stats.chart.camera_usage"), COLORS['verde'], max_bars=8)
         cameras_layout.addWidget(self.cameras_chart)
         
         # Lenses
-        lenses_group = QGroupBox("🔍 Obiettivi")
+        lenses_group = QGroupBox(t("stats.group.lenses"))
         lenses_group.setStyleSheet(self.get_groupbox_style())
         lenses_layout = QVBoxLayout(lenses_group)
-        self.lenses_chart = GearBarChart({}, "Uso per Obiettivo", COLORS['ambra'], max_bars=8)
+        self.lenses_chart = GearBarChart({}, t("stats.chart.lens_usage"), COLORS['ambra'], max_bars=8)
         lenses_layout.addWidget(self.lenses_chart)
         
         # Focal Lengths
-        focal_group = QGroupBox("📏 Focali")
+        focal_group = QGroupBox(t("stats.group.focal"))
         focal_group.setStyleSheet(self.get_groupbox_style())
         focal_layout = QVBoxLayout(focal_group)
-        self.focal_chart = GearBarChart({}, "Distribuzione Focali", COLORS['viola'], max_bars=8)
+        self.focal_chart = GearBarChart({}, t("stats.chart.focal_dist"), COLORS['viola'], max_bars=8)
         focal_layout.addWidget(self.focal_chart)
         
         charts_layout.addWidget(cameras_group)
@@ -657,9 +658,9 @@ class StatsTab(QWidget):
         
         self.gear_summary = {}
         gear_metrics = [
-            ("Fotocamere", "unique_cameras"),
-            ("Obiettivi", "unique_lenses"), 
-            ("Focale Top", "top_focal"),
+            (t("stats.metric.gear_cameras"), "unique_cameras"),
+            (t("stats.metric.gear_lenses"), "unique_lenses"),
+            (t("stats.metric.gear_top_focal"), "top_focal"),
             ("Range", "focal_range")
         ]
         
@@ -701,7 +702,7 @@ class StatsTab(QWidget):
         grid.setSpacing(16)
         
         # Exposure Settings
-        exposure_group = QGroupBox("🎯 Impostazioni Esposizione")
+        exposure_group = QGroupBox(t("stats.group.exposure"))
         exposure_group.setStyleSheet(self.get_groupbox_style())
         exposure_layout = QVBoxLayout(exposure_group)
         
@@ -709,7 +710,7 @@ class StatsTab(QWidget):
         sub_grid = QGridLayout()
         
         # Aperture label e chart
-        aperture_label = QLabel("Aperture più usate:")
+        aperture_label = QLabel(t("stats.label.aperture_top"))
         aperture_label.setStyleSheet(f"color: {COLORS['grigio_chiaro']}; font-weight: 600; margin: 4px;")
         sub_grid.addWidget(aperture_label, 0, 0)
         
@@ -718,32 +719,32 @@ class StatsTab(QWidget):
         sub_grid.addWidget(self.aperture_chart, 1, 0)
         
         # Shutter label e chart  
-        shutter_label = QLabel("Tempi di scatto:")
+        shutter_label = QLabel(t("stats.label.shutter_speed"))
         shutter_label.setStyleSheet(f"color: {COLORS['grigio_chiaro']}; font-weight: 600; margin: 4px;")
         sub_grid.addWidget(shutter_label, 0, 1)
         
-        self.shutter_chart = ProBarChart({}, "Tempi", COLORS['ambra'], max_bars=6)
+        self.shutter_chart = ProBarChart({}, t("stats.chart.shutter"), COLORS['ambra'], max_bars=6)
         self.shutter_chart.setMinimumHeight(180)
         sub_grid.addWidget(self.shutter_chart, 1, 1)
         
         exposure_layout.addLayout(sub_grid)
         
         # ISO Analysis
-        iso_group = QGroupBox("📊 Analisi ISO")
+        iso_group = QGroupBox(t("stats.group.iso"))
         iso_group.setStyleSheet(self.get_groupbox_style())
         iso_layout = QVBoxLayout(iso_group)
-        self.iso_chart = ProBarChart({}, "Distribuzione ISO", COLORS['rosso'])
+        self.iso_chart = ProBarChart({}, t("stats.chart.iso_dist"), COLORS['rosso'])
         iso_layout.addWidget(self.iso_chart)
         
         # Shooting Patterns (solo campi implementabili)
-        patterns_group = QGroupBox("📈 Pattern di Scatto")
+        patterns_group = QGroupBox(t("stats.group.patterns"))
         patterns_group.setStyleSheet(self.get_groupbox_style())
         patterns_layout = QVBoxLayout(patterns_group)
         
         self.shooting_patterns = {}
         pattern_metrics = [
             ("ISO Range", "iso_range"),
-            ("Apertura Preferita", "aperture_preferred"),
+            (t("stats.metric.aperture_preferred"), "aperture_preferred"),
             ("Flash Detection", "flash_usage")
         ]
         
@@ -752,16 +753,16 @@ class StatsTab(QWidget):
             patterns_layout.addWidget(row)
         
         # Quality Metrics (fix B&N)
-        quality_group = QGroupBox("⭐ Metriche Qualità")
+        quality_group = QGroupBox(t("stats.group.quality"))
         quality_group.setStyleSheet(self.get_groupbox_style())
         quality_layout = QVBoxLayout(quality_group)
         
         self.quality_stats = {}
         quality_metrics = [
-            ("Rating Medio LR", "avg_rating"),
-            ("Foto 4-5 Stelle", "high_rated"),
-            ("Con Color Label", "color_labeled"),
-            ("Foto GPS", "gps_photos")
+            (t("stats.metric.avg_rating"), "avg_rating"),
+            (t("stats.metric.high_rated"), "high_rated"),
+            (t("stats.metric.color_labeled"), "color_labeled"),
+            (t("stats.metric.gps_photos"), "gps_photos")
         ]
         
         for i, (label, key) in enumerate(quality_metrics):
@@ -788,17 +789,17 @@ class StatsTab(QWidget):
         grid.setSpacing(16)
         
         # Metadata Completeness
-        metadata_group = QGroupBox("📝 Completezza Metadata")
+        metadata_group = QGroupBox(t("stats.group.metadata"))
         metadata_group.setStyleSheet(self.get_groupbox_style())
         metadata_layout = QVBoxLayout(metadata_group)
         
         self.metadata_completeness = {}
         metadata_metrics = [
-            ("Con Titolo", "with_title"),
-            ("Con Descrizione", "with_description"),
-            ("Con Tags", "with_tags"),
-            ("Con Rating LR", "with_rating"),
-            ("Con GPS", "with_gps")
+            (t("stats.metric.with_title"), "with_title"),
+            (t("stats.metric.with_description"), "with_description"),
+            (t("stats.metric.with_tags"), "with_tags"),
+            (t("stats.metric.with_rating"), "with_rating"),
+            (t("stats.metric.with_gps"), "with_gps")
         ]
         
         for i, (label, key) in enumerate(metadata_metrics):
@@ -806,24 +807,24 @@ class StatsTab(QWidget):
             metadata_layout.addWidget(row)
         
         # Tag Analysis
-        tags_group = QGroupBox("🏷️ Analisi Tags")
+        tags_group = QGroupBox(t("stats.group.tags"))
         tags_group.setStyleSheet(self.get_groupbox_style())
         tags_layout = QVBoxLayout(tags_group)
-        self.tags_chart = ProBarChart({}, "Tag più usati", COLORS['viola'], max_bars=10)
+        self.tags_chart = ProBarChart({}, t("stats.chart.top_tags"), COLORS['viola'], max_bars=10)
         self.tags_chart.setMinimumHeight(300)  # Più alto per text wrap sui tag
         tags_layout.addWidget(self.tags_chart)
         
         # Geographic Distribution (semplificato)
-        geo_group = QGroupBox("🌍 Distribuzione Geografica")
+        geo_group = QGroupBox(t("stats.group.geo"))
         geo_group.setStyleSheet(self.get_groupbox_style())
         geo_layout = QVBoxLayout(geo_group)
         
         self.geo_stats = {}
         geo_metrics = [
-            ("Paesi Visitati", "countries"),
-            ("Città Fotografate", "cities"),
+            (t("stats.metric.countries"), "countries"),
+            (t("stats.metric.cities"), "cities"),
             ("GPS Coverage", "gps_coverage"),
-            ("Location Principale", "top_location")
+            (t("stats.metric.top_location"), "top_location")
         ]
         
         for i, (label, key) in enumerate(geo_metrics):
@@ -831,16 +832,16 @@ class StatsTab(QWidget):
             geo_layout.addWidget(row)
         
         # File Management (semplificato)
-        files_group = QGroupBox("📁 Gestione File")
+        files_group = QGroupBox(t("stats.group.files"))
         files_group.setStyleSheet(self.get_groupbox_style())
         files_layout = QVBoxLayout(files_group)
         
         self.file_stats = {}
         file_metrics = [
-            ("Dimensione Archivio", "total_size"),
-            ("Dimensione Media", "avg_size"),
+            (t("stats.metric.total_size"), "total_size"),
+            (t("stats.metric.avg_size"), "avg_size"),
             ("File RAW", "raw_percentage"),
-            ("Formati Unici", "unique_formats")
+            (t("stats.metric.unique_formats"), "unique_formats")
         ]
         
         for i, (label, key) in enumerate(file_metrics):
