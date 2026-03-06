@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QObject, pyqtSignal
 from PyQt6.QtGui import QFont, QTextCursor
+from i18n import t
 
 # Palette colori
 COLORS = {
@@ -67,7 +68,7 @@ class LogTab(QWidget):
         header_layout = QHBoxLayout()
         
         # Titolo
-        title = QLabel("📝 Log Console")
+        title = QLabel(t("log.label.header"))
         title.setStyleSheet(f"""
             QLabel {{
                 color: {COLORS['grigio_chiaro']};
@@ -175,7 +176,7 @@ class LogTab(QWidget):
         layout.addWidget(self.log_display)
         
         # Footer info
-        self.info_label = QLabel("Sessione avviata - Log azzerati")
+        self.info_label = QLabel(t("log.label.session_started"))
         self.info_label.setStyleSheet(f"""
             QLabel {{
                 color: {COLORS['grigio_medio']};
@@ -297,7 +298,7 @@ class LogTab(QWidget):
     def update_info(self):
         """Aggiorna info footer"""
         current_time = datetime.now().strftime("%H:%M:%S")
-        self.info_label.setText(f"Ultimo aggiornamento: {current_time}")
+        self.info_label.setText(t("log.label.last_update", current_time=current_time))
         
     def _load_startup_logs(self):
         """Carica i log di avvio dalla splash screen"""
