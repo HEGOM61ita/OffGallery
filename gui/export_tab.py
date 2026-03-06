@@ -27,6 +27,7 @@ import logging
 from gui.gallery_widgets import apply_popup_style
 from xmp_badge_manager import refresh_xmp_badges
 from utils.copy_helpers import compute_common_roots, compute_dest_path
+from i18n import t
 
 logger = logging.getLogger(__name__)
 
@@ -95,10 +96,10 @@ class ExportTab(QWidget):
         count = len(images)
     
         if count == 0:
-            self.selection_info.setText("📋 Nessuna immagine selezionata")
+            self.selection_info.setText(t("export.label.no_selection"))
             self.export_btn.setEnabled(False)
         else:
-            self.selection_info.setText(f"📋 {count} immagine/i selezionate per export")
+            self.selection_info.setText(t("export.label.selection_count", count=count))
             self.export_btn.setEnabled(True)
 
 
@@ -108,34 +109,23 @@ class ExportTab(QWidget):
     # ------------------------------------------------------------------
     
     def _export_format_group(self) -> QGroupBox:
-        box = QGroupBox("📄 Cosa esportare (combinabile)")
+        box = QGroupBox(t("export.group.what_to_export"))
         layout = QVBoxLayout(box)
         layout.setSpacing(8)
         layout.setContentsMargins(12, 10, 12, 10)
 
         # --- XMP sidecar ---
-        self.format_sidecar = QCheckBox("XMP sidecar (.xmp)  —  file separato, standard per RAW")
-        self.format_sidecar.setToolTip(
-            "Crea un file .xmp accanto all'immagine con tutti i metadati OffGallery.\n"
-            "Raccomandato per workflow Lightroom / Darktable / Capture One.\n"
-            "Non modifica il file originale."
-        )
+        self.format_sidecar = QCheckBox(t("export.check.xmp_sidecar"))
+        self.format_sidecar.setToolTip(t("export.tooltip.xmp_sidecar"))
 
         # --- XMP embedded + opzione DNG indentata ---
-        self.format_embedded = QCheckBox("XMP embedded nel file  (solo JPG / TIFF / DNG)")
-        self.format_embedded.setToolTip(
-            "Scrive i metadati direttamente nel file immagine.\n"
-            "Non supportato per RAW nativi (NEF, ARW, CR2, ORF…): su quei file\n"
-            "viene usato automaticamente il sidecar."
-        )
+        self.format_embedded = QCheckBox(t("export.check.xmp_embedded"))
+        self.format_embedded.setToolTip(t("export.tooltip.xmp_embedded"))
 
-        self.dng_allow_embedded = QCheckBox("Consenti embedded per DNG")
+        self.dng_allow_embedded = QCheckBox(t("export.check.dng_embedded"))
         self.dng_allow_embedded.setChecked(False)
         self.dng_allow_embedded.setEnabled(False)
-        self.dng_allow_embedded.setToolTip(
-            "I DNG supportano la scrittura embedded, ma il file viene modificato.\n"
-            "Abilitare solo se si è consapevoli delle implicazioni."
-        )
+        self.dng_allow_embedded.setToolTip(t("export.tooltip.dng_embedded"))
         dng_widget = QWidget()
         dng_layout = QVBoxLayout(dng_widget)
         dng_layout.setContentsMargins(24, 2, 0, 2)
@@ -146,38 +136,23 @@ class ExportTab(QWidget):
         self.format_embedded.toggled.connect(self._on_embedded_toggled)
 
         # --- CSV ---
-        self.format_csv = QCheckBox("CSV completo  (tutti i campi DB + EXIF)")
-        self.format_csv.setToolTip(
-            "Tabella con tutti i metadati: EXIF, AI, GPS, rating, tag, score…\n"
-            "Utile per import in Lightroom, Capture One o fogli di calcolo."
-        )
+        self.format_csv = QCheckBox(t("export.check.csv"))
+        self.format_csv.setToolTip(t("export.tooltip.csv"))
 
-        self.csv_include_gps = QCheckBox("Includi GPS")
+        self.csv_include_gps = QCheckBox(t("export.check.include_gps"))
         self.csv_include_gps.setChecked(True)
-        self.csv_include_gps.setToolTip("Aggiunge coordinate GPS estese al CSV")
+        self.csv_include_gps.setToolTip(t("export.tooltip.include_gps"))
 
         # --- Copia file + opzioni indentate ---
-        self.format_copy = QCheckBox("Copia file originali")
-        self.format_copy.setToolTip(
-            "Copia i file immagine nella directory di output.\n"
-            "Richiede la 'Directory di output' nella sezione Destinazione."
-        )
+        self.format_copy = QCheckBox(t("export.check.copy_originals"))
+        self.format_copy.setToolTip(t("export.tooltip.copy_originals"))
 
-        self.copy_preserve_structure = QCheckBox("Mantieni struttura directory originale")
-        self.copy_preserve_structure.setToolTip(
-            "Ricrea la struttura di cartelle originale nella destinazione.\n"
-            "Con foto da dischi diversi crea una sottocartella per ciascun disco:\n"
-            "  Windows → C_drive/  D_drive/\n"
-            "  macOS   → SSD/  ExternalDisk/\n"
-            "  Linux   → ssd/  usb/"
-        )
+        self.copy_preserve_structure = QCheckBox(t("export.check.preserve_structure"))
+        self.copy_preserve_structure.setToolTip(t("export.tooltip.preserve_structure"))
         self.copy_preserve_structure.setEnabled(False)
 
-        self.copy_overwrite = QCheckBox("Sovrascrivi se esiste  (default: salta)")
-        self.copy_overwrite.setToolTip(
-            "Attivo: sovrascrive i file già presenti nella destinazione.\n"
-            "Disattivo: i file già presenti vengono saltati e conteggiati."
-        )
+        self.copy_overwrite = QCheckBox(t("export.check.copy_overwrite"))
+        self.copy_overwrite.setToolTip(t("export.tooltip.copy_overwrite"))
         self.copy_overwrite.setEnabled(False)
 
         copy_options_widget = QWidget()
@@ -230,7 +205,7 @@ class ExportTab(QWidget):
     # ------------------------------------------------------------------
     
     def _export_path_group(self) -> QGroupBox:
-        box = QGroupBox("📁 Destinazione")
+        box = QGroupBox(t("export.group.destination"))
         layout = QVBoxLayout(box)
         layout.setSpacing(8)
         layout.setContentsMargins(12, 10, 12, 10)
@@ -241,17 +216,13 @@ class ExportTab(QWidget):
         xmp_dest_layout.setContentsMargins(0, 0, 0, 4)
         xmp_dest_layout.setSpacing(4)
 
-        xmp_dest_header = QLabel("Destinazione XMP:")
+        xmp_dest_header = QLabel(t("export.label.xmp_dest"))
         xmp_dest_header.setStyleSheet("font-weight: bold;")
 
-        self.path_original = QRadioButton("Accanto ai file originali  (raccomandato per Lightroom / Darktable)")
-        self.path_original.setToolTip(
-            "Il file .xmp viene creato nella stessa cartella del file sorgente.\n"
-            "Lightroom e Darktable lo rilevano automaticamente.\n"
-            "Non richiede una directory di output separata."
-        )
-        self.path_single = QRadioButton("In directory di output  (vedi sotto)")
-        self.path_single.setToolTip("Il file .xmp viene scritto nella directory di output specificata sotto.")
+        self.path_original = QRadioButton(t("export.radio.xmp_original"))
+        self.path_original.setToolTip(t("export.tooltip.xmp_original"))
+        self.path_single = QRadioButton(t("export.radio.xmp_single"))
+        self.path_single.setToolTip(t("export.tooltip.xmp_single"))
 
         self.path_original.setChecked(True)
         self.path_group = QButtonGroup(self)
@@ -268,9 +239,9 @@ class ExportTab(QWidget):
         dir_row_layout = QHBoxLayout(dir_row_widget)
         dir_row_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.output_dir_label = QLabel("Directory di output:")
+        self.output_dir_label = QLabel(t("export.label.dir_output"))
         self.output_dir_input = QLineEdit()
-        self.output_dir_input.setPlaceholderText("Seleziona directory…")
+        self.output_dir_input.setPlaceholderText(t("export.placeholder.output_dir"))
 
         self.browse_btn = QPushButton("📂")
         self.browse_btn.setMaximumWidth(40)
@@ -287,9 +258,9 @@ class ExportTab(QWidget):
         self.path_info.setStyleSheet("color: gray; font-size: 10px;")
 
         # --- Directory CSV dedicata (opzionale, visibile solo con CSV attivo) ---
-        csv_dir_label = QLabel("Directory CSV (opzionale):")
+        csv_dir_label = QLabel(t("export.label.csv_dir"))
         self.csv_dir_input = QLineEdit()
-        self.csv_dir_input.setPlaceholderText("Lascia vuoto per usare la directory di output sopra…")
+        self.csv_dir_input.setPlaceholderText(t("export.placeholder.csv_dir"))
         self.csv_dir_input.setEnabled(False)
 
         self.csv_browse_btn = QPushButton("📂")
@@ -321,7 +292,7 @@ class ExportTab(QWidget):
         """Seleziona directory output"""
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Seleziona Directory di Output",
+            t("export.dialog.select_output_dir"),
             self.output_dir_input.text() or ""
         )
         if directory:
@@ -331,7 +302,7 @@ class ExportTab(QWidget):
         """Seleziona directory output CSV"""
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Seleziona Directory CSV",
+            t("export.dialog.select_csv_dir"),
             self.csv_dir_input.text() or ""
         )
         if directory:
@@ -367,20 +338,16 @@ class ExportTab(QWidget):
 
         # Label e info contestuali
         if has_copy and has_xmp:
-            self.output_dir_label.setText("Directory di output:")
+            self.output_dir_label.setText(t("export.label.dir_output"))
             if self.path_original.isChecked():
-                self.path_info.setText(
-                    "XMP → accanto agli originali  ·  Copia → directory di output"
-                )
+                self.path_info.setText(t("export.label.dir_info_xmp_copy"))
             else:
-                self.path_info.setText(
-                    "XMP e copia → entrambi nella directory di output"
-                )
+                self.path_info.setText(t("export.label.dir_info_both_output"))
         elif has_copy:
-            self.output_dir_label.setText("Copia verso:")
+            self.output_dir_label.setText(t("export.label.dir_copy"))
             self.path_info.setText("")
         elif xmp_to_output:
-            self.output_dir_label.setText("Directory XMP:")
+            self.output_dir_label.setText(t("export.label.dir_xmp"))
             self.path_info.setText("")
         else:
             self.path_info.setText("")
@@ -390,59 +357,38 @@ class ExportTab(QWidget):
     # ------------------------------------------------------------------
 
     def _advanced_group(self) -> QGroupBox:
-        box = QGroupBox("🔧 Comportamento XMP (cosa fare se il campo esiste già)")
+        box = QGroupBox(t("export.group.xmp_behavior"))
         layout = QVBoxLayout(box)
         layout.setSpacing(8)
         layout.setContentsMargins(12, 10, 12, 10)
 
         # Sezione: Opzioni XMP — controllo indipendente per campo
-        xmp_section = QGroupBox("🏷️ Export XMP")
+        xmp_section = QGroupBox(t("export.group.xmp_section"))
         xmp_layout = QVBoxLayout(xmp_section)
         xmp_layout.setSpacing(5)
 
-        self.xmp_merge_keywords = QCheckBox("Unisci keywords con esistenti nel file")
+        self.xmp_merge_keywords = QCheckBox(t("export.check.merge_keywords"))
         self.xmp_merge_keywords.setChecked(True)
-        self.xmp_merge_keywords.setToolTip(
-            "Attivo: i keyword del DB vengono aggiunti a quelli già presenti nel file (sidecar o embedded).\n"
-            "Disattivo: i keyword esistenti vengono cancellati e riscritti solo con quelli del DB.\n"
-            "Valido per: sidecar .xmp e embedded (JPG, TIFF, DNG)."
-        )
+        self.xmp_merge_keywords.setToolTip(t("export.tooltip.merge_keywords"))
 
-        self.xmp_preserve_title = QCheckBox("Preserva Title se già presente nel file")
+        self.xmp_preserve_title = QCheckBox(t("export.check.preserve_title"))
         self.xmp_preserve_title.setChecked(True)
-        self.xmp_preserve_title.setToolTip(
-            "Attivo: se il file ha già un titolo, non viene sovrascritto.\n"
-            "Disattivo: il Title del DB sovrascrive sempre quello nel file.\n"
-            "Valido per: sidecar .xmp e embedded (JPG, TIFF, DNG)."
-        )
+        self.xmp_preserve_title.setToolTip(t("export.tooltip.preserve_title"))
 
-        self.xmp_preserve_description = QCheckBox("Preserva Descrizione se già presente nel file")
+        self.xmp_preserve_description = QCheckBox(t("export.check.preserve_description"))
         self.xmp_preserve_description.setChecked(True)
-        self.xmp_preserve_description.setToolTip(
-            "Attivo: se il file ha già una descrizione, non viene sovrascritta.\n"
-            "Disattivo: la Descrizione del DB sovrascrive sempre quella nel file.\n"
-            "Valido per: sidecar .xmp e embedded (JPG, TIFF, DNG)."
-        )
+        self.xmp_preserve_description.setToolTip(t("export.tooltip.preserve_description"))
 
-        self.xmp_preserve_rating = QCheckBox("Preserva Rating (stelle) se già presente nel file")
+        self.xmp_preserve_rating = QCheckBox(t("export.check.preserve_rating"))
         self.xmp_preserve_rating.setChecked(True)
-        self.xmp_preserve_rating.setToolTip(
-            "Attivo: se il file ha già un rating, non viene sovrascritto.\n"
-            "Disattivo: il Rating del DB (stelle) sovrascrive sempre quello nel file.\n"
-            "Campo: XMP-xmp:Rating. Valido per: sidecar .xmp e embedded (JPG, TIFF, DNG)."
-        )
+        self.xmp_preserve_rating.setToolTip(t("export.tooltip.preserve_rating"))
 
-        self.xmp_preserve_color_label = QCheckBox("Preserva Color Label se già presente nel file")
+        self.xmp_preserve_color_label = QCheckBox(t("export.check.preserve_color_label"))
         self.xmp_preserve_color_label.setChecked(True)
-        self.xmp_preserve_color_label.setToolTip(
-            "Attivo: se il file ha già un'etichetta colore, non viene sovrascritta.\n"
-            "Disattivo: il Color Label del DB sovrascrive sempre quello nel file.\n"
-            "Campo: XMP-xmp:Label (Red, Yellow, Green, Blue, Purple).\n"
-            "Valido per: sidecar .xmp e embedded (JPG, TIFF, DNG)."
-        )
+        self.xmp_preserve_color_label.setToolTip(t("export.tooltip.preserve_color_label"))
 
         # Nota: namespace Lightroom sempre preservati
-        note = QLabel("✓ Namespace Lightroom (crs:, lr:, xmpMM:) sempre preservati")
+        note = QLabel(t("export.label.lr_namespace_note"))
         note.setStyleSheet("color: gray; font-style: italic; font-size: 10px;")
 
         for cb in [self.xmp_merge_keywords, self.xmp_preserve_title, self.xmp_preserve_description,
@@ -459,10 +405,10 @@ class ExportTab(QWidget):
     # ------------------------------------------------------------------
 
     def _selection_group(self) -> QGroupBox:
-        box = QGroupBox("📂 Selezione")
+        box = QGroupBox(t("export.group.selection"))
         layout = QVBoxLayout(box)
-    
-        self.selection_info = QLabel("📋 Nessuna immagine selezionata")
+
+        self.selection_info = QLabel(t("export.label.no_selection"))
         layout.addWidget(self.selection_info)
     
         return box
@@ -472,18 +418,18 @@ class ExportTab(QWidget):
     # ------------------------------------------------------------------
 
     def _export_group(self) -> QGroupBox:
-        box = QGroupBox("🚀 Avvia Export")
+        box = QGroupBox(t("export.group.action"))
         layout = QVBoxLayout(box)
         layout.setSpacing(8)
         layout.setContentsMargins(12, 10, 12, 10)
 
-        info_label = QLabel("Esporta foto e/o metadati (XMP, CSV)")
+        info_label = QLabel(t("export.label.action_info"))
         info_label.setWordWrap(True)
         info_label.setStyleSheet("color: #888; font-style: italic; margin-bottom: 10px;")
         layout.addWidget(info_label)
 
         # Pulsante export
-        self.export_btn = QPushButton("🚀 Avvia Export")
+        self.export_btn = QPushButton(t("export.btn.start_export"))
         self.export_btn.setEnabled(False)
         self.export_btn.clicked.connect(self._do_export)
         self.export_btn.setStyleSheet("""
@@ -513,7 +459,7 @@ class ExportTab(QWidget):
     def _do_export(self):
         """Export principale: gestisce XMP sidecar, XMP embedded, CSV, copia foto"""
         if not self.images_to_export:
-            QMessageBox.warning(self, "Errore", "Nessuna immagine selezionata!")
+            QMessageBox.warning(self, t("export.msg.error_title"), t("export.label.no_selection"))
             return
 
         options = self.get_export_options()
@@ -521,7 +467,7 @@ class ExportTab(QWidget):
         # Validazione: almeno un formato selezionato
         if not any([options['format']['sidecar'], options['format']['embedded'],
                     options['format']['csv'], options['format']['copy']]):
-            QMessageBox.warning(self, "Errore", "Seleziona almeno un'operazione da eseguire.")
+            QMessageBox.warning(self, t("export.msg.error_title"), t("export.msg.no_operation"))
             return
 
         # Validazione: directory output richiesta per copia e/o XMP in directory unica
@@ -532,9 +478,8 @@ class ExportTab(QWidget):
                 motivi.append("copia file")
             if options['path']['single']:
                 motivi.append("XMP in directory di output")
-            QMessageBox.warning(self, "Directory mancante",
-                f"Specifica una directory di output.\n"
-                f"Richiesta per: {', '.join(motivi)}.")
+            QMessageBox.warning(self, t("export.msg.missing_dir_title"),
+                t("export.msg.missing_dir", reasons=', '.join(motivi)))
             return
 
         try:
@@ -551,13 +496,13 @@ class ExportTab(QWidget):
             if export_csv:
                 export_types.append("CSV")
             if export_copy:
-                export_types.append("Copia foto")
+                export_types.append(t("export.confirm.copy_photos"))
 
             xmp_location = (
-                "accanto agli originali" if options['path']['original']
+                t("export.confirm.xmp_original_loc") if options['path']['original']
                 else options['path']['single_dir']
             )
-            copy_location = options['path']['single_dir'] or "(directory non specificata)"
+            copy_location = options['path']['single_dir'] or t("export.confirm.no_dir")
             if export_xmp and export_copy:
                 location_msg = f"XMP → {xmp_location}  |  Copia → {copy_location}"
             elif export_xmp:
@@ -565,17 +510,21 @@ class ExportTab(QWidget):
             elif export_copy:
                 location_msg = f"Copia → {copy_location}"
             else:
-                location_msg = options['path']['single_dir'] or "directory originali"
+                location_msg = options['path']['single_dir'] or t("export.confirm.orig_dir")
 
             # Riepilogo comportamento per campo
             xmp_mode_note = ""
             if export_xmp:
                 adv = options['advanced']
 
-                def _mode(preserve_flag, preserve_label="preservato se presente", overwrite_label="sovrascritto"):
+                def _mode(preserve_flag, preserve_label=None, overwrite_label=None):
+                    if preserve_label is None:
+                        preserve_label = t("export.confirm.field_preserve")
+                    if overwrite_label is None:
+                        overwrite_label = t("export.confirm.field_overwrite")
                     return preserve_label if adv.get(preserve_flag, True) else overwrite_label
 
-                kw_mode = "unisce con esistenti" if adv.get('xmp_merge_keywords', True) else "sostituisce esistenti"
+                kw_mode = t("export.confirm.kw_merge") if adv.get('xmp_merge_keywords', True) else t("export.confirm.kw_replace")
                 xmp_mode_note = (
                     f"\n\n📋 Comportamento per campo:\n"
                     f"  • Keywords:     {kw_mode}\n"
@@ -588,10 +537,12 @@ class ExportTab(QWidget):
 
             reply = QMessageBox.question(
                 self,
-                "Conferma Export",
-                f"Esportare {' + '.join(export_types)} per {len(self.images_to_export)} immagini?\n\n"
-                f"📁 Destinazione: {location_msg}"
-                f"{xmp_mode_note}",
+                t("export.msg.confirm_title"),
+                t("export.confirm.question",
+                  types=' + '.join(export_types),
+                  count=len(self.images_to_export),
+                  location=location_msg,
+                  xmp_note=xmp_mode_note),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
 
@@ -610,13 +561,13 @@ class ExportTab(QWidget):
 
             if export_xmp:
                 progress = QProgressDialog(
-                    "Export XMP in corso...",
-                    "Annulla",
+                    t("export.progress.xmp_running"),
+                    t("export.progress.cancel"),
                     0,
                     len(self.images_to_export),
                     self
                 )
-                progress.setWindowTitle("Export XMP Metadata")
+                progress.setWindowTitle(t("export.progress.xmp_window"))
                 progress.setModal(True)
                 apply_popup_style(progress)
                 progress.show()
@@ -628,7 +579,7 @@ class ExportTab(QWidget):
 
                     progress.setValue(i)
                     filename = image_item.image_data.get('filename', 'unknown')
-                    progress.setLabelText(f"Export XMP: {filename}")
+                    progress.setLabelText(t("export.progress.xmp_label", filename=filename))
                     QApplication.processEvents()
 
                     try:
@@ -682,37 +633,38 @@ class ExportTab(QWidget):
             try:
                 report_parts = []
                 if export_xmp and success_count > 0:
-                    report_parts.append(f"✅ XMP creati: {success_count}")
+                    report_parts.append(t("export.report.xmp_created", n=success_count))
                 if export_xmp and failed_count > 0:
-                    report_parts.append(f"❌ Errori XMP: {failed_count}")
+                    report_parts.append(t("export.report.xmp_errors", n=failed_count))
                 if export_xmp and skipped_count > 0:
-                    report_parts.append(f"⚠️ File saltati (embedded non supportato): {skipped_count}")
+                    report_parts.append(t("export.report.xmp_skipped", n=skipped_count))
                 if export_csv and csv_success:
-                    report_parts.append(f"✅ CSV creato")
+                    report_parts.append(t("export.report.csv_ok"))
                 elif export_csv and not csv_success:
-                    report_parts.append(f"❌ Errore CSV")
+                    report_parts.append(t("export.report.csv_error"))
                 if export_copy and copy_count > 0:
-                    report_parts.append(f"✅ Foto copiate: {copy_count}")
+                    report_parts.append(t("export.report.photos_copied", n=copy_count))
                 if export_copy and copy_skipped > 0:
-                    report_parts.append(f"⏭ Foto saltate (già presenti): {copy_skipped}")
+                    report_parts.append(t("export.report.photos_skipped", n=copy_skipped))
                 if export_copy and copy_failed > 0:
-                    report_parts.append(f"❌ Errori copia: {copy_failed}")
+                    report_parts.append(t("export.report.photos_failed", n=copy_failed))
 
                 if not report_parts:
-                    report_parts.append("❌ Nessun export completato")
+                    report_parts.append(t("export.report.no_export"))
 
-                message = f"Export completato!\n\n📊 Risultati:\n{chr(10).join(report_parts)}"
-                message += f"\n\n📁 Destinazione: {location_msg}"
+                message = t("export.report.done",
+                            results=chr(10).join(report_parts),
+                            location=location_msg)
 
                 try:
-                    QMessageBox.information(self, "Export Completato", message)
+                    QMessageBox.information(self, t("export.msg.done_title"), message)
                 except Exception as dialog_error:
                     print(f"❌ Errore dialog finale: {dialog_error}")
 
             except Exception as report_error:
                 print(f"❌ Errore report finale: {report_error}")
                 try:
-                    QMessageBox.information(self, "Export", "Export completato con errori nel report.")
+                    QMessageBox.information(self, t("export.msg.done_title"), t("export.msg.done_fallback"))
                 except:
                     pass
 
@@ -732,7 +684,7 @@ class ExportTab(QWidget):
 
         except Exception as e:
             print(f"❌ Errore globale in _do_export: {e}")
-            QMessageBox.critical(self, "Errore Export", f"Errore durante export:\n{e}") 
+            QMessageBox.critical(self, t("export.msg.error_export_title"), t("export.msg.error_export", error=e))
     
     def _write_csv_export(self, image_items, options):
         """Esporta metadati completi in formato CSV per workflow fotografico professionale"""
@@ -1399,13 +1351,13 @@ class ExportTab(QWidget):
             )
 
         progress = QProgressDialog(
-            "Copia foto in corso...",
-            "Annulla",
+            t("export.progress.copy_running"),
+            t("export.progress.cancel"),
             0,
             len(image_items),
             self
         )
-        progress.setWindowTitle("Copia Foto")
+        progress.setWindowTitle(t("export.group.copy_photos"))
         progress.setModal(True)
         apply_popup_style(progress)
         progress.show()
@@ -1417,7 +1369,7 @@ class ExportTab(QWidget):
 
             progress.setValue(i)
             filename = image_item.image_data.get('filename', 'unknown')
-            progress.setLabelText(f"Copia: {filename}")
+            progress.setLabelText(t("export.progress.copy_label", filename=filename))
             QApplication.processEvents()
 
             try:
