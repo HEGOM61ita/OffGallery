@@ -24,6 +24,7 @@ from gui.export_tab import ExportTab
 from gui.log_tab import LogTab
 from xmp_badge_manager import refresh_xmp_badges
 from xmp_badge_manager import shutdown_badge_manager
+from i18n import t
 
 
 # Palette colori
@@ -125,7 +126,7 @@ class AppHeader(QFrame):
         brand_layout.addStretch()
         
         # Titolo principale con "di Immagini"
-        self.app_title = QLabel("Sistema di Catalogazione e Ricerca AI Multimodello di Immagini")
+        self.app_title = QLabel(t("main.label.app_title"))
         self.app_title.setStyleSheet(f"""
             QLabel {{
                 font-size: 18px;
@@ -144,7 +145,7 @@ class AppHeader(QFrame):
         brand_layout.addWidget(self.app_title)
         
         # Sottotitolo
-        self.subtitle_label = QLabel("Architettura Offline Privacy-First")
+        self.subtitle_label = QLabel(t("main.label.app_subtitle"))
         self.subtitle_label.setStyleSheet(f"""
             QLabel {{
                 font-size: 12px;
@@ -332,7 +333,7 @@ class MainWindow(QMainWindow):
         """Inizializza interfaccia utente"""
         
         # Finestra principale
-        self.setWindowTitle("OffGallery")
+        self.setWindowTitle(t("main.window.title"))
         self.setMinimumSize(900, 600)
         
         # Size policy per resize libero
@@ -443,7 +444,7 @@ class MainWindow(QMainWindow):
         # Status bar
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("Pronto")
+        self.status_bar.showMessage(t("main.status.ready"))
         
         # Tab widget
         self.tabs = QTabWidget()
@@ -477,13 +478,13 @@ class MainWindow(QMainWindow):
 
         
         # Aggiungi tab con icone più grandi
-        self.tabs.addTab(self.config_tab, "⚙  Configurazione")
-        self.tabs.addTab(self.processing_tab, "▶  Processing")
-        self.tabs.addTab(self.search_tab, "🔍  Ricerca")
-        self.tabs.addTab(self.gallery_tab, "🖼  Gallery")
-        self.tabs.addTab(self.export_tab, "📤 Export")
-        self.tabs.addTab(self.stats_tab, "📊  Statistiche")
-        self.tabs.addTab(self.log_tab, "📝  Log")
+        self.tabs.addTab(self.config_tab, t("main.tab.config"))
+        self.tabs.addTab(self.processing_tab, t("main.tab.processing"))
+        self.tabs.addTab(self.search_tab, t("main.tab.search"))
+        self.tabs.addTab(self.gallery_tab, t("main.tab.gallery"))
+        self.tabs.addTab(self.export_tab, t("main.tab.export"))
+        self.tabs.addTab(self.stats_tab, t("main.tab.stats"))
+        self.tabs.addTab(self.log_tab, t("main.tab.log"))
                 
         # Connetti segnali
         self.search_tab.search_executed.connect(self.on_search_completed)
@@ -592,7 +593,7 @@ class MainWindow(QMainWindow):
     def show_about(self):
         """Mostra dialog about"""
         about_box = QMessageBox(self)
-        about_box.setWindowTitle("About OffGallery")
+        about_box.setWindowTitle(t("main.dialog.about_title"))
         about_box.setTextFormat(Qt.TextFormat.RichText)
         about_box.setText(f"""
             <div style="text-align: center;">
