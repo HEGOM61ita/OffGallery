@@ -13,6 +13,7 @@ from PyQt6.QtGui import QFont, QPixmap
 from pathlib import Path
 
 from utils.paths import get_app_dir
+from i18n import t, load_language
 
 # Riferimento globale alla splash per accesso dai log
 _splash_instance = None
@@ -97,7 +98,7 @@ class SplashScreen(QWidget):
         global _splash_instance
         _splash_instance = self
 
-        self.setWindowTitle("OffGallery - Caricamento")
+        self.setWindowTitle(t("splash.window.title"))
         self.setFixedSize(600, 450)
 
         # Finestra senza bordi ma con titolo
@@ -149,7 +150,7 @@ class SplashScreen(QWidget):
             layout.addWidget(title)
 
         # Sottotitolo
-        self.subtitle = QLabel("Caricamento modelli AI...")
+        self.subtitle = QLabel(t("splash.label.loading_subtitle"))
         self.subtitle.setFont(QFont("Arial", 12))
         self.subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.subtitle.setStyleSheet("color: #B0B0B0;")
@@ -282,6 +283,21 @@ def restore_log_capture():
 
 def run_with_splash():
     """Avvia applicazione con splash screen"""
+    # Carica lingua prima di creare qualsiasi widget
+    try:
+        import yaml
+        from pathlib import Path
+        _cfg_path = Path("config_new.yaml")
+        if _cfg_path.exists():
+            with open(_cfg_path, encoding="utf-8") as _f:
+                _cfg = yaml.safe_load(_f)
+            _lang = _cfg.get("ui", {}).get("user_language", "it")
+            load_language(_lang)
+        else:
+            load_language("it")
+    except Exception:
+        load_language("it")
+
     # Setup cattura log PRIMA di tutto
     setup_log_capture()
 
@@ -341,7 +357,7 @@ def run_with_splash():
         from PyQt6.QtWidgets import QMessageBox
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Icon.Critical)
-        msg.setWindowTitle("OffGallery - Errore caricamento moduli")
+        msg.setWindowTitle(t("splash.msg.module_error_title"))
         msg.setText("Impossibile caricare i moduli dell'interfaccia.")
         msg.setDetailedText(traceback.format_exc())
         msg.exec()
@@ -356,7 +372,7 @@ def run_with_splash():
         from PyQt6.QtWidgets import QMessageBox
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Icon.Critical)
-        msg.setWindowTitle("OffGallery - Errore avvio")
+        msg.setWindowTitle(t("splash.msg.startup_error_title"))
         msg.setText(f"Errore durante l'inizializzazione:\n{e}")
         msg.setDetailedText(traceback.format_exc())
         msg.exec()
