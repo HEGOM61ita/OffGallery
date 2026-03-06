@@ -42,6 +42,8 @@
 !docs/*.txt
 
 # ESSENZIALI PER L'APP - Includere nel repo
+!i18n/
+!i18n/*.json
 !brisque_models/
 !brisque_models/*.yml
 !assets/

@@ -1,3 +1,6 @@
+ui:
+  user_language: it
+
 embedding:
   brisque_enabled: true
   device: auto
@@ -26,15 +29,15 @@ embedding:
       auto_import:
         description:
           enabled: true
-          max_words: 25
+          max_words: 50
           overwrite: true
         tags:
           enabled: true
-          max_tags: 5
+          max_tags: 10
           overwrite: true
         title:
           enabled: true
-          max_words: 5
+          max_words: 10
           overwrite: true
       description: Genera tag, descrizioni e titoli con LLM vision (richiede Ollama)
       enabled: true

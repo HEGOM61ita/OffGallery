@@ -4,11 +4,11 @@ Main Window - Finestra principale OffGallery
 
 import sys
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QTabWidget, QWidget, 
-    QVBoxLayout, QHBoxLayout, QStatusBar, QMessageBox, 
-    QSizePolicy, QLabel, QFrame
+    QApplication, QMainWindow, QTabWidget, QWidget,
+    QVBoxLayout, QHBoxLayout, QStatusBar, QMessageBox,
+    QSizePolicy, QLabel, QFrame, QComboBox
 )
-from PyQt6.QtCore import Qt, QSettings
+from PyQt6.QtCore import Qt, QSettings, pyqtSignal
 from PyQt6.QtGui import QIcon, QPalette, QColor, QPixmap, QFont
 from pathlib import Path
 
@@ -43,9 +43,12 @@ COLORS = {
 
 class AppHeader(QFrame):
     """Header principale con logo OffGallery grande e responsive"""
-    
-    def __init__(self, parent=None):
+
+    language_changed = pyqtSignal(str)  # emette il codice lingua selezionato
+
+    def __init__(self, current_language: str = "it", parent=None):
         super().__init__(parent)
+        self._current_language = current_language
         self.setFixedHeight(143)  # 140px logo + 3px border
         self._build_ui()
     
@@ -187,11 +190,49 @@ class AppHeader(QFrame):
             model_label.setAlignment(Qt.AlignmentFlag.AlignRight)
             info_layout.addWidget(model_label)
         
+        # Selettore lingua
+        self.lang_combo = QComboBox()
+        self.lang_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {COLORS['grafite_dark']};
+                color: {COLORS['grigio_medio']};
+                border: 1px solid {COLORS['grafite_light']};
+                border-radius: 4px;
+                padding: 2px 6px;
+                font-size: 11px;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {COLORS['grafite_dark']};
+                color: {COLORS['grigio_chiaro']};
+                selection-background-color: {COLORS['blu_petrolio']};
+            }}
+        """)
+        self.lang_combo.setFixedWidth(120)
+
+        from i18n import available_languages
+        for code, name, flag in available_languages():
+            self.lang_combo.addItem(f"{flag} {name}", userData=code)
+            if code == self._current_language:
+                self.lang_combo.setCurrentIndex(self.lang_combo.count() - 1)
+
+        self.lang_combo.currentIndexChanged.connect(self._on_language_changed)
+        info_layout.addWidget(self.lang_combo, alignment=Qt.AlignmentFlag.AlignRight)
+
         info_layout.addStretch()
         info_widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(info_widget, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
     
+    def _on_language_changed(self, index: int):
+        """Emette il segnale con il codice lingua selezionato"""
+        code = self.lang_combo.itemData(index)
+        if code and code != self._current_language:
+            self._current_language = code
+            self.language_changed.emit(code)
+
     def resizeEvent(self, event):
         """Ridimensiona il font del titolo in base alla larghezza disponibile"""
         super().resizeEvent(event)
@@ -235,6 +276,11 @@ class MainWindow(QMainWindow):
         # Carica configurazione
         with open(self.config_path, 'r', encoding='utf-8') as f:
             self.config = yaml.safe_load(f)
+
+        # Carica lingua UI
+        import i18n as i18n_module
+        user_lang = self.config.get('ui', {}).get('user_language', 'it')
+        i18n_module.load_language(user_lang)
 
         # Inizializza i modelli AI (non bloccante: l'app parte anche se fallisce)
         self.ai_models = {'initialized': False}
@@ -389,7 +435,9 @@ class MainWindow(QMainWindow):
         layout.setSpacing(0)
         
         # Header globale
-        self.header = AppHeader()
+        import i18n as i18n_module
+        self.header = AppHeader(current_language=i18n_module.current_language())
+        self.header.language_changed.connect(self._on_language_changed)
         layout.addWidget(self.header)
         
         # Status bar
@@ -653,6 +701,32 @@ class MainWindow(QMainWindow):
             print(f"❌ Errore ricarica configurazione: {e}")
             return False
     
+    def _on_language_changed(self, lang_code: str):
+        """Salva la lingua selezionata e avvisa di riavviare"""
+        import yaml
+        import i18n as i18n_module
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                cfg = yaml.safe_load(f)
+            if 'ui' not in cfg:
+                cfg['ui'] = {}
+            cfg['ui']['user_language'] = lang_code
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                yaml.dump(cfg, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Errore salvataggio lingua: {e}")
+
+        _, name, flag = next(
+            (x for x in i18n_module.available_languages() if x[0] == lang_code),
+            (lang_code, lang_code, "")
+        )
+        QMessageBox.information(
+            self,
+            "Lingua / Language",
+            f"{flag} {name} selezionata.\nRiavvia OffGallery per applicare."
+        )
+
     def restore_geometry(self):
         """Ripristina geometria finestra salvata"""
         geometry = self.settings.value('geometry')
