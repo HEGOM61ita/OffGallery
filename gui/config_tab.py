@@ -355,12 +355,7 @@ class ConfigTab(QWidget):
         # Models Directory
         layout.addWidget(QLabel(t("config.label.models_ai")), 2, 0)
         self.models_dir_edit = QLineEdit()
-        self.models_dir_edit.setToolTip(
-            "Directory dove sono salvati i modelli AI.\n"
-            "Percorso relativo (es: Models) = dentro la cartella OffGallery.\n"
-            "Percorso assoluto (es: D:\\AI\\Models) = cartella esterna.\n\n"
-            "⚠ Modifica solo DOPO aver spostato manualmente la cartella Models/."
-        )
+        self.models_dir_edit.setToolTip(t("config.tooltip.models_dir"))
         self.models_dir_edit.setPlaceholderText("Es: Models  oppure  D:\\AI\\Models")
         layout.addWidget(self.models_dir_edit, 2, 1)
 
@@ -431,7 +426,7 @@ class ConfigTab(QWidget):
             # Pulsante sfoglia
             browse_btn = QPushButton("📁")
             browse_btn.setFixedSize(30, 25)
-            browse_btn.setToolTip("Seleziona editor")
+            browse_btn.setToolTip(t("config.tooltip.select_editor"))
             browse_btn.clicked.connect(lambda checked, idx=i: self.browse_editor_path(idx))
             
             # Aggiungi alla grid (5 colonne ora)
@@ -476,11 +471,7 @@ class ConfigTab(QWidget):
         self.device_combo.addItem(t("config.combo.device_autodetect"), "auto")
         self.device_combo.addItem(t("config.combo.device_gpu_cuda"), "cuda")
         self.device_combo.addItem(t("config.combo.device_cpu_forced"), "cpu")
-        self.device_combo.setToolTip(
-            "Auto-detect: rileva automaticamente GPU e usa CPU come fallback\n"
-            "Forza GPU: usa solo GPU (fallback CPU se non disponibile)\n"
-            "Forza CPU: disabilita completamente GPU"
-        )
+        self.device_combo.setToolTip(t("config.tooltip.device"))
         self.device_combo.currentIndexChanged.connect(self._update_gpu_info)
         device_layout.addWidget(self.device_combo)
         device_layout.addStretch()
@@ -543,7 +534,7 @@ class ConfigTab(QWidget):
         self.dinov2_similarity_threshold.setRange(0.0, 1.0)
         self.dinov2_similarity_threshold.setSingleStep(0.05)
         self.dinov2_similarity_threshold.setDecimals(2)
-        self.dinov2_similarity_threshold.setToolTip("Soglia per ricerca immagini simili (0.0-1.0, default 0.7)")
+        self.dinov2_similarity_threshold.setToolTip(t("config.tooltip.dinov2_threshold"))
         self.dinov2_similarity_threshold.valueChanged.connect(self.validate_dinov2_threshold)
         layout.addWidget(self.dinov2_similarity_threshold, 1, 1)
 
@@ -691,7 +682,7 @@ class ConfigTab(QWidget):
         adv_group.setStyleSheet(f"QGroupBox {{ color: {COLORS['grigio_medio']}; font-size: 12px; }}")
         adv_group.setCheckable(True)
         adv_group.setChecked(False)
-        adv_group.setToolTip("Espandi per modificare temperature, top_k e top_p del modello LLM")
+        adv_group.setToolTip(t("config.tooltip.llm_params_group"))
         adv_layout = QGridLayout()
 
         adv_layout.addWidget(QLabel("Temperature:"), 0, 0)
@@ -700,14 +691,14 @@ class ConfigTab(QWidget):
         self.llm_temperature.setSingleStep(0.1)
         self.llm_temperature.setDecimals(2)
         self.llm_temperature.setValue(0.2)
-        self.llm_temperature.setToolTip("Valori bassi (0.1-0.3): preciso e ripetibile. Valori alti (0.7+): creativo ma meno prevedibile")
+        self.llm_temperature.setToolTip(t("config.tooltip.temperature"))
         adv_layout.addWidget(self.llm_temperature, 0, 1)
 
         adv_layout.addWidget(QLabel("Top-K:"), 0, 2)
         self.llm_top_k = NoWheelSpinBox()
         self.llm_top_k.setRange(1, 100)
         self.llm_top_k.setValue(20)
-        self.llm_top_k.setToolTip("Numero di token candidati ad ogni step. Valori bassi = piu' focalizzato")
+        self.llm_top_k.setToolTip(t("config.tooltip.top_k"))
         adv_layout.addWidget(self.llm_top_k, 0, 3)
 
         adv_layout.addWidget(QLabel("Top-P:"), 0, 4)
@@ -716,7 +707,7 @@ class ConfigTab(QWidget):
         self.llm_top_p.setSingleStep(0.05)
         self.llm_top_p.setDecimals(2)
         self.llm_top_p.setValue(0.8)
-        self.llm_top_p.setToolTip("Nucleus sampling. 0.8 = considera l'80%% dei token piu' probabili")
+        self.llm_top_p.setToolTip(t("config.tooltip.top_p"))
         adv_layout.addWidget(self.llm_top_p, 0, 5)
 
         adv_layout.addWidget(QLabel("Num Ctx:"), 1, 0)
@@ -724,7 +715,7 @@ class ConfigTab(QWidget):
         self.llm_num_ctx.setRange(512, 32768)
         self.llm_num_ctx.setSingleStep(512)
         self.llm_num_ctx.setValue(2048)
-        self.llm_num_ctx.setToolTip("Dimensione finestra di contesto in token. Valori alti = piu' contesto ma piu' RAM")
+        self.llm_num_ctx.setToolTip(t("config.tooltip.num_ctx"))
         adv_layout.addWidget(self.llm_num_ctx, 1, 1)
 
         adv_layout.addWidget(QLabel("Num Batch:"), 1, 2)
@@ -732,12 +723,12 @@ class ConfigTab(QWidget):
         self.llm_num_batch.setRange(128, 4096)
         self.llm_num_batch.setSingleStep(128)
         self.llm_num_batch.setValue(1024)
-        self.llm_num_batch.setToolTip("Dimensione batch per elaborazione prompt. Valori alti = piu' veloce ma piu' RAM")
+        self.llm_num_batch.setToolTip(t("config.tooltip.num_batch"))
         adv_layout.addWidget(self.llm_num_batch, 1, 3)
 
         self.llm_keep_alive = QCheckBox(t("config.check.keep_alive"))
         self.llm_keep_alive.setChecked(True)
-        self.llm_keep_alive.setToolTip("Se attivo, Ollama tiene il modello in VRAM permanentemente. Disattiva se hai poca memoria GPU")
+        self.llm_keep_alive.setToolTip(t("config.tooltip.keep_alive"))
         adv_layout.addWidget(self.llm_keep_alive, 1, 4, 1, 2)
 
         adv_group.setLayout(adv_layout)
@@ -769,24 +760,24 @@ class ConfigTab(QWidget):
         # Text area per formati (uno per riga)
         self.supported_formats_text = QTextEdit()
         self.supported_formats_text.setMaximumHeight(120)
-        self.supported_formats_text.setToolTip("Un formato per riga (es: .jpg, .png, .cr2)")
+        self.supported_formats_text.setToolTip(t("config.tooltip.formats"))
         formats_layout.addWidget(self.supported_formats_text)
         
         # Preset buttons per formati comuni
         preset_layout = QHBoxLayout()
         
         preset_basic_btn = QPushButton("📷 Basic")
-        preset_basic_btn.setToolTip("Solo JPEG, PNG, TIFF")
+        preset_basic_btn.setToolTip(t("config.tooltip.preset_basic"))
         preset_basic_btn.clicked.connect(self.set_basic_formats)
         preset_layout.addWidget(preset_basic_btn)
         
         preset_extended_btn = QPushButton("🎯 Extended") 
-        preset_extended_btn.setToolTip("Include RAW comuni (Canon, Nikon, Sony)")
+        preset_extended_btn.setToolTip(t("config.tooltip.preset_extended"))
         preset_extended_btn.clicked.connect(self.set_extended_formats)
         preset_layout.addWidget(preset_extended_btn)
         
         preset_all_btn = QPushButton("🌟 Completo")
-        preset_all_btn.setToolTip("Tutti i formati supportati")
+        preset_all_btn.setToolTip(t("config.tooltip.preset_all"))
         preset_all_btn.clicked.connect(self.set_all_formats)
         preset_layout.addWidget(preset_all_btn)
         
@@ -903,7 +894,7 @@ class ConfigTab(QWidget):
         self.search_max_results_spin = NoWheelSpinBox()
         self.search_max_results_spin.setRange(10, 1000)
         self.search_max_results_spin.setSingleStep(50)
-        self.search_max_results_spin.setToolTip("Limite risultati ricerca testuale")
+        self.search_max_results_spin.setToolTip(t("config.tooltip.max_results"))
         layout.addWidget(self.search_max_results_spin, 0, 2)
 
         # Row 1: Semantic threshold
@@ -912,7 +903,7 @@ class ConfigTab(QWidget):
         self.semantic_threshold_spin.setRange(0.05, 0.50)
         self.semantic_threshold_spin.setSingleStep(0.05)
         self.semantic_threshold_spin.setDecimals(2)
-        self.semantic_threshold_spin.setToolTip("Soglia similarità CLIP per ricerca semantica")
+        self.semantic_threshold_spin.setToolTip(t("config.tooltip.semantic_threshold"))
         self.semantic_threshold_spin.valueChanged.connect(self.validate_semantic_threshold)
         layout.addWidget(self.semantic_threshold_spin, 1, 1)
 
@@ -967,7 +958,7 @@ class ConfigTab(QWidget):
         self.similarity_max_results = NoWheelSpinBox()
         self.similarity_max_results.setRange(10, 500)
         self.similarity_max_results.setSingleStep(10)
-        self.similarity_max_results.setToolTip("Numero massimo di risultati mostrati nel tab Ricerca")
+        self.similarity_max_results.setToolTip(t("config.tooltip.similarity_max"))
         layout.addWidget(self.similarity_max_results, 1, 1)
 
         group_box.setLayout(layout)
@@ -1597,7 +1588,7 @@ class ConfigTab(QWidget):
                     color: {COLORS['grigio_chiaro']};
                 }}
             """)
-            self.dinov2_similarity_threshold.setToolTip("⚠️ Soglia molto bassa - troppi risultati simili")
+            self.dinov2_similarity_threshold.setToolTip(t("config.tooltip.dinov2_low"))
         elif value > 0.8:
             # Troppo alto - border ambra
             self.dinov2_similarity_threshold.setStyleSheet(f"""
@@ -1607,7 +1598,7 @@ class ConfigTab(QWidget):
                     color: {COLORS['grigio_chiaro']};
                 }}
             """)
-            self.dinov2_similarity_threshold.setToolTip("⚠️ Soglia molto alta - pochi risultati simili")
+            self.dinov2_similarity_threshold.setToolTip(t("config.tooltip.dinov2_high"))
         else:
             # Valore OK - border normale
             self.dinov2_similarity_threshold.setStyleSheet(f"""
@@ -1617,7 +1608,7 @@ class ConfigTab(QWidget):
                     color: {COLORS['grigio_chiaro']};
                 }}
             """)
-            self.dinov2_similarity_threshold.setToolTip("✅ Soglia ottimale per ricerca similarità")
+            self.dinov2_similarity_threshold.setToolTip(t("config.tooltip.dinov2_ok"))
 
     def validate_semantic_threshold(self, value):
         """Validazione real-time soglia ricerca semantica con feedback visivo"""
@@ -1630,9 +1621,9 @@ class ConfigTab(QWidget):
                     color: {COLORS['grigio_chiaro']};
                 }}
             """)
-            self.semantic_threshold_spin.setToolTip("⚠️ Soglia molto bassa - troppi risultati poco pertinenti")
+            self.semantic_threshold_spin.setToolTip(t("config.tooltip.semantic_low"))
         elif value > 0.30:
-            # Troppo alto - pochi risultati  
+            # Troppo alto - pochi risultati
             self.semantic_threshold_spin.setStyleSheet(f"""
                 QDoubleSpinBox {{
                     border: 2px solid {COLORS['ambra']};
@@ -1640,7 +1631,7 @@ class ConfigTab(QWidget):
                     color: {COLORS['grigio_chiaro']};
                 }}
             """)
-            self.semantic_threshold_spin.setToolTip("⚠️ Soglia molto alta - pochi risultati")
+            self.semantic_threshold_spin.setToolTip(t("config.tooltip.semantic_high"))
         else:
             # Valore OK
             self.semantic_threshold_spin.setStyleSheet(f"""
@@ -1650,7 +1641,7 @@ class ConfigTab(QWidget):
                     color: {COLORS['grigio_chiaro']};
                 }}
             """)
-            self.semantic_threshold_spin.setToolTip("✅ Soglia ottimale per ricerca semantica")
+            self.semantic_threshold_spin.setToolTip(t("config.tooltip.semantic_ok"))
 
     def set_basic_formats(self):
         """Imposta formati basic (JPEG, PNG, TIFF)"""
@@ -1697,7 +1688,7 @@ class ConfigTab(QWidget):
                     color: {COLORS['grigio_chiaro']};
                 }}
             """)
-            path_edit.setToolTip("✅ Percorso valido")
+            path_edit.setToolTip(t("config.tooltip.path_valid"))
         else:
             # Percorso non valido
             path_edit.setStyleSheet(f"""
@@ -1708,9 +1699,9 @@ class ConfigTab(QWidget):
                 }}
             """)
             if platform.system() == "Windows":
-                path_edit.setToolTip("❌ Percorso non valido o non è un .exe")
+                path_edit.setToolTip(t("config.tooltip.path_invalid_exe"))
             else:
-                path_edit.setToolTip("❌ Percorso non valido o non è un eseguibile")
+                path_edit.setToolTip(t("config.tooltip.path_invalid"))
 
     def browse_editor_path(self, editor_index):
         """Apri dialog per selezionare editor esterno"""

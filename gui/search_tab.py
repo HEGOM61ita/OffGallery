@@ -1682,9 +1682,9 @@ class SearchTab(QWidget):
             return True
             
         # Data originale
-        if self.date_original_enabled.isChecked():
+        if self.date_filter_enabled.isChecked():
             return True
-            
+
         # Qualità
         if self.aesthetic_min.value() > 0.0:
             return True
