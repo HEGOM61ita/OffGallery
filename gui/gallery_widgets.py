@@ -833,7 +833,7 @@ class ImageCard(QFrame):
             # Descrizione
             description = self.image_data.get('description', '')
             if description and len(description) > 0:  # ← FIX: Controlla che esista E non sia vuoto
-                lines.append("📝 DESCRIZIONE")
+                lines.append(t("widgets.tooltip.section_desc"))
                 # Wrappa descrizione a 45 caratteri
                 if len(description) <= 45:
                     lines.append(description)
@@ -850,7 +850,7 @@ class ImageCard(QFrame):
                     if current_line:
                         lines.append(current_line.strip())
         
-            self._cached_semantic_tooltip = "\n".join(lines) if lines else "📝 Nessun dato semantico disponibile"
+            self._cached_semantic_tooltip = "\n".join(lines) if lines else t("widgets.tooltip.no_semantic_data")
 
             return self._cached_semantic_tooltip
         
@@ -883,7 +883,7 @@ class ImageCard(QFrame):
             height = self.image_data.get('height')
             if width and height:
                 megapixels = (width * height) / 1000000
-                lines.append("📐 DIMENSIONI")
+                lines.append(t("widgets.tooltip.section_dims"))
                 lines.append(f"{width} × {height} px")
                 lines.append(f"📊 {megapixels:.1f} MP")
                 lines.append("")
@@ -947,7 +947,7 @@ class ImageCard(QFrame):
                             lines.append("")
                         
                     except Exception as e:
-                        lines.append(f"⚠️ Errore fallback EXIF: {e}")
+                        lines.append(t("widgets.tooltip.exif_fallback_error", error=str(e)))
                         lines.append("")
             
             # AI Scores
@@ -3623,7 +3623,7 @@ class CompleteExifDialog(QDialog):
             for i, item in enumerate(self.items):
                 if len(self.items) > 1:
                     all_text.append("=" * 80)
-                    all_text.append(f"ELEMENTO {i+1}/{len(self.items)}")
+                    all_text.append(t("widgets.exif.element_n", i=i+1, total=len(self.items)))
                     all_text.append("=" * 80)
                 
                 filename = item.image_data.get('filename', 'Unknown')
@@ -3635,13 +3635,13 @@ class CompleteExifDialog(QDialog):
                     try:
                         stat = item.filepath.stat()
                         size_mb = stat.st_size / (1024 * 1024)
-                        all_text.append(f"📁 INFORMAZIONI FILE:")
-                        all_text.append(f"  Percorso: {item.filepath}")
-                        all_text.append(f"  Dimensione: {size_mb:.2f} MB ({stat.st_size:,} bytes)")
-                        all_text.append(f"  Formato: {item.filepath.suffix.upper()}")
+                        all_text.append(t("widgets.exif.file_info"))
+                        all_text.append(f"  {t('widgets.exif.label_path')}: {item.filepath}")
+                        all_text.append(f"  {t('widgets.exif.label_size')}: {size_mb:.2f} MB ({stat.st_size:,} bytes)")
+                        all_text.append(f"  {t('widgets.exif.label_format')}: {item.filepath.suffix.upper()}")
                         all_text.append("")
                     except Exception as e:
-                        all_text.append(f"  Errore lettura file: {e}")
+                        all_text.append(t("widgets.exif.file_read_error", error=str(e)))
                         all_text.append("")
                 
                 # Dimensioni immagine da database
@@ -3649,13 +3649,13 @@ class CompleteExifDialog(QDialog):
                 height = item.image_data.get('height')
                 if width and height:
                     megapixels = (width * height) / 1000000
-                    all_text.append(f"📐 DIMENSIONI IMMAGINE:")
-                    all_text.append(f"  Risoluzione: {width} × {height} pixel")
-                    all_text.append(f"  Megapixel: {megapixels:.1f} MP")
+                    all_text.append(t("widgets.exif.section_dims"))
+                    all_text.append(f"  {t('widgets.exif.label_resolution')}: {width} × {height} pixel")
+                    all_text.append(f"  {t('widgets.exif.label_megapixels')}: {megapixels:.1f} MP")
                     all_text.append("")
                 
                 # PRIORITÀ: Campi DB strutturati
-                all_text.append(f"🏆 DATI PRINCIPALI (Database OffGallery):")
+                all_text.append(t("widgets.exif.section_main_data"))
                 
                 # Camera
                 camera_make = item.image_data.get('camera_make')
@@ -3664,7 +3664,7 @@ class CompleteExifDialog(QDialog):
                 if camera_make or camera_model:
                     all_text.append(f"  📷 Camera: {camera_make or 'N/A'} {camera_model or 'N/A'}")
                 if lens_model:
-                    all_text.append(f"  🔭 Obiettivo: {lens_model}")
+                    all_text.append(f"  🔭 {t('widgets.exif.label_lens')}: {lens_model}")
                 
                 # Impostazioni fotografiche
                 aperture = item.image_data.get('aperture')
@@ -3673,20 +3673,20 @@ class CompleteExifDialog(QDialog):
                 iso = item.image_data.get('iso')
                 
                 if any([aperture, focal_length, shutter_speed, iso]):
-                    all_text.append(f"  ⚙️ Impostazioni:")
+                    all_text.append(t("widgets.exif.settings"))
                     if aperture:
-                        all_text.append(f"    • Apertura: f/{aperture}")
+                        all_text.append(f"    • {t('widgets.exif.label_aperture')}: f/{aperture}")
                     if focal_length:
-                        all_text.append(f"    • Focale: {focal_length}mm")
+                        all_text.append(f"    • {t('widgets.exif.label_focal')}: {focal_length}mm")
                     if shutter_speed:
-                        all_text.append(f"    • Tempi: {shutter_speed}")
+                        all_text.append(f"    • {t('widgets.exif.label_shutter')}: {shutter_speed}")
                     if iso:
                         all_text.append(f"    • ISO: {iso}")
                 
                 # Date e GPS se presenti
                 datetime_original = item.image_data.get('datetime_original')
                 if datetime_original:
-                    all_text.append(f"  📅 Scatto: {datetime_original}")
+                    all_text.append(f"  📅 {t('widgets.exif.label_capture_date')}: {datetime_original}")
                 
                 gps_lat = item.image_data.get('gps_latitude')
                 gps_lon = item.image_data.get('gps_longitude')
@@ -3754,20 +3754,20 @@ class CompleteExifDialog(QDialog):
                         import json
                         exif_data = json.loads(exif_json_str)
                         
-                        all_text.append(f"📊 METADATI EXIF COMPLETI:")
-                        all_text.append(f"  Totale campi: {len(exif_data)}")
+                        all_text.append(t("widgets.exif.section_full_exif"))
+                        all_text.append(t("widgets.exif.total_fields", n=len(exif_data)))
                         all_text.append("")
-                        
+
                         # Raggruppa dati per categoria
                         categories = {
-                            'Camera/Obiettivo': ['EXIF:Make', 'EXIF:Model', 'EXIF:LensModel', 'EXIF:LensInfo', 'EXIF:SerialNumber', 'EXIF:Software'],
-                            'Impostazioni': ['EXIF:FNumber', 'EXIF:FocalLength', 'EXIF:ExposureTime', 'EXIF:ShutterSpeed', 'EXIF:ISO', 
+                            t('widgets.exif.cat_camera'): ['EXIF:Make', 'EXIF:Model', 'EXIF:LensModel', 'EXIF:LensInfo', 'EXIF:SerialNumber', 'EXIF:Software'],
+                            t('widgets.exif.cat_settings'): ['EXIF:FNumber', 'EXIF:FocalLength', 'EXIF:ExposureTime', 'EXIF:ShutterSpeed', 'EXIF:ISO',
                                            'EXIF:ExposureProgram', 'EXIF:MeteringMode', 'EXIF:Flash', 'EXIF:WhiteBalance'],
-                            'Date/Ora': ['EXIF:DateTimeOriginal', 'EXIF:CreateDate', 'EXIF:ModifyDate', 'File:FileCreateDate', 'File:FileModifyDate'],
-                            'Colore/Qualità': ['EXIF:ColorSpace', 'EXIF:WhiteBalance', 'EXIF:ExposureCompensation', 'EXIF:Saturation', 
+                            t('widgets.exif.cat_datetime'): ['EXIF:DateTimeOriginal', 'EXIF:CreateDate', 'EXIF:ModifyDate', 'File:FileCreateDate', 'File:FileModifyDate'],
+                            t('widgets.exif.cat_color'): ['EXIF:ColorSpace', 'EXIF:WhiteBalance', 'EXIF:ExposureCompensation', 'EXIF:Saturation',
                                              'EXIF:Contrast', 'EXIF:Sharpness', 'EXIF:Quality'],
                             'GPS': ['GPS:GPSLatitude', 'GPS:GPSLongitude', 'GPS:GPSAltitude', 'GPS:GPSDateStamp', 'GPS:GPSTimeStamp'],
-                            'Tecnici': ['EXIF:ExifImageWidth', 'EXIF:ExifImageHeight', 'EXIF:Orientation', 'EXIF:ResolutionUnit', 
+                            t('widgets.exif.cat_technical'): ['EXIF:ExifImageWidth', 'EXIF:ExifImageHeight', 'EXIF:Orientation', 'EXIF:ResolutionUnit',
                                        'EXIF:XResolution', 'EXIF:YResolution', 'EXIF:BitsPerSample', 'EXIF:Compression']
                         }
                         
@@ -3795,15 +3795,15 @@ class CompleteExifDialog(QDialog):
                                 other_fields.append(f"    {key}: {value}")
                         
                         if other_fields:
-                            all_text.append("  📂 ALTRI CAMPI:")
+                            all_text.append(t("widgets.exif.other_fields"))
                             all_text.extend(other_fields)
                             all_text.append("")
-                            
+
                     except Exception as e:
-                        all_text.append(f"  ❌ Errore parsing EXIF: {e}")
+                        all_text.append(t("widgets.exif.parse_error", error=str(e)))
                         all_text.append("")
                 else:
-                    all_text.append("  ⚠️ Nessun dato EXIF disponibile")
+                    all_text.append(t("widgets.exif.no_data"))
                     all_text.append("")
                 
                 # AI Scores se presenti
@@ -3836,7 +3836,7 @@ class CompleteExifDialog(QDialog):
             self.exif_text.setPlainText("\n".join(all_text))
             
         except Exception as e:
-            self.exif_text.setPlainText(f"Errore caricamento dati EXIF: {e}")
+            self.exif_text.setPlainText(t("widgets.exif.load_error", error=str(e)))
     
     def _copy_to_clipboard(self):
         """Copia tutti i dati EXIF negli appunti"""
