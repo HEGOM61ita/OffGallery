@@ -1,5 +1,9 @@
 
 <p align="center">
+  <a href="#italiano">🇮🇹 Italiano</a> &nbsp;|&nbsp; <a href="#english">🇬🇧 English</a>
+</p>
+
+<p align="center">
   <img src="assets/logo3.jpg" alt="OffGallery Logo" width="200"/>
 </p>
 
@@ -23,6 +27,8 @@
 <p align="center">
   <em>Analisi semantica ed estetica delle tue foto con AI locale. Zero cloud. Zero compromessi.</em>
 </p>
+
+<a id="italiano"></a>
 
 ---
 
@@ -124,7 +130,7 @@ Tutti i componenti girano localmente, completamente offline:
 
 ### Analisi Immagini
 
-- **Embedding CLIP**: 512 dimensioni per ricerca semantica
+- **Embedding CLIP**: 768 dimensioni per ricerca semantica
 - **Embedding DINOv2**: 768 dimensioni per similarità visiva
 - **Tassonomia BioCLIP**: Classificazione automatica specie con 7 livelli tassonomici (campo dedicato, separato dai tag)
 - **Gerarchia geografica**: Da coordinate GPS a `GeOFF|Europe|Italy|Sardegna|Città` — offline, dati GeoNames bundled, contestualizza anche i testi LLM
@@ -401,5 +407,259 @@ Distribuito sotto licenza **AGPL-3.0**. Vedi `LICENSE` per maggiori informazioni
 </p>
 
 <p align="center">
-  <a href="#offgallery">Torna su</a>
+  <a href="#offgallery">Torna su</a> &nbsp;|&nbsp; <a href="#english">🇬🇧 English version below</a>
+</p>
+
+---
+
+<a id="english"></a>
+
+<p align="center">
+  <img src="assets/logo3.jpg" alt="OffGallery Logo" width="200"/>
+</p>
+
+<h1 align="center">OffGallery</h1>
+
+<p align="center">
+  <strong>Intelligent AI photo cataloging for photographers who care about their privacy</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.12.9-blue?logo=python" alt="Python"/>
+  <img src="https://img.shields.io/badge/PyTorch-2.7.1-red?logo=pytorch" alt="PyTorch"/>
+  <img src="https://img.shields.io/badge/CUDA-11.8-green?logo=nvidia" alt="CUDA"/>
+  <img src="https://img.shields.io/badge/License-AGPLV3-yellow" alt="License"/>
+  <img src="https://img.shields.io/badge/100%25-Offline-brightgreen" alt="Offline"/>
+  <img src="https://img.shields.io/badge/Windows-10%2F11-blue?logo=windows" alt="Windows"/>
+  <img src="https://img.shields.io/badge/Linux-Ubuntu%20|%20Fedora%20|%20Arch-orange?logo=linux" alt="Linux"/>
+  <img src="https://img.shields.io/badge/macOS-12%2B-lightgrey?logo=apple" alt="macOS"/>
+</p>
+
+<p align="center">
+  <em>Semantic and aesthetic analysis of your photos with local AI. Zero cloud. Zero compromises.</em>
+</p>
+
+---
+
+> [!NOTE]
+> **🌍 Full Multilingual Support**
+>
+> OffGallery supports 6 languages (**IT, EN, FR, DE, ES, PT**) independently at every level:
+>
+> - **GUI language**: select your language in Configuration → Interface Language
+> - **LLM output language** (tags, descriptions, titles): choose independently from the GUI language. Tags are generated and stored in the configured language
+> - **CLIP semantic search**: always runs in English internally (maximum accuracy) with automatic transparent query translation
+> - **Tag/keyword search**: query is automatically translated to the tag language (same as `llm_output_language`) before matching, ensuring correct results even with tags in French, German, etc.
+>
+> All translations use **Argostranslate** — completely offline. Translation packages are downloaded on first use; the Log panel notifies you of their status.
+
+---
+
+## What is OffGallery?
+
+A photographer's tool to catalog thousands of RAW images without sending them to any cloud service. Search your photos with natural language ("sunset over mountains") while keeping everything on your own machine.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **100% Offline** | No data ever leaves your computer. All AI models run locally |
+| **Multilingual** | GUI, LLM output and tag search are independent: 6 languages (IT, EN, FR, DE, ES, PT). Tags and descriptions in any language, different from the UI language if you prefer |
+| **Powerful Search** | Natural language semantic search + tag/EXIF/score filters; automatic query translation for CLIP (EN) and tag matching (content language); save and recall favorite searches in one click |
+| **Native RAW Support** | 25+ RAW formats (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF…) |
+| **Visual Similarity** | One click to find similar images or near-duplicates |
+| **Lightroom Catalog Import** | Process files directly from a `.lrcat` catalog — read-only, no catalog modification |
+| **Lightroom Integration** | Bidirectional XMP sync: ratings, tags, metadata. No proprietary data is modified |
+| **Aesthetic Scoring** | Automatic artistic quality score (0–10) |
+| **Species Identification** | BioCLIP2 recognizes ~450,000 species with full 7-level taxonomy |
+| **Offline Geotagging** | Automatic geographic hierarchy from GPS: continent, country, region, city — no external API, bundled GeoNames data |
+| **Statistics** | Camera, dates, metadata, gear, exposure, ratings and more |
+
+---
+
+## AI Engines
+
+All components run locally, completely offline:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        OFFGALLERY                               │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
+│  │   CLIP   │  │  DINOv2  │  │ BioCLIP  │  │ LLM Vision       │ │
+│  │ Semantic │  │  Visual  │  │  Flora   │  │ (Qwen3.5/Ollama) │ │
+│  │  Search  │  │Similarity│  │  Fauna   │  │ Tags & Captions  │ │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ │
+│  ┌──────────────────────┐  ┌────────────────────────────────┐   │
+│  │  Aesthetic Predictor │  │  MUSIQ (Technical Quality)     │   │
+│  │  Artistic score 0-10 │  │  Sharpness / noise analysis    │   │
+│  └──────────────────────┘  └────────────────────────────────┘   │
+│  ┌──────────────────────────┐  ┌──────────────────────────┐   │
+│  │  Argos Translate         │  │  Reverse Geocoding       │   │
+│  │  EN query + tag language │  │  GPS → Country/Region/City│   │
+│  └──────────────────────────┘  └──────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## System Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| **RAM** | 8 GB | 16 GB |
+| **Disk** | 14 GB (CPU) / 18 GB (NVIDIA GPU) | 20 GB |
+| **GPU** | — | NVIDIA with CUDA |
+| **OS** | Windows 10/11, Linux 64-bit or macOS 12+ | Windows 11 / Ubuntu 22.04+ / macOS 13+ |
+
+> **Notes**:
+> - NVIDIA GPU recommended for best performance. CPU-only works but is slower
+> - **Disk space**: Python environment ~3.5 GB without GPU, ~7 GB with NVIDIA (PyTorch CUDA + runtime). AI models ~6.7 GB regardless of GPU
+> - Internet required only on first launch to download AI models (~6.7 GB); fully offline afterwards
+> - **macOS**: Apple Silicon (M1/M2/M3/M4) and Intel supported. PyTorch uses Metal/MPS on Apple Silicon — no CUDA needed
+
+---
+
+## Installation
+
+### 1. Download OffGallery
+
+**Option A — Download ZIP (recommended):**
+1. Click the green **"<> Code"** button at the top right
+2. Select **"Download ZIP"**
+3. Extract to the **parent folder** where you want OffGallery to live
+
+> **Extraction note:** the ZIP already contains an `OffGallery-main` folder — that folder **is** the app root.
+> Extract to e.g. `C:\Programs\` → you get `C:\Programs\OffGallery-main\`, which you can rename freely.
+
+**Option B — Git clone:**
+```bash
+git clone https://github.com/HEGOM61ita/OffGallery.git
+```
+
+### 2. Install with the Wizard
+
+#### Windows
+1. Open the `installer` folder
+2. **Double-click** **`INSTALLA_OffGallery.bat`**
+3. Follow the on-screen instructions
+
+#### Linux
+```bash
+bash installer/install_offgallery.sh
+```
+
+#### macOS
+```bash
+bash installer/install_offgallery_mac.sh
+```
+
+> **Apple Silicon (M1/M2/M3/M4)**: PyTorch automatically uses Metal/MPS for GPU acceleration — no extra configuration needed.
+
+The wizard installs everything automatically: Miniconda, Python environment, libraries, ExifTool and optionally Ollama for AI descriptions. On completion it creates a launcher shortcut (Desktop `.lnk` on Windows, application menu entry on Linux, `OffGallery.app` in `~/Applications` on macOS).
+
+> **Estimated time**: 20–40 minutes. On first launch OffGallery downloads AI models (~6.7 GB). All subsequent launches are fully offline.
+
+### Manual installation
+
+**Linux:**
+1. Install [Miniconda](https://docs.anaconda.com/miniconda/install/) for Linux
+2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
+3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
+4. Install ExifTool: `sudo apt install libimage-exiftool-perl` (Ubuntu/Debian) or equivalent
+5. (Optional) Install [Ollama](https://ollama.com/download) and `ollama pull qwen3.5:4b-q4_K_M`
+
+**macOS:**
+1. Install [Miniconda](https://docs.anaconda.com/miniconda/install/) for macOS (arm64 for Apple Silicon, x86_64 for Intel)
+2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
+3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
+4. Install ExifTool: `brew install exiftool`
+5. (Optional) Install [Ollama](https://ollama.com/download) and `ollama pull qwen3.5:4b-q4_K_M`
+
+For a full step-by-step guide see **[installer/INSTALL_GUIDE.md](installer/INSTALL_GUIDE.md)**.
+
+---
+
+## Usage
+
+### GUI Overview
+
+| Tab | Function |
+|-----|----------|
+| **Processing** | Run all AI models on a folder or Lightroom `.lrcat` catalog |
+| **Search** | Semantic query + advanced filters |
+| **Gallery** | Browse results with badges, preview and smart sorting |
+| **Statistics** | Database analysis and shooting patterns |
+| **Export** | XMP export, CSV and file copy preserving original folder structure |
+| **Configuration** | Model settings, parameters, external editors |
+| **Log** | Real-time processing monitor |
+
+### Typical Workflow
+
+1. **Import**: Choose a folder or select a Lightroom `.lrcat` catalog directly, then start processing
+2. **Search**: Use the Search tab to find photos with natural language ("backlit portrait")
+3. **Browse**: Select, edit and manage results from the Gallery
+4. **Export**: Sync tags back to Lightroom/other tools via XMP, or copy files with original structure to a backup drive
+
+---
+
+## Supported Formats
+
+**Standard:** `JPG` `JPEG` `PNG` `TIFF` `TIF` `WEBP` `BMP`
+
+**RAW:**
+
+| Manufacturer | Formats |
+|-------------|---------|
+| **Canon** | CR2, CR3, CRW |
+| **Nikon** | NEF, NRW |
+| **Sony** | ARW, SRF, SR2 |
+| **Fujifilm** | RAF |
+| **Panasonic** | RW2 |
+| **Olympus/OM** | ORF |
+| **Pentax** | PEF, DNG |
+| **Leica** | DNG, RWL |
+| **Adobe** | DNG |
+| **Others** | 3FR, IIQ, X3F |
+
+---
+
+## Privacy & Security
+
+OffGallery is built with privacy as a core principle:
+
+- **Zero telemetry**: No data is collected or transmitted
+- **Offline after first launch**: AI models are downloaded from a frozen HuggingFace repository on first launch. After that the app runs completely offline
+- **Frozen repository**: Models are hosted on a controlled repository (`HEGOM/OffGallery-models`) to guarantee version stability and compatibility
+- **Local storage**: SQLite database + binary embeddings on your disk
+- **No API keys**: No accounts or subscriptions required
+
+---
+
+## License
+
+Distributed under the **AGPL-3.0** license. See `LICENSE` for details.
+
+- **[TRADEMARK.md](TRADEMARK.md)** — Trademark information
+- **[THIRD_PARTY.md](THIRD_PARTY.md)** — Third-party software licenses and attributions
+
+---
+
+## Acknowledgements
+
+- [OpenAI CLIP](https://github.com/openai/CLIP) — Semantic search
+- [Meta DINOv2](https://github.com/facebookresearch/dinov2) — Visual embeddings
+- [BioCLIP](https://github.com/Imageomics/bioclip) — Flora/fauna classification
+- [Ollama](https://ollama.com) — Local LLMs
+- [ExifTool](https://exiftool.org/) — EXIF/XMP metadata
+- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) — UI framework
+
+---
+
+<p align="center">
+  <strong>Built with passion for photographers who value their privacy</strong>
+</p>
+
+<p align="center">
+  <a href="#offgallery">Back to top</a> &nbsp;|&nbsp; <a href="#italiano">🇮🇹 Versione italiana</a>
 </p>
