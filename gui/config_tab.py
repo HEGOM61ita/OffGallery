@@ -675,21 +675,6 @@ class ConfigTab(QWidget):
         self.llm_vision_timeout.setSingleStep(30)
         conn_layout.addWidget(self.llm_vision_timeout, 2, 1)
 
-        # Lingua output LLM
-        conn_layout.addWidget(QLabel(t("config.label.llm_output_lang")), 3, 0)
-        self.llm_output_lang_combo = QComboBox()
-        for code, label in [
-            ("it", "🇮🇹 Italiano"),
-            ("en", "🇬🇧 English"),
-            ("fr", "🇫🇷 Français"),
-            ("de", "🇩🇪 Deutsch"),
-            ("es", "🇪🇸 Español"),
-            ("pt", "🇵🇹 Português"),
-        ]:
-            self.llm_output_lang_combo.addItem(label, code)
-        self.llm_output_lang_combo.setToolTip(t("config.tooltip.llm_output_lang"))
-        conn_layout.addWidget(self.llm_output_lang_combo, 3, 1)
-
         layout.addLayout(conn_layout)
 
         # --- SEZIONE PARAMETRI LLM AVANZATI ---
@@ -746,8 +731,24 @@ class ConfigTab(QWidget):
         self.llm_keep_alive.setToolTip(t("config.tooltip.keep_alive"))
         adv_layout.addWidget(self.llm_keep_alive, 1, 4, 1, 2)
 
+        # Lingua output LLM — in questo riquadro perché è un parametro di generazione,
+        # non una impostazione di connessione
+        adv_layout.addWidget(QLabel(t("config.label.llm_output_lang")), 2, 0)
+        self.llm_output_lang_combo = QComboBox()
+        for code, label in [
+            ("it", "🇮🇹 Italiano"),
+            ("en", "🇬🇧 English"),
+            ("fr", "🇫🇷 Français"),
+            ("de", "🇩🇪 Deutsch"),
+            ("es", "🇪🇸 Español"),
+            ("pt", "🇵🇹 Português"),
+        ]:
+            self.llm_output_lang_combo.addItem(label, code)
+        self.llm_output_lang_combo.setToolTip(t("config.tooltip.llm_output_lang"))
+        adv_layout.addWidget(self.llm_output_lang_combo, 2, 1, 1, 2)
+
         adv_group.setLayout(adv_layout)
-        adv_group.toggled.connect(lambda checked: [w.setVisible(checked) for w in [self.llm_temperature, self.llm_top_k, self.llm_top_p, self.llm_num_ctx, self.llm_num_batch, self.llm_keep_alive]])
+        adv_group.toggled.connect(lambda checked: [w.setVisible(checked) for w in [self.llm_temperature, self.llm_top_k, self.llm_top_p, self.llm_num_ctx, self.llm_num_batch, self.llm_keep_alive, self.llm_output_lang_combo]])
         layout.addWidget(adv_group)
 
         group_box.setLayout(layout)
