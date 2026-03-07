@@ -871,9 +871,9 @@ class ImageCard(QFrame):
                 try:
                     size_mb = self.filepath.stat().st_size / (1024 * 1024)
                     lines.append("📄 FILE")
-                    lines.append(f"Nome: {self.filepath.name}")
-                    lines.append(f"Formato: {self.filepath.suffix.upper().lstrip('.')}")
-                    lines.append(f"Peso: {size_mb:.2f} MB")
+                    lines.append(f"{t('widgets.tooltip.label_name')} {self.filepath.name}")
+                    lines.append(f"{t('widgets.tooltip.label_format')} {self.filepath.suffix.upper().lstrip('.')}")
+                    lines.append(f"{t('widgets.tooltip.label_size')} {size_mb:.2f} MB")
                     lines.append("")
                 except Exception:
                     pass
@@ -926,7 +926,7 @@ class ImageCard(QFrame):
                 settings.append(f"ISO {iso}")
             
             if settings:
-                lines.append("⚙️ IMPOSTAZIONI")
+                lines.append(t("widgets.tooltip.settings_header"))
                 lines.append(" | ".join(settings))
                 lines.append("")
             
@@ -941,7 +941,7 @@ class ImageCard(QFrame):
                         make = exif_data.get('EXIF:Make')
                         model = exif_data.get('EXIF:Model')
                         if make or model:
-                            lines.append("📸 CAMERA (da EXIF)")
+                            lines.append(t("widgets.tooltip.camera_from_exif"))
                             camera_str = f"{make or ''} {model or ''}".strip()
                             lines.append(f"📷 {camera_str}")
                             lines.append("")
@@ -970,11 +970,11 @@ class ImageCard(QFrame):
                 lines.append("📊 AI SCORES")
                 lines.extend(scores)
             
-            return "\n".join(lines) if lines else "❌ Nessun dato tecnico disponibile"
-            
+            return "\n".join(lines) if lines else t("widgets.tooltip.no_tech_data")
+
         except Exception as e:
             print(f"Errore _build_technical_tooltip: {e}")
-            return "❌ Errore caricamento dati tecnici"
+            return t("widgets.tooltip.tech_data_error")
     
     # ═══════════════════════════════════════════════════════════════
     #                         EVENT HANDLERS
@@ -1384,8 +1384,8 @@ class ImageCard(QFrame):
                 }
                 QMessageBox.warning(
                     self, t("widgets.msg.file_unreachable_title"),
-                    f"{messages.get(status, 'Errore sconosciuto')}\n\n"
-                    f"Percorso completo:\n{self.filepath}"
+                    f"{messages.get(status, 'Errore sconosciuto')}\n\n" +
+                    t("widgets.msg.full_path", path=self.filepath)
                 )
 
         except Exception as e:
@@ -1434,7 +1434,7 @@ class ImageCard(QFrame):
                 QMessageBox.critical(
                     self,
                     t("widgets.msg.editor_open_error_title"),
-                    f"Impossibile avviare {editor['name']}:\n{str(e)}"
+                    t("widgets.msg.editor_launch_error", name=editor['name'], error=str(e))
                 )
                 
         except Exception as e:
@@ -1882,7 +1882,7 @@ class ImageCard(QFrame):
 
         except Exception as e:
             print(f"Errore _delete_from_database: {e}")
-            QMessageBox.critical(self, t("widgets.msg.delete_critical_title"), f"Errore durante l'eliminazione: {e}")
+            QMessageBox.critical(self, t("widgets.msg.delete_critical_title"), t("widgets.msg.delete_error", error=str(e)))
 
     def _run_bioclip_and_refresh(self, items):
         """Esegui BioCLIP con refresh automatico"""
@@ -2014,7 +2014,7 @@ class ImageCard(QFrame):
         Per i RAW (non DNG) l'embedded non viene considerato — solo il sidecar conta."""
         try:
             if not XMP_SUPPORT_AVAILABLE:
-                self._show_xmp_dialog("❌ Errore", "XMP Manager non disponibile")
+                self._show_xmp_dialog("❌ Errore", t("widgets.xmp.no_xmp_manager"))
                 return
 
             from xmp_manager_extended import XMPManagerExtended
@@ -2029,7 +2029,7 @@ class ImageCard(QFrame):
 
                 filepath = item.filepath
                 if not filepath.exists():
-                    results.append(f"❌ {filepath.name}: File non trovato")
+                    results.append(f"❌ {filepath.name}: {t('widgets.xmp.file_not_found')}")
                     continue
 
                 # Categoria formato: determina se l'embedded è rilevante
@@ -2162,19 +2162,17 @@ class ImageCard(QFrame):
             # Mostra risultati in dialog
             if results:
                 dialog_text = "\n" + ("="*50 + "\n\n").join(results)
-                dialog_text += f"\n{'='*50}\nLEGENDA:\n"
-                dialog_text += "> Solo DB | < Solo Sidecar | ◀ Solo Embedded\n"
-                dialog_text += "✅ Sincronizzato | ⚠️ Discrepanza"
+                dialog_text += f"\n{'='*50}\n{t('widgets.xmp.legend')}"
             else:
-                dialog_text = "Nessun file da analizzare"
+                dialog_text = t("widgets.xmp.no_file")
 
-            self._show_xmp_dialog("📋 Analisi XMP vs Database (3-way)", dialog_text)
+            self._show_xmp_dialog(t("widgets.xmp.analysis_title"), dialog_text)
                 
         except Exception as e:
             print(f"Errore analisi XMP: {e}")
             import traceback
             traceback.print_exc()
-            self._show_xmp_dialog("❌ Errore", f"Errore durante analisi XMP:\n{str(e)}")
+            self._show_xmp_dialog("❌ Errore", t("widgets.xmp.analysis_error", error=str(e)))
     
     def _import_from_xmp_with_refresh(self, items):
         """Sincronizza XMP/Embedded → DB: titolo, descrizione, tag, stelle, colore."""
@@ -2188,17 +2186,14 @@ class ImageCard(QFrame):
             self._importing_xmp = True  # Flag per prevenire chiamate multiple
 
             if not XMP_SUPPORT_AVAILABLE:
-                self._show_xmp_dialog("❌ Errore", "XMP Manager non disponibile")
+                self._show_xmp_dialog("❌ Errore", t("widgets.xmp.no_xmp_manager"))
                 return
 
             # Conferma utente
             reply = QMessageBox.question(
                 self,
-                "📥 Sincronizzazione XMP → DB",
-                f"Sincronizzare XMP → DB per {len(items)} elementi?\n\n"
-                "Il file XMP/embedded è la fonte di verità.\n"
-                "Verranno aggiornati nel DB: titolo, descrizione, tag, stelle (rating), colore.\n\n"
-                "⚠️ I valori attuali nel database saranno sostituiti con quelli letti dal file.",
+                t("widgets.xmp.import_confirm_title"),
+                t("widgets.xmp.import_confirm", n=len(items)),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             
@@ -2208,7 +2203,7 @@ class ImageCard(QFrame):
             # Check database availability
             db_manager = self._get_database_manager()
             if not db_manager:
-                self._show_xmp_dialog("❌ Errore", "DatabaseManager non disponibile - operazione annullata")
+                self._show_xmp_dialog("❌ Errore", t("widgets.xmp.no_db_manager"))
                 return
             
             success_count = 0
@@ -2422,18 +2417,18 @@ class ImageCard(QFrame):
                 self._refresh_after_database_operation(updated_items, "xmp_import")
             
             # Report risultati
-            result_msg = f"Sincronizzazione XMP → DB completata!\n\n"
-            result_msg += f"✅ Aggiornati: {success_count}\n"
+            result_msg = t("widgets.xmp.import_done")
+            result_msg += t("widgets.xmp.import_updated", n=success_count)
             if no_xmp_count > 0:
-                result_msg += f"⚠️ Senza dati XMP: {no_xmp_count}\n"
+                result_msg += t("widgets.xmp.import_no_xmp", n=no_xmp_count)
             if error_count > 0:
-                result_msg += f"❌ Errori: {error_count}\n"
+                result_msg += t("widgets.xmp.import_errors", n=error_count)
 
-            self._show_xmp_dialog("📋 Sincronizzazione completata", result_msg)
-                
+            self._show_xmp_dialog(t("widgets.xmp.import_done_title"), result_msg)
+
         except Exception as e:
             logger.error(f"Errore globale sincronizzazione XMP → DB: {e}", exc_info=True)
-            self._show_xmp_dialog("❌ Errore", f"Errore durante sincronizzazione XMP → DB:\n{str(e)}")
+            self._show_xmp_dialog("❌ Errore", t("widgets.xmp.import_error", error=str(e)))
         finally:
             # Rimuovi flag anche in caso di errore
             if hasattr(self, '_importing_xmp'):
@@ -2451,19 +2446,14 @@ class ImageCard(QFrame):
             self._exporting_xmp = True  # Flag per prevenire chiamate multiple
 
             if not XMP_SUPPORT_AVAILABLE:
-                self._show_xmp_dialog("❌ Errore", "XMP Manager non disponibile")
+                self._show_xmp_dialog("❌ Errore", t("widgets.xmp.no_xmp_manager"))
                 return
 
             # Conferma utente
             reply = QMessageBox.question(
                 self,
-                "📤 Sincronizzazione DB → XMP",
-                f"Sincronizzare DB → XMP per {len(items)} elementi?\n\n"
-                "Il database OffGallery è la fonte di verità.\n"
-                "Verranno scritti nel file XMP/embedded: titolo, descrizione,\n"
-                "tag, tassonomia BioCLIP, stelle (rating), colore.\n\n"
-                "🛡️ I namespace non gestiti da OffGallery (crs:, xmpMM:, photoshop:, ecc.)\n"
-                "   rimangono intatti nel file.",
+                t("widgets.xmp.export_confirm_title"),
+                t("widgets.xmp.export_confirm", n=len(items)),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
 
@@ -2476,7 +2466,7 @@ class ImageCard(QFrame):
                 from xmp_manager_extended import XMPManagerExtended
                 xmp_manager = XMPManagerExtended()
             except Exception as e:
-                self._show_xmp_dialog("❌ Errore", f"XMP Manager non disponibile: {e}")
+                self._show_xmp_dialog("❌ Errore", t("widgets.xmp.no_xmp_manager_detail", error=str(e)))
                 return
 
             success_count = 0
@@ -2588,18 +2578,18 @@ class ImageCard(QFrame):
                 self._refresh_after_database_operation(updated_items, "xmp_export")
 
             # Report risultati
-            result_msg = "Sincronizzazione DB → XMP completata!\n\n"
-            result_msg += f"✅ Sincronizzati: {success_count}\n"
+            result_msg = t("widgets.xmp.export_done")
+            result_msg += t("widgets.xmp.export_synced", n=success_count)
             if skipped_count > 0:
-                result_msg += f"⚠️ Saltati (nessun dato nel DB): {skipped_count}\n"
+                result_msg += t("widgets.xmp.export_skipped", n=skipped_count)
             if error_count > 0:
-                result_msg += f"❌ Errori: {error_count}\n"
+                result_msg += t("widgets.xmp.export_errors", n=error_count)
 
-            self._show_xmp_dialog("📋 Sincronizzazione completata", result_msg)
+            self._show_xmp_dialog(t("widgets.xmp.export_done_title"), result_msg)
 
         except Exception as e:
             logger.error(f"Errore globale sincronizzazione DB → XMP: {e}", exc_info=True)
-            self._show_xmp_dialog("❌ Errore", f"Errore durante sincronizzazione DB → XMP:\n{str(e)}")
+            self._show_xmp_dialog("❌ Errore", t("widgets.xmp.export_error", error=str(e)))
         finally:
             # Rimuovi flag anche in caso di errore
             if hasattr(self, '_exporting_xmp'):
@@ -2609,17 +2599,17 @@ class ImageCard(QFrame):
         """Visualizza contenuto XMP dettagliato"""
         try:
             if len(items) != 1:
-                self._show_xmp_dialog("ℹ️ Info", "Seleziona un solo elemento per visualizzare contenuto XMP")
+                self._show_xmp_dialog("ℹ️ Info", t("widgets.xmp.single_only"))
                 return
                 
             item = items[0]
             if not hasattr(item, 'filepath') or not item.filepath:
-                self._show_xmp_dialog("❌ Errore", "Percorso file non disponibile")
+                self._show_xmp_dialog("❌ Errore", t("widgets.xmp.no_path"))
                 return
                 
             filepath = item.filepath
             if not filepath.exists():
-                self._show_xmp_dialog("❌ Errore", f"File non trovato: {filepath.name}")
+                self._show_xmp_dialog("❌ Errore", t("widgets.xmp.file_not_found", name=filepath.name))
                 return
             
             from xmp_manager_extended import XMPManagerExtended
@@ -2729,33 +2719,33 @@ class ImageCard(QFrame):
             
             # Report risultati
             if success_count > 0 or error_count > 0:
-                result_msg = f"Import XMP completato!\n\n"
-                result_msg += f"✅ Aggiornati: {success_count}\n"
+                result_msg = t("widgets.xmp.import_done")
+                result_msg += t("widgets.xmp.import_updated", n=success_count)
                 if error_count > 0:
-                    result_msg += f"❌ Errori: {error_count}\n"
-                self._show_xmp_dialog("📋 Import Completato", result_msg)
+                    result_msg += t("widgets.xmp.import_errors", n=error_count)
+                self._show_xmp_dialog(t("widgets.xmp.import_done_title"), result_msg)
             else:
-                self._show_xmp_dialog("ℹ️ Import XMP", "Nessun file da aggiornare trovato")
+                self._show_xmp_dialog("ℹ️ Import XMP", t("widgets.xmp.import_nothing"))
                 
         except Exception as e:
             print(f"Errore import XMP: {e}")
-            self._show_xmp_dialog("❌ Errore", f"Errore durante import XMP:\n{str(e)}")
+            self._show_xmp_dialog("❌ Errore", t("widgets.xmp.import_error", error=str(e)))
     
     def _show_xmp_content(self, items):
         """Visualizza contenuto XMP dettagliato"""
         try:
             if len(items) != 1:
-                self._show_xmp_dialog("ℹ️ Info", "Seleziona un solo elemento per visualizzare contenuto XMP")
+                self._show_xmp_dialog("ℹ️ Info", t("widgets.xmp.single_only"))
                 return
                 
             item = items[0]
             if not hasattr(item, 'filepath') or not item.filepath:
-                self._show_xmp_dialog("❌ Errore", "Percorso file non disponibile")
+                self._show_xmp_dialog("❌ Errore", t("widgets.xmp.no_path"))
                 return
                 
             filepath = item.filepath
             if not filepath.exists():
-                self._show_xmp_dialog("❌ Errore", f"File non trovato: {filepath.name}")
+                self._show_xmp_dialog("❌ Errore", t("widgets.xmp.file_not_found", name=filepath.name))
                 return
             
             # Determina sorgente XMP (priorità: sidecar > embedded)
@@ -2774,14 +2764,14 @@ class ImageCard(QFrame):
                     source_type = "Embedded XMP"
             
             if not xmp_source:
-                self._show_xmp_dialog("📋 XMP Content", f"📂 File: {filepath.name}\n\n❌ Nessun XMP disponibile\n\nFormato: {filepath.suffix.upper()}\nXMP embedded: Non supportato\nXMP sidecar: Non trovato")
+                self._show_xmp_dialog("📋 XMP Content", t("widgets.xmp.no_xmp_available", name=filepath.name, fmt=filepath.suffix.upper()))
                 return
-            
+
             # Leggi XMP con ExifTool
             xmp_data = self._read_xmp_with_exiftool(xmp_source)
-            
+
             if not xmp_data:
-                self._show_xmp_dialog("📋 XMP Content", f"📂 File: {filepath.name}\nSource: {source_type}\n\n⚠️ XMP presente ma vuoto o non leggibile")
+                self._show_xmp_dialog("📋 XMP Content", t("widgets.xmp.xmp_empty_or_unreadable", name=filepath.name, source=source_type))
                 return
             
             # Format output user-friendly
@@ -2863,13 +2853,13 @@ class ImageCard(QFrame):
                     pass
             
             if not any([keywords, title, description, rating]):
-                dialog_text += "ℹ️ XMP presente ma nessun metadata descrittivo trovato"
+                dialog_text += t("widgets.xmp.xmp_empty")
             
             self._show_xmp_dialog("📋 XMP Content", dialog_text)
             
         except Exception as e:
             print(f"Errore visualizzazione XMP: {e}")
-            self._show_xmp_dialog("❌ Errore", f"Errore durante lettura XMP:\n{str(e)}")
+            self._show_xmp_dialog("❌ Errore", t("widgets.xmp.read_error", error=str(e)))
     
     def _read_xmp_with_exiftool(self, xmp_source):
         """Legge metadati XMP usando ExifTool"""
@@ -4016,10 +4006,10 @@ class LLMTagDialog(QDialog):
             XMPSyncState.EMBEDDED_ONLY: t("widgets.tooltip.xmp_embedded_only"),
             XMPSyncState.SIDECAR_ONLY: t("widgets.tooltip.xmp_sidecar_only"),
             XMPSyncState.NO_XMP: t("widgets.tooltip.xmp_no_xmp"),
-            XMPSyncState.ERROR: f"Errore: {info.get('error', 'Lettura XMP fallita')}"
+            XMPSyncState.ERROR: t("widgets.xmp.xmp_error_state", error=info.get('error', ''))
         }
-    
-        tooltip = base_tooltips.get(sync_state, f"Stato XMP sconosciuto ({sync_state})")
+
+        tooltip = base_tooltips.get(sync_state, t("widgets.xmp.xmp_unknown_state", state=sync_state))
     
         # Aggiunge dettagli tecnici per il debug visivo
         details = []

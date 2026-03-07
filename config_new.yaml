@@ -228,5 +228,5 @@ search:
 similarity:
   max_results: 50
 ui:
+  llm_output_language: fr
   user_language: en
-  llm_output_language: it

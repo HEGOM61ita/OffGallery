@@ -725,7 +725,9 @@ class MainWindow(QMainWindow):
         QMessageBox.information(
             self,
             "Lingua / Language",
-            f"{flag} {name} selezionata.\nRiavvia OffGallery per applicare."
+            f"{flag} {name} selezionata / selected.\n\n"
+            f"🇮🇹 Riavvia OffGallery per applicare.\n"
+            f"🇬🇧 Restart OffGallery to apply."
         )
 
     def restore_geometry(self):

@@ -750,7 +750,7 @@ class GalleryTab(QWidget):
             if results:
                 self.display_results(results)
                 if self.parent_window:
-                    self.parent_window.update_status(f"Trovate {len(results)} immagini simili")
+                    self.parent_window.update_status(t("gallery.status.similar_found", n=len(results)))
             else:
                 QMessageBox.information(self, t("gallery.msg.result_title"), t("gallery.msg.no_similar", threshold=threshold))
         
@@ -865,7 +865,7 @@ class GalleryTab(QWidget):
             self._refresh_cards(items)
 
             if self.parent_window:
-                self.parent_window.update_status(f"BioCLIP: {updated} trovate, {not_found} non trovate")
+                self.parent_window.update_status(t("gallery.status.bioclip_done", updated=updated, not_found=not_found))
 
             # Mostra riepilogo risultati con dialog scrollabile
             from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextEdit, QDialogButtonBox
@@ -1022,15 +1022,15 @@ class GalleryTab(QWidget):
                 # Mostra contesto BioCLIP esistente (letto dal DB, non rigenerato)
                 if bioclip_context:
                     bio_found += 1
-                    ctx_info = f"\nContesto: {bioclip_context}"
+                    ctx_info = t("gallery.label.context", info=bioclip_context)
                     if category_hint:
                         ctx_info += f" ({category_hint})"
                 else:
                     bio_not_found += 1
                     if category_hint:
-                        ctx_info = f"\nContesto: {category_hint}"
+                        ctx_info = t("gallery.label.context_hint", hint=category_hint)
                     else:
-                        ctx_info = "\nContesto: nessuno"
+                        ctx_info = t("gallery.label.context_none")
                 progress.setLabelText(t("gallery.progress.llm_generating", filename=item.image_data.get('filename', ''), ctx_info=ctx_info, i=i+1, total=len(items)))
                 QApplication.processEvents()
 
@@ -1127,14 +1127,14 @@ class GalleryTab(QWidget):
 
             status_parts = []
             if updated_title > 0:
-                status_parts.append(f"{updated_title} titoli")
+                status_parts.append(t("gallery.status.titles", n=updated_title))
             if updated_tags > 0:
                 status_parts.append(f"{updated_tags} tag")
             if updated_desc > 0:
-                status_parts.append(f"{updated_desc} descrizioni")
+                status_parts.append(t("gallery.status.descs", n=updated_desc))
 
             if self.parent_window and status_parts:
-                self.parent_window.update_status(f"AI: generati {', '.join(status_parts)}")
+                self.parent_window.update_status(t("gallery.status.ai_generated", parts=', '.join(status_parts)))
         
         except Exception as e:
             QMessageBox.critical(self, t("gallery.msg.llm_error_title"), t("gallery.msg.llm_error", error=e))
@@ -1179,7 +1179,7 @@ class GalleryTab(QWidget):
             self._refresh_cards(items)
 
             if self.parent_window:
-                self.parent_window.update_status(f"Tag aggiunti a {len(items)} immagini")
+                self.parent_window.update_status(t("gallery.status.tags_added", n=len(items)))
 
         except Exception as e:
             QMessageBox.critical(self, t("gallery.msg.add_tags_error_title"), t("gallery.msg.add_tags_error", error=e))
@@ -1223,7 +1223,7 @@ class GalleryTab(QWidget):
             self._update_selection_ui()
 
             if self.parent_window:
-                self.parent_window.update_status(f"Tag rimossi da {len(items)} immagini")
+                self.parent_window.update_status(t("gallery.status.tags_removed", n=len(items)))
 
         except Exception as e:
             QMessageBox.critical(self, t("gallery.msg.remove_tags_error_title"), t("gallery.msg.remove_tags_error", error=e))
@@ -1256,7 +1256,7 @@ class GalleryTab(QWidget):
             self._refresh_cards(items)
 
             if self.parent_window:
-                self.parent_window.update_status(f"Descrizioni AI rimosse da {len(items)} immagini")
+                self.parent_window.update_status(t("gallery.status.descs_removed", n=len(items)))
 
         except Exception as e:
             QMessageBox.critical(self, t("gallery.msg.clear_desc_error_title"), t("gallery.msg.clear_desc_error", error=e))
@@ -1375,7 +1375,7 @@ class GalleryTab(QWidget):
             self._refresh_cards(items)
 
             if self.parent_window:
-                self.parent_window.update_status(f"Aggiunti {len(new_tags)} tag a {len(items)} immagini")
+                self.parent_window.update_status(t("gallery.status.tags_added_batch", n_tags=len(new_tags), n_imgs=len(items)))
 
         except Exception as e:
             print(f"Errore aggiunta tag unificati: {e}")
@@ -1421,7 +1421,7 @@ class GalleryTab(QWidget):
             self._refresh_cards(items)
 
             if self.parent_window:
-                self.parent_window.update_status(f"Rimossi {len(tags_to_remove)} tag da {len(items)} immagini")
+                self.parent_window.update_status(t("gallery.status.tags_removed_batch", n_tags=len(tags_to_remove), n_imgs=len(items)))
 
         except Exception as e:
             print(f"Errore rimozione tag unificati: {e}")
