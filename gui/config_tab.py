@@ -902,16 +902,9 @@ class ConfigTab(QWidget):
         
         layout = QGridLayout()
 
-        # Row 0: Fuzzy enabled + Max results
+        # Row 0: Fuzzy enabled
         self.fuzzy_enabled_checkbox = QCheckBox(t("config.check.fuzzy"))
         layout.addWidget(self.fuzzy_enabled_checkbox, 0, 0)
-
-        layout.addWidget(QLabel(t("config.label.max_results")), 0, 1)
-        self.search_max_results_spin = NoWheelSpinBox()
-        self.search_max_results_spin.setRange(10, 1000)
-        self.search_max_results_spin.setSingleStep(50)
-        self.search_max_results_spin.setToolTip(t("config.tooltip.max_results"))
-        layout.addWidget(self.search_max_results_spin, 0, 2)
 
         # Row 1: Semantic threshold
         layout.addWidget(QLabel(t("config.label.semantic_threshold")), 1, 0)
@@ -1131,7 +1124,6 @@ class ConfigTab(QWidget):
             # --------------------------------------------------
             search = self.config['search']
             self.fuzzy_enabled_checkbox.setChecked(search['fuzzy_enabled'])
-            self.search_max_results_spin.setValue(search['max_results'])
             self.semantic_threshold_spin.setValue(search['semantic_threshold'])
 
             # --------------------------------------------------
@@ -1258,7 +1250,6 @@ class ConfigTab(QWidget):
             
             # Search
             self.fuzzy_enabled_checkbox.setChecked(True)
-            self.search_max_results_spin.setValue(100)
             self.semantic_threshold_spin.setValue(0.15)
             
             # Metadata
@@ -1401,7 +1392,7 @@ class ConfigTab(QWidget):
             # Search
             self.config['search'] = {
                 'fuzzy_enabled': self.fuzzy_enabled_checkbox.isChecked(),
-                'max_results': self.search_max_results_spin.value(),
+                'max_results': self.config.get('search', {}).get('max_results', 100),
                 'semantic_threshold': self.semantic_threshold_spin.value(),
             }
             
