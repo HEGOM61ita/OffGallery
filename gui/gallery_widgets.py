@@ -1371,7 +1371,7 @@ class ImageCard(QFrame):
             status = self._check_file_status()
             if status == 'ok':
                 if platform.system() == "Windows":
-                    subprocess.run(["start", str(self.filepath)], shell=True)
+                    os.startfile(str(self.filepath))
                 elif platform.system() == "Darwin":
                     subprocess.run(["open", str(self.filepath)])
                 else:
