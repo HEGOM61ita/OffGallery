@@ -87,7 +87,7 @@ class ImageRetrieval:
                 return [], 0
         
         # 2. TRADUZIONE
-        # query_text è sempre in EN — _translate_to_english è no-op per testo ASCII
+        # L'utente scrive nella sua lingua → _translate_to_english converte in EN per CLIP
         query_en = self.embedding_gen._translate_to_english(query_text)
         # Per tag/keyword matching: traduce EN → lingua dei contenuti (llm_output_language)
         query_tag = self.embedding_gen._translate_to_tag_language(query_en)
@@ -165,6 +165,9 @@ class ImageRetrieval:
         # strictness 0.0 → 4 caratteri, strictness 1.0 → 9 caratteri
         match_length = max(4, min(9, 4 + int(strictness * 5)))
         
+        # Dimensione attesa dall'embedding della query (per validazione)
+        expected_dim = query_emb.shape[0]
+
         for i, img in enumerate(candidates):
             filename = img.get('filename', 'Unknown')
             try:
@@ -182,6 +185,14 @@ class ImageRetrieval:
                         raise ValueError(f"Formato embedding non riconosciuto ({len(raw_data)} bytes)")
                 else:
                     img_emb = np.array(raw_data)
+
+                # Validazione dimensione: rileva embedding incompatibili (modello diverso)
+                if img_emb.shape[0] != expected_dim:
+                    logger.warning(
+                        f"⚠️ {filename}: dimensione embedding ({img_emb.shape[0]}) != attesa ({expected_dim}). "
+                        f"Rielaborare le foto per rigenerare gli embedding CLIP."
+                    )
+                    continue
 
                 visual_score = float(self._cosine_similarity(query_emb, img_emb))
                 
@@ -242,13 +253,25 @@ class ImageRetrieval:
                 logger.error(f"Errore su {filename}: {str(e)}")
 
         results.sort(key=lambda x: x[0], reverse=True)
-        
+
+        # Rilevamento spazio embedding incompatibile: se il miglior score è molto
+        # basso, gli image embedding nel DB sono probabilmente generati con una
+        # versione diversa di transformers → spazi non allineati → rielaborare foto
+        if results:
+            best_score = results[0][0]
+            if best_score < 0.20 and len(candidates) > 5:
+                logger.warning(
+                    f"⚠️ Score CLIP massimo molto basso ({best_score:.3f}). "
+                    f"Gli embedding nel database potrebbero essere incompatibili con il modello attuale. "
+                    f"Rielaborare le foto dal tab Elaborazione per rigenerare gli embedding."
+                )
+
         # Preserva final_score negli oggetti immagine
         final_results = []
         for score, img in results:
             img['final_score'] = score
             final_results.append(img)
-        
+
         return final_results
 
     def _tag_pipeline(self, query_text, candidates, fuzzy=True, include_description=True, include_title=True):

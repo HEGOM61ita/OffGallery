@@ -500,6 +500,12 @@ class EmbeddingGenerator:
 
             self.clip_model.eval()
             self.clip_enabled = True
+            # Log versione transformers per diagnostica compatibilità embedding
+            try:
+                import transformers as _tf
+                logger.info(f"CLIP caricato con transformers=={_tf.__version__}")
+            except Exception:
+                pass
             # Log diagnostico: mostra architettura effettiva del modello caricato
             try:
                 _vcfg = self.clip_model.vision_model.config
@@ -966,15 +972,18 @@ class EmbeddingGenerator:
                 inputs = self.clip_processor(text=[input_data], return_tensors="pt", padding=True).to(self.device)
                 
                 with torch.no_grad():
-                    # Il metodo corretto per CLIPModel di HuggingFace è get_text_features
-                    text_features = self.clip_model.get_text_features(**inputs)
-                    # Compatibilità transformers: alcune versioni restituiscono
-                    # BaseModelOutputWithPooling invece del tensore proiettato
-                    if not isinstance(text_features, torch.Tensor):
-                        text_features = self.clip_model.text_projection(text_features.pooler_output)
+                    # Path manuale deterministico: bypassa get_text_features() per
+                    # consistenza con il path immagine. Entrambi manuali = zero dipendenza
+                    # dal comportamento specifico della versione transformers installata.
+                    text_out = self.clip_model.text_model(
+                        input_ids=inputs['input_ids'],
+                        attention_mask=inputs.get('attention_mask')
+                    )
+                    text_features = self.clip_model.text_projection(text_out.pooler_output)
 
-                # Convertiamo in array numpy per la similarità
+                # Normalizziamo come per le immagini (consistenza)
                 text_emb = text_features.cpu().numpy().flatten()
+                text_emb = (text_emb / np.linalg.norm(text_emb)).astype(np.float32)
                 logger.debug(f"CLIP text embedding: shape={text_emb.shape}, norm={np.linalg.norm(text_emb):.4f}")
 
                 return {'text_embedding': text_emb}
@@ -1132,20 +1141,14 @@ class EmbeddingGenerator:
             image = self._prepare_image_for_model(image, 'clip_embedding')
             inputs = self.clip_processor(images=image, return_tensors="pt").to(self.device)
             with torch.no_grad():
-                try:
-                    features = self.clip_model.get_image_features(pixel_values=inputs['pixel_values'])
-                    if not isinstance(features, torch.Tensor):
-                        raise ValueError("get_image_features non ha restituito un tensore")
-                except (RuntimeError, ValueError):
-                    # Fallback robusto: bypassa get_image_features() e costruisce
-                    # le feature manualmente dal vision_model, garantendo dimensioni corrette.
-                    # Necessario quando alcune versioni di transformers producono pooler_output
-                    # già proiettato (768-dim) invece del token CLS raw (1024-dim per ViT-L).
-                    vision_out = self.clip_model.vision_model(pixel_values=inputs['pixel_values'])
-                    cls_token = vision_out.last_hidden_state[:, 0, :]  # CLS token raw: (1, hidden_size)
-                    if hasattr(self.clip_model.vision_model, 'post_layernorm'):
-                        cls_token = self.clip_model.vision_model.post_layernorm(cls_token)
-                    features = self.clip_model.visual_projection(cls_token)
+                # Path manuale deterministico: bypassa get_image_features() che cambia
+                # comportamento tra versioni di transformers (causa principale di score
+                # vicini a zero). Usiamo direttamente vision_model → CLS → layernorm → projection.
+                vision_out = self.clip_model.vision_model(pixel_values=inputs['pixel_values'])
+                cls_token = vision_out.last_hidden_state[:, 0, :]  # CLS token raw: (1, hidden_size)
+                if hasattr(self.clip_model.vision_model, 'post_layernorm'):
+                    cls_token = self.clip_model.vision_model.post_layernorm(cls_token)
+                features = self.clip_model.visual_projection(cls_token)
             embedding = features.cpu().numpy()[0]
             normalized = (embedding / np.linalg.norm(embedding)).astype(np.float32)
             logger.debug(f"CLIP embedding generato: shape={normalized.shape}, norm={np.linalg.norm(normalized):.4f}")
@@ -1268,11 +1271,12 @@ class EmbeddingGenerator:
             translated = self._translate_to_english(text_query) if self.translator else text_query
             inputs = self.clip_processor(text=[translated], return_tensors="pt", padding=True).to(self.device)
             with torch.no_grad():
-                text_features = self.clip_model.get_text_features(**inputs)
-                # Compatibilità transformers: alcune versioni restituiscono
-                # BaseModelOutputWithPooling invece del tensore proiettato
-                if not isinstance(text_features, torch.Tensor):
-                    text_features = self.clip_model.text_projection(text_features.pooler_output)
+                # Path manuale deterministico (come generate_embeddings)
+                text_out = self.clip_model.text_model(
+                    input_ids=inputs['input_ids'],
+                    attention_mask=inputs.get('attention_mask')
+                )
+                text_features = self.clip_model.text_projection(text_out.pooler_output)
             embedding = text_features.cpu().numpy()[0]
             return (embedding / np.linalg.norm(embedding)).astype(np.float32)
         except Exception as e:
@@ -1288,11 +1292,9 @@ class EmbeddingGenerator:
             # Disabilita i log verbosi di argostranslate
             logging.getLogger('argostranslate.utils').setLevel(logging.WARNING)
         
-            # Se il testo è già inglese o troppo corto, usciamo
-            if all(ord(c) < 128 for c in text) and len(text) < 5:
-                return text
-            
-            # Eseguiamo la traduzione
+            # Tentiamo sempre la traduzione IT→EN: anche parole brevi come
+            # "coro", "mare", "neve" devono diventare "choir", "sea", "snow"
+            # per ottenere score CLIP significativi (CLIP è addestrato su EN)
             translated = argostranslate.translate.translate(text, "it", "en")
         
             # Debug interno
