@@ -721,7 +721,7 @@ class SearchTab(QWidget):
         # --- Riga 2: Tipo File e Formato RAW ---
         row2 = QHBoxLayout()
         row2.setSpacing(12)
-        row2.addWidget(QLabel("Tipo:"))
+        row2.addWidget(QLabel(t("search.label.type")))
         self.filetype_combo = QComboBox()
         self.filetype_combo.addItems([t("search.combo.all_m"), t("search.combo.raw_only"), t("search.combo.jpeg_only")])
         self.filetype_combo.setMinimumWidth(110)
@@ -737,7 +737,7 @@ class SearchTab(QWidget):
         # --- Riga 3: Focale e ISO ---
         row3 = QHBoxLayout()
         row3.setSpacing(12)
-        row3.addWidget(QLabel("Focale:"))
+        row3.addWidget(QLabel(t("search.label.focal")))
         self.focal_min = QSpinBox()
         self.focal_min.setRange(0, 2000)
         self.focal_min.setPrefix("≥")
@@ -869,7 +869,7 @@ class SearchTab(QWidget):
 
         # Color Label - riga dedicata separata
         color_layout = QHBoxLayout()
-        color_layout.addWidget(QLabel("Colore:"))
+        color_layout.addWidget(QLabel(t("search.label.color_colon")))
         self.color_label_filter = QComboBox()
         self.color_label_filter.addItem(t("search.combo.all_m"), None)
         self.color_label_filter.addItem(t("search.color.red"), "Red")
@@ -938,7 +938,7 @@ class SearchTab(QWidget):
         
         # Filtro Bianco/Nero (combo a 3 opzioni)
         row_bn = QHBoxLayout()
-        row_bn.addWidget(QLabel("Foto:"))
+        row_bn.addWidget(QLabel(t("search.label.photos")))
         self.monochrome_combo = QComboBox()
         self.monochrome_combo.addItems([t("search.combo.all_f"), t("search.combo.color_photos"), t("search.combo.bw_photos")])
         self.monochrome_combo.setToolTip(t("search.tooltip.monochrome"))

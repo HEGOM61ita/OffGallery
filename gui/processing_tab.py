@@ -879,7 +879,7 @@ class ProcessingTab(QWidget):
         # --- Riga 0: Directory ---
         self.source_dir_radio = QRadioButton(t("processing.radio.source_dir_colon"))
         self.source_dir_radio.setChecked(True)
-        self.source_dir_radio.setToolTip("Leggi immagini dalla directory selezionata")
+        self.source_dir_radio.setToolTip(t("processing.tooltip.source_dir"))
         self.source_btn_group.addButton(self.source_dir_radio, 0)
         source_grid.addWidget(self.source_dir_radio, 0, 0)
 
@@ -895,17 +895,17 @@ class ProcessingTab(QWidget):
         self.refresh_btn = QPushButton("🔄")
         self.refresh_btn.clicked.connect(self.refresh_scan)
         self.refresh_btn.setFixedWidth(32)
-        self.refresh_btn.setToolTip("Aggiorna scansione directory")
+        self.refresh_btn.setToolTip(t("processing.tooltip.refresh"))
         source_grid.addWidget(self.refresh_btn, 0, 3)
 
         self.include_subdirs_cb = QCheckBox(t("processing.check.subdirs"))
-        self.include_subdirs_cb.setToolTip("Scansiona ricorsivamente le sotto-cartelle")
+        self.include_subdirs_cb.setToolTip(t("processing.tooltip.subdirs"))
         self.include_subdirs_cb.stateChanged.connect(self._on_subdirs_changed)
         source_grid.addWidget(self.include_subdirs_cb, 0, 4)
 
         # --- Riga 1: Catalogo Lightroom ---
         self.source_catalog_radio = QRadioButton(t("processing.radio.source_catalog_colon"))
-        self.source_catalog_radio.setToolTip("Leggi l'elenco delle immagini dal catalogo Lightroom")
+        self.source_catalog_radio.setToolTip(t("processing.tooltip.source_catalog"))
         self.source_btn_group.addButton(self.source_catalog_radio, 1)
         source_grid.addWidget(self.source_catalog_radio, 1, 0)
 
@@ -936,7 +936,7 @@ class ProcessingTab(QWidget):
         status_layout = QHBoxLayout()
         status_layout.setContentsMargins(8, 4, 8, 4)
 
-        self.db_label = QLabel("Database: ...")
+        self.db_label = QLabel(t("processing.label.db_init"))
         self.db_label.setStyleSheet("font-size: 11px;")
         status_layout.addWidget(self.db_label)
 
@@ -966,17 +966,17 @@ class ProcessingTab(QWidget):
 
         self.mode_new_only = QRadioButton(t("processing.radio.new_only"))
         self.mode_new_only.setChecked(True)
-        self.mode_new_only.setToolTip("Processa solo immagini non ancora nel database")
+        self.mode_new_only.setToolTip(t("processing.tooltip.mode_new_only"))
         self.processing_mode_group.addButton(self.mode_new_only, 0)
         options_layout.addWidget(self.mode_new_only)
 
         self.mode_new_plus_errors = QRadioButton(t("processing.radio.new_errors"))
-        self.mode_new_plus_errors.setToolTip("Processa nuove immagini e riprova quelle che avevano dato errore")
+        self.mode_new_plus_errors.setToolTip(t("processing.tooltip.mode_new_errors"))
         self.processing_mode_group.addButton(self.mode_new_plus_errors, 1)
         options_layout.addWidget(self.mode_new_plus_errors)
 
         self.mode_reprocess_all = QRadioButton(t("processing.radio.reprocess_all"))
-        self.mode_reprocess_all.setToolTip("Riprocessa tutte le immagini, anche quelle già elaborate")
+        self.mode_reprocess_all.setToolTip(t("processing.tooltip.mode_reprocess_all"))
         self.mode_reprocess_all.setStyleSheet("color: #f57500; font-weight: bold;")
         self.processing_mode_group.addButton(self.mode_reprocess_all, 2)
         options_layout.addWidget(self.mode_reprocess_all)
@@ -984,7 +984,7 @@ class ProcessingTab(QWidget):
         self.processing_mode_group.idClicked.connect(self.update_start_button_state)
 
         self.enable_file_log_cb = QCheckBox(t("processing.check.file_log"))
-        self.enable_file_log_cb.setToolTip("Scrive tutti i messaggi su file nella directory log (Impostazioni → Dir Log)")
+        self.enable_file_log_cb.setToolTip(t("processing.tooltip.file_log"))
         self.enable_file_log_cb.setChecked(False)
         options_layout.addWidget(self.enable_file_log_cb)
         options_layout.addStretch()
@@ -1033,21 +1033,21 @@ class ProcessingTab(QWidget):
             return row, chk, sovr, spin
 
         row_t, self.pt_gen_tags_check, self.pt_gen_tags_overwrite, self.pt_llm_max_tags = \
-            _gen_row("Tags:", "Genera tag durante il processing", "Sovrascrive tag già presenti")
+            _gen_row(t("processing.label.row_tags_colon"), t("processing.tooltip.gen_tags"), t("processing.tooltip.overwrite_tags"))
         self.pt_llm_max_tags.setRange(1, 20)
         self.pt_llm_max_tags.setValue(10)
         self.pt_gen_tags_check.stateChanged.connect(self._toggle_pt_tags)
         gen_ai_layout.addLayout(row_t)
 
         row_d, self.pt_gen_desc_check, self.pt_gen_desc_overwrite, self.pt_llm_max_words = \
-            _gen_row("Descrizione:", "Genera descrizione durante il processing", "Sovrascrive descrizione già presente")
+            _gen_row(t("processing.label.row_desc_colon"), t("processing.tooltip.gen_desc"), t("processing.tooltip.overwrite_desc"))
         self.pt_llm_max_words.setRange(20, 300)
         self.pt_llm_max_words.setValue(100)
         self.pt_gen_desc_check.stateChanged.connect(self._toggle_pt_desc)
         gen_ai_layout.addLayout(row_d)
 
         row_ti, self.pt_gen_title_check, self.pt_gen_title_overwrite, self.pt_llm_max_title = \
-            _gen_row("Titolo:", "Genera titolo durante il processing", "Sovrascrive titolo già presente")
+            _gen_row(t("processing.label.row_title_colon"), t("processing.tooltip.gen_title"), t("processing.tooltip.overwrite_title"))
         self.pt_llm_max_title.setRange(1, 10)
         self.pt_llm_max_title.setValue(5)
         self.pt_gen_title_check.stateChanged.connect(self._toggle_pt_title)
@@ -1535,16 +1535,16 @@ class ProcessingTab(QWidget):
             if mode_id == 0:  # Solo nuove immagini
                 if images_available == 0:
                     self.start_btn.setEnabled(False)
-                    self.start_btn.setToolTip("Nessuna nuova immagine da processare. Cambia modalità per riprocessare.")
+                    self.start_btn.setToolTip(t("processing.tooltip.start_no_new"))
                 else:
                     self.start_btn.setEnabled(True)
-                    self.start_btn.setToolTip("Avvia processing delle nuove immagini")
+                    self.start_btn.setToolTip(t("processing.tooltip.start_new"))
             else:  # Altre modalità
                 self.start_btn.setEnabled(True)
                 if mode_id == 1:  # new_plus_errors
-                    self.start_btn.setToolTip("Avvia processing di nuove immagini + riprova errori")
+                    self.start_btn.setToolTip(t("processing.tooltip.start_errors"))
                 else:  # reprocess_all
-                    self.start_btn.setToolTip("Avvia riprocessing di tutte le immagini")
+                    self.start_btn.setToolTip(t("processing.tooltip.start_reprocess"))
                     
         except Exception as e:
             print(f"Errore update_start_button_state: {e}")
@@ -1605,28 +1605,28 @@ class ProcessingTab(QWidget):
             if self.enable_file_log_cb.isChecked():
                 self._open_processing_log()
 
-            self.log_display.append("[{}] Avvio processing...".format(
-                datetime.now().strftime("%H:%M:%S")
+            self.log_display.append("[{}] {}".format(
+                datetime.now().strftime("%H:%M:%S"), t("processing.log.starting")
             ))
 
             # Determina modalità processing
             mode_id = self.processing_mode_group.checkedId()
             if mode_id == 0:
                 processing_mode = 'new_only'
-                mode_text = 'Solo nuove immagini'
+                mode_text = t("processing.log.mode_new_only")
             elif mode_id == 1:
                 processing_mode = 'new_plus_errors'
-                mode_text = 'Nuove immagini + errori precedenti'
+                mode_text = t("processing.log.mode_new_errors")
             else:  # mode_id == 2
                 processing_mode = 'reprocess_all'
-                mode_text = 'Riprocessa tutte le immagini'
+                mode_text = t("processing.log.mode_reprocess_all")
 
-            self.log_display.append(f"Modalità: {mode_text}")
+            self.log_display.append(t("processing.log.mode", mode=mode_text))
 
             if self.processing_log_file:
                 timestamp = datetime.now().strftime("%H:%M:%S")
-                self.processing_log_file.write(f"[{timestamp}] [INFO] Avvio processing...\n")
-                self.processing_log_file.write(f"[{timestamp}] [INFO] Modalità: {mode_text}\n")
+                self.processing_log_file.write(f"[{timestamp}] [INFO] {t('processing.log.starting')}\n")
+                self.processing_log_file.write(f"[{timestamp}] [INFO] {t('processing.log.mode', mode=mode_text)}\n")
                 self.processing_log_file.flush()
 
             # Crea worker
@@ -1659,7 +1659,7 @@ class ProcessingTab(QWidget):
             self.stop_btn.setEnabled(True)
 
         except Exception as e:
-            self.add_log_message(f"Errore avvio processing: {e}", "error")
+            self.add_log_message(t("processing.log.start_error", error=e), "error")
     
     def _open_processing_log(self):
         """Apre file log processing nella directory log da config"""
@@ -1685,11 +1685,11 @@ class ProcessingTab(QWidget):
             self.processing_log_file.write("=" * 70 + "\n\n")
             self.processing_log_file.flush()
 
-            self.add_log_message(f"Log file: {log_path}", "info")
+            self.add_log_message(t("processing.log.log_file", path=log_path), "info")
 
         except Exception as e:
             self.processing_log_file = None
-            self.add_log_message(f"Errore apertura log file: {e}", "warning")
+            self.add_log_message(t("processing.log.log_file_error", error=e), "warning")
 
     def _close_processing_log(self):
         """Chiude file log processing"""
@@ -1710,17 +1710,17 @@ class ProcessingTab(QWidget):
             if self.worker.is_paused:
                 self.worker.resume()
                 self.pause_btn.setText(t("processing.btn.pause"))
-                self.add_log_message("Processing ripreso", "info")
+                self.add_log_message(t("processing.log.resumed"), "info")
             else:
                 self.worker.pause()
                 self.pause_btn.setText(t("processing.btn.start"))
-                self.add_log_message("Processing in pausa", "info")
+                self.add_log_message(t("processing.log.paused"), "info")
     
     def stop_processing(self):
         """Ferma processing"""
         if self.worker:
             self.worker.stop()
-            self.add_log_message("Arresto processing...", "info")
+            self.add_log_message(t("processing.log.stopping"), "info")
     
     def update_progress(self, current, total):
         """Aggiorna progresso con barra grafica e testuale"""
