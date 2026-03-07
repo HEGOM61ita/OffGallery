@@ -675,6 +675,21 @@ class ConfigTab(QWidget):
         self.llm_vision_timeout.setSingleStep(30)
         conn_layout.addWidget(self.llm_vision_timeout, 2, 1)
 
+        # Lingua output LLM
+        conn_layout.addWidget(QLabel(t("config.label.llm_output_lang")), 3, 0)
+        self.llm_output_lang_combo = QComboBox()
+        for code, label in [
+            ("it", "🇮🇹 Italiano"),
+            ("en", "🇬🇧 English"),
+            ("fr", "🇫🇷 Français"),
+            ("de", "🇩🇪 Deutsch"),
+            ("es", "🇪🇸 Español"),
+            ("pt", "🇵🇹 Português"),
+        ]:
+            self.llm_output_lang_combo.addItem(label, code)
+        self.llm_output_lang_combo.setToolTip(t("config.tooltip.llm_output_lang"))
+        conn_layout.addWidget(self.llm_output_lang_combo, 3, 1)
+
         layout.addLayout(conn_layout)
 
         # --- SEZIONE PARAMETRI LLM AVANZATI ---
@@ -1071,6 +1086,12 @@ class ConfigTab(QWidget):
             self.llm_vision_model.setText(llm['model'])
             self.llm_vision_timeout.setValue(llm['timeout'])
 
+            # Lingua output LLM
+            llm_lang = self.config.get('ui', {}).get('llm_output_language', 'it')
+            idx = self.llm_output_lang_combo.findData(llm_lang)
+            if idx >= 0:
+                self.llm_output_lang_combo.setCurrentIndex(idx)
+
             # Parametri generation LLM
             gen_params = llm.get('generation', {})
             self.llm_temperature.setValue(gen_params.get('temperature', 0.2))
@@ -1416,10 +1437,15 @@ class ConfigTab(QWidget):
                         'enabled': False
                     }
             
-            # Logging  
+            # Logging
             self.config['logging'] = {
                 'show_debug': self.debug_checkbox.isChecked()
             }
+
+            # UI (preserva user_language, aggiorna llm_output_language)
+            if 'ui' not in self.config:
+                self.config['ui'] = {}
+            self.config['ui']['llm_output_language'] = self.llm_output_lang_combo.currentData()
             
             # PRESERVA tutte le altre sezioni esistenti non gestite dall'UI
             

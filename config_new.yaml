@@ -1,6 +1,3 @@
-ui:
-  user_language: it
-
 embedding:
   brisque_enabled: true
   device: auto
@@ -230,3 +227,6 @@ search:
   semantic_threshold: 0.2
 similarity:
   max_results: 50
+ui:
+  user_language: en
+  llm_output_language: it

@@ -1479,6 +1479,16 @@ class EmbeddingGenerator:
         'Archaea',    # archei (molto raro in foto)
     }
 
+    # Mappa codice lingua → nome completo in inglese per istruzioni al prompt LLM
+    LLM_OUTPUT_LANGUAGES = {
+        'it': 'ITALIAN',
+        'en': 'ENGLISH',
+        'fr': 'FRENCH',
+        'de': 'GERMAN',
+        'es': 'SPANISH',
+        'pt': 'PORTUGUESE',
+    }
+
     # Mappa classe tassonomica BioCLIP → hint italiano per il prompt LLM
     TAXONOMY_CLASS_HINTS = {
         # Animali - Vertebrati
@@ -1752,36 +1762,41 @@ class EmbeddingGenerator:
             num_ctx = generation.get('num_ctx', 2048)
             num_batch = generation.get('num_batch', 1024)
 
-            # Genera sempre in italiano, identifica specie solo se sicuro
-            # Se abbiamo hint di categoria (BioCLIP) o luogo (geo), li usiamo nel prompt
+            # Determina lingua output dal config
+            lang_code = self.config.get('ui', {}).get('llm_output_language', 'it')
+            lang_name = EmbeddingGenerator.LLM_OUTPUT_LANGUAGES.get(lang_code, 'ITALIAN')
+
+            # Costruisce le istruzioni per categoria e luogo in base alla lingua
             category_line = ""
             if category_hint:
                 if mode == "title":
                     # Nel titolo il nome latino viene già preposto programmaticamente:
-                    # il LLM deve usare il termine generico (es. "mammifero") come soggetto,
-                    # non evitare ogni riferimento all'animale (causa descrizioni astratte tipo "mezzaluna")
+                    # il LLM deve usare il termine generico tradotto nella lingua corretta
                     category_line = (
-                        f"- The main subject is a {category_hint}. Refer to it as \"{category_hint}\" in the title.\n"
-                        "- DO NOT use species names, common names or English animal names.\n"
+                        f"- The main subject is a {category_hint}. Use the correct {lang_name} translation of this term in the title.\n"
+                        "- DO NOT use species names or scientific Latin names.\n"
                     )
                 else:
                     # Per tag e descrizione: BioCLIP ha già identificato la specie,
                     # il LLM descrive solo attributi visivi, comportamento, ambiente
                     category_line = (
                         f"- The main subject is a {category_hint}. The species is already identified externally.\n"
-                        "- DO NOT name the species, animal or plant. NEVER use species names, common names or English names.\n"
+                        "- DO NOT name the species, animal or plant. NEVER use species names or scientific names.\n"
                         "- Focus ONLY on: visual attributes, behavior, environment, colors, composition, context.\n"
                     )
 
             location_line = ""
             if location_hint:
-                location_line = f"- LOCATION: This photo was taken in: {location_hint}. Translate ALL place names to Italian (e.g. Sardinia→Sardegna, Italy→Italia, Sicily→Sicilia). Mention the location naturally if relevant.\n"
+                if lang_code == 'en':
+                    location_line = f"- LOCATION: This photo was taken in: {location_hint}. Use standard English place names. Mention the location naturally if relevant.\n"
+                else:
+                    location_line = f"- LOCATION: This photo was taken in: {location_hint}. Translate ALL place names to {lang_name}. Mention the location naturally if relevant.\n"
 
-            italian_rules = (
-                "LANGUAGE: ALL output MUST be in ITALIAN. NEVER use English words.\n"
+            language_rules = (
+                f"LANGUAGE: ALL output MUST be in {lang_name}. NEVER mix languages or use words from other languages.\n"
                 f"{category_line}"
                 f"{location_line}"
-                "- If NO species hint is provided and you recognize an animal/plant, use a generic Italian term (uccello, animale, fiore, albero)\n"
+                f"- If NO species hint is provided and you recognize an animal/plant, use a generic {lang_name} term\n"
                 "- NEVER guess a species name. A generic term is ALWAYS better than a wrong name\n"
                 "- Do NOT use scientific/Latin names\n"
             )
@@ -1790,7 +1805,7 @@ class EmbeddingGenerator:
                 prompt = (
                     "You are a professional photography captioning system.\n"
                     "Task: describe the image.\n\n"
-                    f"{italian_rules}"
+                    f"{language_rules}"
                     "\nSTRICT RULES:\n"
                     "- Output ONLY the description text, nothing else\n"
                     "- Include: subject, environment, colors, composition, atmosphere\n"
@@ -1801,7 +1816,7 @@ class EmbeddingGenerator:
                     "You are a professional photographic tagging system.\n"
                     "Task: observe the scene and generate photo tags, in format \"tag1,tag2,tag3\".\n"
                     "Priority: 1) subjects, 2) scene, 3) actions, 4) objects, 5) weather, 6) mood, 7) colors\n\n"
-                    f"{italian_rules}"
+                    f"{language_rules}"
                     "\nSTRICT RULES:\n"
                     f"- Maximum {max_tags} tags\n"
                     "- singular form, preserve capitalization for proper nouns (place names, etc.)\n"
@@ -1811,7 +1826,7 @@ class EmbeddingGenerator:
                 prompt = (
                     "You are a professional photo archiving system.\n"
                     "Task: generate a factual, descriptive title for this photo.\n\n"
-                    f"{italian_rules}"
+                    f"{language_rules}"
                     "\nSTRICT RULES:\n"
                     "- Output ONLY the title text, nothing else\n"
                     "- NO quotes, NO punctuation at the end\n"

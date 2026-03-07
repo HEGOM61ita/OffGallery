@@ -331,6 +331,8 @@
   "config.dialog.select_models_dir": "Select AI Models Directory",
 
   "config.placeholder.editor_args": "Optional arguments (e.g.: -direct)",
+  "config.label.llm_output_lang": "AI output language:",
+  "config.tooltip.llm_output_lang": "Language in which the LLM model generates tags, descriptions and titles.\nIndependent from the interface language.",
   "config.tooltip.models_dir": "Directory where AI models are saved.\nRelative path (e.g.: Models) = inside the OffGallery folder.\nAbsolute path (e.g.: D:\\AI\\Models) = external folder.\n\n⚠ Change only AFTER manually moving the Models/ folder.",
   "config.tooltip.select_editor": "Select editor",
   "config.tooltip.device": "Auto-detect: automatically detects GPU and uses CPU as fallback\nForce GPU: uses GPU only (CPU fallback if unavailable)\nForce CPU: completely disables GPU",
