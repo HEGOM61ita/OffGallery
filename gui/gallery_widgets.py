@@ -2066,48 +2066,51 @@ class ImageCard(QFrame):
                         embedded_tags, embedded_desc, embedded_title = self._extract_xmp_fields(embedded_data)
 
                 # === FORMATO OUTPUT ===
+                _ev = t("widgets.xmp.empty_value")
                 result = f"📂 {filepath.name}\n"
-                result += f"📍 Sidecar: {'✅ Presente' if sidecar_exists else '❌ Assente'}"
+                result += f"📍 Sidecar: {t('widgets.xmp.present') if sidecar_exists else t('widgets.xmp.absent')}"
                 if file_category == 'raw':
-                    result += f" | Embedded: ⚪ Ignorato (RAW — solo sidecar conta)\n\n"
+                    result += f" | Embedded: {t('widgets.xmp.ignored_raw')}\n\n"
                 elif file_category == 'dng':
-                    result += f" | Embedded: {'✅ Presente' if embedded_tags or embedded_title or embedded_desc else '⚪ Vuoto'} (DNG)\n\n"
+                    _emb_label = t('widgets.xmp.present') if (embedded_tags or embedded_title or embedded_desc) else t('widgets.xmp.empty_embedded')
+                    result += f" | Embedded: {_emb_label} (DNG)\n\n"
                 else:
-                    result += f" | Embedded: {'✅ Presente' if embedded_tags or embedded_title or embedded_desc else '⚪ Vuoto'}\n\n"
+                    _emb_label = t('widgets.xmp.present') if (embedded_tags or embedded_title or embedded_desc) else t('widgets.xmp.empty_embedded')
+                    result += f" | Embedded: {_emb_label}\n\n"
 
                 # --- SEZIONE TITOLO ---
-                result += f"📌 TITOLO:\n"
-                result += f"   DB:       {db_title if db_title else '(vuoto)'}\n"
+                result += f"{t('widgets.xmp.section_title')}\n"
+                result += f"   DB:       {db_title if db_title else _ev}\n"
                 if sidecar_exists:
-                    result += f"   Sidecar:  {sidecar_title if sidecar_title else '(vuoto)'}\n"
+                    result += f"   Sidecar:  {sidecar_title if sidecar_title else _ev}\n"
                 if embedded_supported:
-                    result += f"   Embedded: {embedded_title if embedded_title else '(vuoto)'}\n"
+                    result += f"   Embedded: {embedded_title if embedded_title else _ev}\n"
 
                 # Stato sync titolo
                 titles_match = (db_title == sidecar_title == embedded_title) if embedded_supported and sidecar_exists else \
                                (db_title == sidecar_title) if sidecar_exists else \
                                (db_title == embedded_title) if embedded_supported else True
-                result += f"   {'✅ Sincronizzato' if titles_match else '⚠️ Discrepanza'}\n"
+                result += f"   {t('widgets.xmp.synced') if titles_match else t('widgets.xmp.mismatch')}\n"
 
                 # --- SEZIONE DESCRIZIONE ---
-                result += f"\n📝 DESCRIZIONE:\n"
+                result += f"\n{t('widgets.xmp.section_desc')}\n"
                 db_desc_preview = (db_desc[:40] + "...") if len(db_desc) > 40 else db_desc
-                result += f"   DB:       {db_desc_preview if db_desc else '(vuota)'}\n"
+                result += f"   DB:       {db_desc_preview if db_desc else _ev}\n"
                 if sidecar_exists:
                     sidecar_desc_preview = (sidecar_desc[:40] + "...") if len(sidecar_desc) > 40 else sidecar_desc
-                    result += f"   Sidecar:  {sidecar_desc_preview if sidecar_desc else '(vuota)'}\n"
+                    result += f"   Sidecar:  {sidecar_desc_preview if sidecar_desc else _ev}\n"
                 if embedded_supported:
                     embedded_desc_preview = (embedded_desc[:40] + "...") if len(embedded_desc) > 40 else embedded_desc
-                    result += f"   Embedded: {embedded_desc_preview if embedded_desc else '(vuota)'}\n"
+                    result += f"   Embedded: {embedded_desc_preview if embedded_desc else _ev}\n"
 
                 # Stato sync descrizione
                 descs_match = (db_desc == sidecar_desc == embedded_desc) if embedded_supported and sidecar_exists else \
                               (db_desc == sidecar_desc) if sidecar_exists else \
                               (db_desc == embedded_desc) if embedded_supported else True
-                result += f"   {'✅ Sincronizzata' if descs_match else '⚠️ Discrepanza'}\n"
+                result += f"   {t('widgets.xmp.synced') if descs_match else t('widgets.xmp.mismatch')}\n"
 
                 # --- SEZIONE TAGS ---
-                result += f"\n🏷️ TAGS:\n"
+                result += f"\n{t('widgets.xmp.section_tags')}\n"
                 result += f"   DB:       {len(db_tags)} tag\n"
                 if sidecar_exists:
                     result += f"   Sidecar:  {len(sidecar_tags)} tag\n"
@@ -2123,7 +2126,7 @@ class ImageCard(QFrame):
                         common_text = ', '.join(sorted(common_all)[:5])
                         if len(common_all) > 5:
                             common_text += f"... (+{len(common_all)-5})"
-                        result += f"   ✅ Comuni: {common_text}\n"
+                        result += f"   {t('widgets.xmp.common_tags')}: {common_text}\n"
 
                     # Tags solo in DB
                     db_only = db_tags - sidecar_tags - embedded_tags
@@ -2131,7 +2134,7 @@ class ImageCard(QFrame):
                         db_only_text = ', '.join(sorted(db_only)[:3])
                         if len(db_only) > 3:
                             db_only_text += f"... (+{len(db_only)-3})"
-                        result += f"   > Solo DB: {db_only_text}\n"
+                        result += f"   {t('widgets.xmp.db_only_tags')}: {db_only_text}\n"
 
                     # Tags solo in Sidecar
                     if sidecar_exists:
@@ -2140,7 +2143,7 @@ class ImageCard(QFrame):
                             sidecar_only_text = ', '.join(sorted(sidecar_only)[:3])
                             if len(sidecar_only) > 3:
                                 sidecar_only_text += f"... (+{len(sidecar_only)-3})"
-                            result += f"   < Solo Sidecar: {sidecar_only_text}\n"
+                            result += f"   {t('widgets.xmp.sidecar_only_tags')}: {sidecar_only_text}\n"
 
                     # Tags solo in Embedded
                     if embedded_supported:
@@ -2149,13 +2152,13 @@ class ImageCard(QFrame):
                             embedded_only_text = ', '.join(sorted(embedded_only)[:3])
                             if len(embedded_only) > 3:
                                 embedded_only_text += f"... (+{len(embedded_only)-3})"
-                            result += f"   ◀ Solo Embedded: {embedded_only_text}\n"
+                            result += f"   {t('widgets.xmp.embedded_only_tags')}: {embedded_only_text}\n"
 
                 # Stato sync tags
                 tags_match = (db_tags == sidecar_tags == embedded_tags) if embedded_supported and sidecar_exists else \
                              (db_tags == sidecar_tags) if sidecar_exists else \
                              (db_tags == embedded_tags) if embedded_supported else True
-                result += f"   {'✅ Sincronizzati' if tags_match else '⚠️ Discrepanza'}\n"
+                result += f"   {t('widgets.xmp.synced') if tags_match else t('widgets.xmp.mismatch')}\n"
 
                 results.append(result)
 
