@@ -343,9 +343,9 @@ class SearchTab(QWidget):
             
             # Mostriamo il pop-up al centro
             if query:
-                txt = "Analisi CLIP..." if self.semantic_radio.isChecked() else "Ricerca nei Tag..."
+                txt = t("search.msg.status_clip") if self.semantic_radio.isChecked() else t("search.msg.status_tag")
             else:
-                txt = "Applicando Filtri..."
+                txt = t("search.msg.status_filters")
             loading_msg = self._show_loading_popup(f"🔍 {txt}")
             
             QCoreApplication.processEvents()
@@ -425,7 +425,7 @@ class SearchTab(QWidget):
         self.search_cancelled = True
         self.search_active = False
         self.progress_box.setVisible(False)
-        self.log_message("🛑 Ricerca interrotta", "warning")
+        self.log_message(t("search.msg.stopped"), "warning")
         
         # Se ci sono già risultati parziali, li mostra
         if hasattr(self, 'partial_results') and self.partial_results:
@@ -553,7 +553,7 @@ class SearchTab(QWidget):
         layout.addLayout(mode_layout)
     
         # --- 2. INPUT RICERCA E HELP ---
-        self.help_label = QLabel("Cerca con linguaggio naturale (es: 'montagna con neve al tramonto')")
+        self.help_label = QLabel(t("search.placeholder.semantic_help"))
         self.help_label.setStyleSheet("color: #666; font-style: italic;")
         layout.addWidget(self.help_label)
     
@@ -861,7 +861,7 @@ class SearchTab(QWidget):
         self.rating_min.addItem("≥ ★★★", 3)
         self.rating_min.addItem("≥ ★★★★", 4)
         self.rating_min.addItem("= ★★★★★", 5)
-        self.rating_min.setToolTip("Filtra per rating minimo (stelle Lightroom)")
+        self.rating_min.setToolTip(t("search.tooltip.rating_min"))
         self.rating_min.setMinimumWidth(110)
         rating_layout.addWidget(self.rating_min)
         rating_layout.addStretch()
@@ -872,13 +872,13 @@ class SearchTab(QWidget):
         color_layout.addWidget(QLabel("Colore:"))
         self.color_label_filter = QComboBox()
         self.color_label_filter.addItem(t("search.combo.all_m"), None)
-        self.color_label_filter.addItem("🔴 Rosso", "Red")
-        self.color_label_filter.addItem("🟡 Giallo", "Yellow")
-        self.color_label_filter.addItem("🟢 Verde", "Green")
-        self.color_label_filter.addItem("🔵 Blu", "Blue")
-        self.color_label_filter.addItem("🟣 Viola", "Purple")
+        self.color_label_filter.addItem(t("search.color.red"), "Red")
+        self.color_label_filter.addItem(t("search.color.yellow"), "Yellow")
+        self.color_label_filter.addItem(t("search.color.green"), "Green")
+        self.color_label_filter.addItem(t("search.color.blue"), "Blue")
+        self.color_label_filter.addItem(t("search.color.purple"), "Purple")
         self.color_label_filter.addItem(t("search.combo.no_color"), "")
-        self.color_label_filter.setToolTip("Filtra per color label")
+        self.color_label_filter.setToolTip(t("search.tooltip.color_label"))
         self.color_label_filter.setMinimumWidth(110)
         color_layout.addWidget(self.color_label_filter)
         color_layout.addStretch()
@@ -941,7 +941,7 @@ class SearchTab(QWidget):
         row_bn.addWidget(QLabel("Foto:"))
         self.monochrome_combo = QComboBox()
         self.monochrome_combo.addItems([t("search.combo.all_f"), t("search.combo.color_photos"), t("search.combo.bw_photos")])
-        self.monochrome_combo.setToolTip("Filtra per tipo colore immagine")
+        self.monochrome_combo.setToolTip(t("search.tooltip.monochrome"))
         self.monochrome_combo.setFixedWidth(80)
         row_bn.addWidget(self.monochrome_combo)
         row_bn.addStretch()
@@ -957,7 +957,7 @@ class SearchTab(QWidget):
         layout.setSpacing(3)
         
         self.sync_filter = QCheckBox(t("search.check.out_of_sync"))
-        self.sync_filter.setToolTip("Solo immagini modificate dopo ultimo sync XMP")
+        self.sync_filter.setToolTip(t("search.tooltip.sync_filter"))
         layout.addWidget(self.sync_filter)
         
         group.setLayout(layout)
@@ -1169,8 +1169,8 @@ class SearchTab(QWidget):
         while name in existing_names:
             choice = QMessageBox.question(
                 self,
-                "Nome già esistente",
-                f'Esiste già una ricerca chiamata "{name}".\nSovrascrivere?',
+                t("search.msg.duplicate_name_title"),
+                t("search.msg.duplicate_name_overwrite", name=name),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
@@ -1179,7 +1179,7 @@ class SearchTab(QWidget):
                 break
             else:
                 new_name, ok2 = QInputDialog.getText(
-                    self, "Salva ricerca", "Scegli un nome diverso:", text=name
+                    self, t("search.dialog.save_title"), t("search.msg.duplicate_name_input"), text=name
                 )
                 if not ok2 or not new_name.strip():
                     return

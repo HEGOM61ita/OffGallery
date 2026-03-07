@@ -220,7 +220,7 @@ class SplashScreen(QWidget):
         self.progress.setValue(progress_val)
 
         # Aggiorna sottotitolo con ultimo messaggio significativo
-        if any(x in message for x in ['✅', '🔧', 'Caric', 'Inizial', 'Loading']):
+        if any(x in message for x in ['✅', '🔧', '🚀', '📦', 'Caric', 'Inizial', 'Loading', 'Init']):
             short_msg = message[:50] + "..." if len(message) > 50 else message
             self.subtitle.setText(short_msg)
 
@@ -301,7 +301,7 @@ def run_with_splash():
     # Setup cattura log PRIMA di tutto
     setup_log_capture()
 
-    print("🚀 Avvio OffGallery...")
+    print(t("splash.msg.starting"))
 
     # Filtra warning Qt TIFF (null byte in tag EXIF, compressione JPEG non supportata)
     from PyQt6.QtCore import qInstallMessageHandler, QtMsgType
@@ -343,11 +343,11 @@ def run_with_splash():
     # Crea e mostra splash
     splash = SplashScreen()
     splash.show()
-    splash.add_log("🚀 Inizializzazione OffGallery...")
+    splash.add_log(t("splash.msg.init_loading"))
     QApplication.processEvents()
 
     # Import e creazione MainWindow (genera i log)
-    print("📦 Caricamento moduli...")
+    print(t("splash.msg.loading_modules"))
 
     try:
         from gui.main_window import MainWindow, shutdown_badge_manager
@@ -358,12 +358,12 @@ def run_with_splash():
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Icon.Critical)
         msg.setWindowTitle(t("splash.msg.module_error_title"))
-        msg.setText("Impossibile caricare i moduli dell'interfaccia.")
+        msg.setText(t("splash.msg.module_load_failed"))
         msg.setDetailedText(traceback.format_exc())
         msg.exec()
         sys.exit(1)
 
-    print("🔧 Inizializzazione interfaccia...")
+    print(t("splash.msg.init_ui"))
     try:
         window = MainWindow()
     except Exception as e:
@@ -373,7 +373,7 @@ def run_with_splash():
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Icon.Critical)
         msg.setWindowTitle(t("splash.msg.startup_error_title"))
-        msg.setText(f"Errore durante l'inizializzazione:\n{e}")
+        msg.setText(t("splash.msg.startup_error", error=e))
         msg.setDetailedText(traceback.format_exc())
         msg.exec()
         sys.exit(1)
