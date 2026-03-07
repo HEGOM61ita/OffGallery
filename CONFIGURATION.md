@@ -427,6 +427,48 @@ La directory CSV è opzionale e separata dalla directory di output principale. S
 
 ---
 
+## Lingua Interfaccia e Contenuti
+
+OffGallery gestisce due impostazioni linguistiche **indipendenti**, entrambe configurabili dal tab Configurazione.
+
+### `ui.user_language` — Lingua interfaccia grafica
+
+Controlla la lingua di tutti i testi dell'interfaccia (etichette, tooltip, dialoghi, messaggi di stato).
+
+| Valore | Lingua |
+|--------|--------|
+| `it` | Italiano (default) |
+| `en` | English |
+| `fr` | Français |
+| `de` | Deutsch |
+| `es` | Español |
+| `pt` | Português |
+
+> La modifica richiede il riavvio dell'applicazione.
+
+### `ui.llm_output_language` — Lingua contenuti LLM
+
+Controlla la lingua in cui il modello LLM Vision genera **tag, descrizioni e titoli**. È indipendente dalla lingua dell'interfaccia: è possibile avere la GUI in italiano e i tag in inglese, o la GUI in inglese e i tag in francese.
+
+Stessi valori di `user_language`.
+
+> **Esempio**: un fotografo italiano che vuole condividere i propri archivi con colleghi francofoni può impostare la GUI in italiano (`user_language: it`) e i contenuti LLM in francese (`llm_output_language: fr`).
+
+### Come funziona la ricerca con lingue miste
+
+La ricerca gestisce automaticamente la lingua a due livelli distinti:
+
+| Fase | Query usata | Perché |
+|------|-------------|--------|
+| **Ricerca semantica CLIP** | Query tradotta in **inglese** | CLIP è addestrato su coppie immagine-testo in EN: la precisione semantica è massima in inglese |
+| **Ricerca tag / deep search** | Query tradotta nella **lingua dei tag** (`llm_output_language`) | I tag nel DB sono nella lingua di generazione LLM; il matching deve operare nella stessa lingua |
+
+Le traduzioni avvengono tramite **Argostranslate** (offline). I pacchetti necessari (es. `en→fr`, `en→de`) vengono scaricati automaticamente al primo avvio se non già presenti. Lo stato del download è visibile nel pannello **Log**.
+
+> **Graceful degradation**: se il pacchetto di traduzione per una lingua non è disponibile, la ricerca tag usa la query originale (in inglese). La ricerca semantica CLIP non è mai compromessa.
+
+---
+
 ## Note
 
 - Le modifiche al file YAML richiedono il riavvio dell'applicazione

@@ -27,14 +27,16 @@
 ---
 
 > [!NOTE]
-> **🤖 Nuovo modello LLM Vision — Qwen3.5 4B**
+> **🌍 Supporto multilingua completo**
 >
-> Il modello predefinito per la generazione di tag, descrizioni e titoli è stato aggiornato da `qwen3-vl:4b-instruct` a **`qwen3.5:4b-q4_K_M`** (early fusion, 3.4 GB).
-> Descrizioni più ricche e dettagliate, migliore italiano, output più coerente con il contenuto visivo.
+> OffGallery supporta ora 6 lingue (**IT, EN, FR, DE, ES, PT**) a tutti i livelli, in modo indipendente:
 >
-> **Chi installa da zero**: nessuna azione, il wizard scarica automaticamente il nuovo modello.
-> **Chi aggiorna**: esegui `git pull`, poi `ollama pull qwen3.5:4b-q4_K_M`.
-> Puoi liberare spazio con `ollama rm qwen3-vl:4b-instruct` (~3.3 GB).
+> - **Interfaccia grafica**: seleziona la lingua dal tab Configurazione → Lingua interfaccia
+> - **Contenuti generati da LLM** (tag, descrizioni, titoli): scegli la lingua di output LLM indipendentemente dalla GUI. I tag vengono generati nella lingua configurata e salvati così nel database
+> - **Ricerca semantica CLIP**: funziona sempre in inglese internamente (massima accuratezza), con traduzione automatica della query — trasparente per l'utente
+> - **Ricerca per tag/keyword**: la query viene automaticamente tradotta nella lingua dei tag (la stessa `llm_output_language`) prima del matching, garantendo risultati corretti anche con tag in francese, tedesco, ecc.
+>
+> Le traduzioni avvengono tramite **Argostranslate** completamente offline. I pacchetti di traduzione vengono scaricati al primo avvio se necessari; un messaggio nel pannello Log informa l'utente sullo stato.
 
 ---
 
@@ -42,6 +44,7 @@
 
 | Data | Cosa | Note |
 |------|------|------|
+| 7 mar 2026 | **Supporto multilingua completo** | GUI, LLM output e ricerca tag ora indipendenti: 6 lingue (IT/EN/FR/DE/ES/PT), traduzione query automatica Argostranslate offline |
 | 5 mar 2026 | **Fix segfault macOS al primo avvio** | Il launcher macOS scarica ora i modelli AI in un processo separato prima di avviare Qt, eliminando il crash "Segmentation fault: 11" che si verificava al primo avvio su tutti i Mac |
 | 3 mar 2026 | **Ricerche salvate** | Salva e richiama configurazioni di ricerca complete (query, mode, soglia, tutti i filtri EXIF/score/date) con un click; archivio in `database/saved_searches.json` |
 | 3 mar 2026 | **Nuovo modello LLM Vision: Qwen3.5 4B** | Migrazione a `qwen3.5:4b-q4_K_M` (early fusion); descrizioni più ricche; prompt ottimizzato: specie da BioCLIP, toponymi tradotti in italiano, parametri generation aggiornati (`num_ctx: 4096`, `top_k: 40`) |
@@ -62,7 +65,8 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 | Funzionalità | Descrizione |
 |--------------|-------------|
 | **100% Offline** | Nessun dato lascia mai il tuo computer. Tutti i modelli AI girano localmente |
-| **Potente ricerca Semantica /tags/Exif/+vari** | Cerca in ITALIANO con linguaggio naturale e/o combo complesse con traduzione automatica; salva e richiama ricerche preferite in un click |
+| **Supporto multilingua** | GUI, output LLM e ricerca tag indipendenti: 6 lingue (IT, EN, FR, DE, ES, PT). Tag e descrizioni nella lingua che preferisci, anche diversa dalla lingua dell'interfaccia |
+| **Potente ricerca Semantica /tags/Exif/+vari** | Cerca con linguaggio naturale e/o combo complesse; traduzione automatica query per CLIP (EN) e per tag (lingua contenuti); salva e richiama ricerche preferite in un click |
 | **Supporto RAW Nativo** | 25+ formati RAW supportati (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF...) |
 | **Ricerca similarità visiva** | Un semplice click per trovare immagini simili, doppioni, etc. |
 | **Import da catalogo Lightroom** | Elabora direttamente i file indicizzati in un catalogo `.lrcat` come sorgente di input, senza dover specificare cartelle manualmente |
@@ -96,8 +100,8 @@ Tutti i componenti girano localmente, completamente offline:
 │  │  Valutazione 0-10    │  │  Analisi nitidezza/rumore      │   │
 │  └──────────────────────┘  └────────────────────────────────┘   │
 │  ┌──────────────────────────┐  ┌──────────────────────────┐   │
-│  │  Argos Translate (IT→EN) │  │  Geocoding Inverso       │   │
-│  │  Query multilingue       │  │  GPS → Paese/Regione/Città│   │
+│  │  Argos Translate         │  │  Geocoding Inverso       │   │
+│  │  Query EN + tag lingua   │  │  GPS → Paese/Regione/Città│   │
 │  └──────────────────────────┘  └──────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
