@@ -134,7 +134,13 @@ class ImageRetrieval:
 
         return final_results, total_found_in_db
     
-    def _semantic_pipeline(self, query_it, query_en, candidates, deep_search, signal_callback, threshold, strictness, include_description):
+    def _semantic_pipeline(self, query_tag, query_en, candidates, deep_search, signal_callback, threshold, strictness, include_description):
+        """Pipeline semantica CLIP + deep search testuale.
+
+        Separazione netta delle due fasi:
+        - query_en  → encoder CLIP (testo in inglese, spazio vettoriale EN)
+        - query_tag → matching testuale deep search (tradotta nella lingua dei tag/llm_output_language)
+        """
         import numpy as np
         import json
         import pickle
@@ -143,14 +149,17 @@ class ImageRetrieval:
 
         logger = logging.getLogger('root')
         results = []
-        
-        # 1. Preparazione Query
+
+        # 1. CLIP EMBEDDING — usa query_en (inglese)
+        # CLIP è addestrato su coppie immagine-testo in inglese: la query DEVE essere EN
         res_query = self.embedding_gen.generate_embeddings(query_en)
         if not res_query: return []
         query_emb = np.array(res_query.get('text_embedding') if isinstance(res_query, dict) else res_query)
 
-        # 2. Estrazione parole query (minimo 3 caratteri)
-        query_words = [w.strip(",.?!").lower() for w in query_it.split() if len(w) >= 3]
+        # 2. DEEP SEARCH — usa query_tag (lingua dei contenuti/tag nel DB)
+        # I tag e le descrizioni sono nella lingua llm_output_language:
+        # il matching testuale deve operare nella stessa lingua per trovare corrispondenze
+        query_words = [w.strip(",.?!").lower() for w in query_tag.split() if len(w) >= 3]
         
         # 3. Calcolo lunghezza matching basata su strictness (CORRETTO)
         # strictness 0.0 → 4 caratteri, strictness 1.0 → 9 caratteri
