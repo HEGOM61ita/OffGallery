@@ -419,7 +419,7 @@ class ConfigTab(QWidget):
             
             # Argomenti comando (NUOVO)
             args_edit = QLineEdit()
-            args_edit.setPlaceholderText("Argomenti opzionali (es: -direct)")
+            args_edit.setPlaceholderText(t("config.placeholder.editor_args"))
             args_edit.setObjectName(f"editor_{i}_command_args")
             args_edit.setMaxLength(100)
             
