@@ -49,10 +49,15 @@ class EmbeddingGenerator:
         # CARICAMENTO PROFILI OTTIMIZZAZIONE DA CONFIG
         self.optimization_profiles = self._load_optimization_profiles()
 
-        # Traduttore
+        # Traduttore query → EN (per CLIP)
         self.translator = None
         if self.embedding_config.get('translation', {}).get('enabled', True):
             self._init_translator()
+
+        # Traduttore EN → lingua contenuti (per ricerca tag)
+        self._tag_lang = self.config.get('ui', {}).get('llm_output_language', 'it')
+        self._tag_translator_ready = False
+        self._init_tag_translator()
 
         # Inizializzazione selettiva
         if self.enabled:
@@ -314,7 +319,83 @@ class EmbeddingGenerator:
         except ImportError:
             logger.warning("Argostranslate non disponibile - traduzioni disabilitate")
             self.translator = None
-    
+
+    def _init_tag_translator(self):
+        """Verifica/installa pacchetto Argos EN→lingua_contenuti per ricerca tag.
+        Chiamato a startup: stesso pattern di _init_translator, nessun side effect a runtime."""
+        if self._tag_lang == 'en':
+            # I tag sono in inglese: nessuna traduzione necessaria
+            self._tag_translator_ready = True
+            return
+
+        try:
+            import argostranslate.package
+            import argostranslate.translate
+            import logging
+            logging.getLogger('argostranslate.utils').setLevel(logging.WARNING)
+
+            # Verifica se il pacchetto EN→X è già installato
+            try:
+                installed = argostranslate.package.get_installed_packages()
+            except Exception:
+                installed = []
+
+            has_pkg = any(
+                p.from_code == 'en' and p.to_code == self._tag_lang
+                for p in installed
+            )
+
+            if has_pkg:
+                self._tag_translator_ready = True
+                logger.info(f"[OK] Traduttore EN→{self._tag_lang} disponibile per ricerca tag")
+                return
+
+            # Pacchetto non installato: tenta download dall'indice ufficiale Argos
+            logger.warning(
+                f"⚠️ Pacchetto traduzione EN→{self._tag_lang} non installato. "
+                f"Tentativo download in corso..."
+            )
+            try:
+                argostranslate.package.update_package_index()
+                available = argostranslate.package.get_available_packages()
+                pkg = next(
+                    (p for p in available
+                     if p.from_code == 'en' and p.to_code == self._tag_lang),
+                    None
+                )
+                if pkg:
+                    download_path = pkg.download()
+                    argostranslate.package.install_from_path(download_path)
+                    self._tag_translator_ready = True
+                    logger.info(f"[OK] Pacchetto EN→{self._tag_lang} installato — ricerca tag attiva")
+                else:
+                    logger.warning(
+                        f"⚠️ Pacchetto EN→{self._tag_lang} non trovato nell'indice Argos. "
+                        f"La ricerca tag userà la query in inglese (risultati parziali possibili)."
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"⚠️ Download EN→{self._tag_lang} fallito ({e}). "
+                    f"La ricerca tag userà la query in inglese (risultati parziali possibili)."
+                )
+
+        except ImportError:
+            logger.warning("Argostranslate non disponibile — ricerca tag senza traduzione")
+
+    def _translate_to_tag_language(self, text_en: str) -> str:
+        """Traduce la query EN nella lingua dei contenuti per il matching tag.
+        Ritorna il testo originale se la traduzione non è disponibile."""
+        if self._tag_lang == 'en' or not self._tag_translator_ready:
+            return text_en
+        try:
+            import argostranslate.translate
+            result = argostranslate.translate.translate(text_en, 'en', self._tag_lang)
+            logger.debug(f"Tag query: '{text_en}' → '{result}' ({self._tag_lang})")
+            return result
+        except Exception as e:
+            logger.debug(f"Traduzione EN→{self._tag_lang} fallita: {e}")
+            return text_en
+
     def _get_models_dir(self) -> Path:
         """Restituisce il percorso assoluto della directory modelli dal config."""
         rel = self.config.get('models_repository', {}).get('models_dir', 'Models')

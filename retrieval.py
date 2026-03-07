@@ -86,9 +86,12 @@ class ImageRetrieval:
                 logger.error(f"Errore SQL filtri: {e}")
                 return [], 0
         
-        # 2. TRADUZIONE (solo se c'è query)
+        # 2. TRADUZIONE
+        # query_text è sempre in EN — _translate_to_english è no-op per testo ASCII
         query_en = self.embedding_gen._translate_to_english(query_text)
-        logger.info(f"🔤 Query: '{query_text}' → Traduzione: '{query_en}'")
+        # Per tag/keyword matching: traduce EN → lingua dei contenuti (llm_output_language)
+        query_tag = self.embedding_gen._translate_to_tag_language(query_en)
+        logger.info(f"🔤 Query EN: '{query_en}' | Tag lang: '{query_tag}'")
         
         # 3. SQL FETCH - Prende TUTTE le immagini per ricerca semantica
         # La ricerca CLIP deve confrontare la query con OGNI immagine nel database
@@ -121,9 +124,9 @@ class ImageRetrieval:
         
         # 5. DISPATCH PIPELINE
         if mode == "semantic":
-            results = self._semantic_pipeline(query_text, query_en, candidates, deep_search, signal_callback, threshold, strictness, include_description)
+            results = self._semantic_pipeline(query_tag, query_en, candidates, deep_search, signal_callback, threshold, strictness, include_description)
         else:
-            results = self._tag_pipeline(query_text, candidates, fuzzy=fuzzy, include_description=include_description, include_title=include_title)
+            results = self._tag_pipeline(query_tag, candidates, fuzzy=fuzzy, include_description=include_description, include_title=include_title)
 
         # 6. APPLICAZIONE LIMITE FINALE
         # Applichiamo il limite richiesto dall'utente sulla lista finale elaborata
