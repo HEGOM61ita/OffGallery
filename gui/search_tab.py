@@ -8,6 +8,7 @@ import yaml
 import sys
 from pathlib import Path
 import json
+from i18n import t
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
     QLabel, QLineEdit, QPushButton, QCheckBox,
@@ -161,7 +162,7 @@ class SearchTab(QWidget):
         
         # --- CAMERA (Make + Model combinato) ---
         camera = self.camera_combo.currentText()
-        if camera and camera != "Tutte":
+        if self.camera_combo.currentIndex() > 0 and camera:
             camera_parts = camera.split()
             if len(camera_parts) >= 2:
                 possible_make = camera_parts[0]
@@ -174,20 +175,20 @@ class SearchTab(QWidget):
         
         # --- LENS ---
         lens = self.lens_combo.currentText()
-        if lens and lens != "Tutte":
+        if self.lens_combo.currentIndex() > 0 and lens:
             conditions.append("lens_model = ?")
             params.append(lens)
         
         # --- FILE TYPE ---
-        filetype = self.filetype_combo.currentText()
-        if filetype == "Solo RAW":
+        filetype_idx = self.filetype_combo.currentIndex()
+        if filetype_idx == 1:  # RAW only
             conditions.append("is_raw = 1")
-        elif filetype == "Solo JPEG/PNG":
+        elif filetype_idx == 2:  # JPEG/PNG only
             conditions.append("(is_raw = 0 OR is_raw IS NULL)")
         
         # --- RAW FORMAT SPECIFICO ---
         raw_format_text = self.raw_format_combo.currentText()
-        if raw_format_text and raw_format_text != "Tutti":
+        if self.raw_format_combo.currentIndex() > 0 and raw_format_text:
             current_index = self.raw_format_combo.currentIndex()
             raw_format_value = self.raw_format_combo.itemData(current_index)
             if raw_format_value:
@@ -219,10 +220,10 @@ class SearchTab(QWidget):
             params.append(self.aperture_max.value())
             
         # --- FLASH ---
-        flash = self.flash_combo.currentText()
-        if flash == "Sì":
+        flash_idx = self.flash_combo.currentIndex()
+        if flash_idx == 1:  # Yes / Sì
             conditions.append("flash_used = 1")
-        elif flash == "No":
+        elif flash_idx == 2:  # No
             conditions.append("flash_used = 0")
             
         # --- EXPOSURE MODE ---
@@ -331,7 +332,7 @@ class SearchTab(QWidget):
             
             # Controllo: serve almeno query O filtri
             if not query and not has_filters:
-                QMessageBox.information(self, "Ricerca", "Inserisci una query di ricerca o imposta almeno un filtro.")
+                QMessageBox.information(self, t("search.group.search_mode"), t("search.msg.empty_query"))
                 return
 
             self.search_active = True
@@ -402,7 +403,7 @@ class SearchTab(QWidget):
             import traceback
             import logging
             logging.getLogger(__name__).error(f"Errore ricerca: {traceback.format_exc()}")
-            QMessageBox.critical(self, "Errore", f"Problema durante la ricerca: {str(e)}")
+            QMessageBox.critical(self, t("search.msg.search_error_title"), t("search.msg.search_error", error=str(e)))
         finally:
             if loading_msg:
                 loading_msg.deleteLater()
@@ -466,7 +467,7 @@ class SearchTab(QWidget):
         # Risultati con conteggio dinamico e pulsante stop
         results_layout = QHBoxLayout()
 
-        self.results_label = QLabel("Risultati: -")
+        self.results_label = QLabel(t("search.label.results"))
         self.results_label.setStyleSheet("font-weight: bold; color: #666;")
 
         # Box conteggio dinamico - Layout pulito senza QGroupBox
@@ -485,16 +486,16 @@ class SearchTab(QWidget):
         progress_layout.setContentsMargins(8, 8, 8, 8)
         progress_layout.setSpacing(5)
 
-        progress_title = QLabel("⏱️ Ricerca in corso")
+        progress_title = QLabel(t("search.label.searching"))
         progress_title.setStyleSheet("color: #666; font-weight: bold; font-size: 14px;")
         progress_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         count_layout = QHBoxLayout()
 
-        self.count_label = QLabel("Trovate: 0 immagini")
+        self.count_label = QLabel(t("search.label.count_init"))
         self.count_label.setStyleSheet("color: #666; font-size: 14px; font-weight: bold;")
 
-        self.stop_button = QPushButton("⏹️ Stop")
+        self.stop_button = QPushButton(t("search.btn.stop"))
         self.stop_button.setStyleSheet("""
             QPushButton {
                 background-color: #ff8800;
@@ -539,11 +540,11 @@ class SearchTab(QWidget):
         mode_layout = QHBoxLayout()
         self.mode_group = QButtonGroup(self)
     
-        self.semantic_radio = QRadioButton("Semantica")
+        self.semantic_radio = QRadioButton(t("search.radio.semantic"))
         self.semantic_radio.setChecked(True)
         self.mode_group.addButton(self.semantic_radio)
     
-        self.tags_radio = QRadioButton("Tag/Testo")
+        self.tags_radio = QRadioButton(t("search.radio.tag_text"))
         self.mode_group.addButton(self.tags_radio)
     
         mode_layout.addWidget(self.semantic_radio)
@@ -557,7 +558,7 @@ class SearchTab(QWidget):
         layout.addWidget(self.help_label)
     
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Inserisci query semantica...")
+        self.search_input.setPlaceholderText(t("search.placeholder.semantic"))
         self.search_input.setFixedHeight(30)
         self.search_input.returnPressed.connect(self.execute_search)
         layout.addWidget(self.search_input)
@@ -566,12 +567,12 @@ class SearchTab(QWidget):
         options_container = QHBoxLayout()
         
         # GRUPPO SEMANTICA
-        self.semantic_group = QGroupBox("🧠 Ricerca Semantica")
+        self.semantic_group = QGroupBox(t("search.group.semantic"))
         semantic_layout = QVBoxLayout()
         
         # Soglia semantica
         threshold_layout = QHBoxLayout()
-        threshold_label = QLabel("Soglia:")
+        threshold_label = QLabel(t("search.label.threshold_short"))
         self.threshold_spin = QDoubleSpinBox()
         self.threshold_spin.setRange(0.1, 0.9)
         self.threshold_spin.setValue(0.15)
@@ -609,32 +610,32 @@ class SearchTab(QWidget):
         self.semantic_group.setLayout(semantic_layout)
         
         # GRUPPO TAG/TESTO
-        self.tags_group = QGroupBox("🏷️ Ricerca Tag/Testo")
+        self.tags_group = QGroupBox(t("search.group.tag_text"))
         tags_layout = QVBoxLayout()
         
         # Includi descrizione
-        self.description_check = QCheckBox("Includi Descrizione")
+        self.description_check = QCheckBox(t("search.check.include_desc"))
         self.description_check.setChecked(True)  # Default abilitato
         tags_layout.addWidget(self.description_check)
         
         # Fuzzy matching
-        self.fuzzy_check = QCheckBox("Fuzzy Matching")
+        self.fuzzy_check = QCheckBox(t("search.check.fuzzy_matching"))
         self.fuzzy_check.setChecked(True)  # Default abilitato
         tags_layout.addWidget(self.fuzzy_check)
 
         # Includi titolo nella ricerca
-        self.title_search_check = QCheckBox("Includi Titolo")
+        self.title_search_check = QCheckBox(t("search.check.include_title"))
         self.title_search_check.setChecked(True)  # Default abilitato
         tags_layout.addWidget(self.title_search_check)
 
         self.tags_group.setLayout(tags_layout)
         
         # CONTROLLI CONDIVISI
-        shared_group = QGroupBox("⚙️ Comuni")
+        shared_group = QGroupBox(t("search.group.common"))
         shared_layout = QVBoxLayout()
         
         max_layout = QHBoxLayout()
-        max_results_label = QLabel("Max risultati:")
+        max_results_label = QLabel(t("search.label.max_results_short"))
         self.max_results_spin = QSpinBox()
         self.max_results_spin.setRange(1, 10000)
         self.max_results_spin.setValue(100)
@@ -675,7 +676,7 @@ class SearchTab(QWidget):
         # Aggiorna help e placeholder
         if is_semantic:
             self.help_label.setText("Cerca con linguaggio naturale (es: 'montagna con neve al tramonto')")
-            self.search_input.setPlaceholderText("Inserisci query semantica...")
+            self.search_input.setPlaceholderText(t("search.placeholder.semantic"))
         else:
             # Modalità tag - help dipende da includi descrizione
             include_desc = self.description_check.isChecked()
@@ -706,12 +707,12 @@ class SearchTab(QWidget):
         row1.setSpacing(12)
         row1.addWidget(QLabel("Camera:"))
         self.camera_combo = QComboBox()
-        self.camera_combo.addItem("Tutte")
+        self.camera_combo.addItem(t("search.combo.all_f"))
         self.camera_combo.setMinimumWidth(150)
         row1.addWidget(self.camera_combo)
         row1.addWidget(QLabel("Lens:"))
         self.lens_combo = QComboBox()
-        self.lens_combo.addItem("Tutte")
+        self.lens_combo.addItem(t("search.combo.all_f"))
         self.lens_combo.setMinimumWidth(150)
         row1.addWidget(self.lens_combo)
         row1.addStretch()
@@ -722,12 +723,12 @@ class SearchTab(QWidget):
         row2.setSpacing(12)
         row2.addWidget(QLabel("Tipo:"))
         self.filetype_combo = QComboBox()
-        self.filetype_combo.addItems(["Tutti", "Solo RAW", "Solo JPEG/PNG"])
+        self.filetype_combo.addItems([t("search.combo.all_m"), t("search.combo.raw_only"), t("search.combo.jpeg_only")])
         self.filetype_combo.setMinimumWidth(110)
         row2.addWidget(self.filetype_combo)
         row2.addWidget(QLabel("RAW:"))
         self.raw_format_combo = QComboBox()
-        self.raw_format_combo.addItem("Tutti")
+        self.raw_format_combo.addItem(t("search.combo.all_m"))
         self.raw_format_combo.setMinimumWidth(100)
         row2.addWidget(self.raw_format_combo)
         row2.addStretch()
@@ -784,7 +785,7 @@ class SearchTab(QWidget):
         row4.addWidget(self.aperture_max)
         row4.addWidget(QLabel("Flash:"))
         self.flash_combo = QComboBox()
-        self.flash_combo.addItems(["Tutti", "Sì", "No"])
+        self.flash_combo.addItems([t("search.combo.all_m"), t("search.combo.flash_yes"), t("search.combo.flash_no")])
         self.flash_combo.setFixedWidth(70)
         row4.addWidget(self.flash_combo)
         row4.addStretch()
@@ -795,12 +796,12 @@ class SearchTab(QWidget):
         row5.setSpacing(12)
         row5.addWidget(QLabel("Exposure:"))
         self.exposure_combo = QComboBox()
-        self.exposure_combo.addItems(["Tutti", "Auto", "Manual", "Aperture Priority", "Shutter Priority"])
+        self.exposure_combo.addItems([t("search.combo.all_m"), "Auto", "Manual", "Aperture Priority", "Shutter Priority"])
         self.exposure_combo.setMinimumWidth(130)
         row5.addWidget(self.exposure_combo)
         row5.addWidget(QLabel("Orientation:"))
         self.orientation_combo = QComboBox()
-        self.orientation_combo.addItems(["Tutte", "Portrait", "Landscape", "Rotated"])
+        self.orientation_combo.addItems([t("search.combo.all_f"), "Portrait", "Landscape", "Rotated"])
         self.orientation_combo.setMinimumWidth(100)
         row5.addWidget(self.orientation_combo)
         row5.addStretch()
@@ -845,7 +846,7 @@ class SearchTab(QWidget):
 
     def create_quality_section(self):
         """Filtri qualità"""
-        group = QGroupBox("⭐ Qualità & Rating")
+        group = QGroupBox(t("search.group.quality_rating"))
         layout = QVBoxLayout()
         layout.setSpacing(6)
         layout.setContentsMargins(8, 12, 8, 8)
@@ -854,7 +855,7 @@ class SearchTab(QWidget):
         rating_layout = QHBoxLayout()
         rating_layout.addWidget(QLabel("Rating:"))
         self.rating_min = QComboBox()
-        self.rating_min.addItem("Qualsiasi", 0)
+        self.rating_min.addItem(t("search.combo.rating_any"), 0)
         self.rating_min.addItem("≥ ★", 1)
         self.rating_min.addItem("≥ ★★", 2)
         self.rating_min.addItem("≥ ★★★", 3)
@@ -870,13 +871,13 @@ class SearchTab(QWidget):
         color_layout = QHBoxLayout()
         color_layout.addWidget(QLabel("Colore:"))
         self.color_label_filter = QComboBox()
-        self.color_label_filter.addItem("Tutti", None)
+        self.color_label_filter.addItem(t("search.combo.all_m"), None)
         self.color_label_filter.addItem("🔴 Rosso", "Red")
         self.color_label_filter.addItem("🟡 Giallo", "Yellow")
         self.color_label_filter.addItem("🟢 Verde", "Green")
         self.color_label_filter.addItem("🔵 Blu", "Blue")
         self.color_label_filter.addItem("🟣 Viola", "Purple")
-        self.color_label_filter.addItem("Senza colore", "")
+        self.color_label_filter.addItem(t("search.combo.no_color"), "")
         self.color_label_filter.setToolTip("Filtra per color label")
         self.color_label_filter.setMinimumWidth(110)
         color_layout.addWidget(self.color_label_filter)
@@ -928,18 +929,18 @@ class SearchTab(QWidget):
     
     def create_gps_section(self):
         """Filtri GPS e Colore"""
-        group = QGroupBox("🌍 GPS & Colore")
+        group = QGroupBox(t("search.group.gps_color"))
         layout = QVBoxLayout()
         layout.setSpacing(3)
         
-        self.gps_only = QCheckBox("Solo con GPS")
+        self.gps_only = QCheckBox(t("search.check.gps_only"))
         layout.addWidget(self.gps_only)
         
         # Filtro Bianco/Nero (combo a 3 opzioni)
         row_bn = QHBoxLayout()
         row_bn.addWidget(QLabel("Foto:"))
         self.monochrome_combo = QComboBox()
-        self.monochrome_combo.addItems(["Tutte", "Colori", "B/N"])
+        self.monochrome_combo.addItems([t("search.combo.all_f"), t("search.combo.color_photos"), t("search.combo.bw_photos")])
         self.monochrome_combo.setToolTip("Filtra per tipo colore immagine")
         self.monochrome_combo.setFixedWidth(80)
         row_bn.addWidget(self.monochrome_combo)
@@ -951,11 +952,11 @@ class SearchTab(QWidget):
     
     def create_sync_section(self):
         """Filtri sync"""
-        group = QGroupBox("🔄 Sync")
+        group = QGroupBox(t("search.group.sync"))
         layout = QVBoxLayout()
         layout.setSpacing(3)
         
-        self.sync_filter = QCheckBox("Solo out-of-sync")
+        self.sync_filter = QCheckBox(t("search.check.out_of_sync"))
         self.sync_filter.setToolTip("Solo immagini modificate dopo ultimo sync XMP")
         layout.addWidget(self.sync_filter)
         
@@ -964,11 +965,11 @@ class SearchTab(QWidget):
     
     def create_date_section(self):
         """Filtri data"""
-        group = QGroupBox("📅 Data")
+        group = QGroupBox(t("search.group.date_filter"))
         layout = QVBoxLayout()
         layout.setSpacing(3)
         
-        self.date_filter_enabled = QCheckBox("Filtra per data:")
+        self.date_filter_enabled = QCheckBox(t("search.check.filter_by_date"))
         layout.addWidget(self.date_filter_enabled)
         
         date_layout = QHBoxLayout()
@@ -1156,7 +1157,7 @@ class SearchTab(QWidget):
         """Dialog per salvare la ricerca corrente con un nome"""
         params = self._get_search_params()
 
-        name, ok = QInputDialog.getText(self, "Salva ricerca", "Nome della ricerca:")
+        name, ok = QInputDialog.getText(self, t("search.dialog.save_title"), t("search.dialog.save_name_label"))
         if not ok or not name.strip():
             return
         name = name.strip()
@@ -1190,17 +1191,17 @@ class SearchTab(QWidget):
             'params': params,
         })
         self._save_saved_searches(searches)
-        QMessageBox.information(self, "Ricerca salvata", f'Ricerca "{name}" salvata.')
+        QMessageBox.information(self, t("search.msg.saved_title"), t("search.msg.saved_msg", name=name))
 
     def load_search_dialog(self):
         """Dialog per caricare una ricerca salvata"""
         searches = self._load_saved_searches()
         if not searches:
-            QMessageBox.information(self, "Ricerche salvate", "Nessuna ricerca salvata.")
+            QMessageBox.information(self, t("search.dialog.saved_title"), t("search.msg.no_saved"))
             return
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("Ricerche salvate")
+        dialog.setWindowTitle(t("search.dialog.saved_title"))
         dialog.setMinimumWidth(360)
         layout = QVBoxLayout(dialog)
 
@@ -1214,8 +1215,8 @@ class SearchTab(QWidget):
         btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        btn_box.button(QDialogButtonBox.StandardButton.Ok).setText("Carica")
-        btn_box.button(QDialogButtonBox.StandardButton.Cancel).setText("Annulla")
+        btn_box.button(QDialogButtonBox.StandardButton.Ok).setText(t("search.dialog.btn_load"))
+        btn_box.button(QDialogButtonBox.StandardButton.Cancel).setText(t("search.btn.reset"))
         btn_box.accepted.connect(dialog.accept)
         btn_box.rejected.connect(dialog.reject)
         layout.addWidget(btn_box)
@@ -1243,12 +1244,12 @@ class SearchTab(QWidget):
         layout = QVBoxLayout(widget)
         layout.setSpacing(5)
 
-        self.search_btn = QPushButton("🔍 CERCA")
+        self.search_btn = QPushButton(t("search.btn.search"))
         self.search_btn.clicked.connect(self.execute_search)
         self.search_btn.setStyleSheet("font-weight: bold; padding: 8px; background-color: #2e7d32;")
         layout.addWidget(self.search_btn)
 
-        self.clear_btn = QPushButton("🗑 RESET")
+        self.clear_btn = QPushButton(t("search.btn.reset"))
         self.clear_btn.clicked.connect(self.clear_filters)
         layout.addWidget(self.clear_btn)
 
@@ -1257,11 +1258,11 @@ class SearchTab(QWidget):
         separator.setFrameShape(QFrame.Shape.HLine)
         layout.addWidget(separator)
 
-        self.save_search_btn = QPushButton("💾 Salva ricerca")
+        self.save_search_btn = QPushButton(t("search.btn.save_search"))
         self.save_search_btn.clicked.connect(self.save_search_dialog)
         layout.addWidget(self.save_search_btn)
 
-        self.load_search_btn = QPushButton("📋 Ricerche salvate")
+        self.load_search_btn = QPushButton(t("search.btn.saved_searches"))
         self.load_search_btn.clicked.connect(self.load_search_dialog)
         layout.addWidget(self.load_search_btn)
 
@@ -1514,8 +1515,9 @@ class SearchTab(QWidget):
                     self.log_message(f"Prime 3 camera: {cameras[:3]}", "info")
                 
                 current_camera = self.camera_combo.currentText()
+                current_camera_idx = self.camera_combo.currentIndex()
                 self.camera_combo.clear()
-                self.camera_combo.addItem("Tutte")
+                self.camera_combo.addItem(t("search.combo.all_f"))
                 
                 if cameras:
                     self.camera_combo.addItems(cameras)
@@ -1524,7 +1526,7 @@ class SearchTab(QWidget):
                     self.log_message("⚠️ Nessuna camera trovata nel database", "warning")
                 
                 # Ripristina selezione precedente se esisteva
-                if current_camera and current_camera != "Tutte":
+                if current_camera_idx > 0 and current_camera:
                     idx = self.camera_combo.findText(current_camera)
                     if idx >= 0:
                         self.camera_combo.setCurrentIndex(idx)
@@ -1553,8 +1555,9 @@ class SearchTab(QWidget):
                     self.log_message(f"Prime 3 lens: {lenses[:3]}", "info")
                 
                 current_lens = self.lens_combo.currentText()
+                current_lens_idx = self.lens_combo.currentIndex()
                 self.lens_combo.clear()
-                self.lens_combo.addItem("Tutte")
+                self.lens_combo.addItem(t("search.combo.all_f"))
                 
                 if lenses:
                     self.lens_combo.addItems(lenses)
@@ -1563,7 +1566,7 @@ class SearchTab(QWidget):
                     self.log_message("⚠️ Nessuna lens trovata nel database", "warning")
                 
                 # Ripristina selezione precedente se esisteva
-                if current_lens and current_lens != "Tutte":
+                if current_lens_idx > 0 and current_lens:
                     idx = self.lens_combo.findText(current_lens)
                     if idx >= 0:
                         self.lens_combo.setCurrentIndex(idx)
@@ -1597,8 +1600,9 @@ class SearchTab(QWidget):
                 self.log_message(f"📁 Trovati {len(formats)} formati RAW nel database", "info")
                 
                 current_format = self.raw_format_combo.currentText()
+                current_format_idx = self.raw_format_combo.currentIndex()
                 self.raw_format_combo.clear()
-                self.raw_format_combo.addItem("Tutti")
+                self.raw_format_combo.addItem(t("search.combo.all_m"))
                 
                 if formats:
                     for fmt_value, fmt_display in formats:
@@ -1626,13 +1630,13 @@ class SearchTab(QWidget):
     def _has_filters(self):
         """Controlla se almeno un filtro è stato impostato"""
         # Camera/Lens/File Type
-        if self.camera_combo.currentText() != "Tutte":
+        if self.camera_combo.currentIndex() > 0:
             return True
-        if self.lens_combo.currentText() != "Tutte":
+        if self.lens_combo.currentIndex() > 0:
             return True
-        if self.filetype_combo.currentText() != "Tutti":
-            return True  
-        if self.raw_format_combo.currentText() != "Tutti":
+        if self.filetype_combo.currentIndex() > 0:
+            return True
+        if self.raw_format_combo.currentIndex() > 0:
             return True
             
         # Focale
@@ -1654,11 +1658,11 @@ class SearchTab(QWidget):
             return True
             
         # Flash
-        if self.flash_combo.currentText() != "Tutti":
+        if self.flash_combo.currentIndex() > 0:
             return True
-            
+
         # Exposure mode
-        if self.exposure_combo.currentText() != "Tutti":
+        if self.exposure_combo.currentIndex() > 0:
             return True
             
         # Focale 35mm
@@ -1674,7 +1678,7 @@ class SearchTab(QWidget):
             return True
             
         # Orientamento
-        if self.orientation_combo.currentText() != "Tutti":
+        if self.orientation_combo.currentIndex() > 0:
             return True
             
         # Data originale

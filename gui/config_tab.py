@@ -7,6 +7,7 @@ Versione 2.0 -
 import yaml
 import platform
 from pathlib import Path
+from i18n import t
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
     QLabel, QLineEdit, QPushButton, QCheckBox, QSpinBox,
@@ -161,7 +162,7 @@ class ConfigTab(QWidget):
         scroll_layout.addWidget(self.create_external_editors_section())
         
         # Info embedding sempre attivi
-        info_label = QLabel("ℹ️  Embedding CLIP e DINOv2 sempre attivi (necessari per ricerca semantica e similarità)")
+        info_label = QLabel(t("config.info.embedding_always_active"))
         info_label.setStyleSheet(f"color: {COLORS['ambra']}; font-size: 11px; padding: 10px; background-color: {COLORS['grafite_dark']}; border-radius: 4px;")
         info_label.setWordWrap(True)
         scroll_layout.addWidget(info_label)
@@ -170,7 +171,7 @@ class ConfigTab(QWidget):
         scroll_layout.addWidget(self.create_device_section())
         
         # Gruppo Embedding Models
-        embedding_group = QGroupBox("🧠 Modelli di Embedding (Core)")
+        embedding_group = QGroupBox(t("config.group.embedding_core"))
         embedding_group.setStyleSheet(f"""
             QGroupBox {{
                 background-color: {COLORS['grafite_dark']};
@@ -190,7 +191,7 @@ class ConfigTab(QWidget):
         scroll_layout.addWidget(embedding_group)
         
         # Gruppo AI Classification
-        ai_group = QGroupBox("🤖 Modelli di Classificazione e Analisi")
+        ai_group = QGroupBox(t("config.group.ai_classification"))
         ai_group.setStyleSheet(f"""
             QGroupBox {{
                 background-color: {COLORS['grafite_dark']};
@@ -211,7 +212,7 @@ class ConfigTab(QWidget):
         scroll_layout.addWidget(ai_group)
         
         # Gruppo Image Processing & Performance
-        processing_group = QGroupBox("⚡ Elaborazione Immagini & Performance")
+        processing_group = QGroupBox(t("config.group.image_processing_perf"))
         processing_group.setStyleSheet(f"""
             QGroupBox {{
                 background-color: {COLORS['grafite_dark']};
@@ -231,7 +232,7 @@ class ConfigTab(QWidget):
         scroll_layout.addWidget(processing_group)
         
         # Gruppo Search & Metadata  
-        search_group = QGroupBox("🔍 Ricerca & Metadati")
+        search_group = QGroupBox(t("config.group.search_metadata_section"))
         search_group.setStyleSheet(f"""
             QGroupBox {{
                 background-color: {COLORS['grafite_dark']};
@@ -257,7 +258,7 @@ class ConfigTab(QWidget):
         buttons_layout = QHBoxLayout()
         
         # Bottone Reset
-        reset_button = QPushButton("🔄 Reset Default")
+        reset_button = QPushButton(t("config.btn.reset"))
         reset_button.clicked.connect(self.reset_to_defaults)
         reset_button.setStyleSheet(f"""
             QPushButton {{
@@ -278,7 +279,7 @@ class ConfigTab(QWidget):
         buttons_layout.addStretch()
         
         # Bottone Salva
-        save_button = QPushButton("💾 Salva Configurazione")
+        save_button = QPushButton(t("config.btn.save"))
         save_button.clicked.connect(self.save_config)
         save_button.setStyleSheet(f"""
             QPushButton {{
@@ -318,7 +319,7 @@ class ConfigTab(QWidget):
 
     def create_paths_section(self):
         """Crea sezione configurazione percorsi completa"""
-        group_box = QGroupBox("📁 Percorsi & Database")
+        group_box = QGroupBox(t("config.group.paths_db"))
         group_box.setObjectName("PathsSection")
         
         group_box.setStyleSheet(f"""
@@ -330,31 +331,29 @@ class ConfigTab(QWidget):
         layout = QGridLayout()
 
         # Database Path
-        layout.addWidget(QLabel("Database:"), 0, 0)
+        layout.addWidget(QLabel(t("config.label.database")), 0, 0)
         self.db_path_edit = QLineEdit()
-        self.db_path_edit.setToolTip("Percorso file database SQLite")
         self.db_path_edit.setPlaceholderText("Es: database/offgallery.sqlite")
         layout.addWidget(self.db_path_edit, 0, 1)
-        
+
         db_browse_btn = QPushButton("📂")
         db_browse_btn.setFixedWidth(40)
-        db_browse_btn.clicked.connect(lambda: self._select_file(self.db_path_edit, "Seleziona Database", "Database SQLite (*.sqlite)"))
+        db_browse_btn.clicked.connect(lambda: self._select_file(self.db_path_edit, t("config.dialog.select_db"), "Database SQLite (*.sqlite)"))
         layout.addWidget(db_browse_btn, 0, 2)
 
         # Log Directory
-        layout.addWidget(QLabel("Logs:"), 1, 0)
+        layout.addWidget(QLabel(t("config.label.logs")), 1, 0)
         self.log_dir_edit = QLineEdit()
-        self.log_dir_edit.setToolTip("Directory salvataggio file log")
         self.log_dir_edit.setPlaceholderText("Es: logs")
         layout.addWidget(self.log_dir_edit, 1, 1)
 
         log_browse_btn = QPushButton("📂")
         log_browse_btn.setFixedWidth(40)
-        log_browse_btn.clicked.connect(lambda: self._select_directory(self.log_dir_edit, "Seleziona Directory Log"))
+        log_browse_btn.clicked.connect(lambda: self._select_directory(self.log_dir_edit, t("config.dialog.select_log_dir")))
         layout.addWidget(log_browse_btn, 1, 2)
 
         # Models Directory
-        layout.addWidget(QLabel("Modelli AI:"), 2, 0)
+        layout.addWidget(QLabel(t("config.label.models_ai")), 2, 0)
         self.models_dir_edit = QLineEdit()
         self.models_dir_edit.setToolTip(
             "Directory dove sono salvati i modelli AI.\n"
@@ -367,10 +366,10 @@ class ConfigTab(QWidget):
 
         models_dir_browse_btn = QPushButton("📂")
         models_dir_browse_btn.setFixedWidth(40)
-        models_dir_browse_btn.clicked.connect(lambda: self._select_directory(self.models_dir_edit, "Seleziona Directory Modelli AI"))
+        models_dir_browse_btn.clicked.connect(lambda: self._select_directory(self.models_dir_edit, t("config.dialog.select_models_dir")))
         layout.addWidget(models_dir_browse_btn, 2, 2)
 
-        models_dir_warn = QLabel("⚠ Cambia solo dopo aver spostato manualmente la cartella Models/")
+        models_dir_warn = QLabel(t("config.warn.models_dir_change"))
         models_dir_warn.setStyleSheet("color: #e6a817; font-size: 10px;")
         layout.addWidget(models_dir_warn, 3, 1)
 
@@ -379,12 +378,12 @@ class ConfigTab(QWidget):
     
     def create_external_editors_section(self):
         """Crea sezione configurazione editor esterni"""
-        group_box = QGroupBox("🎨 Editor Esterni")
+        group_box = QGroupBox(t("config.group.editors"))
         group_box.setObjectName("ExternalEditorsSection")
-        
+
         layout = QVBoxLayout()
-        
-        info_label = QLabel("Configura fino a 3 editor esterni per modificare le immagini dalla gallery")
+
+        info_label = QLabel(t("config.info.editors"))
         info_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 11px; margin-bottom: 10px;")
         layout.addWidget(info_label)
         
@@ -394,10 +393,10 @@ class ConfigTab(QWidget):
         grid_layout.setColumnStretch(2, 2)  # Percorso si espande di più
         
         # Header
-        grid_layout.addWidget(QLabel("Attivo"), 0, 0)
-        grid_layout.addWidget(QLabel("Nome Editor"), 0, 1)
-        grid_layout.addWidget(QLabel("Percorso Eseguibile"), 0, 2)
-        grid_layout.addWidget(QLabel("Argomenti Comando"), 0, 3)
+        grid_layout.addWidget(QLabel(t("config.label.editor_active")), 0, 0)
+        grid_layout.addWidget(QLabel(t("config.label.editor_name_col")), 0, 1)
+        grid_layout.addWidget(QLabel(t("config.label.editor_path_col")), 0, 2)
+        grid_layout.addWidget(QLabel(t("config.label.editor_args_col")), 0, 3)
         grid_layout.addWidget(QLabel(""), 0, 4)  # Per pulsante
         
         # Store references per accesso successivo
@@ -457,7 +456,7 @@ class ConfigTab(QWidget):
     
     def create_device_section(self):
         """Crea sezione device elaborazione (NUOVO)"""
-        group_box = QGroupBox("⚡ Device Elaborazione")
+        group_box = QGroupBox(t("config.group.device_section"))
         group_box.setObjectName("DeviceSection")
         
         group_box.setStyleSheet(f"""
@@ -471,12 +470,12 @@ class ConfigTab(QWidget):
         
         # Dropdown device
         device_layout = QHBoxLayout()
-        device_layout.addWidget(QLabel("Seleziona device:"))
-        
+        device_layout.addWidget(QLabel(t("config.label.select_device")))
+
         self.device_combo = NoWheelComboBox()
-        self.device_combo.addItem("Auto-detect (consigliato)", "auto")
-        self.device_combo.addItem("Forza GPU (CUDA)", "cuda")
-        self.device_combo.addItem("Forza CPU", "cpu")
+        self.device_combo.addItem(t("config.combo.device_autodetect"), "auto")
+        self.device_combo.addItem(t("config.combo.device_gpu_cuda"), "cuda")
+        self.device_combo.addItem(t("config.combo.device_cpu_forced"), "cpu")
         self.device_combo.setToolTip(
             "Auto-detect: rileva automaticamente GPU e usa CPU come fallback\n"
             "Forza GPU: usa solo GPU (fallback CPU se non disponibile)\n"
@@ -489,7 +488,7 @@ class ConfigTab(QWidget):
         layout.addLayout(device_layout)
         
         # Label info GPU dinamica
-        self.gpu_info_label = QLabel("Rilevamento GPU...")
+        self.gpu_info_label = QLabel(t("config.msg.gpu_detecting"))
         self.gpu_info_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; padding: 5px;")
         self.gpu_info_label.setWordWrap(True)
         layout.addWidget(self.gpu_info_label)
@@ -508,21 +507,21 @@ class ConfigTab(QWidget):
             if torch.cuda.is_available():
                 gpu_name = torch.cuda.get_device_name(0)
                 gpu_mem = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-                self.gpu_info_label.setText(f"✅ GPU disponibile: {gpu_name} ({gpu_mem:.1f} GB VRAM)")
+                self.gpu_info_label.setText(t("config.msg.gpu_detected", name=gpu_name, mem=gpu_mem))
                 self.gpu_info_label.setStyleSheet(f"color: {COLORS['verde']}; font-weight: bold; font-size: 10px; padding: 5px;")
             else:
-                self.gpu_info_label.setText("⚠️ Nessuna GPU rilevata - verrà usata CPU (elaborazione più lenta)")
+                self.gpu_info_label.setText(t("config.msg.gpu_none"))
                 self.gpu_info_label.setStyleSheet(f"color: {COLORS['ambra']}; font-size: 10px; padding: 5px;")
         except ImportError:
-            self.gpu_info_label.setText("❌ PyTorch non installato - impossibile rilevare GPU")
+            self.gpu_info_label.setText(t("config.msg.gpu_no_torch"))
             self.gpu_info_label.setStyleSheet(f"color: {COLORS['rosso']}; font-size: 10px; padding: 5px;")
         except Exception as e:
-            self.gpu_info_label.setText(f"⚠️ Errore rilevamento GPU: {e}")
+            self.gpu_info_label.setText(t("config.msg.gpu_error", error=e))
             self.gpu_info_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; padding: 5px;")
 
     def create_dinov2_section(self):
         """Crea sezione configurazione DINOv2 (MODIFICATO - rimosso checkbox enabled e device)"""
-        group_box = QGroupBox("🔍 Modello DINOv2 (Similarità Visiva)")
+        group_box = QGroupBox(t("config.group.dinov2"))
         group_box.setObjectName("DINOv2Section")
         
         group_box.setStyleSheet(f"""
@@ -534,13 +533,12 @@ class ConfigTab(QWidget):
         layout = QGridLayout()
 
         # Model Name
-        layout.addWidget(QLabel("Nome Modello:"), 0, 0)
+        layout.addWidget(QLabel(t("config.label.model_name")), 0, 0)
         self.dinov2_model_name = QLineEdit()
-        self.dinov2_model_name.setToolTip("Modello Hugging Face per embedding visuali\nDefault: facebook/dinov2-base")
         layout.addWidget(self.dinov2_model_name, 0, 1)
 
         # Soglia Similarità
-        layout.addWidget(QLabel("Soglia Similarità (Find Similar):"), 1, 0)
+        layout.addWidget(QLabel(t("config.label.similarity_threshold")), 1, 0)
         self.dinov2_similarity_threshold = NoWheelDoubleSpinBox()
         self.dinov2_similarity_threshold.setRange(0.0, 1.0)
         self.dinov2_similarity_threshold.setSingleStep(0.05)
@@ -554,7 +552,7 @@ class ConfigTab(QWidget):
         
     def create_clip_section(self):
         """Crea sezione configurazione CLIP (MODIFICATO - rimosso checkbox enabled)"""
-        group_box = QGroupBox("🔎 Modello CLIP (Ricerca Semantica)")
+        group_box = QGroupBox(t("config.group.clip"))
         group_box.setObjectName("CLIPSection")
         
         group_box.setStyleSheet(f"""
@@ -566,9 +564,8 @@ class ConfigTab(QWidget):
         layout = QGridLayout()
 
         # Model Name
-        layout.addWidget(QLabel("Nome Modello:"), 0, 0)
+        layout.addWidget(QLabel(t("config.label.model_name")), 0, 0)
         self.clip_model_name = QLineEdit()
-        self.clip_model_name.setToolTip("Modello CLIP per ricerca semantica\nDefault: laion/CLIP-ViT-B-32-laion2B-s34B-b79K")
         layout.addWidget(self.clip_model_name, 0, 1)
 
         group_box.setLayout(layout)
@@ -576,7 +573,7 @@ class ConfigTab(QWidget):
 
     def create_quality_scores_section(self):
         """Crea sezione configurazione Quality Scores (Aesthetic + Technical)"""
-        group_box = QGroupBox("⭐ Quality Scores")
+        group_box = QGroupBox(t("config.group.quality_scores"))
         group_box.setObjectName("QualityScoresSection")
 
         group_box.setStyleSheet(f"""
@@ -588,13 +585,11 @@ class ConfigTab(QWidget):
         layout = QGridLayout()
 
         # Abilita Aesthetic Score
-        self.aesthetic_enabled = QCheckBox("Genera Aesthetic Score (qualità artistica)")
-        self.aesthetic_enabled.setToolTip("Punteggio estetico 0-10 basato su composizione e appeal visivo")
+        self.aesthetic_enabled = QCheckBox(t("config.check.aesthetic_enabled"))
         layout.addWidget(self.aesthetic_enabled, 0, 0, 1, 2)
 
         # Abilita Technical Score (BRISQUE)
-        self.technical_enabled = QCheckBox("Genera Technical Score (qualità tecnica)")
-        self.technical_enabled.setToolTip("Punteggio tecnico 0-100 basato su nitidezza, rumore, artefatti (BRISQUE)")
+        self.technical_enabled = QCheckBox(t("config.check.technical_enabled"))
         layout.addWidget(self.technical_enabled, 1, 0, 1, 2)
 
         group_box.setLayout(layout)
@@ -602,7 +597,7 @@ class ConfigTab(QWidget):
 
     def create_bioclip_section(self):
         """Crea sezione configurazione BioCLIP (MODIFICATO - testo checkbox)"""
-        group_box = QGroupBox("🌿 BioCLIP Tagging")
+        group_box = QGroupBox(t("config.group.bioclip"))
         group_box.setObjectName("BioCLIPSection")
         
         group_box.setStyleSheet(f"""
@@ -614,13 +609,12 @@ class ConfigTab(QWidget):
         layout = QGridLayout()
 
         # Abilita BioCLIP (MODIFICATO)
-        self.bioclip_enabled = QCheckBox("Usa BioCLIP nel processing batch (manuale sempre disponibile)")
-        self.bioclip_enabled.setToolTip("Se disabilitato, BioCLIP utilizzabile solo manualmente dalla Gallery")
+        self.bioclip_enabled = QCheckBox(t("config.check.bioclip_enabled"))
         self.bioclip_enabled.stateChanged.connect(self.toggle_bioclip_params)
         layout.addWidget(self.bioclip_enabled, 0, 0, 1, 2)
 
         # Soglia
-        layout.addWidget(QLabel("Soglia di Rilevanza:"), 1, 0)
+        layout.addWidget(QLabel(t("config.label.relevance_threshold")), 1, 0)
         self.bioclip_threshold = NoWheelDoubleSpinBox()
         self.bioclip_threshold.setRange(0.01, 1.0)
         self.bioclip_threshold.setSingleStep(0.01)
@@ -628,7 +622,7 @@ class ConfigTab(QWidget):
         layout.addWidget(self.bioclip_threshold, 1, 1)
 
         # Max Tag
-        layout.addWidget(QLabel("Max Tag per Immagine:"), 2, 0)
+        layout.addWidget(QLabel(t("config.label.max_tags_per_image")), 2, 0)
         self.bioclip_max_tags = NoWheelSpinBox()
         self.bioclip_max_tags.setRange(1, 20)
         layout.addWidget(self.bioclip_max_tags, 2, 1)
@@ -641,7 +635,7 @@ class ConfigTab(QWidget):
 
     def create_llm_vision_section(self):
         """Crea sezione configurazione LLM Vision con controlli granulari per generazione"""
-        group_box = QGroupBox("🤖 LLM Vision (Connessione & Parametri)")
+        group_box = QGroupBox(t("config.group.llm_vision"))
         group_box.setObjectName("LLMVisionSection")
 
         group_box.setStyleSheet(f"""
@@ -657,7 +651,7 @@ class ConfigTab(QWidget):
 
         # Endpoint con validazione
         endpoint_layout = QHBoxLayout()
-        conn_layout.addWidget(QLabel("Endpoint (Ollama/API):"), 0, 0)
+        conn_layout.addWidget(QLabel(t("config.label.llm_endpoint")), 0, 0)
         self.llm_vision_endpoint = QLineEdit()
         endpoint_layout.addWidget(self.llm_vision_endpoint)
 
@@ -679,12 +673,12 @@ class ConfigTab(QWidget):
         conn_layout.addWidget(endpoint_widget, 0, 1)
 
         # Modello LLM
-        conn_layout.addWidget(QLabel("Modello LLM:"), 1, 0)
+        conn_layout.addWidget(QLabel(t("config.label.llm_model")), 1, 0)
         self.llm_vision_model = QLineEdit()
         conn_layout.addWidget(self.llm_vision_model, 1, 1)
 
         # Timeout
-        conn_layout.addWidget(QLabel("Timeout (secondi):"), 2, 0)
+        conn_layout.addWidget(QLabel(t("config.label.llm_timeout")), 2, 0)
         self.llm_vision_timeout = NoWheelSpinBox()
         self.llm_vision_timeout.setRange(30, 600)
         self.llm_vision_timeout.setSingleStep(30)
@@ -693,7 +687,7 @@ class ConfigTab(QWidget):
         layout.addLayout(conn_layout)
 
         # --- SEZIONE PARAMETRI LLM AVANZATI ---
-        adv_group = QGroupBox("🎛️ Parametri LLM Avanzati")
+        adv_group = QGroupBox(t("config.group.llm_params"))
         adv_group.setStyleSheet(f"QGroupBox {{ color: {COLORS['grigio_medio']}; font-size: 12px; }}")
         adv_group.setCheckable(True)
         adv_group.setChecked(False)
@@ -741,7 +735,7 @@ class ConfigTab(QWidget):
         self.llm_num_batch.setToolTip("Dimensione batch per elaborazione prompt. Valori alti = piu' veloce ma piu' RAM")
         adv_layout.addWidget(self.llm_num_batch, 1, 3)
 
-        self.llm_keep_alive = QCheckBox("Keep Alive (modello sempre in VRAM)")
+        self.llm_keep_alive = QCheckBox(t("config.check.keep_alive"))
         self.llm_keep_alive.setChecked(True)
         self.llm_keep_alive.setToolTip("Se attivo, Ollama tiene il modello in VRAM permanentemente. Disattiva se hai poca memoria GPU")
         adv_layout.addWidget(self.llm_keep_alive, 1, 4, 1, 2)
@@ -755,7 +749,7 @@ class ConfigTab(QWidget):
 
     def create_image_processing_section(self):
         """Crea sezione configurazione formati file supportati"""
-        formats_group = QGroupBox("📄 Formati File Supportati")
+        formats_group = QGroupBox(t("config.group.file_formats"))
         formats_group.setObjectName("ImageProcessingSection")
 
         formats_group.setStyleSheet(f"""
@@ -768,7 +762,7 @@ class ConfigTab(QWidget):
         formats_layout = QVBoxLayout()
         
         # Info
-        info_label = QLabel("⚠️ Modifica solo se conosci i formati supportati dal sistema")
+        info_label = QLabel(t("config.info.formats_warning"))
         info_label.setStyleSheet(f"color: {COLORS['ambra']}; font-size: 10px; font-style: italic;")
         formats_layout.addWidget(info_label)
         
@@ -804,7 +798,7 @@ class ConfigTab(QWidget):
 
     def create_image_optimization_section(self):
         """Crea sezione ottimizzazione profili AI"""
-        group_box = QGroupBox("🎯 Profili Ottimizzazione AI")
+        group_box = QGroupBox(t("config.group.ai_profiles"))
         group_box.setObjectName("ImageOptimizationSection")
         
         group_box.setStyleSheet(f"""
@@ -829,7 +823,7 @@ class ConfigTab(QWidget):
         profiles_layout = QGridLayout()
         
         # Headers
-        headers = ["Profilo", "Size", "Quality", "Method", "Resampling"]
+        headers = [t("config.label.profile_col"), "Size", "Quality", "Method", "Resampling"]
         for i, header in enumerate(headers):
             label = QLabel(header)
             label.setStyleSheet(f"font-weight: bold; color: {COLORS['ambra']};")
@@ -890,7 +884,7 @@ class ConfigTab(QWidget):
 
     def create_search_section(self):
         """Crea sezione configurazione ricerca avanzata"""
-        group_box = QGroupBox("🔍 Ricerca Avanzata")
+        group_box = QGroupBox(t("config.group.search_advanced"))
         group_box.setObjectName("SearchAdvancedSection")
         
         group_box.setStyleSheet(f"""
@@ -902,11 +896,10 @@ class ConfigTab(QWidget):
         layout = QGridLayout()
 
         # Row 0: Fuzzy enabled + Max results
-        self.fuzzy_enabled_checkbox = QCheckBox("Ricerca Fuzzy")
-        self.fuzzy_enabled_checkbox.setToolTip("Permette ricerca approssimativa (paesagio → paesaggio)")
+        self.fuzzy_enabled_checkbox = QCheckBox(t("config.check.fuzzy"))
         layout.addWidget(self.fuzzy_enabled_checkbox, 0, 0)
-        
-        layout.addWidget(QLabel("Max Risultati:"), 0, 1)
+
+        layout.addWidget(QLabel(t("config.label.max_results")), 0, 1)
         self.search_max_results_spin = NoWheelSpinBox()
         self.search_max_results_spin.setRange(10, 1000)
         self.search_max_results_spin.setSingleStep(50)
@@ -914,7 +907,7 @@ class ConfigTab(QWidget):
         layout.addWidget(self.search_max_results_spin, 0, 2)
 
         # Row 1: Semantic threshold
-        layout.addWidget(QLabel("Soglia Semantica:"), 1, 0)
+        layout.addWidget(QLabel(t("config.label.semantic_threshold")), 1, 0)
         self.semantic_threshold_spin = NoWheelDoubleSpinBox()
         self.semantic_threshold_spin.setRange(0.05, 0.50)
         self.semantic_threshold_spin.setSingleStep(0.05)
@@ -928,7 +921,7 @@ class ConfigTab(QWidget):
 
     def create_metadata_section(self):
         """Crea sezione configurazione metadati"""
-        group_box = QGroupBox("📊 Estrazione Metadati")
+        group_box = QGroupBox(t("config.group.metadata_section"))
         group_box.setObjectName("MetadataSection")
         
         group_box.setStyleSheet(f"""
@@ -940,13 +933,11 @@ class ConfigTab(QWidget):
         layout = QGridLayout()
 
         # EXIF extraction
-        self.extract_exif_checkbox = QCheckBox("Estrai EXIF")
-        self.extract_exif_checkbox.setToolTip("Estrae metadati tecnici (ISO, apertura, modello camera, ecc.)")
+        self.extract_exif_checkbox = QCheckBox(t("config.check.extract_exif"))
         layout.addWidget(self.extract_exif_checkbox, 0, 0)
 
         # GPS extraction
-        self.gps_enabled_checkbox = QCheckBox("Estrai GPS")
-        self.gps_enabled_checkbox.setToolTip("Estrae coordinate GPS per geolocalizzazione (privacy sensitive)")
+        self.gps_enabled_checkbox = QCheckBox(t("config.check.extract_gps"))
         layout.addWidget(self.gps_enabled_checkbox, 0, 1)
 
         group_box.setLayout(layout)
@@ -954,7 +945,7 @@ class ConfigTab(QWidget):
 
     def create_similarity_section(self):
         """Crea sezione configurazione ricerca globale"""
-        group_box = QGroupBox("🔎 Ricerca (Semantica + Tag)")
+        group_box = QGroupBox(t("config.group.search_combined"))
         group_box.setObjectName("SearchSection")
         
         group_box.setStyleSheet(f"""
@@ -966,13 +957,13 @@ class ConfigTab(QWidget):
         layout = QGridLayout()
         
         # Descrizione
-        desc_label = QLabel("Limiti per ricerca nel tab Ricerca (CLIP semantica + Tag utente)")
+        desc_label = QLabel(t("config.desc.search_limits"))
         desc_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; font-style: italic;")
         desc_label.setWordWrap(True)
         layout.addWidget(desc_label, 0, 0, 1, 2)
 
         # Max Risultati
-        layout.addWidget(QLabel("Max Risultati:"), 1, 0)
+        layout.addWidget(QLabel(t("config.label.max_results")), 1, 0)
         self.similarity_max_results = NoWheelSpinBox()
         self.similarity_max_results.setRange(10, 500)
         self.similarity_max_results.setSingleStep(10)
@@ -984,18 +975,17 @@ class ConfigTab(QWidget):
 
     def create_logging_section(self):
         """Crea sezione configurazione logging"""
-        group_box = QGroupBox("📝 Logging & Debug")
+        group_box = QGroupBox(t("config.group.logging"))
         layout = QVBoxLayout(group_box)
         
         # Checkbox debug
-        self.debug_checkbox = QCheckBox("Mostra messaggi DEBUG nel log")
-        self.debug_checkbox.setToolTip("Abilita/disabilita la visualizzazione dei messaggi DEBUG nella tab Log")
+        self.debug_checkbox = QCheckBox(t("config.check.debug_messages"))
         self.debug_checkbox.setChecked(True)  # Default: abilitato
         self.debug_checkbox.stateChanged.connect(self.on_debug_setting_changed)
         layout.addWidget(self.debug_checkbox)
         
         # Info sul logging
-        info_label = QLabel("ℹ️ I messaggi DEBUG aiutano a diagnosticare problemi ma possono rendere il log molto verboso")
+        info_label = QLabel(t("config.info.debug_verbose"))
         info_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; font-style: italic; padding: 5px;")
         info_label.setWordWrap(True)
         layout.addWidget(info_label)
@@ -1446,15 +1436,15 @@ class ConfigTab(QWidget):
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 yaml.dump(self.config, f, allow_unicode=True, default_flow_style=False)
             
-            QMessageBox.information(self, "Successo", "Configurazione completa salvata!")
-            
+            QMessageBox.information(self, t("config.msg.success_title"), t("config.msg.saved_ok_full"))
+
             if self.parent_window and hasattr(self.parent_window, 'update_status'):
-                self.parent_window.update_status("Configurazione salvata")
-            
+                self.parent_window.update_status(t("config.msg.saved_ok"))
+
             self.config_saved.emit(self.config)
-        
+
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Errore salvataggio configurazione:\n{e}")
+            QMessageBox.critical(self, t("config.msg.error_title"), t("config.msg.save_error", error=e))
     
     def get_config(self):
         """Ritorna config corrente"""
@@ -1490,25 +1480,25 @@ class ConfigTab(QWidget):
     def reset_to_defaults(self):
         """Reset configurazione ai valori di default"""
         reply = QMessageBox.question(
-            self, 
-            "Reset Configurazione",
-            "Sei sicuro di voler resettare TUTTA la configurazione ai valori di default?\n\nQuesta operazione non può essere annullata.",
+            self,
+            t("config.msg.reset_title"),
+            t("config.msg.reset_confirm_full"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
-        
+
         if reply == QMessageBox.StandardButton.Yes:
             # Backup della configurazione corrente prima del reset
             self._backup_config_file()
-            
+
             # Reset a valori di default
             self.set_default_values()
-            
+
             # Auto-save dopo reset
             self.save_config()
-            
+
             # Notifica
-            QMessageBox.information(self, "Reset Completato", "Configurazione resettata ai valori di default e salvata!\n\nBackup della configurazione precedente creato.")
+            QMessageBox.information(self, t("config.msg.reset_done_title"), t("config.msg.reset_done"))
             
             if hasattr(self, 'parent_window') and self.parent_window:
                 self.parent_window.log_info("Configurazione resettata ai valori di default")
@@ -1517,7 +1507,7 @@ class ConfigTab(QWidget):
         """Testa la connessione all'endpoint Ollama"""
         endpoint = self.llm_vision_endpoint.text().strip()
         if not endpoint:
-            QMessageBox.warning(self, "Endpoint Vuoto", "Inserisci un endpoint valido")
+            QMessageBox.warning(self, t("config.msg.endpoint_empty_title"), t("config.msg.endpoint_empty_msg"))
             return
             
         try:
@@ -1543,7 +1533,7 @@ class ConfigTab(QWidget):
                 models = response.json().get('models', [])
                 model_names = [m.get('name', 'Unknown') for m in models[:3]]  # Prime 3
                 models_text = ', '.join(model_names) if model_names else 'Nessuno'
-                
+
                 # Successo - verde
                 self.test_endpoint_btn.setText("✓")
                 self.test_endpoint_btn.setStyleSheet(f"""
@@ -1554,15 +1544,15 @@ class ConfigTab(QWidget):
                         padding: 2px;
                     }}
                 """)
-                
+
                 QMessageBox.information(
-                    self, 
-                    "Connessione Riuscita", 
-                    f"✅ Ollama raggiungibile!\n\nModelli disponibili: {models_text}"
+                    self,
+                    t("config.msg.connection_ok_title"),
+                    t("config.msg.connection_ok_detail", models=models_text)
                 )
             else:
                 raise requests.RequestException(f"Status code: {response.status_code}")
-                
+
         except Exception as e:
             # Errore - rosso
             self.test_endpoint_btn.setText("✗")
@@ -1574,11 +1564,11 @@ class ConfigTab(QWidget):
                     padding: 2px;
                 }}
             """)
-            
+
             QMessageBox.warning(
-                self, 
-                "Connessione Fallita", 
-                f"❌ Impossibile connettersi a Ollama:\n{str(e)}\n\nVerifica che Ollama sia avviato e raggiungibile."
+                self,
+                t("config.msg.connection_fail_title"),
+                t("config.msg.connection_fail_detail", error=str(e))
             )
         
         # Reset bottone dopo 3 secondi

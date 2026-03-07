@@ -23,6 +23,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.paths import get_app_dir
 from catalog_readers.lightroom_reader import LightroomCatalogReader
+from i18n import t
 
 
 class ProcessingWorker(QThread):
@@ -867,7 +868,7 @@ class ProcessingTab(QWidget):
         """
 
         # ===== SORGENTE IMMAGINI (unica sezione per dir + catalogo) =====
-        source_group = QGroupBox("📥 Sorgente Immagini")
+        source_group = QGroupBox(t("processing.group.source_icon"))
         from PyQt6.QtWidgets import QGridLayout
         source_grid = QGridLayout()
         source_grid.setVerticalSpacing(4)
@@ -876,17 +877,17 @@ class ProcessingTab(QWidget):
         self.source_btn_group = QButtonGroup()
 
         # --- Riga 0: Directory ---
-        self.source_dir_radio = QRadioButton("Directory:")
+        self.source_dir_radio = QRadioButton(t("processing.radio.source_dir_colon"))
         self.source_dir_radio.setChecked(True)
         self.source_dir_radio.setToolTip("Leggi immagini dalla directory selezionata")
         self.source_btn_group.addButton(self.source_dir_radio, 0)
         source_grid.addWidget(self.source_dir_radio, 0, 0)
 
-        self.input_dir_label = QLabel("Nessuna directory selezionata")
+        self.input_dir_label = QLabel(t("processing.label.no_dir"))
         self.input_dir_label.setStyleSheet(path_label_style)
         source_grid.addWidget(self.input_dir_label, 0, 1)
 
-        self.browse_btn = QPushButton("📁 Seleziona")
+        self.browse_btn = QPushButton(t("processing.btn.select"))
         self.browse_btn.clicked.connect(self.select_input_directory)
         self.browse_btn.setFixedWidth(90)
         source_grid.addWidget(self.browse_btn, 0, 2)
@@ -897,22 +898,22 @@ class ProcessingTab(QWidget):
         self.refresh_btn.setToolTip("Aggiorna scansione directory")
         source_grid.addWidget(self.refresh_btn, 0, 3)
 
-        self.include_subdirs_cb = QCheckBox("Sotto-cartelle")
+        self.include_subdirs_cb = QCheckBox(t("processing.check.subdirs"))
         self.include_subdirs_cb.setToolTip("Scansiona ricorsivamente le sotto-cartelle")
         self.include_subdirs_cb.stateChanged.connect(self._on_subdirs_changed)
         source_grid.addWidget(self.include_subdirs_cb, 0, 4)
 
         # --- Riga 1: Catalogo Lightroom ---
-        self.source_catalog_radio = QRadioButton("Catalogo .lrcat:")
+        self.source_catalog_radio = QRadioButton(t("processing.radio.source_catalog_colon"))
         self.source_catalog_radio.setToolTip("Leggi l'elenco delle immagini dal catalogo Lightroom")
         self.source_btn_group.addButton(self.source_catalog_radio, 1)
         source_grid.addWidget(self.source_catalog_radio, 1, 0)
 
-        self.catalog_path_label = QLabel("Nessun catalogo selezionato")
+        self.catalog_path_label = QLabel(t("processing.label.no_catalog_selected"))
         self.catalog_path_label.setStyleSheet(path_label_style)
         source_grid.addWidget(self.catalog_path_label, 1, 1)
 
-        self.catalog_browse_btn = QPushButton("📁 Seleziona")
+        self.catalog_browse_btn = QPushButton(t("processing.btn.select"))
         self.catalog_browse_btn.setFixedWidth(90)
         self.catalog_browse_btn.clicked.connect(self.select_catalog)
         self.catalog_browse_btn.setEnabled(False)
@@ -931,7 +932,7 @@ class ProcessingTab(QWidget):
         self.source_btn_group.idClicked.connect(self._on_source_changed)
 
         # ===== STATUS (riga singola compatta) =====
-        status_group = QGroupBox("📊 Status")
+        status_group = QGroupBox(t("processing.group.status"))
         status_layout = QHBoxLayout()
         status_layout.setContentsMargins(8, 4, 8, 4)
 
@@ -943,7 +944,7 @@ class ProcessingTab(QWidget):
         sep.setStyleSheet("color: #bdc3c7; margin: 0 6px;")
         status_layout.addWidget(sep)
 
-        self.scan_label = QLabel("Seleziona una sorgente per iniziare")
+        self.scan_label = QLabel(t("processing.label.select_source"))
         self.scan_label.setStyleSheet("font-size: 11px;")
         status_layout.addWidget(self.scan_label)
         status_layout.addStretch()
@@ -956,25 +957,25 @@ class ProcessingTab(QWidget):
         mid_layout.setSpacing(4)
 
         # --- Modalità Processing ---
-        options_group = QGroupBox("⚙️ Modalità Processing")
+        options_group = QGroupBox(t("processing.group.mode"))
         options_layout = QVBoxLayout()
         options_layout.setContentsMargins(8, 6, 8, 6)
         options_layout.setSpacing(4)
 
         self.processing_mode_group = QButtonGroup()
 
-        self.mode_new_only = QRadioButton("Solo nuove immagini")
+        self.mode_new_only = QRadioButton(t("processing.radio.new_only"))
         self.mode_new_only.setChecked(True)
         self.mode_new_only.setToolTip("Processa solo immagini non ancora nel database")
         self.processing_mode_group.addButton(self.mode_new_only, 0)
         options_layout.addWidget(self.mode_new_only)
 
-        self.mode_new_plus_errors = QRadioButton("Nuove + errori precedenti")
+        self.mode_new_plus_errors = QRadioButton(t("processing.radio.new_errors"))
         self.mode_new_plus_errors.setToolTip("Processa nuove immagini e riprova quelle che avevano dato errore")
         self.processing_mode_group.addButton(self.mode_new_plus_errors, 1)
         options_layout.addWidget(self.mode_new_plus_errors)
 
-        self.mode_reprocess_all = QRadioButton("Riprocessa tutte")
+        self.mode_reprocess_all = QRadioButton(t("processing.radio.reprocess_all"))
         self.mode_reprocess_all.setToolTip("Riprocessa tutte le immagini, anche quelle già elaborate")
         self.mode_reprocess_all.setStyleSheet("color: #f57500; font-weight: bold;")
         self.processing_mode_group.addButton(self.mode_reprocess_all, 2)
@@ -982,7 +983,7 @@ class ProcessingTab(QWidget):
 
         self.processing_mode_group.idClicked.connect(self.update_start_button_state)
 
-        self.enable_file_log_cb = QCheckBox("Salva log su file")
+        self.enable_file_log_cb = QCheckBox(t("processing.check.file_log"))
         self.enable_file_log_cb.setToolTip("Scrive tutti i messaggi su file nella directory log (Impostazioni → Dir Log)")
         self.enable_file_log_cb.setChecked(False)
         options_layout.addWidget(self.enable_file_log_cb)
@@ -992,7 +993,7 @@ class ProcessingTab(QWidget):
         mid_layout.addWidget(options_group, stretch=1)
 
         # --- Generazione AI ---
-        gen_ai_group = QGroupBox("🤖 Generazione AI")
+        gen_ai_group = QGroupBox(t("processing.group.gen_ai"))
         gen_ai_layout = QVBoxLayout()
         gen_ai_layout.setContentsMargins(8, 6, 8, 4)
         gen_ai_layout.setSpacing(3)
@@ -1000,13 +1001,13 @@ class ProcessingTab(QWidget):
         # Header riga
         hdr_layout = QHBoxLayout()
         hdr_layout.addWidget(QLabel(""))          # spazio allineamento checkbox
-        hdr_lbl = QLabel("Genera")
+        hdr_lbl = QLabel(t("processing.label.col_generate"))
         hdr_lbl.setStyleSheet("font-weight: bold; font-size: 10px;")
         hdr_layout.addWidget(hdr_lbl)
-        hdr_sovr = QLabel("Sovrascrivi")
+        hdr_sovr = QLabel(t("processing.label.col_overwrite"))
         hdr_sovr.setStyleSheet("font-weight: bold; font-size: 10px;")
         hdr_layout.addWidget(hdr_sovr)
-        hdr_max = QLabel("Max")
+        hdr_max = QLabel(t("processing.label.col_max"))
         hdr_max.setStyleSheet("font-weight: bold; font-size: 10px;")
         hdr_layout.addWidget(hdr_max)
         gen_ai_layout.addLayout(hdr_layout)
@@ -1052,7 +1053,7 @@ class ProcessingTab(QWidget):
         self.pt_gen_title_check.stateChanged.connect(self._toggle_pt_title)
         gen_ai_layout.addLayout(row_ti)
 
-        info_lbl = QLabel("ℹ️ Sovrascrivi disattivo = dati esistenti preservati")
+        info_lbl = QLabel(t("processing.label.ai_overwrite_info"))
         info_lbl.setStyleSheet("color: #7f8c8d; font-size: 9px; font-style: italic;")
         gen_ai_layout.addWidget(info_lbl)
         gen_ai_layout.addStretch()
@@ -1063,28 +1064,28 @@ class ProcessingTab(QWidget):
         layout.addLayout(mid_layout)
 
         # ===== CONTROLLI =====
-        controls_group = QGroupBox("🎮 Controlli")
+        controls_group = QGroupBox(t("processing.group.controls"))
         controls_layout = QHBoxLayout()
         controls_layout.setContentsMargins(8, 4, 8, 4)
 
-        self.start_btn = QPushButton("▶️ AVVIA")
+        self.start_btn = QPushButton(t("processing.btn.start"))
         self.start_btn.clicked.connect(self.start_processing)
         self.start_btn.setStyleSheet("font-weight: bold; background-color: #2e7d32; min-width: 90px;")
         controls_layout.addWidget(self.start_btn)
 
-        self.pause_btn = QPushButton("⏸️ PAUSA")
+        self.pause_btn = QPushButton(t("processing.btn.pause"))
         self.pause_btn.clicked.connect(self.pause_processing)
         self.pause_btn.setEnabled(False)
         self.pause_btn.setStyleSheet("min-width: 90px;")
         controls_layout.addWidget(self.pause_btn)
 
-        self.stop_btn = QPushButton("⏹️ STOP")
+        self.stop_btn = QPushButton(t("processing.btn.stop"))
         self.stop_btn.clicked.connect(self.stop_processing)
         self.stop_btn.setEnabled(False)
         self.stop_btn.setStyleSheet("min-width: 90px;")
         controls_layout.addWidget(self.stop_btn)
 
-        self.log_btn = QPushButton("💾 SALVA LOG")
+        self.log_btn = QPushButton(t("processing.btn.save_log"))
         self.log_btn.clicked.connect(self.save_log)
         self.log_btn.setStyleSheet("min-width: 90px;")
         controls_layout.addWidget(self.log_btn)
@@ -1094,7 +1095,7 @@ class ProcessingTab(QWidget):
         layout.addWidget(controls_group)
 
         # ===== PROGRESSO =====
-        progress_group = QGroupBox("📊 Progresso")
+        progress_group = QGroupBox(t("processing.group.progress_section"))
         progress_layout = QVBoxLayout()
         progress_layout.setContentsMargins(8, 4, 8, 4)
         progress_layout.setSpacing(3)
@@ -1111,7 +1112,7 @@ class ProcessingTab(QWidget):
         """)
         progress_layout.addWidget(self.progress_bar)
 
-        self.progress_label = QLabel("In attesa di avvio processing...")
+        self.progress_label = QLabel(t("processing.label.progress_waiting"))
         self.progress_label.setStyleSheet("""
             QLabel { font-size: 11px; color: white; padding: 6px 10px;
                 background-color: #616161; border-radius: 3px; border: 1px solid #424242;
@@ -1124,7 +1125,7 @@ class ProcessingTab(QWidget):
         layout.addWidget(progress_group)
 
         # ===== TERMINAL LOG (si espande per riempire lo spazio disponibile) =====
-        terminal_group = QGroupBox("💻 Terminal Log")
+        terminal_group = QGroupBox(t("processing.group.terminal_log"))
         terminal_layout = QVBoxLayout()
         terminal_layout.setContentsMargins(5, 5, 5, 5)
 
@@ -1186,8 +1187,8 @@ class ProcessingTab(QWidget):
         from PyQt6.QtWidgets import QFileDialog
         
         directory = QFileDialog.getExistingDirectory(
-            self, 
-            "Seleziona Directory Immagini", 
+            self,
+            t("processing.group.source_icon"),
             str(Path.home())
         )
         
@@ -1199,7 +1200,7 @@ class ProcessingTab(QWidget):
         try:
             directory = Path(directory_path)
             if not directory.exists():
-                QMessageBox.warning(self, "Errore", f"Directory non esistente: {directory}")
+                QMessageBox.warning(self, t("processing.msg.error_title"), t("processing.msg.dir_not_exist", path=directory))
                 return
             
             # Aggiorna UI
@@ -1225,7 +1226,7 @@ class ProcessingTab(QWidget):
             self.scan_directory()
             
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Errore impostazione directory: {e}")
+            QMessageBox.critical(self, t("processing.msg.error_title"), t("processing.msg.dir_set_error", error=e))
     
     def _save_llm_config_to_yaml(self, llm_gen_config: dict):
         """Salva impostazioni generazione AI nel YAML per la prossima sessione"""
@@ -1297,7 +1298,7 @@ class ProcessingTab(QWidget):
                 if Path(input_dir).exists():
                     self.set_input_directory(input_dir)
                 else:
-                    self.input_dir_label.setText("Directory salvata non più disponibile")
+                    self.input_dir_label.setText(t("processing.label.dir_not_available"))
                     self.input_dir_label.setStyleSheet("color: #cc3333;")
 
             # Carica impostazioni generazione AI (tags/desc/title)
@@ -1331,7 +1332,7 @@ class ProcessingTab(QWidget):
     def _on_subdirs_changed(self, state):
         """Ri-scansiona quando cambia il checkbox sotto-cartelle"""
         input_dir_text = self.input_dir_label.text()
-        if input_dir_text not in ["Nessuna directory selezionata", "Directory salvata non più disponibile"]:
+        if input_dir_text not in [t("processing.label.no_dir"), t("processing.label.dir_not_available")]:
             self.scan_directory()
 
     def _on_source_changed(self, source_id):
@@ -1368,7 +1369,7 @@ class ProcessingTab(QWidget):
         """Apre dialog per selezione catalogo Lightroom"""
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Seleziona Catalogo Lightroom",
+            t("processing.dialog.select_catalog"),
             str(Path.home()),
             "Catalogo Lightroom (*.lrcat);;Tutti i file (*.*)"
         )
@@ -1407,18 +1408,18 @@ class ProcessingTab(QWidget):
             self.update_start_button_state()
 
         except Exception as e:
-            QMessageBox.warning(self, "Errore lettura catalogo", str(e))
+            QMessageBox.warning(self, t("processing.msg.catalog_error_title"), str(e))
 
     def refresh_scan(self):
         """Aggiorna scansione directory e stato database"""
         try:
             input_dir_text = self.input_dir_label.text()
-            if input_dir_text in ["Nessuna directory selezionata", "Directory salvata non più disponibile"]:
-                QMessageBox.warning(self, "Attenzione", "Seleziona prima una directory")
+            if input_dir_text in [t("processing.label.no_dir"), t("processing.label.dir_not_available")]:
+                QMessageBox.warning(self, t("processing.msg.warning_title"), t("processing.msg.select_dir_first"))
                 return
 
             # Feedback visivo
-            self.scan_label.setText("🔄 Aggiornamento in corso...")
+            self.scan_label.setText(t("processing.msg.refresh_updating"))
             QApplication.processEvents()
 
             # Esegui scansione
@@ -1435,27 +1436,27 @@ class ProcessingTab(QWidget):
         try:
             # Ottieni directory input dall'UI
             input_dir_text = self.input_dir_label.text()
-            if input_dir_text in ["Nessuna directory selezionata", "Directory salvata non più disponibile"]:
-                self.scan_label.setText("⚠️ Seleziona una directory per vedere le statistiche")
+            if input_dir_text in [t("processing.label.no_dir"), t("processing.label.dir_not_available")]:
+                self.scan_label.setText(t("processing.msg.select_dir_stats"))
                 return
-            
+
             input_dir = Path(input_dir_text)
             if not input_dir.exists():
-                self.scan_label.setText(f"❌ Directory non esistente: {input_dir}")
+                self.scan_label.setText(t("processing.msg.dir_not_exist_scan", path=input_dir))
                 return
-            
+
             # Carica config per formati supportati e database
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
-            
+
             db_path = Path(config['paths']['database'])
             supported_formats = config.get('image_processing', {}).get('supported_formats', [])
-            
+
             if not supported_formats:
-                self.scan_label.setText("❌ Nessun formato supportato configurato")
+                self.scan_label.setText(t("processing.msg.no_formats"))
                 return
-            
-            self.db_label.setText(f"Database: {db_path}")
+
+            self.db_label.setText(t("processing.msg.db_label", path=db_path))
             
             # Conta immagini (CORRETTO: evita duplicati case-sensitive)
             all_images = []
@@ -1499,7 +1500,7 @@ class ProcessingTab(QWidget):
                     already_processed = len(all_images) - len(images_to_process)
                     
                 except Exception as e:
-                    self.scan_label.setText(f"Errore verifica database: {e}")
+                    self.scan_label.setText(t("processing.msg.db_error", error=e))
                     return
             
             total_found = len(all_images)
@@ -1509,19 +1510,18 @@ class ProcessingTab(QWidget):
             self.images_to_process_count = to_process
             
             if to_process == 0:
-                self.scan_label.setText(f"Trovate {total_found} immagini, tutte già processate ✅")
+                self.scan_label.setText(t("processing.msg.all_processed", total=total_found))
                 # Aggiorna stato pulsante in base alle modalità
                 self.update_start_button_state()
             else:
                 self.scan_label.setText(
-                    f"Trovate {total_found} immagini, {to_process} da processare "
-                    f"({already_processed} già processate)"
+                    t("processing.msg.scan_result", total=total_found, to_process=to_process, already=already_processed)
                 )
                 # Abilita pulsante se ci sono immagini da processare
                 self.start_btn.setEnabled(True)
             
         except Exception as e:
-            self.scan_label.setText(f"Errore scansione: {e}")
+            self.scan_label.setText(t("processing.msg.scan_error", error=e))
     
     def update_start_button_state(self):
         """Aggiorna stato pulsante START in base a modalità e immagini disponibili"""
@@ -1562,16 +1562,16 @@ class ProcessingTab(QWidget):
         if use_catalog:
             # Verifica catalogo selezionato
             if not self.catalog_files:
-                QMessageBox.warning(self, "Errore", "Seleziona prima un catalogo Lightroom (.lrcat)")
+                QMessageBox.warning(self, t("processing.msg.error_title"), t("processing.msg.select_catalog_first"))
                 return
         else:
             # Verifica directory selezionata
             input_dir_text = self.input_dir_label.text()
-            if input_dir_text in ["Nessuna directory selezionata", "Directory salvata non più disponibile"]:
-                QMessageBox.warning(self, "Errore", "Seleziona prima una directory input")
+            if input_dir_text in [t("processing.label.no_dir"), t("processing.label.dir_not_available")]:
+                QMessageBox.warning(self, t("processing.msg.error_title"), t("processing.msg.select_input_dir_first"))
                 return
             if not Path(input_dir_text).exists():
-                QMessageBox.warning(self, "Errore", f"Directory non esistente: {input_dir_text}")
+                QMessageBox.warning(self, t("processing.msg.error_title"), t("processing.msg.dir_not_exist", path=input_dir_text))
                 return
 
         try:
@@ -1709,11 +1709,11 @@ class ProcessingTab(QWidget):
         if self.worker:
             if self.worker.is_paused:
                 self.worker.resume()
-                self.pause_btn.setText("⏸️ PAUSA")
+                self.pause_btn.setText(t("processing.btn.pause"))
                 self.add_log_message("Processing ripreso", "info")
             else:
                 self.worker.pause()
-                self.pause_btn.setText("▶️ RIPRENDI")
+                self.pause_btn.setText(t("processing.btn.start"))
                 self.add_log_message("Processing in pausa", "info")
     
     def stop_processing(self):
@@ -1858,23 +1858,23 @@ class ProcessingTab(QWidget):
             # Dialog salvataggio
             file_path, _ = QFileDialog.getSaveFileName(
                 self,
-                "Salva Log Processing",
+                t("processing.msg.log_saved_title"),
                 suggested_name,
                 "File di testo (*.txt);;Tutti i file (*.*)"
             )
-            
+
             if file_path:
                 # Estrai testo puro dal log HTML
                 plain_text = self.log_display.toPlainText()
-                
+
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write("=" * 70 + "\n")
                     f.write(f"LOG PROCESSING OFFGALLERY\n")
                     f.write(f"Salvato: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                     f.write("=" * 70 + "\n\n")
                     f.write(plain_text)
-                
-                QMessageBox.information(self, "Log Salvato", f"Log salvato in:\n{file_path}")
-                
+
+                QMessageBox.information(self, t("processing.msg.log_saved_title"), t("processing.msg.log_saved_msg", path=file_path))
+
         except Exception as e:
-            QMessageBox.warning(self, "Errore", f"Errore salvataggio log:\n{e}")
+            QMessageBox.warning(self, t("processing.msg.error_title"), t("processing.msg.log_save_error", error=e))

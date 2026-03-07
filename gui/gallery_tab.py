@@ -16,6 +16,7 @@ import yaml
 from queue import Queue
 
 from xmp_badge_manager import refresh_xmp_badges
+from i18n import t
 
 # Import componenti UI dal modulo widgets
 from gui.gallery_widgets import (
@@ -257,7 +258,7 @@ class GalleryTab(QWidget):
         action_bar = QHBoxLayout()
         action_bar.setContentsMargins(10, 8, 10, 8)
         
-        self.count_label = QLabel("Nessun risultato")
+        self.count_label = QLabel(t("gallery.label.no_results_count"))
         self.count_label.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {COLORS['grigio_chiaro']};")
         action_bar.addWidget(self.count_label)
         
@@ -268,19 +269,19 @@ class GalleryTab(QWidget):
         action_bar.addStretch()
 
         # Ordinamento risultati
-        sort_label = QLabel("Ordina:")
+        sort_label = QLabel(t("gallery.label.sort"))
         sort_label.setStyleSheet(f"font-size: 11px; color: {COLORS['grigio_medio']};")
         action_bar.addWidget(sort_label)
 
         self.sort_combo = QComboBox()
         self.sort_combo.addItems([
-            "Rilevanza",
-            "Data scatto",
-            "Nome file",
-            "Rating",
-            "Score estetico",
-            "Score tecnico",
-            "Score composito"
+            t("gallery.combo.sort_relevance"),
+            t("gallery.combo.sort_date"),
+            t("gallery.combo.sort_filename"),
+            t("gallery.combo.sort_rating"),
+            t("gallery.combo.sort_aesthetic"),
+            t("gallery.combo.sort_technical"),
+            t("gallery.combo.sort_composite"),
         ])
         self.sort_combo.setStyleSheet(f"""
             QComboBox {{
@@ -305,7 +306,7 @@ class GalleryTab(QWidget):
         action_bar.addWidget(self.sort_combo)
 
         self.sort_dir_btn = QPushButton("↓")
-        self.sort_dir_btn.setToolTip("Decrescente")
+        self.sort_dir_btn.setToolTip(t("gallery.tooltip.sort_desc"))
         self.sort_dir_btn.setFixedWidth(30)
         self.sort_dir_btn.setStyleSheet(f"""
             QPushButton {{
@@ -326,12 +327,12 @@ class GalleryTab(QWidget):
         self._sort_descending = True
         self._original_results = []
 
-        self.select_all_btn = QPushButton("✓ Tutti")
+        self.select_all_btn = QPushButton(t("gallery.btn.select_all"))
         self.select_all_btn.clicked.connect(self.select_all)
         self.select_all_btn.setEnabled(False)
         action_bar.addWidget(self.select_all_btn)
-        
-        self.deselect_all_btn = QPushButton("✗ Nessuno")
+
+        self.deselect_all_btn = QPushButton(t("gallery.btn.select_none"))
         self.deselect_all_btn.clicked.connect(self.deselect_all)
         self.deselect_all_btn.setEnabled(False)
         action_bar.addWidget(self.deselect_all_btn)
@@ -392,10 +393,10 @@ class GalleryTab(QWidget):
         self._sort_descending = not self._sort_descending
         if self._sort_descending:
             self.sort_dir_btn.setText("↓")
-            self.sort_dir_btn.setToolTip("Decrescente")
+            self.sort_dir_btn.setToolTip(t("gallery.tooltip.sort_desc"))
         else:
             self.sort_dir_btn.setText("↑")
-            self.sort_dir_btn.setToolTip("Crescente")
+            self.sort_dir_btn.setToolTip(t("gallery.tooltip.sort_asc"))
         self._apply_sort()
 
     def _apply_sort(self):
@@ -490,7 +491,7 @@ class GalleryTab(QWidget):
         import time
         start_time = time.time()
         
-        self.count_label.setText(f"{count} immagini" if count > 0 else "Nessun risultato")
+        self.count_label.setText(t("gallery.label.count", count=count) if count > 0 else t("gallery.label.no_results_count"))
         self.selection_label.setText("")
         
         has_results = count > 0
@@ -498,7 +499,7 @@ class GalleryTab(QWidget):
         self.deselect_all_btn.setEnabled(False)
         
         if count == 0:
-            no_results = QLabel("Nessun risultato trovato")
+            no_results = QLabel(t("gallery.label.empty_state"))
             no_results.setAlignment(Qt.AlignmentFlag.AlignCenter)
             no_results.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 14px; padding: 50px;")
             self.flow_layout.addWidget(no_results)
@@ -546,7 +547,7 @@ class GalleryTab(QWidget):
     def _update_selection_ui(self):
         count = len(self.selected_items)
         if count > 0:
-            self.selection_label.setText(f"({count} selez.)")
+            self.selection_label.setText(t("gallery.label.selection_count", count=count))
             self.deselect_all_btn.setEnabled(True)
         else:
             self.selection_label.setText("")
@@ -639,9 +640,9 @@ class GalleryTab(QWidget):
             max_results = config.get('similarity', {}).get('max_results', 20)
             
             progress = QProgressDialog(self)
-            progress.setWindowTitle("🔍 Ricerca Immagini Simili")
-            progress.setLabelText("Caricamento embedding di riferimento...")
-            progress.setCancelButtonText("Annulla")
+            progress.setWindowTitle(t("gallery.progress.similar_title"))
+            progress.setLabelText(t("gallery.progress.similar_loading"))
+            progress.setCancelButtonText(t("gallery.progress.cancel"))
             progress.setMinimumWidth(400)
             progress.setMinimumDuration(0)
             progress.setRange(0, 0)
@@ -664,7 +665,7 @@ class GalleryTab(QWidget):
         
             if not row or not row[0]:
                 progress.close()
-                QMessageBox.warning(self, "Errore", "Immagine senza embedding DINOv2")
+                QMessageBox.warning(self, t("gallery.msg.error_title"), t("gallery.msg.no_dinov2"))
                 db_manager.close()
                 return
         
@@ -689,7 +690,7 @@ class GalleryTab(QWidget):
         
             ref_norm = ref_embedding / np.linalg.norm(ref_embedding)
         
-            progress.setLabelText("Confronto con database...")
+            progress.setLabelText(t("gallery.progress.similar_comparing"))
             QApplication.processEvents()
         
             db_manager.cursor.execute(
@@ -700,7 +701,7 @@ class GalleryTab(QWidget):
             all_rows = db_manager.cursor.fetchall()
             
             progress.setRange(0, len(all_rows))
-            progress.setLabelText(f"Analisi {len(all_rows)} immagini...")
+            progress.setLabelText(t("gallery.progress.similar_analysis", n=len(all_rows)))
             
             results = []
             for i, row in enumerate(all_rows):
@@ -751,13 +752,13 @@ class GalleryTab(QWidget):
                 if self.parent_window:
                     self.parent_window.update_status(f"Trovate {len(results)} immagini simili")
             else:
-                QMessageBox.information(self, "Risultato", f"Nessuna immagine simile trovata (soglia: {threshold:.2f})")
+                QMessageBox.information(self, t("gallery.msg.result_title"), t("gallery.msg.no_similar", threshold=threshold))
         
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Errore ricerca simili:\n{e}")
+            QMessageBox.critical(self, t("gallery.msg.critical_title"), t("gallery.msg.similar_error", error=e))
             import traceback
             traceback.print_exc()
-    
+
     def run_bioclip_batch(self, items):
         """Esegui BioCLIP su batch di immagini"""
         try:
@@ -768,9 +769,9 @@ class GalleryTab(QWidget):
             # NOTA: Rimuovo controllo flag enabled - gallery permette sempre BioCLIP
             
             progress = QProgressDialog(self)
-            progress.setWindowTitle("🌿 Classificazione BioCLIP")
-            progress.setLabelText("Caricamento modello BioCLIP TreeOfLife...\n\nIl primo avvio può richiedere alcuni secondi.")
-            progress.setCancelButtonText("Annulla")
+            progress.setWindowTitle(t("gallery.progress.bioclip_title"))
+            progress.setLabelText(t("gallery.progress.bioclip_loading"))
+            progress.setCancelButtonText(t("gallery.progress.cancel"))
             progress.setMinimumWidth(450)
             progress.setMinimumDuration(0)
             progress.setRange(0, len(items) + 1)
@@ -805,7 +806,7 @@ class GalleryTab(QWidget):
                     break
 
                 progress.setValue(i + 1)
-                progress.setLabelText(f"Classificazione:\n{item.image_data.get('filename', '')}\n\n({i+1}/{len(items)})")
+                progress.setLabelText(t("gallery.progress.bioclip_classify", filename=item.image_data.get('filename', ''), i=i+1, total=len(items)))
                 QApplication.processEvents()
 
                 filepath = Path(item.image_data.get('filepath', ''))
@@ -869,11 +870,11 @@ class GalleryTab(QWidget):
             # Mostra riepilogo risultati con dialog scrollabile
             from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextEdit, QDialogButtonBox
             dlg = QDialog(self)
-            dlg.setWindowTitle("🌿 Risultati BioCLIP")
+            dlg.setWindowTitle(t("gallery.dialog.bioclip_results"))
             dlg.setMinimumWidth(500)
             dlg.setMaximumHeight(500)
             layout = QVBoxLayout(dlg)
-            header = QLabel(f"Specie trovate: {updated} — Non trovate: {not_found}")
+            header = QLabel(t("gallery.label.bioclip_summary", updated=updated, not_found=not_found))
             header.setStyleSheet("font-weight: bold; font-size: 13px; margin-bottom: 6px;")
             layout.addWidget(header)
             text = QTextEdit()
@@ -887,10 +888,10 @@ class GalleryTab(QWidget):
             dlg.exec()
 
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Errore BioCLIP:\n{e}")
+            QMessageBox.critical(self, t("gallery.msg.bioclip_error_title"), t("gallery.msg.bioclip_error", error=e))
             import traceback
             traceback.print_exc()
-    
+
     def run_llm_tagging_batch(self, items):
         """Esegui generazione AI (tag e/o descrizione) su batch di immagini"""
         try:
@@ -918,9 +919,9 @@ class GalleryTab(QWidget):
             mode_text = ' + '.join(selected)
 
             progress = QProgressDialog(self)
-            progress.setWindowTitle(f"🤖 Generazione {mode_text}")
-            progress.setLabelText(f"Connessione a Ollama ({llm_config.get('model', 'qwen3.5:4b')})...")
-            progress.setCancelButtonText("Annulla")
+            progress.setWindowTitle(t("gallery.progress.llm_title", mode_text=mode_text))
+            progress.setLabelText(t("gallery.progress.llm_connecting", model=llm_config.get('model', 'qwen3.5:4b')))
+            progress.setCancelButtonText(t("gallery.progress.cancel"))
             progress.setMinimumWidth(450)
             progress.setMinimumDuration(0)
             progress.setRange(0, len(items) + 1)
@@ -958,7 +959,7 @@ class GalleryTab(QWidget):
                     break
                 
                 progress.setValue(i + 1)
-                progress.setLabelText(f"Analisi AI:\n{item.image_data.get('filename', '')}\n\n({i+1}/{len(items)})")
+                progress.setLabelText(t("gallery.progress.llm_analyzing", filename=item.image_data.get('filename', ''), i=i+1, total=len(items)))
                 QApplication.processEvents()
                 
                 filepath = Path(item.image_data.get('filepath', ''))
@@ -1030,7 +1031,7 @@ class GalleryTab(QWidget):
                         ctx_info = f"\nContesto: {category_hint}"
                     else:
                         ctx_info = "\nContesto: nessuno"
-                progress.setLabelText(f"Generazione LLM:\n{item.image_data.get('filename', '')}{ctx_info}\n\n({i+1}/{len(items)})")
+                progress.setLabelText(t("gallery.progress.llm_generating", filename=item.image_data.get('filename', ''), ctx_info=ctx_info, i=i+1, total=len(items)))
                 QApplication.processEvents()
 
                 # Genera contenuti in base alle selezioni
@@ -1136,10 +1137,10 @@ class GalleryTab(QWidget):
                 self.parent_window.update_status(f"AI: generati {', '.join(status_parts)}")
         
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Errore LLM tagging:\n{e}")
+            QMessageBox.critical(self, t("gallery.msg.llm_error_title"), t("gallery.msg.llm_error", error=e))
             import traceback
             traceback.print_exc()
-    
+
     def add_user_tags_to_images(self, items, new_tags):
         try:
             config = self._load_config()
@@ -1181,7 +1182,7 @@ class GalleryTab(QWidget):
                 self.parent_window.update_status(f"Tag aggiunti a {len(items)} immagini")
 
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Errore aggiunta tag:\n{e}")
+            QMessageBox.critical(self, t("gallery.msg.add_tags_error_title"), t("gallery.msg.add_tags_error", error=e))
 
     def remove_user_tags_from_images(self, items, tags_to_remove):
         try:
@@ -1225,7 +1226,7 @@ class GalleryTab(QWidget):
                 self.parent_window.update_status(f"Tag rimossi da {len(items)} immagini")
 
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Errore rimozione tag:\n{e}")
+            QMessageBox.critical(self, t("gallery.msg.remove_tags_error_title"), t("gallery.msg.remove_tags_error", error=e))
 
     def clear_ai_descriptions(self, items):
         """Rimuove descrizioni AI da immagini"""
@@ -1258,7 +1259,7 @@ class GalleryTab(QWidget):
                 self.parent_window.update_status(f"Descrizioni AI rimosse da {len(items)} immagini")
 
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Errore rimozione descrizioni AI:\n{e}")
+            QMessageBox.critical(self, t("gallery.msg.clear_desc_error_title"), t("gallery.msg.clear_desc_error", error=e))
 
     def _refresh_cards(self, items):
         """Ricrea le card aggiornate - Fix: mantiene posizione nel layout"""

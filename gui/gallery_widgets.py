@@ -28,6 +28,7 @@ import yaml
 import os
 import time
 from utils.paths import get_app_dir
+from i18n import t
 
 logger = logging.getLogger(__name__)
 from xmp_badge_manager import XMPBadgeIntegration
@@ -1023,13 +1024,13 @@ class ImageCard(QFrame):
             menu = QMenu(self)
 
             # ═══ FILE & NAVIGAZIONE ═══
-            file_menu = menu.addMenu(f"📂 File{multi_label}")
+            file_menu = menu.addMenu(f"{t('widgets.menu.file')}{multi_label}")
 
-            open_action = QAction("📂 Apri cartella", self)
+            open_action = QAction(t("widgets.action.open_folder"), self)
             open_action.triggered.connect(lambda: self._open_folder(target_items))
             file_menu.addAction(open_action)
 
-            copy_action = QAction("📋 Copia percorso", self)
+            copy_action = QAction(t("widgets.action.copy_path"), self)
             copy_action.triggered.connect(lambda: self._copy_paths(target_items))
             file_menu.addAction(copy_action)
 
@@ -1037,36 +1038,36 @@ class ImageCard(QFrame):
             if self.external_editors and not is_multi:
                 file_menu.addSeparator()
                 for editor in self.external_editors:
-                    editor_action = QAction(f"🎨 Apri con {editor['name']}", self)
+                    editor_action = QAction(t("widgets.action.open_with_editor", editor_name=editor['name']), self)
                     editor_action.triggered.connect(lambda checked, e=editor: self._open_with_external_editor(e))
                     file_menu.addAction(editor_action)
 
             # ═══ MODIFICA (raggruppa tutto) ═══
-            edit_menu = menu.addMenu(f"✏️ Modifica{multi_label}")
+            edit_menu = menu.addMenu(f"{t('widgets.menu.edit')}{multi_label}")
 
-            title_action = QAction("📌 Edita titolo", self)
+            title_action = QAction(t("widgets.action.edit_title"), self)
             title_action.triggered.connect(lambda: self._edit_title(target_items))
             edit_menu.addAction(title_action)
 
-            tag_action = QAction("🏷️ Edita tag", self)
+            tag_action = QAction(t("widgets.action.edit_tags"), self)
             tag_action.triggered.connect(lambda: self._edit_tags(target_items))
             edit_menu.addAction(tag_action)
 
-            bioclip_edit_action = QAction("🌿 Edita tag BioCLIP", self)
+            bioclip_edit_action = QAction(t("widgets.action.edit_bioclip"), self)
             bioclip_edit_action.triggered.connect(lambda: self._edit_bioclip_taxonomy(target_items))
             edit_menu.addAction(bioclip_edit_action)
 
-            desc_action = QAction("📝 Edita descrizione", self)
+            desc_action = QAction(t("widgets.action.edit_description"), self)
             desc_action.triggered.connect(lambda: self._edit_description(target_items))
             edit_menu.addAction(desc_action)
 
             edit_menu.addSeparator()
 
             # Sottomenu Rating (stelle)
-            rating_menu = edit_menu.addMenu("⭐ Rating")
+            rating_menu = edit_menu.addMenu(t("widgets.menu.rating"))
             for i in range(6):  # 0-5 stelle
                 if i == 0:
-                    label = "✖ Nessun rating"
+                    label = t("widgets.action.rating_none")
                 else:
                     label = "★" * i + "☆" * (5 - i)
                 rating_action = QAction(label, self)
@@ -1074,14 +1075,14 @@ class ImageCard(QFrame):
                 rating_menu.addAction(rating_action)
 
             # Sottomenu Color Label
-            color_menu = edit_menu.addMenu("🎨 Color Label")
+            color_menu = edit_menu.addMenu(t("widgets.menu.color_label"))
             color_options = [
-                ("✖ Nessun colore", None),
-                ("🔴 Rosso", "Red"),
-                ("🟡 Giallo", "Yellow"),
-                ("🟢 Verde", "Green"),
-                ("🔵 Blu", "Blue"),
-                ("🟣 Viola", "Purple"),
+                (t("widgets.action.color_none"), None),
+                (t("widgets.action.color_red"), "Red"),
+                (t("widgets.action.color_yellow"), "Yellow"),
+                (t("widgets.action.color_green"), "Green"),
+                (t("widgets.action.color_blue"), "Blue"),
+                (t("widgets.action.color_purple"), "Purple"),
             ]
             for label, color_value in color_options:
                 color_action = QAction(label, self)
@@ -1091,51 +1092,51 @@ class ImageCard(QFrame):
             edit_menu.addSeparator()
 
             # Elimina (dentro Modifica)
-            delete_action = QAction("🗑️ Elimina dal database", self)
+            delete_action = QAction(t("widgets.action.delete_db"), self)
             delete_action.triggered.connect(lambda: self._delete_from_database(target_items))
             edit_menu.addAction(delete_action)
 
             # ═══ GENERA CONTENUTI AI (sottomenu) ═══
-            ai_menu = menu.addMenu(f"🤖 Genera contenuti AI{multi_label}")
+            ai_menu = menu.addMenu(f"{t('widgets.menu.ai_generate')}{multi_label}")
 
-            llm_action = QAction("🧠 LLM (titolo, descrizione, tags)", self)
+            llm_action = QAction(t("widgets.action.run_llm"), self)
             llm_action.triggered.connect(lambda: self._run_llm_and_refresh(target_items))
             ai_menu.addAction(llm_action)
 
-            bioclip_action = QAction("🌿 BioCLIP (classificazione natura)", self)
+            bioclip_action = QAction(t("widgets.action.run_bioclip"), self)
             bioclip_action.triggered.connect(lambda: self._run_bioclip_and_refresh(target_items))
             ai_menu.addAction(bioclip_action)
 
             # ═══ TROVA SIMILI (singolo, in evidenza) ═══
-            similar_action = QAction("🔍 Trova simili (DINOv2)", self)
+            similar_action = QAction(t("widgets.action.find_similar"), self)
             similar_action.triggered.connect(lambda: self.find_similar_requested.emit(self))
             similar_action.setEnabled(not is_multi)
             menu.addAction(similar_action)
 
             # ═══ SINCRONIZZAZIONE XMP (sottomenu) ═══
             if XMP_SUPPORT_AVAILABLE:
-                xmp_menu = menu.addMenu(f"📄 Sincronizzazione XMP{multi_label}")
+                xmp_menu = menu.addMenu(f"{t('widgets.menu.xmp_sync')}{multi_label}")
 
-                analyze_xmp_action = QAction("🔍 Confronta XMP vs DB", self)
+                analyze_xmp_action = QAction(t("widgets.action.xmp_compare"), self)
                 analyze_xmp_action.triggered.connect(lambda: self._analyze_xmp_detailed(target_items))
                 xmp_menu.addAction(analyze_xmp_action)
 
-                sync_xmp_action = QAction("📥 Importa da XMP → DB", self)
+                sync_xmp_action = QAction(t("widgets.action.xmp_import"), self)
                 sync_xmp_action.triggered.connect(lambda: self._import_from_xmp_with_refresh(target_items))
                 xmp_menu.addAction(sync_xmp_action)
 
-                export_xmp_action = QAction("📤 Esporta DB → XMP", self)
+                export_xmp_action = QAction(t("widgets.action.xmp_export"), self)
                 export_xmp_action.triggered.connect(lambda: self._export_to_xmp_with_refresh(target_items))
                 xmp_menu.addAction(export_xmp_action)
 
                 xmp_menu.addSeparator()
 
-                show_xmp_action = QAction("📋 Mostra contenuto XMP", self)
+                show_xmp_action = QAction(t("widgets.action.xmp_show"), self)
                 show_xmp_action.triggered.connect(lambda: self._show_xmp_content(target_items))
                 xmp_menu.addAction(show_xmp_action)
 
             # ═══ INFO TECNICHE ═══
-            exif_action = QAction(f"📊 Info EXIF{multi_label}", self)
+            exif_action = QAction(f"{t('widgets.action.exif_info')}{multi_label}", self)
             exif_action.triggered.connect(lambda: self._show_complete_exif(target_items))
             menu.addAction(exif_action)
 
@@ -1289,8 +1290,8 @@ class ImageCard(QFrame):
                         tag_text += f" (+{more_count})"
                     self.tags_label.setText(tag_text)
                 else:
-                    self.tags_label.setText("Nessun tag")
-            
+                    self.tags_label.setText(t("widgets.label.no_tags"))
+
             # Aggiorna descrizione display
             if hasattr(self, 'desc_label'):
                 description = self.image_data.get('ai_description', '').strip()
@@ -1298,7 +1299,7 @@ class ImageCard(QFrame):
                     display_desc = description if len(description) <= 60 else description[:57] + "..."
                     self.desc_label.setText(display_desc)
                 else:
-                    self.desc_label.setText("Nessuna descrizione")
+                    self.desc_label.setText(t("widgets.label.no_description"))
 
             # Aggiorna rating e color label
             self._update_rating_color_display()
@@ -1324,9 +1325,9 @@ class ImageCard(QFrame):
                     folders.add(item.filepath.parent)
                 else:
                     messages = {
-                        'no_disk': f"Disco non trovato: {item.filepath.anchor}",
-                        'no_path': f"Cartella non trovata: {item.filepath.parent}",
-                        'no_file': f"File non trovato: {item.filepath.name}\n   in: {item.filepath.parent}",
+                        'no_disk': t("widgets.status.no_disk") + f": {item.filepath.anchor}",
+                        'no_path': t("widgets.status.no_path") + f": {item.filepath.parent}",
+                        'no_file': t("widgets.status.no_file") + f": {item.filepath.name}\n   in: {item.filepath.parent}",
                     }
                     missing_info.append(f"• {messages.get(status, 'Errore sconosciuto')}\n   Percorso: {item.filepath}")
 
@@ -1342,7 +1343,7 @@ class ImageCard(QFrame):
             # Mostra dialog per file mancanti
             if missing_info:
                 QMessageBox.warning(
-                    self, "File non raggiungibili",
+                    self, t("widgets.msg.files_unreachable_title"),
                     f"I seguenti file non sono accessibili:\n\n" + "\n\n".join(missing_info)
                 )
 
@@ -1377,12 +1378,12 @@ class ImageCard(QFrame):
                     subprocess.run(["xdg-open", str(self.filepath)])
             else:
                 messages = {
-                    'no_disk': f"Disco non trovato: {self.filepath.anchor}",
-                    'no_path': f"Cartella non trovata:\n{self.filepath.parent}",
-                    'no_file': f"File non trovato:\n{self.filepath.name}",
+                    'no_disk': t("widgets.status.no_disk") + f": {self.filepath.anchor}",
+                    'no_path': t("widgets.status.no_path") + f":\n{self.filepath.parent}",
+                    'no_file': t("widgets.status.no_file") + f":\n{self.filepath.name}",
                 }
                 QMessageBox.warning(
-                    self, "File non raggiungibile",
+                    self, t("widgets.msg.file_unreachable_title"),
                     f"{messages.get(status, 'Errore sconosciuto')}\n\n"
                     f"Percorso completo:\n{self.filepath}"
                 )
@@ -1394,14 +1395,14 @@ class ImageCard(QFrame):
         """Apri immagine con editor esterno e monitora chiusura processo"""
         try:
             if not self.filepath or not self.filepath.exists():
-                QMessageBox.warning(self, "Errore", "File immagine non trovato")
+                QMessageBox.warning(self, t("widgets.msg.file_error_title"), t("widgets.msg.file_not_found"))
                 return
-            
+
             editor_path = Path(editor['path'])
             if not editor_path.exists():
                 QMessageBox.warning(
-                    self, 
-                    "Editor non trovato", 
+                    self,
+                    t("widgets.msg.editor_not_found_title"),
                     f"L'editor {editor['name']} non è disponibile:\n{editor_path}"
                 )
                 return
@@ -1431,8 +1432,8 @@ class ImageCard(QFrame):
                 
             except Exception as e:
                 QMessageBox.critical(
-                    self, 
-                    "Errore apertura editor", 
+                    self,
+                    t("widgets.msg.editor_open_error_title"),
                     f"Impossibile avviare {editor['name']}:\n{str(e)}"
                 )
                 
@@ -1809,13 +1810,13 @@ class ImageCard(QFrame):
             count = len(items)
             if count == 1:
                 filename = items[0].image_data.get('filename', 'immagine')
-                msg = f"Eliminare '{filename}' dal database?\n\nIl file fisico NON verrà eliminato."
+                msg = t("widgets.msg.delete_confirm_single", filename=filename)
             else:
-                msg = f"Eliminare {count} immagini dal database?\n\nI file fisici NON verranno eliminati."
+                msg = t("widgets.msg.delete_confirm_multi", count=count)
 
             reply = QMessageBox.question(
                 self,
-                "Conferma eliminazione",
+                t("widgets.msg.delete_confirm_title"),
                 msg,
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
@@ -1869,19 +1870,19 @@ class ImageCard(QFrame):
                 if failed > 0:
                     QMessageBox.warning(
                         self,
-                        "Eliminazione parziale",
-                        f"Eliminate {deleted} immagini.\n{failed} eliminazioni fallite."
+                        t("widgets.msg.delete_partial_title"),
+                        t("widgets.msg.delete_partial", deleted=deleted, failed=failed)
                     )
             else:
                 QMessageBox.warning(
                     self,
-                    "Errore",
-                    "Nessuna immagine eliminata."
+                    t("widgets.msg.delete_error_title"),
+                    t("widgets.msg.delete_none")
                 )
 
         except Exception as e:
             print(f"Errore _delete_from_database: {e}")
-            QMessageBox.critical(self, "Errore", f"Errore durante l'eliminazione: {e}")
+            QMessageBox.critical(self, t("widgets.msg.delete_critical_title"), f"Errore durante l'eliminazione: {e}")
 
     def _run_bioclip_and_refresh(self, items):
         """Esegui BioCLIP con refresh automatico"""
@@ -3141,7 +3142,7 @@ class BioCLIPTaxonomyDialog(QDialog):
     def __init__(self, items, parent=None):
         super().__init__(parent)
         self.items = items or []
-        self.setWindowTitle(f"Edita BioCLIP Taxonomy ({len(self.items)} elementi)")
+        self.setWindowTitle(t("widgets.dialog.bioclip_edit_title", n=len(self.items)))
         self.setMinimumWidth(550)
         self.setModal(True)
         self.input_fields = {}
@@ -3154,15 +3155,15 @@ class BioCLIPTaxonomyDialog(QDialog):
         # Info
         if len(self.items) == 1 and hasattr(self.items[0], 'image_data'):
             filename = self.items[0].image_data.get('filename', 'Unknown')
-            info_text = f"Tassonomia BioCLIP per: {filename}"
+            info_text = t("widgets.label.bioclip_for_single", filename=filename)
         else:
-            info_text = f"Tassonomia BioCLIP per {len(self.items)} elementi"
+            info_text = t("widgets.label.bioclip_for_multi", n=len(self.items))
         info_label = QLabel(info_text)
         info_label.setStyleSheet("font-weight: bold; color: #2A6A82; margin-bottom: 10px;")
         layout.addWidget(info_label)
 
         # Campi tassonomici
-        taxonomy_group = QGroupBox("Classificazione tassonomica (7 livelli)")
+        taxonomy_group = QGroupBox(t("widgets.group.bioclip_taxonomy"))
         taxonomy_layout = QVBoxLayout(taxonomy_group)
 
         for display_name, field_name in self.TAXONOMY_LEVELS:
@@ -3181,11 +3182,11 @@ class BioCLIPTaxonomyDialog(QDialog):
         layout.addWidget(taxonomy_group)
 
         # Preview gerarchica
-        preview_label = QLabel("Anteprima path gerarchico:")
+        preview_label = QLabel(t("widgets.label.bioclip_preview"))
         preview_label.setStyleSheet("font-weight: bold; margin-top: 8px;")
         layout.addWidget(preview_label)
 
-        self.preview_text = QLabel("(vuoto)")
+        self.preview_text = QLabel(t("widgets.label.empty_preview"))
         self.preview_text.setStyleSheet(
             "background: #f0f0f0; padding: 6px; border: 1px solid #ccc; "
             "font-family: monospace; color: #333;"
@@ -3195,7 +3196,7 @@ class BioCLIPTaxonomyDialog(QDialog):
 
         # Pulsanti azione
         actions_layout = QHBoxLayout()
-        clear_button = QPushButton("Cancella tutto")
+        clear_button = QPushButton(t("widgets.btn.clear_all"))
         clear_button.clicked.connect(self._clear_all)
         actions_layout.addWidget(clear_button)
         actions_layout.addStretch()
@@ -3235,7 +3236,7 @@ class BioCLIPTaxonomyDialog(QDialog):
         if non_empty:
             self.preview_text.setText("AI|Taxonomy|" + "|".join(non_empty))
         else:
-            self.preview_text.setText("(vuoto)")
+            self.preview_text.setText(t("widgets.label.empty_preview"))
 
     def _clear_all(self):
         for field in self.input_fields.values():
@@ -3252,7 +3253,7 @@ class UserTagDialog(QDialog):
     def __init__(self, items, parent=None):
         super().__init__(parent)
         self.items = items or []
-        self.setWindowTitle(f"Edita Tag ({len(self.items)} elementi)")
+        self.setWindowTitle(t("widgets.dialog.edit_tags_title", n=len(self.items)))
         self.setMinimumWidth(500)
         self.setModal(True)
         
@@ -3263,31 +3264,31 @@ class UserTagDialog(QDialog):
         layout = QVBoxLayout(self)
         
         # Info
-        info_text = f"Gestisci tutti i tag per {len(self.items)} elementi"
+        info_text = t("widgets.label.manage_tags_multi", n=len(self.items))
         if len(self.items) == 1 and hasattr(self.items[0], 'image_data'):
             filename = self.items[0].image_data.get('filename', 'Unknown')
-            info_text = f"Gestisci tag per: {filename}"
+            info_text = t("widgets.label.manage_tags_single", filename=filename)
             
         info_label = QLabel(info_text)
         info_label.setStyleSheet("font-weight: bold; color: #2A6A82; margin-bottom: 10px;")
         layout.addWidget(info_label)
         
         # Campo tag unificato
-        layout.addWidget(QLabel("Tag (tutti i tipi: utente, AI, BioCLIP):"))
+        layout.addWidget(QLabel(t("widgets.label.tags_all_types")))
         self.tag_input = QLineEdit()
-        self.tag_input.setPlaceholderText("es: vacanza, famiglia, natura, specie_animale")
+        self.tag_input.setPlaceholderText(t("widgets.placeholder.tags"))
         layout.addWidget(self.tag_input)
-        
-        # Help  
-        help_label = QLabel("💡 Modifica tutti i tag insieme - usa virgole per separare")
+
+        # Help
+        help_label = QLabel(t("widgets.label.tags_help"))
         help_label.setStyleSheet("color: gray; font-size: 11px; margin-top: 5px;")
         layout.addWidget(help_label)
-        
+
         # Sezione azioni rapide
-        actions_group = QGroupBox("Azioni Rapide")
+        actions_group = QGroupBox(t("widgets.group.quick_actions"))
         actions_layout = QVBoxLayout(actions_group)
-        
-        clear_all_button = QPushButton("🗑️ Rimuovi tutti i tag")
+
+        clear_all_button = QPushButton(t("widgets.btn.remove_all_tags"))
         clear_all_button.clicked.connect(self._clear_all_tags)
         actions_layout.addWidget(clear_all_button)
         
@@ -3313,7 +3314,7 @@ class UserTagDialog(QDialog):
                         self.tag_input.setText(", ".join(tags))
             else:
                 # Multi-selezione - placeholder
-                self.tag_input.setPlaceholderText("Nuovi tag per tutti gli elementi selezionati")
+                self.tag_input.setPlaceholderText(t("widgets.placeholder.tags_cleared"))
                 
         except Exception as e:
             print(f"Errore caricamento tag: {e}")
@@ -3321,7 +3322,7 @@ class UserTagDialog(QDialog):
     def _clear_all_tags(self):
         """Pulisce tutti i tag"""
         self.tag_input.clear()
-        self.tag_input.setPlaceholderText("Tutti i tag verranno rimossi")
+        self.tag_input.setPlaceholderText(t("widgets.placeholder.tags_cleared"))
     
     def get_tags(self):
         """Ottieni lista tag dal dialog"""
@@ -3340,7 +3341,7 @@ class RemoveTagDialog(QDialog):
     def __init__(self, items, parent=None):
         super().__init__(parent)
         self.items = items or []
-        self.setWindowTitle(f"Rimuovi Tag ({len(self.items)} elementi)")
+        self.setWindowTitle(t("widgets.dialog.remove_tags_title", n=len(self.items)))
         self.setMinimumWidth(400)
         self.setModal(True)
         
@@ -3351,7 +3352,7 @@ class RemoveTagDialog(QDialog):
         layout = QVBoxLayout(self)
         
         # Info
-        info_label = QLabel(f"Seleziona tag da rimuovere da {len(self.items)} elementi:")
+        info_label = QLabel(t("widgets.label.select_tags_remove", n=len(self.items)))
         info_label.setStyleSheet("font-weight: bold; margin-bottom: 10px;")
         layout.addWidget(info_label)
         
@@ -3391,7 +3392,7 @@ class RemoveTagDialog(QDialog):
                 self.tag_layout.addWidget(checkbox)
             
             if not all_tags:
-                no_tags_label = QLabel("Nessun tag disponibile per la rimozione")
+                no_tags_label = QLabel(t("widgets.label.no_tags_to_remove"))
                 no_tags_label.setStyleSheet("color: gray; font-style: italic;")
                 self.tag_layout.addWidget(no_tags_label)
                 
@@ -3413,7 +3414,7 @@ class DescriptionDialog(QDialog):
     def __init__(self, items, parent=None):
         super().__init__(parent)
         self.items = items or []
-        self.setWindowTitle(f"Gestione Descrizione ({len(self.items)} elementi)")
+        self.setWindowTitle(t("widgets.dialog.description_title", n=len(self.items)))
         self.setMinimumWidth(500)
         self.setModal(True)
         
@@ -3426,30 +3427,30 @@ class DescriptionDialog(QDialog):
         # Info
         if len(self.items) == 1:
             filename = self.items[0].image_data.get('filename', 'Unknown')
-            info_text = f"Gestisci descrizione per: {filename}"
+            info_text = t("widgets.label.manage_desc_single", filename=filename)
         else:
-            info_text = f"Gestisci descrizione per {len(self.items)} elementi"
+            info_text = t("widgets.label.manage_desc_multi", n=len(self.items))
             
         info_label = QLabel(info_text)
         info_label.setStyleSheet("font-weight: bold; color: #2A6A82; margin-bottom: 10px;")
         layout.addWidget(info_label)
         
         # Campo descrizione
-        layout.addWidget(QLabel("Descrizione:"))
+        layout.addWidget(QLabel(t("widgets.label.description")))
         self.description_input = QTextEdit()
         self.description_input.setMaximumHeight(150)
-        self.description_input.setPlaceholderText("Inserisci una descrizione dell'immagine...")
+        self.description_input.setPlaceholderText(t("widgets.placeholder.description"))
         layout.addWidget(self.description_input)
-        
+
         # Help
-        help_label = QLabel("💡 La descrizione verrà applicata a tutti gli elementi selezionati")
+        help_label = QLabel(t("widgets.label.description_help"))
         help_label.setStyleSheet("color: gray; font-size: 11px; margin-top: 5px;")
         layout.addWidget(help_label)
         
         # Bottoni
         button_layout = QHBoxLayout()
         
-        clear_button = QPushButton("🗑️ Rimuovi descrizione")
+        clear_button = QPushButton(t("widgets.btn.remove_description"))
         clear_button.clicked.connect(self._clear_description)
         button_layout.addWidget(clear_button)
         
@@ -3475,7 +3476,7 @@ class DescriptionDialog(QDialog):
                     self.description_input.setPlainText(description)
             else:
                 # Multi-selezione - campo vuoto
-                self.description_input.setPlaceholderText("Nuova descrizione per tutti gli elementi selezionati")
+                self.description_input.setPlaceholderText(t("widgets.placeholder.description_multi"))
                 
         except Exception as e:
             print(f"Errore caricamento descrizione: {e}")
@@ -3495,7 +3496,7 @@ class TitleDialog(QDialog):
     def __init__(self, items, parent=None):
         super().__init__(parent)
         self.items = items or []
-        self.setWindowTitle(f"Gestione Titolo ({len(self.items)} elementi)")
+        self.setWindowTitle(t("widgets.dialog.title_dialog_title", n=len(self.items)))
         self.setMinimumWidth(450)
         self.setModal(True)
 
@@ -3508,29 +3509,29 @@ class TitleDialog(QDialog):
         # Info
         if len(self.items) == 1:
             filename = self.items[0].image_data.get('filename', 'Unknown')
-            info_text = f"Gestisci titolo per: {filename}"
+            info_text = t("widgets.label.manage_title_single", filename=filename)
         else:
-            info_text = f"Gestisci titolo per {len(self.items)} elementi"
+            info_text = t("widgets.label.manage_title_multi", n=len(self.items))
 
         info_label = QLabel(info_text)
         info_label.setStyleSheet("font-weight: bold; color: #2A6A82; margin-bottom: 10px;")
         layout.addWidget(info_label)
 
         # Campo titolo (QLineEdit per singola riga)
-        layout.addWidget(QLabel("Titolo:"))
+        layout.addWidget(QLabel(t("widgets.label.title")))
         self.title_input = QLineEdit()
-        self.title_input.setPlaceholderText("Inserisci un titolo per l'immagine...")
+        self.title_input.setPlaceholderText(t("widgets.placeholder.title"))
         layout.addWidget(self.title_input)
 
         # Help
-        help_label = QLabel("💡 Il titolo verrà applicato a tutti gli elementi selezionati")
+        help_label = QLabel(t("widgets.label.title_help"))
         help_label.setStyleSheet("color: gray; font-size: 11px; margin-top: 5px;")
         layout.addWidget(help_label)
 
         # Bottoni
         button_layout = QHBoxLayout()
 
-        clear_button = QPushButton("🗑️ Rimuovi titolo")
+        clear_button = QPushButton(t("widgets.btn.remove_title"))
         clear_button.clicked.connect(self._clear_title)
         button_layout.addWidget(clear_button)
 
@@ -3556,7 +3557,7 @@ class TitleDialog(QDialog):
                     self.title_input.setText(title)
             else:
                 # Multi-selezione - campo vuoto
-                self.title_input.setPlaceholderText("Nuovo titolo per tutti gli elementi selezionati")
+                self.title_input.setPlaceholderText(t("widgets.placeholder.title_multi"))
 
         except Exception as e:
             print(f"Errore caricamento titolo: {e}")
@@ -3576,7 +3577,7 @@ class CompleteExifDialog(QDialog):
     def __init__(self, items, parent=None):
         super().__init__(parent)
         self.items = items or []
-        self.setWindowTitle(f"Dati EXIF ({len(self.items)} elementi)")
+        self.setWindowTitle(t("widgets.dialog.exif_title", n=len(self.items)))
         # FIXED: Dimensioni più appropriate invece di finestra enorme
         self.setMinimumSize(600, 400)
         self.setMaximumSize(800, 500)  # Limita dimensioni massime
@@ -3592,9 +3593,9 @@ class CompleteExifDialog(QDialog):
         # Info header
         if len(self.items) == 1:
             filename = self.items[0].image_data.get('filename', 'Unknown')
-            info_text = f"Dati EXIF completi per: {filename}"
+            info_text = t("widgets.label.exif_single", filename=filename)
         else:
-            info_text = f"Dati EXIF per {len(self.items)} elementi selezionati"
+            info_text = t("widgets.label.exif_multi", n=len(self.items))
             
         info_label = QLabel(info_text)
         info_label.setStyleSheet("font-weight: bold; color: #2A6A82; margin-bottom: 10px;")
@@ -3609,13 +3610,13 @@ class CompleteExifDialog(QDialog):
         # Bottoni
         button_layout = QHBoxLayout()
         
-        copy_button = QPushButton("📋 Copia negli appunti")
+        copy_button = QPushButton(t("widgets.btn.copy_clipboard"))
         copy_button.clicked.connect(self._copy_to_clipboard)
         button_layout.addWidget(copy_button)
         
         button_layout.addStretch()
         
-        close_button = QPushButton("Chiudi")
+        close_button = QPushButton(t("widgets.btn.close"))
         close_button.clicked.connect(self.accept)
         button_layout.addWidget(close_button)
         
@@ -3853,7 +3854,7 @@ class CompleteExifDialog(QDialog):
             
             # Feedback visivo
             original_text = self.sender().text()
-            self.sender().setText("✅ Copiato!")
+            self.sender().setText(t("widgets.btn.copied_feedback"))
             QApplication.processEvents()
             
             # Reset dopo 1 secondo
@@ -3873,7 +3874,7 @@ class LLMTagDialog(QDialog):
         self.num_images = num_images if num_images is not None else len(self.items)
         # FIXED: Store config for LLM settings
         self.config = config or {}
-        self.setWindowTitle(f"Genera contenuti AI ({self.num_images} elementi)")
+        self.setWindowTitle(t("widgets.dialog.llm_tag_title", n=self.num_images))
         self.setMinimumWidth(500)
         self.setModal(True)
 
@@ -3890,30 +3891,30 @@ class LLMTagDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # Info
-        info_label = QLabel(f"Genera contenuti AI per {self.num_images} elementi usando LLM Vision")
+        info_label = QLabel(t("widgets.label.llm_info", n=self.num_images))
         info_label.setStyleSheet("font-weight: bold; margin-bottom: 15px;")
         layout.addWidget(info_label)
 
         # Opzioni - Checkbox indipendenti per qualsiasi combinazione
-        options_group = QGroupBox("Cosa generare (seleziona uno o più)")
+        options_group = QGroupBox(t("widgets.group.llm_what"))
         options_layout = QVBoxLayout(options_group)
 
-        self.gen_title_check = QCheckBox("📌 Titolo")
+        self.gen_title_check = QCheckBox(t("widgets.check.gen_title"))
         self.gen_title_check.setChecked(True)
         options_layout.addWidget(self.gen_title_check)
 
-        self.gen_tags_check = QCheckBox("🏷️ Tag")
+        self.gen_tags_check = QCheckBox(t("widgets.check.gen_tags"))
         self.gen_tags_check.setChecked(True)
         options_layout.addWidget(self.gen_tags_check)
 
-        self.gen_desc_check = QCheckBox("📝 Descrizione")
+        self.gen_desc_check = QCheckBox(t("widgets.check.gen_description"))
         self.gen_desc_check.setChecked(True)
         options_layout.addWidget(self.gen_desc_check)
 
         layout.addWidget(options_group)
 
         # Info sui parametri
-        params_info = QLabel("ℹ️ I parametri (max parole, max tag) sono configurabili nel tab Config")
+        params_info = QLabel(t("widgets.label.llm_params_hint"))
         params_info.setStyleSheet("color: #888; font-size: 10px; font-style: italic; padding: 5px;")
         layout.addWidget(params_info)
 
@@ -4006,15 +4007,15 @@ class LLMTagDialog(QDialog):
         """Tooltip descrittivo completo per lo stato sync XMP"""
     
         base_tooltips = {
-            XMPSyncState.PERFECT_SYNC: "Sincronizzato: Database e file coincidono",
-            XMPSyncState.EMBEDDED_DIRTY: "Metadata nel file (Embedded) diversi dal Database",
-            XMPSyncState.SIDECAR_DIRTY: "File sidecar (.XMP) diverso dal Database",
-            XMPSyncState.MIXED_STATE: "MIX: Sidecar ed Embedded entrambi sincronizzati col DB",
-            XMPSyncState.MIXED_DIRTY: "MIX: Discrepanza rilevata tra DB, Sidecar o Embedded",
-            XMPSyncState.DB_ONLY: "Presente solo nel Database (nessun XMP fisico scritto)",
-            XMPSyncState.EMBEDDED_ONLY: "Presente solo metadato Embedded (non nel DB)",
-            XMPSyncState.SIDECAR_ONLY: "Presente solo file Sidecar (non nel DB)",
-            XMPSyncState.NO_XMP: "Nessun metadato trovato",
+            XMPSyncState.PERFECT_SYNC: t("widgets.tooltip.xmp_perfect_sync"),
+            XMPSyncState.EMBEDDED_DIRTY: t("widgets.tooltip.xmp_embedded_dirty"),
+            XMPSyncState.SIDECAR_DIRTY: t("widgets.tooltip.xmp_sidecar_dirty"),
+            XMPSyncState.MIXED_STATE: t("widgets.tooltip.xmp_mixed_state"),
+            XMPSyncState.MIXED_DIRTY: t("widgets.tooltip.xmp_mixed_dirty"),
+            XMPSyncState.DB_ONLY: t("widgets.tooltip.xmp_db_only"),
+            XMPSyncState.EMBEDDED_ONLY: t("widgets.tooltip.xmp_embedded_only"),
+            XMPSyncState.SIDECAR_ONLY: t("widgets.tooltip.xmp_sidecar_only"),
+            XMPSyncState.NO_XMP: t("widgets.tooltip.xmp_no_xmp"),
             XMPSyncState.ERROR: f"Errore: {info.get('error', 'Lettura XMP fallita')}"
         }
     
