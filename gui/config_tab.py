@@ -680,9 +680,6 @@ class ConfigTab(QWidget):
         # --- SEZIONE PARAMETRI LLM AVANZATI ---
         adv_group = QGroupBox(t("config.group.llm_params"))
         adv_group.setStyleSheet(f"QGroupBox {{ color: {COLORS['grigio_medio']}; font-size: 12px; }}")
-        adv_group.setCheckable(True)
-        adv_group.setChecked(False)
-        adv_group.setToolTip(t("config.tooltip.llm_params_group"))
         adv_layout = QGridLayout()
 
         adv_layout.addWidget(QLabel("Temperature:"), 0, 0)
@@ -734,7 +731,7 @@ class ConfigTab(QWidget):
         # Lingua output LLM — in questo riquadro perché è un parametro di generazione,
         # non una impostazione di connessione
         adv_layout.addWidget(QLabel(t("config.label.llm_output_lang")), 2, 0)
-        self.llm_output_lang_combo = QComboBox()
+        self.llm_output_lang_combo = NoWheelComboBox()
         for code, label in [
             ("it", "🇮🇹 Italiano"),
             ("en", "🇬🇧 English"),
@@ -748,7 +745,6 @@ class ConfigTab(QWidget):
         adv_layout.addWidget(self.llm_output_lang_combo, 2, 1, 1, 2)
 
         adv_group.setLayout(adv_layout)
-        adv_group.toggled.connect(lambda checked: [w.setVisible(checked) for w in [self.llm_temperature, self.llm_top_k, self.llm_top_p, self.llm_num_ctx, self.llm_num_batch, self.llm_keep_alive, self.llm_output_lang_combo]])
         layout.addWidget(adv_group)
 
         group_box.setLayout(layout)
