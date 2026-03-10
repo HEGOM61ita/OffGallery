@@ -40,6 +40,7 @@
 # Documentazione (manuale utente)
 !docs/
 !docs/*.txt
+!docs/*.html
 
 # ESSENZIALI PER L'APP - Includere nel repo
 !i18n/

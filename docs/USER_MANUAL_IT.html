@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OffGallery — Manuale Utente</title>
+<style>
+  /* ===== FONT & BASE ===== */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    color: #1a1a2e;
+    background: #f8f9fb;
+  }
+
+  /* ===== LAYOUT ===== */
+  .page-wrapper {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  nav#toc {
+    width: 260px;
+    min-width: 260px;
+    background: #1a1a2e;
+    color: #c8cde0;
+    padding: 32px 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  nav#toc .toc-logo {
+    padding: 0 24px 28px;
+    border-bottom: 1px solid #2e3050;
+  }
+
+  nav#toc .toc-logo img {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    object-fit: cover;
+    vertical-align: middle;
+  }
+
+  nav#toc .toc-logo span {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+
+  nav#toc ul {
+    list-style: none;
+    padding: 16px 0;
+  }
+
+  nav#toc ul li a {
+    display: block;
+    padding: 6px 24px;
+    color: #9aa0bc;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    border-left: 3px solid transparent;
+  }
+
+  nav#toc ul li a:hover {
+    color: #fff;
+    background: #252843;
+    border-left-color: #5b6ef5;
+  }
+
+  nav#toc ul li.section-title a {
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding-top: 18px;
+    padding-bottom: 4px;
+    cursor: default;
+  }
+
+  nav#toc ul li.sub a {
+    padding-left: 38px;
+    font-size: 12.5px;
+    font-weight: 400;
+  }
+
+  .content {
+    flex: 1;
+    padding: 48px 60px 80px;
+    max-width: 860px;
+  }
+
+  /* ===== COVER PAGE ===== */
+  .cover {
+    text-align: center;
+    padding: 60px 0 80px;
+    border-bottom: 2px solid #e2e5f0;
+    margin-bottom: 60px;
+  }
+
+  .cover img.logo {
+    width: 90px;
+    height: 90px;
+    border-radius: 20px;
+    object-fit: cover;
+    box-shadow: 0 8px 32px rgba(91,110,245,0.25);
+    margin-bottom: 24px;
+  }
+
+  .cover h1 {
+    font-size: 38px;
+    font-weight: 700;
+    color: #1a1a2e;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+
+  .cover .subtitle {
+    font-size: 18px;
+    color: #5b6ef5;
+    font-weight: 500;
+    margin-bottom: 20px;
+  }
+
+  .cover .meta {
+    font-size: 13px;
+    color: #8a90a8;
+  }
+
+  /* ===== HEADINGS ===== */
+  h1 { font-size: 30px; font-weight: 700; color: #1a1a2e; margin: 48px 0 16px; letter-spacing: -0.01em; }
+  h2 { font-size: 22px; font-weight: 700; color: #1a1a2e; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 2px solid #e2e5f0; }
+  h3 { font-size: 17px; font-weight: 600; color: #2d3063; margin: 28px 0 10px; }
+  h4 { font-size: 14px; font-weight: 600; color: #5b6ef5; margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  .section-number {
+    display: inline-block;
+    background: #5b6ef5;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  /* ===== PARAGRAPHS & LISTS ===== */
+  p { margin-bottom: 14px; }
+
+  ul, ol {
+    margin: 10px 0 16px 24px;
+  }
+
+  ul li, ol li {
+    margin-bottom: 6px;
+  }
+
+  ul li ul {
+    margin-top: 4px;
+  }
+
+  /* ===== CODE ===== */
+  code {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 13px;
+    background: #eef0f8;
+    color: #3a3f6b;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  pre {
+    background: #1a1a2e;
+    color: #c8cde0;
+    padding: 20px 24px;
+    border-radius: 10px;
+    overflow-x: auto;
+    margin: 16px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  /* ===== TABLES ===== */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 14px;
+  }
+
+  thead th {
+    background: #1a1a2e;
+    color: #fff;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  tbody tr:nth-child(even) { background: #f2f4fb; }
+  tbody tr:hover { background: #e8ebf8; }
+
+  tbody td {
+    padding: 9px 14px;
+    border-bottom: 1px solid #e2e5f0;
+    vertical-align: top;
+  }
+
+  tbody td strong { color: #2d3063; }
+
+  /* ===== CALLOUT BOXES ===== */
+  .callout {
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 20px 0;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .callout .icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+  .callout .body { flex: 1; }
+  .callout .body strong { display: block; margin-bottom: 4px; font-size: 14px; }
+  .callout .body p { margin: 0; font-size: 14px; }
+
+  .callout.tip    { background: #edf6ff; border-left: 4px solid #2196f3; }
+  .callout.tip .icon { color: #2196f3; }
+  .callout.tip .body strong { color: #0d6eab; }
+
+  .callout.warning { background: #fff8e1; border-left: 4px solid #ff9800; }
+  .callout.warning .icon { color: #ff9800; }
+  .callout.warning .body strong { color: #b36a00; }
+
+  .callout.note   { background: #f3f0ff; border-left: 4px solid #7c4dff; }
+  .callout.note .icon { color: #7c4dff; }
+  .callout.note .body strong { color: #5230b5; }
+
+  .callout.success { background: #e8f5e9; border-left: 4px solid #4caf50; }
+  .callout.success .icon { color: #4caf50; }
+  .callout.success .body strong { color: #2e7d32; }
+
+  /* ===== SCREENSHOTS ===== */
+  .screenshot-wrap {
+    text-align: center;
+    margin: 28px 0;
+  }
+
+  .screenshot-wrap img {
+    max-width: 100%;
+    border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+    border: 1px solid #dde0f0;
+  }
+
+  .screenshot-wrap figcaption {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #7a80a0;
+    font-style: italic;
+  }
+
+  /* ===== BADGE / LABEL ===== */
+  .badge {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    vertical-align: middle;
+    margin: 0 3px;
+  }
+  .badge.blue   { background: #dbe9ff; color: #1a5fa8; }
+  .badge.green  { background: #dff5e3; color: #2a7a42; }
+  .badge.orange { background: #fff0d6; color: #9a5c00; }
+  .badge.purple { background: #ede8ff; color: #5230b5; }
+  .badge.red    { background: #ffe8e8; color: #a83232; }
+
+  /* ===== STEP LIST ===== */
+  .steps { counter-reset: step; list-style: none; margin: 16px 0 24px 0; }
+  .steps li {
+    counter-increment: step;
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    align-items: flex-start;
+  }
+  .steps li::before {
+    content: counter(step);
+    background: #5b6ef5;
+    color: #fff;
+    min-width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .steps li p { margin: 0; }
+
+  /* ===== DIVIDER ===== */
+  hr { border: none; border-top: 2px solid #e2e5f0; margin: 48px 0; }
+
+  /* ===== PRINT ===== */
+  @media print {
+    body { background: #fff; font-size: 13px; }
+    nav#toc { display: none; }
+    .content { max-width: 100%; padding: 20px 24px; }
+    .cover { padding: 40px 0 50px; }
+    h1 { font-size: 24px; page-break-before: always; }
+    h2 { font-size: 18px; page-break-after: avoid; }
+    h3 { page-break-after: avoid; }
+    .screenshot-wrap img { max-width: 90%; }
+    .callout { page-break-inside: avoid; }
+    table { page-break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+    .page-wrapper { display: block; }
+  }
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+<!-- ===== SIDEBAR ===== -->
+<nav id="toc">
+  <div class="toc-logo">
+    <img src="../assets/logo3.jpg" alt="Logo">
+    <span>OffGallery</span>
+  </div>
+  <ul>
+    <li class="section-title"><a>Introduzione</a></li>
+    <li><a href="#intro">Cos'è OffGallery</a></li>
+    <li><a href="#primo-avvio">Primo Avvio</a></li>
+    <li><a href="#interfaccia">Panoramica Interfaccia</a></li>
+
+    <li class="section-title"><a>Tab Principali</a></li>
+    <li><a href="#elaborazione">Tab Elaborazione</a></li>
+    <li class="sub"><a href="#elab-sorgente">Sorgente Immagini</a></li>
+    <li class="sub"><a href="#elab-modalita">Modalità Elaborazione</a></li>
+    <li class="sub"><a href="#elab-ai">Opzioni AI</a></li>
+    <li class="sub"><a href="#solo-gen-ai">Solo Gen. AI</a></li>
+    <li class="sub"><a href="#elab-avvio">Avvio e Monitoraggio</a></li>
+    <li><a href="#ricerca">Tab Ricerca</a></li>
+    <li class="sub"><a href="#cerca-semantica">Ricerca Semantica</a></li>
+    <li class="sub"><a href="#cerca-tag">Ricerca per Tag</a></li>
+    <li class="sub"><a href="#cerca-filtri">Filtri Avanzati</a></li>
+    <li class="sub"><a href="#cerca-salvate">Ricerche Salvate</a></li>
+    <li><a href="#galleria">Tab Galleria</a></li>
+    <li class="sub"><a href="#gall-badge">Badge e Indicatori</a></li>
+    <li class="sub"><a href="#gall-ordinamento">Ordinamento</a></li>
+    <li class="sub"><a href="#gall-menu">Menu Contestuale</a></li>
+    <li><a href="#statistiche">Tab Statistiche</a></li>
+    <li><a href="#esportazione">Tab Esportazione</a></li>
+    <li class="sub"><a href="#export-xmp">Export XMP</a></li>
+    <li class="sub"><a href="#export-copia">Copia con Struttura</a></li>
+    <li><a href="#configurazione">Tab Configurazione</a></li>
+    <li><a href="#log">Tab Log</a></li>
+
+    <li class="section-title"><a>Concetti Avanzati</a></li>
+    <li><a href="#bioclip">BioCLIP e Tassonomia</a></li>
+    <li><a href="#geotag">Geotag Offline</a></li>
+    <li><a href="#sync-state">Sync State XMP</a></li>
+    <li><a href="#multilingua">Supporto Multilingua</a></li>
+
+    <li class="section-title"><a>Supporto</a></li>
+    <li><a href="#faq">FAQ</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+  </ul>
+</nav>
+
+<!-- ===== CONTENT ===== -->
+<div class="content">
+
+<!-- COVER -->
+<div class="cover">
+  <img class="logo" src="../assets/logo3.jpg" alt="OffGallery Logo">
+  <h1>OffGallery</h1>
+  <div class="subtitle">Manuale Utente</div>
+  <div class="meta">Versione 1.0 &nbsp;·&nbsp; Marzo 2026 &nbsp;·&nbsp; Italiano</div>
+</div>
+
+<!-- ===== 1. INTRODUZIONE ===== -->
+<h1 id="intro"><span class="section-number">1</span>Cos'è OffGallery</h1>
+
+<p>OffGallery è un sistema di catalogazione e ricerca fotografica completamente <strong>offline</strong>. Analizza automaticamente ogni immagine con modelli AI locali, generando embedding semantici, tassonomia biologica, tag, descrizioni e score estetici — tutto senza inviare un singolo pixel a servizi cloud.</p>
+
+<p>È progettato per fotografi che gestiscono archivi di migliaia di file RAW e vogliono trovare qualsiasi foto in secondi usando linguaggio naturale: "ritratto controluce al tramonto", "airone cenerino in volo", "paesaggio con neve e montagne".</p>
+
+<h3>Cosa può fare OffGallery</h3>
+<ul>
+  <li>Analizza <strong>25+ formati RAW</strong> (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF e altri) e formati standard (JPG, PNG, TIFF, WEBP)</li>
+  <li>Genera <strong>embedding semantici CLIP</strong> (768 dimensioni) per ricerca in linguaggio naturale</li>
+  <li>Calcola <strong>embedding DINOv2</strong> per ricerca per similarità visiva</li>
+  <li>Classifica automaticamente flora e fauna con <strong>BioCLIP2</strong> (~450.000 specie, 7 livelli tassonomici)</li>
+  <li>Genera <strong>tag, descrizioni e titoli</strong> tramite modello LLM Vision locale (Qwen3.5 4B via Ollama)</li>
+  <li>Valuta la qualità artistica con <strong>score estetico</strong> (0–10) e tecnica (nitidezza/rumore)</li>
+  <li>Geocodifica offline le <strong>coordinate GPS</strong> in gerarchia Continente › Paese › Regione › Città</li>
+  <li>Si integra con <strong>Lightroom</strong> tramite import/export XMP bidirezionale</li>
+  <li>Processa direttamente cataloghi <strong>.lrcat</strong> di Lightroom come sorgente di input</li>
+</ul>
+
+<div class="callout note">
+  <span class="icon">🔒</span>
+  <div class="body">
+    <strong>Privacy garantita</strong>
+    <p>Nessun dato, immagine o metadato lascia mai il tuo computer. Tutti i modelli AI girano localmente. La connessione internet è richiesta solo al primo avvio per scaricare i modelli (~6,7 GB).</p>
+  </div>
+</div>
+
+<!-- ===== PRIMO AVVIO ===== -->
+<h1 id="primo-avvio"><span class="section-number">2</span>Primo Avvio</h1>
+
+<p>Dopo l'installazione tramite wizard (vedi <code>installer/INSTALL_GUIDE.md</code>), avvia OffGallery dall'icona desktop o dalla voce nel menu applicazioni. Al <strong>primo avvio</strong> l'applicazione scarica automaticamente i modelli AI (~6,7 GB totali). Un pannello di progresso mostra l'avanzamento. Questo passaggio avviene una volta sola.</p>
+
+<ol class="steps">
+  <li><p>Avvia OffGallery dal collegamento creato dall'installer.</p></li>
+  <li><p>Al primo avvio appare una splash screen che scarica i modelli AI. Connessione internet necessaria solo in questo momento.</p></li>
+  <li><p>Al termine del download l'interfaccia principale appare con 7 tab.</p></li>
+  <li><p>(Opzionale) Assicurati che <strong>Ollama</strong> sia in esecuzione se vuoi generare tag e descrizioni LLM. Su Windows avvia l'app Ollama; su macOS/Linux il daemon parte automaticamente.</p></li>
+</ol>
+
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>Avvii successivi</strong>
+    <p>Dal secondo avvio in poi OffGallery è completamente offline. Non serve alcuna connessione internet.</p>
+  </div>
+</div>
+
+<!-- ===== INTERFACCIA ===== -->
+<h1 id="interfaccia"><span class="section-number">3</span>Panoramica Interfaccia</h1>
+
+<p>L'interfaccia è organizzata in <strong>7 tab</strong> orizzontali nella parte superiore della finestra:</p>
+
+<table>
+  <thead><tr><th>Tab</th><th>Funzione Principale</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Elaborazione</strong></td><td>Analisi AI delle immagini: embedding, BioCLIP, LLM, score estetico/tecnico, geotag</td></tr>
+    <tr><td><strong>Ricerca</strong></td><td>Query semantica in linguaggio naturale + filtri EXIF/score/data/colore</td></tr>
+    <tr><td><strong>Galleria</strong></td><td>Visualizzazione risultati con badge, anteprima e ordinamento avanzato</td></tr>
+    <tr><td><strong>Statistiche</strong></td><td>Analisi del database: tipologia, date, obiettivi, score, rating</td></tr>
+    <tr><td><strong>Esportazione</strong></td><td>Export XMP, copia file con struttura originale, sync con Lightroom</td></tr>
+    <tr><td><strong>Configurazione</strong></td><td>Impostazioni modelli AI, LLM, lingua UI e output, editor esterni</td></tr>
+    <tr><td><strong>Log</strong></td><td>Monitoraggio in tempo reale dei processi di elaborazione</td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<!-- ===== TAB ELABORAZIONE ===== -->
+<h1 id="elaborazione"><span class="section-number">4</span>Tab Elaborazione</h1>
+
+<p>Il tab Elaborazione è il centro operativo di OffGallery. Da qui si avviano le sessioni di analisi AI che popolano il database con embedding, tag, descrizioni e metadati.</p>
+
+<h2 id="elab-sorgente">4.1 Sorgente Immagini</h2>
+
+<p>Nella parte superiore del tab è possibile scegliere <strong>due tipi di sorgente</strong>:</p>
+
+<h3>Sorgente: Directory</h3>
+<p>Comportamento predefinito. OffGallery scansiona la cartella selezionata (e le sue sottocartelle) cercando tutti i formati supportati. Usa il pulsante <strong>Sfoglia</strong> per selezionare la directory, oppure inserisci il percorso manualmente.</p>
+
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>Cartella INPUT predefinita</strong>
+    <p>La cartella <code>INPUT/</code> nella root di OffGallery è la destinazione predefinita. Copia qui le nuove foto da elaborare.</p>
+  </div>
+</div>
+
+<h3>Sorgente: Catalogo Lightroom (.lrcat)</h3>
+<p>Seleziona direttamente un file <code>.lrcat</code> di Lightroom. OffGallery legge il catalogo in <strong>sola lettura</strong> tramite SQLite: estrae la lista completa dei file indicizzati (con percorso assoluto) e li usa come sorgente senza toccare il catalogo originale.</p>
+
+<p>Questo approccio è ideale per:</p>
+<ul>
+  <li>Elaborare l'intera libreria Lightroom esistente senza spostare file</li>
+  <li>Mantenere la struttura di cartelle originale multi-disco</li>
+  <li>Combinare il catalogo Lightroom con i tag/descrizioni generati da OffGallery</li>
+</ul>
+
+<div class="callout warning">
+  <span class="icon">⚠️</span>
+  <div class="body">
+    <strong>Catalogo in uso</strong>
+    <p>Se Lightroom è aperto con il catalogo selezionato, OffGallery può comunque leggerlo (accesso in sola lettura). Il catalogo non viene mai modificato.</p>
+  </div>
+</div>
+
+<h2 id="elab-modalita">4.2 Modalità di Elaborazione</h2>
+
+<p>Tre modalità selezionabili tramite radio button:</p>
+
+<table>
+  <thead><tr><th>Modalità</th><th>Comportamento</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Solo nuove</strong></td>
+      <td>Elabora solo le immagini non ancora presenti nel database. Le foto già analizzate vengono saltate.</td>
+    </tr>
+    <tr>
+      <td><strong>Riprocessa tutte</strong></td>
+      <td>Rianalizza tutte le immagini nella sorgente, anche quelle già nel database. Utile dopo aver aggiornato un modello o cambiato parametri.</td>
+    </tr>
+    <tr>
+      <td><strong>Riprocessa tutte + Solo Gen. AI</strong></td>
+      <td>Modalità speciale: rigenera solo tag, descrizione e titolo (LLM) sulle immagini già nel database. Salta EXIF ed embedding. Vedi <a href="#solo-gen-ai">§ 4.4</a>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="elab-ai">4.3 Opzioni AI (Generazione LLM)</h2>
+
+<p>Il riquadro <strong>Generazione AI</strong> controlla il comportamento del modello LLM Vision:</p>
+
+<table>
+  <thead><tr><th>Opzione</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Genera Tag</strong></td><td>Attiva la generazione di parole chiave descrittive dell'immagine</td></tr>
+    <tr><td><strong>Genera Descrizione</strong></td><td>Attiva la generazione di una descrizione narrativa</td></tr>
+    <tr><td><strong>Genera Titolo</strong></td><td>Attiva la generazione di un titolo breve</td></tr>
+    <tr><td><strong>Max tag</strong></td><td>Numero massimo di tag da generare (default: 10)</td></tr>
+    <tr><td><strong>Sovrascrivi</strong></td><td>Se spuntato, sovrascrive tag/descrizione/titolo esistenti. Se non spuntato: per i tag fa merge (aggiunge solo i nuovi); per descrizione e titolo salta se già presenti.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout note">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>Merge intelligente dei tag</strong>
+    <p>Con "Sovrascrivi" disattivato, il merge è <em>case-insensitive</em>: se il database contiene già "Uccello" e il LLM genera "uccello", il tag non viene duplicato.</p>
+  </div>
+</div>
+
+<h2 id="solo-gen-ai">4.4 Modalità "Solo Gen. AI"</h2>
+
+<p>La modalità <strong>Solo Gen. AI</strong> è accessibile attivando prima "Riprocessa tutte" e poi spuntando il checkbox "Solo Gen. AI" che appare accanto.</p>
+
+<p>Questa modalità è pensata per un caso d'uso molto frequente: <em>hai già analizzato le foto ma vuoi aggiornare tag, descrizioni e titoli con un modello LLM migliore, senza dover rieseguire tutta la pipeline (EXIF, embedding CLIP/DINOv2, BioCLIP, aesthetic score, ecc.)</em>.</p>
+
+<h3>Cosa fa "Solo Gen. AI"</h3>
+<ul>
+  <li><strong>Filtra</strong> solo le immagini già presenti nel database (le nuove foto vengono ignorate)</li>
+  <li><strong>Estrae</strong> una miniatura a 512px dall'originale per il modello LLM</li>
+  <li><strong>Chiama</strong> il modello LLM Vision con il prompt configurato</li>
+  <li><strong>Aggiorna</strong> nel database solo i campi: <code>tags</code>, <code>description</code>, <code>title</code></li>
+  <li><strong>Salta</strong> completamente: EXIF, embedding CLIP/DINOv2, BioCLIP, score estetico/tecnico, geotag</li>
+</ul>
+
+<h3>Cosa <em>non</em> fa "Solo Gen. AI"</h3>
+<ul>
+  <li>Non tocca il campo <code>bioclip_taxonomy</code> (rimane invariato)</li>
+  <li>Non aggiorna embedding (le ricerche semantiche precedenti rimangono valide)</li>
+  <li>Non elabora foto nuove non ancora nel database</li>
+</ul>
+
+<h3>Quando usarla</h3>
+<ol>
+  <li>Hai aggiornato Ollama a un modello più capace (es. da 4B a 7B)</li>
+  <li>Vuoi rigenerare i tag in una lingua diversa</li>
+  <li>I tag generati con il modello precedente erano insoddisfacenti</li>
+  <li>Vuoi aggiungere descrizioni a foto già importate senza descrizione</li>
+</ol>
+
+<div class="callout warning">
+  <span class="icon">⚠️</span>
+  <div class="body">
+    <strong>Prerequisito</strong>
+    <p>Seleziona almeno uno fra "Genera Tag", "Genera Descrizione" o "Genera Titolo" prima di avviare in modalità Solo Gen. AI. Altrimenti OffGallery mostra un avviso.</p>
+  </div>
+</div>
+
+<h2 id="elab-avvio">4.5 Avvio e Monitoraggio</h2>
+
+<p>Premi il pulsante <strong>Avvia</strong> per iniziare l'elaborazione. Durante l'analisi:</p>
+<ul>
+  <li>Una <strong>barra di progresso</strong> mostra l'avanzamento (file corrente / totale)</li>
+  <li>Il <strong>pannello Log</strong> (tab Log) mostra in tempo reale ogni operazione</li>
+  <li>Il pulsante cambia in <strong>Interrompi</strong> per fermare l'elaborazione in modo sicuro</li>
+</ul>
+
+<p>Le elaborazioni complete e quelle interrotte dall'utente sono sicure: il database viene aggiornato dopo ogni immagine completata.</p>
+
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>Elaborazione in background</strong>
+    <p>Puoi passare ad altri tab (Ricerca, Galleria) mentre l'elaborazione è in corso. Il processo continua in background.</p>
+  </div>
+</div>
+
+<hr>
+
+<!-- ===== TAB RICERCA ===== -->
+<h1 id="ricerca"><span class="section-number">5</span>Tab Ricerca</h1>
+
+<div class="screenshot-wrap">
+  <img src="../assets/Int_search.png" alt="Pannello di ricerca OffGallery">
+  <figcaption>Il pannello di ricerca con filtri semantici, EXIF e score</figcaption>
+</div>
+
+<p>Il tab Ricerca è il cuore della discovery fotografica. Combina <strong>ricerca semantica</strong> (linguaggio naturale) con filtri avanzati su metadati, score e date.</p>
+
+<h2 id="cerca-semantica">5.1 Ricerca Semantica (CLIP)</h2>
+
+<p>La ricerca semantica usa embedding CLIP per trovare immagini il cui contenuto visivo è simile al concetto espresso nella query, indipendentemente dalle parole usate.</p>
+
+<ol class="steps">
+  <li><p>Digita la query in italiano nel campo di testo principale: es. <em>"tramonto sul mare con barche"</em>.</p></li>
+  <li><p>OffGallery traduce automaticamente la query in inglese (via Argostranslate offline) e la codifica con il modello CLIP.</p></li>
+  <li><p>I risultati vengono ordinati per <strong>similarità coseno</strong> con tutti gli embedding nel database.</p></li>
+  <li><p>Regola il cursore <strong>Soglia</strong> per filtrare risultati poco pertinenti (default ~0.20).</p></li>
+</ol>
+
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>Query descrittive funzionano meglio</strong>
+    <p>Scrivi query descrittive del contenuto: "uccello in volo su sfondo cielo blu" funziona meglio di "airone" (troppo generico). Puoi includere colori, atmosfera, composizione.</p>
+  </div>
+</div>
+
+<h2 id="cerca-tag">5.2 Ricerca per Tag</h2>
+
+<p>La ricerca per tag usa <strong>fuzzy matching</strong> per trovare immagini che contengono specifiche parole chiave. La ricerca è:</p>
+<ul>
+  <li><strong>Case-insensitive</strong>: "Uccello" e "uccello" sono equivalenti</li>
+  <li><strong>Fuzzy</strong>: "flamingo" trova anche "fenicottero" se il modello ha usato entrambi</li>
+  <li><strong>Multilingua</strong>: funziona nella lingua in cui sono stati generati i tag</li>
+</ul>
+
+<p>Puoi combinare più tag separati da virgola per una ricerca AND.</p>
+
+<h2 id="cerca-filtri">5.3 Filtri Avanzati</h2>
+
+<p>I filtri si accumulano: attivarne più di uno restringe progressivamente i risultati.</p>
+
+<table>
+  <thead><tr><th>Categoria</th><th>Filtri Disponibili</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>EXIF</strong></td>
+      <td>Camera (marca/modello), Obiettivo, Focale (mm), ISO, Tempo di posa, Diaframma (f/)</td>
+    </tr>
+    <tr>
+      <td><strong>Score</strong></td>
+      <td>Score estetico minimo (0–10), Score tecnico minimo (0–10)</td>
+    </tr>
+    <tr>
+      <td><strong>Rating</strong></td>
+      <td>Stelle Lightroom: da 0 a 5 (compatibile con import/export XMP)</td>
+    </tr>
+    <tr>
+      <td><strong>Colore</strong></td>
+      <td>Etichetta colore (rosso, giallo, verde, blu, viola) o Bianco/Nero rilevato automaticamente</td>
+    </tr>
+    <tr>
+      <td><strong>Data</strong></td>
+      <td>Intervallo date scatto (da → a)</td>
+    </tr>
+    <tr>
+      <td><strong>Formato</strong></td>
+      <td>Solo RAW, Solo JPEG, o tutti</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="cerca-salvate">5.4 Ricerche Salvate</h2>
+
+<p>Puoi salvare la configurazione completa di una ricerca (query + tutti i filtri attivi) con un nome personalizzato. Le ricerche salvate sono richiamabili in un click dal menu a tendina.</p>
+
+<ol class="steps">
+  <li><p>Configura la ricerca desiderata (query, soglia, filtri).</p></li>
+  <li><p>Clicca <strong>Salva ricerca</strong> e assegna un nome.</p></li>
+  <li><p>Per richiamarla in futuro: selezionala dal menu a tendina "Ricerche salvate" e premi <strong>Carica</strong>.</p></li>
+</ol>
+
+<p>Le ricerche vengono salvate in <code>database/saved_searches.json</code>.</p>
+
+<hr>
+
+<!-- ===== TAB GALLERIA ===== -->
+<h1 id="galleria"><span class="section-number">6</span>Tab Galleria</h1>
+
+<div class="screenshot-wrap">
+  <img src="../assets/Int_gallery.png" alt="Galleria OffGallery">
+  <figcaption>La galleria mostra i risultati con badge, anteprime e dettagli al hover</figcaption>
+</div>
+
+<p>La Galleria visualizza i risultati della ricerca corrente. Ogni immagine è mostrata come miniatura con <strong>badge informativi</strong> sovrapposti.</p>
+
+<h2 id="gall-badge">6.1 Badge e Indicatori</h2>
+
+<table>
+  <thead><tr><th>Badge</th><th>Significato</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge blue">★ 4.2</span></td><td>Score estetico (0–10). Colore: verde &gt;7, giallo 5–7, grigio &lt;5</td></tr>
+    <tr><td><span class="badge green">⚙ 8.1</span></td><td>Score tecnico (nitidezza/rumore, solo immagini non-RAW)</td></tr>
+    <tr><td><span class="badge orange">★★★★</span></td><td>Rating Lightroom (stelle 1–5)</td></tr>
+    <tr><td><span class="badge purple">B/N</span></td><td>Immagine in bianco e nero rilevata automaticamente</td></tr>
+    <tr><td><span class="badge red">●</span></td><td>Etichetta colore Lightroom (rosso/giallo/verde/blu/viola)</td></tr>
+  </tbody>
+</table>
+
+<h3>Tooltip al passaggio del mouse</h3>
+<p>Passando il mouse su una miniatura appare un tooltip con:</p>
+<ul>
+  <li>Titolo e descrizione generati dal LLM</li>
+  <li>Lista completa dei tag</li>
+  <li>Tassonomia BioCLIP (se rilevata): es. <em>Animalia › Aves › Ardeidae › Ardea cinerea</em></li>
+  <li>Gerarchia geografica: es. <em>GeOFF | Europe | Italy | Sardegna | Oristano</em></li>
+  <li>Metadati EXIF principali (camera, obiettivo, ISO, tempo)</li>
+</ul>
+
+<h2 id="gall-ordinamento">6.2 Ordinamento</h2>
+
+<p>Il menu <strong>Ordina per</strong> offre 7 criteri:</p>
+<ol>
+  <li>Rilevanza (score similarità CLIP — predefinito nelle ricerche semantiche)</li>
+  <li>Data scatto (crescente o decrescente)</li>
+  <li>Nome file</li>
+  <li>Rating (stelle)</li>
+  <li>Score estetico</li>
+  <li>Score tecnico</li>
+  <li>Score composito (estetico + tecnico)</li>
+</ol>
+
+<p>Per ogni criterio è possibile scegliere direzione <strong>ASC</strong> o <strong>DESC</strong>.</p>
+
+<h2 id="gall-menu">6.3 Menu Contestuale</h2>
+
+<p>Click destro su qualsiasi miniatura apre il menu contestuale con le azioni disponibili:</p>
+
+<table>
+  <thead><tr><th>Azione</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Apri in editor esterno</strong></td><td>Apre il file originale in Lightroom, Capture One, o altro editor configurato</td></tr>
+    <tr><td><strong>Mostra in Esplora Risorse</strong></td><td>Apre la cartella contenente il file originale</td></tr>
+    <tr><td><strong>Trova immagini simili</strong></td><td>Avvia una ricerca per similarità visiva (DINOv2) usando questa immagine come query</td></tr>
+    <tr><td><strong>Modifica tag</strong></td><td>Apre un editor inline per aggiungere/rimuovere tag manualmente</td></tr>
+    <tr><td><strong>Rigenera AI</strong></td><td>Rigenera tag, descrizione e titolo per questa singola immagine</td></tr>
+    <tr><td><strong>Export XMP</strong></td><td>Esporta subito il file XMP per questa immagine</td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<!-- ===== TAB STATISTICHE ===== -->
+<h1 id="statistiche"><span class="section-number">7</span>Tab Statistiche</h1>
+
+<div class="screenshot-wrap">
+  <img src="../assets/Int_stat.png" alt="Statistiche OffGallery">
+  <figcaption>Il pannello statistiche mostra analisi dettagliate del database fotografico</figcaption>
+</div>
+
+<p>Il tab Statistiche offre una panoramica analitica dell'intero archivio indicizzato:</p>
+
+<ul>
+  <li><strong>Distribuzione formati</strong>: quante RAW, quante JPEG, PNG, ecc.</li>
+  <li><strong>Timeline scatti</strong>: distribuzione temporale per anno/mese</li>
+  <li><strong>Strumentazione</strong>: le fotocamere e gli obiettivi più usati</li>
+  <li><strong>Parametri di scatto</strong>: distribuzioni di ISO, tempo, diaframma</li>
+  <li><strong>Score estetici e tecnici</strong>: istogrammi e medie</li>
+  <li><strong>Rating</strong>: distribuzione stelle 0–5</li>
+  <li><strong>Tag cloud</strong>: le parole chiave più frequenti nell'archivio</li>
+</ul>
+
+<hr>
+
+<!-- ===== TAB ESPORTAZIONE ===== -->
+<h1 id="esportazione"><span class="section-number">8</span>Tab Esportazione</h1>
+
+<h2 id="export-xmp">8.1 Export XMP</h2>
+
+<p>L'export XMP scrive file <code>.xmp</code> sidecar compatibili con Lightroom, DxO, Capture One e qualsiasi software che rispetta lo standard XMP/IPTC.</p>
+
+<p>I campi esportati includono:</p>
+<ul>
+  <li><strong>dc:subject</strong>: tag utente e tag LLM</li>
+  <li><strong>lr:hierarchicalSubject</strong>: tassonomia BioCLIP con prefisso <code>AI|Taxonomy|...</code> e gerarchia geografica con prefisso <code>GeOFF|...</code></li>
+  <li><strong>xmp:Rating</strong>: stelle (0–5)</li>
+  <li><strong>dc:description</strong>: descrizione generata dal LLM</li>
+  <li><strong>dc:title</strong>: titolo generato dal LLM</li>
+</ul>
+
+<div class="callout note">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>Separazione gerarchica</strong>
+    <p>I prefissi <code>AI|Taxonomy|</code> e <code>GeOFF|</code> garantiscono che la tassonomia BioCLIP e la gerarchia geografica non interferiscano con le keyword utente in Lightroom. In Lightroom appaiono come gerarchie separate nella struttura delle parole chiave.</p>
+  </div>
+</div>
+
+<h3>Destinazione XMP</h3>
+<p>La destinazione dei file XMP è <strong>indipendente</strong> dalla cartella dei file originali. Puoi scegliere:</p>
+<ul>
+  <li><strong>Accanto all'originale</strong>: il file <code>DSC0001.xmp</code> viene creato nella stessa cartella di <code>DSC0001.NEF</code></li>
+  <li><strong>Cartella custom</strong>: tutti gli XMP vengono scritti in una cartella a tua scelta</li>
+</ul>
+
+<h2 id="export-copia">8.2 Copia con Struttura</h2>
+
+<p>La funzione di copia trasferisce i file originali in una destinazione mantenendo la <strong>gerarchia di cartelle originale</strong>, anche quando le foto provengono da dischi diversi.</p>
+
+<p>Esempio con foto su due dischi:</p>
+<pre>Sorgente:
+  C:\Foto\2024\Sardegna\IMG_001.NEF
+  D:\Archivio\2023\Toscana\DSC_999.NEF
+
+Destinazione (es. E:\Backup):
+  E:\Backup\C_drive\Foto\2024\Sardegna\IMG_001.NEF
+  E:\Backup\D_drive\Archivio\2023\Toscana\DSC_999.NEF</pre>
+
+<p>Su macOS il prefisso usa il nome del volume (<code>Macintosh HD</code>, nome disco esterno), su Linux il mount point.</p>
+
+<hr>
+
+<!-- ===== TAB CONFIGURAZIONE ===== -->
+<h1 id="configurazione"><span class="section-number">9</span>Tab Configurazione</h1>
+
+<p>Il tab Configurazione permette di personalizzare i parametri di tutti i modelli AI e le preferenze dell'applicazione. Le impostazioni vengono salvate in <code>config_new.yaml</code>.</p>
+
+<h3>Sezione: Connessione LLM (Ollama)</h3>
+<table>
+  <thead><tr><th>Parametro</th><th>Descrizione</th><th>Default</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Endpoint</strong></td><td>URL del server Ollama</td><td><code>http://localhost:11434</code></td></tr>
+    <tr><td><strong>Modello</strong></td><td>Nome del modello Ollama</td><td><code>qwen3.5:4b-q4_K_M</code></td></tr>
+    <tr><td><strong>Timeout</strong></td><td>Secondi massimi per risposta</td><td>180</td></tr>
+  </tbody>
+</table>
+
+<h3>Sezione: Lingua</h3>
+<table>
+  <thead><tr><th>Impostazione</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Lingua interfaccia</strong></td><td>Lingua dei menu e pulsanti dell'app (IT/EN/FR/DE/ES/PT)</td></tr>
+    <tr><td><strong>Lingua output LLM</strong></td><td>Lingua in cui il modello LLM genera tag e descrizioni (indipendente dalla UI)</td></tr>
+  </tbody>
+</table>
+
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>Lingue indipendenti</strong>
+    <p>Puoi avere l'interfaccia in italiano e i tag generati in inglese, o viceversa. Le ricerche per tag si adattano alla lingua dei contenuti.</p>
+  </div>
+</div>
+
+<h3>Sezione: Editor esterno</h3>
+<p>Configura il percorso dell'editor fotografico esterno (Lightroom, Capture One, ecc.) per aprire i file originali direttamente dalla Galleria.</p>
+
+<h3>Sezione: Modelli AI</h3>
+<p>Percorso della directory dei modelli AI (<code>Models/</code>). Può essere relativo alla root di OffGallery o un percorso assoluto (es. su un disco esterno capiente).</p>
+
+<hr>
+
+<!-- ===== TAB LOG ===== -->
+<h1 id="log"><span class="section-number">10</span>Tab Log</h1>
+
+<p>Il tab Log mostra in tempo reale tutte le operazioni eseguite dall'applicazione durante l'elaborazione:</p>
+
+<ul>
+  <li>File in lavorazione e operazione corrente (EXIF, embedding, BioCLIP, LLM...)</li>
+  <li>Avvisi per file non elaborabili (RAW senza anteprima, errori di rete Ollama)</li>
+  <li>Statistiche al termine: tot. immagini, tempo totale, velocità media</li>
+  <li>Messaggi di errore con dettagli tecnici per il troubleshooting</li>
+</ul>
+
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>Salva il log</strong>
+    <p>Puoi selezionare tutto il testo del log (Ctrl+A) e copiarlo per condividere dettagli tecnici in caso di problemi.</p>
+  </div>
+</div>
+
+<hr>
+
+<!-- ===== CONCETTI AVANZATI ===== -->
+<h1 id="bioclip"><span class="section-number">11</span>BioCLIP e Tassonomia Biologica</h1>
+
+<p>BioCLIP2 è un modello Vision specializzato nel riconoscimento di specie biologiche. È stato addestrato su ~450.000 specie del Tree of Life e produce una classificazione tassonomica completa a 7 livelli:</p>
+
+<pre>Regnum › Phylum › Classis › Ordo › Familia › Genus › Species
+  es: Animalia › Chordata › Aves › Pelecaniformes › Ardeidae › Ardea › Ardea cinerea</pre>
+
+<h3>Dove appare la tassonomia</h3>
+<ul>
+  <li><strong>Galleria (tooltip)</strong>: sezione "Tassonomia" separata dai tag</li>
+  <li><strong>Export XMP</strong>: come <code>HierarchicalSubject</code> con prefisso <code>AI|Taxonomy|...</code></li>
+  <li><strong>Database</strong>: campo dedicato <code>bioclip_taxonomy</code> (mai mescolato con i tag)</li>
+</ul>
+
+<div class="callout note">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>Separazione da tag e LLM</strong>
+    <p>Il nome latino della specie (es. <em>Ardea cinerea</em>) è inserito programmaticamente da OffGallery — non viene chiesto al LLM, che spesso produce errori sui nomi scientifici. Il LLM usa il nome come contesto ma non lo genera.</p>
+  </div>
+</div>
+
+<h1 id="geotag"><span class="section-number">12</span>Geotag Offline</h1>
+
+<p>OffGallery legge le coordinate GPS dai metadati EXIF e le converte in una gerarchia geografica leggibile, usando dati <strong>GeoNames bundled</strong> (~130.000 città): nessuna API esterna, nessuna connessione necessaria.</p>
+
+<p>Il formato output è:</p>
+<pre>GeOFF | Europe | Italy | Sardegna | Trinità d'Agultu</pre>
+
+<p>In export XMP appare come <code>HierarchicalSubject</code> con prefisso <code>GeOFF|</code>, visibile in Lightroom come gerarchia separata dalle keyword utente.</p>
+
+<h1 id="sync-state"><span class="section-number">13</span>Sync State XMP</h1>
+
+<p>OffGallery traccia lo stato di sincronizzazione di ogni immagine con il suo file XMP:</p>
+
+<table>
+  <thead><tr><th>Stato</th><th>Significato</th></tr></thead>
+  <tbody>
+    <tr><td><code>PERFECT_SYNC</code></td><td>Il file XMP esiste ed è aggiornato con il contenuto del database</td></tr>
+    <tr><td><code>DIRTY</code></td><td>Il database è stato aggiornato dopo l'ultimo export XMP — il file XMP è obsoleto</td></tr>
+    <tr><td><code>NO_XMP</code></td><td>Nessun file XMP ancora esportato per questa immagine</td></tr>
+    <tr><td><code>XMP_NEWER</code></td><td>Il file XMP è stato modificato esternamente (es. da Lightroom) dopo l'ultimo import</td></tr>
+  </tbody>
+</table>
+
+<h1 id="multilingua"><span class="section-number">14</span>Supporto Multilingua</h1>
+
+<p>OffGallery gestisce tre livelli di lingua indipendenti:</p>
+
+<ol>
+  <li><strong>Lingua dell'interfaccia</strong>: pulsanti, menu, etichette (6 lingue: IT, EN, FR, DE, ES, PT)</li>
+  <li><strong>Lingua output LLM</strong>: lingua in cui il modello genera tag e descrizioni (configurabile separatamente)</li>
+  <li><strong>Lingua query</strong>: le query di ricerca vengono tradotte automaticamente offline via Argostranslate — puoi cercare in italiano anche se i tag sono in inglese</li>
+</ol>
+
+<hr>
+
+<!-- ===== FAQ ===== -->
+<h1 id="faq"><span class="section-number">15</span>FAQ — Domande Frequenti</h1>
+
+<h3>Ollama non risponde / timeout</h3>
+<p>Verifica che Ollama sia in esecuzione. Su Windows: cerca "Ollama" nel system tray. Su macOS/Linux: esegui <code>ollama list</code> nel terminale. Assicurati che il modello <code>qwen3.5:4b-q4_K_M</code> sia scaricato (<code>ollama pull qwen3.5:4b-q4_K_M</code>).</p>
+
+<h3>I tag generati sono in inglese ma voglio l'italiano</h3>
+<p>Vai in <strong>Configurazione → Lingua output LLM</strong> e seleziona "Italiano". Usa poi "Solo Gen. AI" per rigenerare i tag su tutte le foto già nel database.</p>
+
+<h3>La ricerca semantica non trova foto pertinenti</h3>
+<p>Gli embedding CLIP potrebbero essere stati generati con una versione incompatibile del modello. Rielabora le foto con "Riprocessa tutte" dopo aver verificato le versioni delle librerie (vedi INSTALL_GUIDE.md per i requisiti di versione).</p>
+
+<h3>Una foto RAW non viene elaborata</h3>
+<p>Alcuni formati RAW high-efficiency (es. NEF con compressione loss-less) non contengono un'anteprima JPEG estraibile. In questi casi OffGallery salva i metadati EXIF ma salta embedding e LLM. Controlla il tab Log per i dettagli.</p>
+
+<h3>Come aggiorno OffGallery?</h3>
+<p>Scarica il nuovo ZIP da GitHub, estrai sovrascrivendo la cartella esistente (esclusa la cartella <code>database/</code> e <code>INPUT/</code>). Il database è compatibile tra versioni.</p>
+
+<h3>Posso usare un modello LLM diverso da Qwen3.5?</h3>
+<p>Sì. In Configurazione puoi cambiare il nome del modello Ollama. Modelli testati: <code>llava:7b</code>, <code>minicpm-v</code>, <code>moondream</code>. Risultati migliori con modelli vision multimodali. Dopo il cambio, aggiorna i parametri <code>num_ctx</code> e <code>top_k</code> in <code>config_new.yaml</code>.</p>
+
+<h3>I dati BioCLIP appaiono come keyword in Lightroom</h3>
+<p>È il comportamento atteso. Appariranno come gerarchia separata <code>AI &gt; Taxonomy &gt; ...</code> nella struttura parole chiave di Lightroom. Non interferisce con le tue keyword.</p>
+
+<!-- ===== TROUBLESHOOTING ===== -->
+<h1 id="troubleshooting"><span class="section-number">16</span>Troubleshooting</h1>
+
+<table>
+  <thead><tr><th>Problema</th><th>Causa probabile</th><th>Soluzione</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Score CLIP sempre vicini a zero</td>
+      <td>Embedding generati con versione errata di transformers</td>
+      <td>Esegui <code>pip install transformers==4.57.3</code> e reimporta le foto</td>
+    </tr>
+    <tr>
+      <td>Geotag errato (città sbagliata)</td>
+      <td>GPS con longitudine Ovest non interpretata correttamente</td>
+      <td>Rielabora le foto con versione ≥ 10 Mar 2026</td>
+    </tr>
+    <tr>
+      <td>App si avvia ma non mostra finestra (macOS)</td>
+      <td>Segfault Qt/Cocoa al primo avvio</td>
+      <td>Usa il launcher aggiornato che scarica i modelli in processo separato</td>
+    </tr>
+    <tr>
+      <td>Errore "mat1 and mat2 shapes cannot be multiplied"</td>
+      <td>Incompatibilità versione transformers con CLIP ViT-L/14</td>
+      <td>Installa le versioni pinnate: <code>transformers==4.57.3 huggingface-hub==0.36.0 open-clip-torch==3.2.0</code></td>
+    </tr>
+    <tr>
+      <td>Import XMP non importa alcuni tag</td>
+      <td>Tag con prefisso <code>AI|Taxonomy|</code> o <code>GeOFF|</code> vengono filtrati intenzionalmente</td>
+      <td>È il comportamento corretto. Questi tag sono gestiti internamente da OffGallery.</td>
+    </tr>
+    <tr>
+      <td>Conda non trovato all'avvio (macOS)</td>
+      <td>Architettura Miniconda sbagliata (x86_64 su Apple Silicon)</td>
+      <td>Reinstalla Miniconda con architettura arm64. Vedi README sezione Installazione.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout success">
+  <span class="icon">✅</span>
+  <div class="body">
+    <strong>Supporto e aggiornamenti</strong>
+    <p>Segnala problemi e richieste su <a href="https://github.com/HEGOM61ita/OffGallery/issues">GitHub Issues</a>. Discussioni e annunci su <a href="https://github.com/HEGOM61ita/OffGallery/discussions">GitHub Discussions</a>.</p>
+  </div>
+</div>
+
+<p style="text-align:center; color:#8a90a8; font-size:12px; margin-top:60px;">
+  OffGallery &nbsp;·&nbsp; Manuale Utente v1.0 &nbsp;·&nbsp; Marzo 2026 &nbsp;·&nbsp;
+  <a href="https://github.com/HEGOM61ita/OffGallery">github.com/HEGOM61ita/OffGallery</a>
+</p>
+
+</div><!-- /content -->
+</div><!-- /page-wrapper -->
+</body>
+</html>

@@ -83,7 +83,7 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 | **Statistiche** | Tipologia, Date, Metadati, Attributi, Strumentazione usata, Tempi di posa, Ratings etc. |
 
 <p align="center">
-  <img src="assets/screenshot.png" alt="OffGallery Screenshot" width="800"/>
+  <img src="assets/Int_gallery.png" alt="OffGallery Screenshot" width="800"/>
 </p>
 
 ---
@@ -116,41 +116,16 @@ Tutti i componenti girano localmente, completamente offline:
 
 ## Funzionalità
 
-### Ricerca Intelligente
+OffGallery offre ricerca semantica, analisi immagini con più modelli AI, workflow completo con Lightroom e export XMP. Consulta il **[Manuale Utente completo →](docs/USER_MANUAL_IT.html)** per la descrizione dettagliata di ogni funzione, tab e opzione.
 
-- **Semantica**: Scrivi quello che cerchi in italiano ("gatto nero sul divano") con esclusivo sistema di accuratezza con slide gui
-- **Per Tag**: Ricerca fuzzy con deduplicazione intelligente
-- **Filtri EXIF**: Camera, obiettivo, focale, ISO, tempo, diaframma, data, etc.
-- **Colore**: Rilevamento automatico B/N con soglia configurabile
-- **Rating**: Sistema compatibile Lightroom (0-5 stelle)
-
-<p align="center">
-  <img src="assets/search_panel.png" alt="OffGallery Search Panel" width="600"/>
-</p>
-
-### Analisi Immagini
-
-- **Embedding CLIP**: 768 dimensioni per ricerca semantica
-- **Embedding DINOv2**: 768 dimensioni per similarità visiva
-- **Tassonomia BioCLIP**: Classificazione automatica specie con 7 livelli tassonomici (campo dedicato, separato dai tag)
-- **Gerarchia geografica**: Da coordinate GPS a `GeOFF|Europe|Italy|Sardegna|Città` — offline, dati GeoNames bundled, contestualizza anche i testi LLM
-- **Tag LLM**: Descrizioni e tag generati da modelli linguistici locali parametrizzabili
-- **Score Estetico**: Valutazione artistica automatica
-- **Score Tecnico**: Analisi qualità (nitidezza, rumore, esposizione, solo per non RAW)
-
-### Workflow Fotografico
-
-- **Import da catalogo Lightroom**: Nel tab Elaborazione, seleziona un file `.lrcat` come sorgente — OffGallery legge il catalogo in sola lettura e processa tutti i file indicizzati, mantenendo intatto il catalogo originale
-- **Import XMP**: Legge tag e rating da Lightroom/DxO/etc.
-- **Export XMP**: Scrive modifiche compatibili con editor esterni, inclusa tassonomia BioCLIP in `HierarchicalSubject`
-- **Export gerarchico**: BioCLIP esportato con prefisso `AI|Taxonomy|...` e geotag con prefisso `GeOFF|...` — nessuna interferenza con le keyword utente
-- **Copia con struttura**: Copia i file originali mantenendo la gerarchia di cartelle, anche con foto da dischi diversi (Windows: `C_drive/` `D_drive/`, macOS: nome volume, Linux: nome mount point)
-- **Destinazione indipendente**: XMP e copia possono avere destinazioni diverse — es. XMP accanto agli originali e copia su disco esterno
-- **Sync State**: Traccia stato sincronizzazione (PERFECT_SYNC, DIRTY, etc.)
-- **Badge Visivi**: Score, rating, ranking e stato colore nella gallery
-- **Ordinamento Gallery**: 7 criteri (rilevanza, data, nome, rating, score estetico/tecnico/composito) con direzione ASC/DESC
-- **Menu contestuale**: Per ogni immagine nella Gallery, basta un click per editarla su Lightroom o altro editor, gestire metadati, creare tags e descrizioni, etc.
-- **Solo Gen. AI**: Attiva il checkbox accanto a "Riprocessa tutte" per rieseguire solo il modello LLM (tag, descrizione, titolo) sulle immagini già catalogate, saltando EXIF ed embedding — ideale per aggiornare i contenuti con un modello più capace senza rifare l'analisi completa
+| Funzione | Descrizione rapida |
+|----------|--------------------|
+| **Ricerca Semantica** | Linguaggio naturale, traduzione automatica offline, cursore di soglia |
+| **Ricerca per Tag** | Fuzzy matching case-insensitive, ricerche salvate |
+| **Filtri Avanzati** | Camera, obiettivo, ISO, diaframma, tempo, data, rating, score, colore |
+| **Analisi AI** | CLIP · DINOv2 · BioCLIP2 · LLM Vision · Score Estetico · Score Tecnico · Geotag |
+| **Workflow Lightroom** | Import `.lrcat` · Import XMP · Export XMP gerarchico · Copia con struttura |
+| **Solo Gen. AI** | Rigenera solo tag/descrizione/titolo LLM su foto già nel DB, salta EXIF ed embedding |
 
 ---
 
@@ -266,27 +241,12 @@ Per una guida passo-passo completa, consulta **[installer/INSTALL_GUIDE.md](inst
 
 ## Utilizzo
 
-### Interfaccia Grafica
+L'interfaccia ha 7 tab: **Elaborazione · Ricerca · Galleria · Statistiche · Esportazione · Configurazione · Log**.
 
-L'applicazione presenta 7 tab principali:
+Workflow tipico: importa una cartella o un catalogo `.lrcat` → elabora con AI → cerca con linguaggio naturale → esporta XMP verso Lightroom.
 
-| Tab | Funzione |
-|-----|----------|
-| **Elaborazione** | Processa immagini con tutti i modelli AI. Sorgente: cartella o catalogo Lightroom `.lrcat` |
-| **Ricerca** | Query semantica e filtri avanzati |
-| **Galleria** | Visualizza risultati con badge, preview e ordinamento intelligente |
-| **Statistiche** | Analisi del database e pattern di scatto |
-| **Esportazione** | Export XMP, CSV e copia file con struttura directory originale |
-| **Configurazione** | Impostazioni modelli, parametri ed editor esterni |
-| **Log** | Monitoraggio elaborazioni in tempo reale |
-
-### Esempio di Workflow
-
-1. **Importa**: Scegli una cartella (`INPUT/` predefinita) **oppure seleziona direttamente un catalogo Lightroom `.lrcat`** e avvia il processo
-2. **Cerca**: Usa "Ricerca" per trovare le foto ("ritratto controluce") dal database
-3. **Visualizza**: Seleziona / edita / gestisci i risultati dalla Gallery
-4. **Esporta**: Sincronizza i tag con Lightroom/altri via XMP, o copia i file con struttura originale verso un disco di backup
-5. **Solo Gen. AI** *(opzionale)*: Per aggiornare tag, descrizione e titolo su foto già catalogate senza rifare tutta l'analisi, attiva "Riprocessa tutte" + spunta "Solo Gen. AI" — OffGallery riesegue solo il modello LLM, saltando EXIF ed embedding
+> **Manuale Utente completo (IT):** **[docs/USER_MANUAL_IT.html](docs/USER_MANUAL_IT.html)**
+> — Descrizione dettagliata di ogni tab, opzione, badge, concetti avanzati (BioCLIP, geotag, sync state) e troubleshooting.
 
 ---
 
@@ -507,41 +467,16 @@ All components run locally, completely offline:
 
 ## Features
 
-### Intelligent Search
+OffGallery provides semantic search, multi-model AI image analysis, full Lightroom workflow and XMP export. See the **[Full User Manual →](docs/USER_MANUAL_EN.html)** for a detailed description of every feature, tab and option.
 
-- **Semantic**: Type what you're looking for ("black cat on the sofa") in natural language — exclusive accuracy slider in the GUI
-- **By Tag**: Fuzzy search with intelligent deduplication
-- **EXIF Filters**: Camera, lens, focal length, ISO, shutter, aperture, date, and more
-- **Colour**: Automatic B&W detection with configurable threshold
-- **Rating**: Lightroom-compatible system (0–5 stars)
-
-<p align="center">
-  <img src="assets/search_panel.png" alt="OffGallery Search Panel" width="600"/>
-</p>
-
-### Image Analysis
-
-- **CLIP Embedding**: 768-dimensional vectors for semantic search
-- **DINOv2 Embedding**: 768-dimensional vectors for visual similarity
-- **BioCLIP Taxonomy**: Automatic species classification with 7 taxonomic levels (dedicated field, separate from tags)
-- **Geographic Hierarchy**: GPS coordinates → `GeOFF|Europe|Italy|Sardinia|City` — offline, bundled GeoNames data, also enriches LLM captions
-- **LLM Tags**: Descriptions and tags generated by configurable local language models
-- **Aesthetic Score**: Automatic artistic quality rating (0–10)
-- **Technical Score**: Quality analysis (sharpness, noise, exposure — JPEG/PNG only)
-
-### Photography Workflow
-
-- **Lightroom Catalog Import**: In the Processing tab, select a `.lrcat` file as the source — OffGallery reads it in read-only mode and processes all indexed files without touching the original catalog
-- **XMP Import**: Reads tags and ratings from Lightroom/DxO/etc.
-- **XMP Export**: Writes changes compatible with external editors, including BioCLIP taxonomy in `HierarchicalSubject`
-- **Hierarchical Export**: BioCLIP exported with prefix `AI|Taxonomy|...` and geotag with prefix `GeOFF|...` — no interference with user keywords
-- **Structured Copy**: Copies original files preserving the folder hierarchy, even across multiple disks (Windows: `C_drive/` `D_drive/`, macOS: volume name, Linux: mount point name)
-- **Independent Destinations**: XMP and file copy can go to different locations — e.g. XMP alongside originals and copy to an external drive
-- **Sync State**: Tracks synchronisation status (PERFECT_SYNC, DIRTY, etc.)
-- **Visual Badges**: Score, rating, ranking and colour label in the gallery
-- **Gallery Sorting**: 7 criteria (relevance, date, name, rating, aesthetic/technical/composite score) with ASC/DESC direction
-- **Context Menu**: For each gallery image, one click to open in Lightroom or another editor, manage metadata, generate tags and descriptions, etc.
-- **AI Gen. Only**: Enable the checkbox next to "Reprocess all" to re-run only the LLM model (tags, description, title) on already-catalogued photos, skipping EXIF and embedding — ideal for updating content with a more capable model without redoing the full analysis
+| Feature | Quick description |
+|---------|-------------------|
+| **Semantic Search** | Natural language, automatic offline translation, threshold slider |
+| **Tag Search** | Case-insensitive fuzzy matching, saved searches |
+| **Advanced Filters** | Camera, lens, ISO, aperture, shutter, date, rating, score, colour |
+| **AI Analysis** | CLIP · DINOv2 · BioCLIP2 · LLM Vision · Aesthetic Score · Technical Score · Geotag |
+| **Lightroom Workflow** | `.lrcat` import · XMP import · Hierarchical XMP export · Structured copy |
+| **AI Gen. Only** | Regenerate tags/description/title (LLM) on existing DB photos, skip EXIF and embeddings |
 
 ---
 
@@ -640,25 +575,12 @@ Full history in [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discu
 
 ## Usage
 
-### GUI Overview
+The interface has 7 tabs: **Processing · Search · Gallery · Statistics · Export · Configuration · Log**.
 
-| Tab | Function |
-|-----|----------|
-| **Processing** | Run all AI models on a folder or Lightroom `.lrcat` catalog |
-| **Search** | Semantic query + advanced filters |
-| **Gallery** | Browse results with badges, preview and smart sorting |
-| **Statistics** | Database analysis and shooting patterns |
-| **Export** | XMP export, CSV and file copy preserving original folder structure |
-| **Configuration** | Model settings, parameters, external editors |
-| **Log** | Real-time processing monitor |
+Typical workflow: import a folder or `.lrcat` catalog → process with AI → search with natural language → export XMP to Lightroom.
 
-### Typical Workflow
-
-1. **Import**: Choose a folder or select a Lightroom `.lrcat` catalog directly, then start processing
-2. **Search**: Use the Search tab to find photos with natural language ("backlit portrait")
-3. **Browse**: Select, edit and manage results from the Gallery
-4. **Export**: Sync tags back to Lightroom/other tools via XMP, or copy files with original structure to a backup drive
-5. **AI Gen. Only** *(optional)*: Enable the "AI Gen. Only" checkbox next to "Reprocess all" to re-run the LLM (tags, description, title) on already-catalogued photos without redoing EXIF extraction and embedding — handy after switching to a more capable model
+> **Full User Manual (EN):** **[docs/USER_MANUAL_EN.html](docs/USER_MANUAL_EN.html)**
+> — Detailed description of every tab, option, badge, advanced concepts (BioCLIP, geotagging, sync state) and troubleshooting.
 
 ---
 
