@@ -875,20 +875,60 @@ Destinazione (es. E:\Backup):
 <!-- ===== TAB LOG ===== -->
 <h1 id="log"><span class="section-number">10</span>Tab Log</h1>
 
-<p>Il tab Log mostra in tempo reale tutte le operazioni eseguite dall'applicazione durante l'elaborazione:</p>
+<p>Il tab Log è il pannello di monitoraggio centralizzato dell'applicazione. Cattura in tempo reale tutti i messaggi prodotti da qualsiasi modulo — compresi gli output di <code>print()</code> e <code>stderr</code> — e li mostra in un'area di testo scorrevole con sintassi colorata.</p>
 
+<h3>Contenuto del log</h3>
 <ul>
-  <li>File in lavorazione e operazione corrente (EXIF, embedding, BioCLIP, LLM...)</li>
-  <li>Avvisi per file non elaborabili (RAW senza anteprima, errori di rete Ollama)</li>
-  <li>Statistiche al termine: tot. immagini, tempo totale, velocità media</li>
-  <li>Messaggi di errore con dettagli tecnici per il troubleshooting</li>
+  <li>Log di avvio dell'applicazione (caricati dalla splash screen, sezione <code>═══ LOG AVVIO ═══</code>)</li>
+  <li>Ogni file in elaborazione: operazione corrente (EXIF, embedding CLIP/DINOv2, BioCLIP, LLM, geotag, score estetico/tecnico)</li>
+  <li>Avvisi <span style="color:#C88B2E;font-weight:bold">WARNING</span> per file non elaborabili (RAW senza anteprima estraibile, timeout Ollama)</li>
+  <li>Errori <span style="color:#8B4049;font-weight:bold">ERROR</span> con dettagli tecnici per il troubleshooting</li>
+  <li>Messaggi di sistema e di configurazione al cambio di impostazioni</li>
 </ul>
+
+<h3>Formato di ogni riga</h3>
+<pre>[HH:MM:SS] LEVEL    - nome.modulo - messaggio</pre>
+
+<h3>Controlli disponibili</h3>
+<table>
+  <thead><tr><th>Controllo</th><th>Funzione</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Checkbox <strong style="color:#888">DEBUG</strong></td>
+      <td>Mostra/nasconde messaggi di debug dettagliati (molto verbosi, utili per diagnosi)</td>
+    </tr>
+    <tr>
+      <td>Checkbox <strong style="color:#1C4F63">INFO</strong></td>
+      <td>Mostra/nasconde messaggi informativi normali (operazioni in corso)</td>
+    </tr>
+    <tr>
+      <td>Checkbox <strong style="color:#C88B2E">WARNING</strong></td>
+      <td>Mostra/nasconde avvisi (file saltati, parametri fuori range)</td>
+    </tr>
+    <tr>
+      <td>Checkbox <strong style="color:#8B4049">ERROR</strong></td>
+      <td>Mostra/nasconde errori critici. Copre anche CRITICAL</td>
+    </tr>
+    <tr>
+      <td>Pulsante <strong>🗑️ Clear</strong></td>
+      <td>Svuota il log dalla visualizzazione e dalla memoria</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout note">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>Limite 500 entry</strong>
+    <p>Il log mantiene in memoria al massimo 500 righe. Le più vecchie vengono eliminate automaticamente per evitare degrado delle prestazioni durante elaborazioni lunghe.</p>
+  </div>
+</div>
 
 <div class="callout tip">
   <span class="icon">💡</span>
   <div class="body">
-    <strong>Salva il log</strong>
-    <p>Puoi selezionare tutto il testo del log (Ctrl+A) e copiarlo per condividere dettagli tecnici in caso di problemi.</p>
+    <strong>Copiare il log per il supporto</strong>
+    <p>Clicca nell'area di testo, premi <kbd>Ctrl+A</kbd> per selezionare tutto, poi <kbd>Ctrl+C</kbd> per copiare. Incolla il testo in un'issue GitHub o in un messaggio di supporto per fornire il contesto tecnico completo.</p>
   </div>
 </div>
 

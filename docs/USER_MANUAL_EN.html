@@ -703,20 +703,60 @@ Destination (e.g. E:\Backup):
 <!-- ===== LOG TAB ===== -->
 <h1 id="log"><span class="section-number">10</span>Log Tab</h1>
 
-<p>The Log tab shows all operations performed by the application in real time during processing:</p>
+<p>The Log tab is the application's centralised monitoring panel. It captures in real time all messages produced by any module — including <code>print()</code> and <code>stderr</code> output — and displays them in a scrollable text area with colour-coded syntax.</p>
 
+<h3>Log content</h3>
 <ul>
-  <li>File being processed and current operation (EXIF, embedding, BioCLIP, LLM…)</li>
-  <li>Warnings for unprocessable files (RAW without preview, Ollama network errors)</li>
-  <li>End-of-run statistics: total images, total time, average speed</li>
-  <li>Error messages with technical details for troubleshooting</li>
+  <li>Application startup logs (loaded from the splash screen, in a <code>═══ STARTUP LOG ═══</code> section)</li>
+  <li>Each file being processed: current operation (EXIF, CLIP/DINOv2 embedding, BioCLIP, LLM, geotagging, aesthetic/technical score)</li>
+  <li><span style="color:#C88B2E;font-weight:bold">WARNING</span> messages for unprocessable files (RAW without extractable preview, Ollama timeout)</li>
+  <li><span style="color:#8B4049;font-weight:bold">ERROR</span> messages with technical details for troubleshooting</li>
+  <li>System and configuration messages when settings change</li>
 </ul>
+
+<h3>Line format</h3>
+<pre>[HH:MM:SS] LEVEL    - module.name - message</pre>
+
+<h3>Available controls</h3>
+<table>
+  <thead><tr><th>Control</th><th>Function</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Checkbox <strong style="color:#888">DEBUG</strong></td>
+      <td>Show/hide detailed debug messages (very verbose, useful for diagnosis)</td>
+    </tr>
+    <tr>
+      <td>Checkbox <strong style="color:#1C4F63">INFO</strong></td>
+      <td>Show/hide normal informational messages (ongoing operations)</td>
+    </tr>
+    <tr>
+      <td>Checkbox <strong style="color:#C88B2E">WARNING</strong></td>
+      <td>Show/hide warnings (skipped files, out-of-range parameters)</td>
+    </tr>
+    <tr>
+      <td>Checkbox <strong style="color:#8B4049">ERROR</strong></td>
+      <td>Show/hide critical errors. Also covers CRITICAL level messages</td>
+    </tr>
+    <tr>
+      <td>Button <strong>🗑️ Clear</strong></td>
+      <td>Clears the log from both the display and memory</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout note">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>500-entry limit</strong>
+    <p>The log keeps at most 500 lines in memory. Older entries are automatically removed to prevent performance degradation during long processing runs.</p>
+  </div>
+</div>
 
 <div class="callout tip">
   <span class="icon">💡</span>
   <div class="body">
-    <strong>Save the log</strong>
-    <p>You can select all log text (Ctrl+A) and copy it to share technical details when reporting issues.</p>
+    <strong>Copy the log for support</strong>
+    <p>Click in the text area, press <kbd>Ctrl+A</kbd> to select all, then <kbd>Ctrl+C</kbd> to copy. Paste the text into a GitHub issue or support message to provide the full technical context.</p>
   </div>
 </div>
 
