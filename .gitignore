@@ -99,3 +99,6 @@ tagging_log.txt
 
 # Temp files
 *.tmp
+
+# Directory POC / sviluppo locale (non pubblicare)
+llm_plugin_poc/
