@@ -726,7 +726,7 @@ class RAWProcessor:
             """Cerca la prima chiave disponibile con fallback multi-prefisso"""
             for k in keys:
                 # Prova prefissi in ordine di priorità (incluso XMP-dc per Dublin Core)
-                for prefix in ['XMP-dc:', 'XMP-lr:', 'XMP-xmp:', 'XMP-exif:', 'XMP:', 'EXIF:', 'IFD0:', 'Main:', 'Composite:', 'IPTC:', '']:
+                for prefix in ['XMP-dc:', 'XMP-lr:', 'XMP-xmp:', 'XMP-exif:', 'XMP:', 'EXIF:', 'GPS:', 'IFD0:', 'Main:', 'Composite:', 'IPTC:', '']:
                     full_key = f"{prefix}{k}" if prefix else k
                     if full_key in xmp_data and xmp_data[full_key]:
                         return xmp_data[full_key]
