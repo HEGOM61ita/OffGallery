@@ -84,6 +84,12 @@ class ProcessingWorker(QThread):
             # CRITICO: Verifica se embedding è abilitato PRIMA di inizializzarlo
             embedding_enabled = config.get('embedding', {}).get('enabled', False)
             embedding_generator = None
+            solo_gen_ai = self.options.get('solo_gen_ai', False)
+            if solo_gen_ai:
+                embedding_enabled = False  # Solo Gen. AI: salta embedding
+                # In modalità Solo Gen. AI serve comunque il generator per le chiamate LLM
+                embedding_generator = self.embedding_gen or EmbeddingGenerator(config, initialization_mode='llm_only')
+                self.log_message.emit("🤖 Modalità Solo Gen. AI: embedding saltato, solo LLM attivo", "info")
             # Leggi configurazione auto_import per LLM (nuova struttura granulare)
             llm_auto_import = config.get('embedding', {}).get('models', {}).get('llm_vision', {}).get('auto_import', {})
 
@@ -193,7 +199,10 @@ class ProcessingWorker(QThread):
             for image_path in all_images:
                 should_process = False
 
-                if processing_mode == 'new_only':
+                if solo_gen_ai:
+                    # Solo Gen. AI: aggiorna solo immagini già nel database
+                    should_process = db_manager.image_exists(image_path.name)
+                elif processing_mode == 'new_only':
                     should_process = not db_manager.image_exists(image_path.name)
                 elif processing_mode == 'reprocess_all':
                     should_process = True
@@ -253,16 +262,24 @@ class ProcessingWorker(QThread):
                     # PROCESSING COMPLETO E CORRETTO
                     result = self._process_image_complete_corrected(
                         image_path, raw_processor, embedding_generator, embedding_enabled,
-                        llm_gen_config, config
+                        llm_gen_config, config, solo_gen_ai=solo_gen_ai
                     )
-                    
+
                     if result['success']:
                         # Salva nel database con logica corretta
                         try:
                             processing_mode = self.options.get('processing_mode', 'new_only')
                             image_exists = db_manager.image_exists(image_path.name)
-                            
-                            if processing_mode in ['reprocess_all', 'new_plus_errors'] and image_exists:
+
+                            if solo_gen_ai:
+                                # Solo Gen. AI: aggiorna solo i campi LLM, sempre update
+                                success = db_manager.update_image(image_path.name, result)
+                                if success:
+                                    self.log_message.emit(f"✅ Aggiornati campi AI: {image_path.name}", "info")
+                                else:
+                                    self.log_message.emit(f"❌ Errore aggiornamento AI: {image_path.name}", "error")
+                                    stats['errors'] += 1
+                            elif processing_mode in ['reprocess_all', 'new_plus_errors'] and image_exists:
                                 # AGGIORNA record esistente
                                 try:
                                     if hasattr(db_manager, 'update_image'):
@@ -357,7 +374,7 @@ class ProcessingWorker(QThread):
             self.log_message.emit(f"Traceback: {traceback.format_exc()}", "error")
             self.finished.emit({'total': 0, 'processed': 0, 'errors': 1})
 
-    def _process_image_complete_corrected(self, image_path: Path, raw_processor, embedding_generator, embedding_enabled, llm_gen_config=None, config=None):
+    def _process_image_complete_corrected(self, image_path: Path, raw_processor, embedding_generator, embedding_enabled, llm_gen_config=None, config=None, solo_gen_ai=False):
         """
         PROCESSING COMPLETO CORRECTED
         Corregge tutti i problemi di mapping XMP e generazione embedding.
@@ -368,6 +385,7 @@ class ProcessingWorker(QThread):
              'description': {'enabled': bool, 'overwrite': bool, 'max': int},
              'title': {'enabled': bool, 'overwrite': bool, 'max': int}}
         config: configurazione completa (per accesso a profili ottimizzazione)
+        solo_gen_ai: se True, salta EXIF ed embedding — aggiorna solo i campi LLM
         """
         if llm_gen_config is None:
             llm_gen_config = {
@@ -378,57 +396,84 @@ class ProcessingWorker(QThread):
         if config is None:
             config = {}
         self.log_message.emit(f"🔍 Analizzando {image_path.name}...", "info")
-        
-        # Determina se è RAW
-        is_raw = raw_processor.is_raw_file(image_path)
-        self.log_message.emit(f"📁 File {image_path.name} - RAW: {is_raw}", "info")
-        
-        # === ESTRAZIONE METADATA COMPLETA ===
-        self.log_message.emit(f"🔧 Estrazione metadata per {image_path.name}...", "info")
-        try:
-            extracted_metadata = raw_processor.extract_raw_metadata(image_path)
-            self.log_message.emit(f"✅ Metadata estratti: {len(extracted_metadata)} campi", "info")
 
-        except Exception as e:
-            self.log_message.emit(f"⚠️ Errore estrazione metadata: {e}", "warning")
-            extracted_metadata = {}
-    
-        # === PREPARAZIONE DATI BASE ===
-        # CORRETTO: Usa direttamente i campi estratti (no più nesting in metadata)
-        image_data = {
-            # File info
-            'filename': image_path.name,
-            'filepath': str(image_path),
-            'file_size': image_path.stat().st_size,
-            'file_format': image_path.suffix.lower().replace('.', ''),
-            'is_raw': is_raw,
-            
-            # Processing info
-            'success': True,
-            'error_message': None,
-            'embedding_generated': False,
-            'llm_generated': False,
-            'app_version': '1.0'
-        }
-    
-        # === MAPPING DIRETTO METADATA → DATABASE FIELDS ===
-        # CORRETTO: Usa direttamente i campi mappati dal RAWProcessor
-        if extracted_metadata:
-            # Copia tutti i campi mappati direttamente
-            for key, value in extracted_metadata.items():
-                if key not in ['is_raw', 'raw_info']:  # Skip campi interni
-                    image_data[key] = value
-            image_data['tags'] = json.dumps([], ensure_ascii=False)
+        # === MODALITÀ SOLO GEN. AI ===
+        # Salta EXIF ed embedding, estrae solo thumbnail per LLM e aggiorna i campi AI
+        if solo_gen_ai:
+            image_data = {'success': True, 'error_message': None, 'llm_generated': False}
+            llm_any = (llm_gen_config.get('tags', {}).get('enabled') or
+                       llm_gen_config.get('description', {}).get('enabled') or
+                       llm_gen_config.get('title', {}).get('enabled'))
+            if not llm_any or not embedding_generator:
+                image_data['success'] = False
+                image_data['error_message'] = 'Solo Gen. AI: nessun campo LLM abilitato o generator non disponibile'
+                return image_data
+            is_raw = raw_processor.is_raw_file(image_path)
+            cached_thumbnail = self._prepare_image_for_ai_corrected(
+                image_path, raw_processor, is_raw, target_size=512
+            )
+            if cached_thumbnail is None:
+                image_data['success'] = False
+                image_data['error_message'] = f'Impossibile estrarre thumbnail da {image_path.name}'
+                return image_data
+            # Legge tags/description/title esistenti dal DB per gestire overwrite
+            image_data['tags'] = None
+            image_data['description'] = None
+            image_data['title'] = None
+            # Legge geo_hierarchy per location_hint (se il campo esiste nel DB)
+            location_hint = None
+            bioclip_context = None
+            category_hint = None
+            # Passa direttamente alla sezione LLM (vedi sotto)
+            # La variabile cached_thumbnail è già pronta
+            pass
+        else:
+            # Determina se è RAW
+            is_raw = raw_processor.is_raw_file(image_path)
+            self.log_message.emit(f"📁 File {image_path.name} - RAW: {is_raw}", "info")
+
+            # === ESTRAZIONE METADATA COMPLETA ===
+            self.log_message.emit(f"🔧 Estrazione metadata per {image_path.name}...", "info")
+            try:
+                extracted_metadata = raw_processor.extract_raw_metadata(image_path)
+                self.log_message.emit(f"✅ Metadata estratti: {len(extracted_metadata)} campi", "info")
+            except Exception as e:
+                self.log_message.emit(f"⚠️ Errore estrazione metadata: {e}", "warning")
+                extracted_metadata = {}
+
+            # === PREPARAZIONE DATI BASE ===
+            image_data = {
+                'filename': image_path.name,
+                'filepath': str(image_path),
+                'file_size': image_path.stat().st_size,
+                'file_format': image_path.suffix.lower().replace('.', ''),
+                'is_raw': is_raw,
+                'success': True,
+                'error_message': None,
+                'embedding_generated': False,
+                'llm_generated': False,
+                'app_version': '1.0'
+            }
+
+            # === MAPPING DIRETTO METADATA → DATABASE FIELDS ===
+            if extracted_metadata:
+                for key, value in extracted_metadata.items():
+                    if key not in ['is_raw', 'raw_info']:
+                        image_data[key] = value
+                image_data['tags'] = json.dumps([], ensure_ascii=False)
+
         # Contesto BioCLIP per LLM (inizializzato qui, valorizzato dopo BioCLIP)
-        bioclip_context = None
-        category_hint = None
+        if not solo_gen_ai:
+            bioclip_context = None
+            category_hint = None
 
         # === CACHE THUMBNAIL PER OTTIMIZZAZIONE ===
-        # Estrae thumbnail una sola volta alla MAX size necessaria tra i modelli abilitati
-        cached_thumbnail = None
-        if embedding_enabled or llm_gen_config.get('tags', {}).get('enabled') or \
+        # In solo_gen_ai il thumbnail è già estratto sopra — qui gestiamo solo il caso normale
+        if not solo_gen_ai:
+            cached_thumbnail = None
+        if (not solo_gen_ai) and (embedding_enabled or llm_gen_config.get('tags', {}).get('enabled') or \
            llm_gen_config.get('description', {}).get('enabled') or \
-           llm_gen_config.get('title', {}).get('enabled'):
+           llm_gen_config.get('title', {}).get('enabled')):
 
             # Determina quali profili sono attivi per calcolare MAX size
             active_profiles = []
@@ -979,9 +1024,22 @@ class ProcessingTab(QWidget):
         self.mode_reprocess_all.setToolTip(t("processing.tooltip.mode_reprocess_all"))
         self.mode_reprocess_all.setStyleSheet("color: #f57500; font-weight: bold;")
         self.processing_mode_group.addButton(self.mode_reprocess_all, 2)
-        options_layout.addWidget(self.mode_reprocess_all)
+
+        self.solo_gen_ai_check = QCheckBox(t("processing.checkbox.solo_gen_ai"))
+        self.solo_gen_ai_check.setToolTip(t("processing.tooltip.solo_gen_ai"))
+        self.solo_gen_ai_check.setEnabled(False)
+        self.solo_gen_ai_check.setStyleSheet("color: #f57500;")
+
+        reprocess_row = QHBoxLayout()
+        reprocess_row.setContentsMargins(0, 0, 0, 0)
+        reprocess_row.setSpacing(6)
+        reprocess_row.addWidget(self.mode_reprocess_all)
+        reprocess_row.addWidget(self.solo_gen_ai_check)
+        reprocess_row.addStretch()
+        options_layout.addLayout(reprocess_row)
 
         self.processing_mode_group.idClicked.connect(self.update_start_button_state)
+        self.mode_reprocess_all.toggled.connect(self._on_reprocess_toggled)
 
         self.enable_file_log_cb = QCheckBox(t("processing.check.file_log"))
         self.enable_file_log_cb.setToolTip(t("processing.tooltip.file_log"))
@@ -1365,6 +1423,12 @@ class ProcessingTab(QWidget):
         self.pt_gen_title_overwrite.setEnabled(enabled)
         self.pt_llm_max_title.setEnabled(enabled)
 
+    def _on_reprocess_toggled(self, checked: bool):
+        """Abilita/disabilita checkbox Solo Gen. AI in base alla modalità selezionata."""
+        self.solo_gen_ai_check.setEnabled(checked)
+        if not checked:
+            self.solo_gen_ai_check.setChecked(False)
+
     def select_catalog(self):
         """Apre dialog per selezione catalogo Lightroom"""
         path, _ = QFileDialog.getOpenFileName(
@@ -1574,6 +1638,18 @@ class ProcessingTab(QWidget):
                 QMessageBox.warning(self, t("processing.msg.error_title"), t("processing.msg.dir_not_exist", path=input_dir_text))
                 return
 
+        # Validazione Solo Gen. AI: almeno un campo LLM deve essere abilitato
+        if self.solo_gen_ai_check.isChecked():
+            if not (self.pt_gen_tags_check.isChecked() or
+                    self.pt_gen_desc_check.isChecked() or
+                    self.pt_gen_title_check.isChecked()):
+                QMessageBox.warning(
+                    self,
+                    t("processing.solo_gen_ai.warn_title"),
+                    t("processing.solo_gen_ai.warn_text")
+                )
+                return
+
         try:
             # Costruisce llm_gen_config dai widget locali
             llm_gen_config = {
@@ -1619,7 +1695,10 @@ class ProcessingTab(QWidget):
                 mode_text = t("processing.log.mode_new_errors")
             else:  # mode_id == 2
                 processing_mode = 'reprocess_all'
-                mode_text = t("processing.log.mode_reprocess_all")
+                if self.solo_gen_ai_check.isChecked():
+                    mode_text = t("processing.log.mode_solo_gen_ai")
+                else:
+                    mode_text = t("processing.log.mode_reprocess_all")
 
             self.log_display.append(t("processing.log.mode", mode=mode_text))
 
@@ -1640,7 +1719,10 @@ class ProcessingTab(QWidget):
                 self.config_path,
                 input_dir_text,
                 self.embedding_gen,
-                {'processing_mode': processing_mode},
+                {
+                    'processing_mode': processing_mode,
+                    'solo_gen_ai': self.solo_gen_ai_check.isChecked(),
+                },
                 include_subdirs=self.include_subdirs_cb.isChecked(),
                 image_list=image_list
             )
