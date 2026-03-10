@@ -420,13 +420,10 @@ class ProcessingWorker(QThread):
             image_data['tags'] = None
             image_data['description'] = None
             image_data['title'] = None
-            # Legge geo_hierarchy per location_hint (se il campo esiste nel DB)
+            geo_hierarchy = None
             location_hint = None
             bioclip_context = None
             category_hint = None
-            # Passa direttamente alla sezione LLM (vedi sotto)
-            # La variabile cached_thumbnail è già pronta
-            pass
         else:
             # Determina se è RAW
             is_raw = raw_processor.is_raw_file(image_path)
