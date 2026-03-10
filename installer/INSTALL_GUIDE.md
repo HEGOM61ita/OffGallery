@@ -270,6 +270,20 @@ Se non ti interessa questa funzionalità, puoi saltare questo step.
 
 ---
 
+## Versioni Librerie Critiche (Pinned)
+
+OffGallery richiede versioni specifiche di alcune librerie per garantire la compatibilità con il modello CLIP ViT-L/14. Se riscontri problemi con la ricerca semantica (score sempre vicini a zero) o errori di shape mismatch, esegui:
+
+```bash
+conda run -n OffGallery pip install transformers==4.57.3 huggingface-hub==0.36.0 open-clip-torch==3.2.0
+```
+
+Poi reimporta le foto interessate (rielabora la stessa cartella con "Riprocessa tutte").
+
+> Il wizard installa già le versioni pinnate corrette. Questo step è necessario solo se hai aggiornato manualmente questi pacchetti.
+
+---
+
 ## Avviare OffGallery
 
 ### Windows
@@ -429,6 +443,15 @@ La scheda **Ricerca** consente di salvare e richiamare configurazioni di ricerca
 ### macOS: PyQt6 non si avvia / finestra nera
 - Verifica che Xcode Command Line Tools siano installati: `xcode-select --install`
 - Se su macOS 11+, assicurati che `QT_MAC_WANTS_LAYER=1` sia impostato (il launcher lo fa automaticamente)
+
+### Score ricerca semantica sempre vicini a zero
+- Gli embedding sono stati probabilmente generati con una versione incompatibile della libreria
+- Esegui: `conda run -n OffGallery pip install transformers==4.57.3 huggingface-hub==0.36.0 open-clip-torch==3.2.0`
+- Poi rielabora le foto interessate con "Riprocessa tutte" nel tab Elaborazione
+
+### Geotag errato (città sbagliata per coordinate GPS)
+- Era un bug nelle versioni precedenti al 10 mar 2026 che colpiva foto scattate a Ovest o Sud del meridiano di Greenwich
+- Rielabora le foto interessate dopo aver aggiornato all'ultima versione
 
 ---
 
