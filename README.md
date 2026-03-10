@@ -55,8 +55,8 @@
 | 3 mar 2026 | **Ricerche salvate** | Salva e richiama configurazioni di ricerca complete (query, mode, soglia, tutti i filtri EXIF/score/date) con un click; archivio in `database/saved_searches.json` |
 | 3 mar 2026 | **Nuovo modello LLM Vision: Qwen3.5 4B** | Migrazione a `qwen3.5:4b-q4_K_M` (early fusion); descrizioni più ricche; prompt ottimizzato: specie da BioCLIP, toponymi tradotti in italiano, parametri generation aggiornati (`num_ctx: 4096`, `top_k: 40`) |
 | 1 mar 2026 | **Installer macOS** | Wizard completo per Intel e Apple Silicon; Homebrew per ExifTool e Ollama; PyTorch con MPS per GPU Metal; `OffGallery.app` in `~/Applications` cercabile via Spotlight e Launchpad; percorso Miniconda configurabile dal wizard su Windows |
+| 10 mar 2026 | **Modalità "Solo Gen. AI"** | Nel tab Elaborazione, nuova opzione accanto a "Riprocessa tutte" per aggiornare tag, descrizione e titolo (LLM) solo sulle immagini già nel database, saltando EXIF ed embedding — utile per riscansionare una cartella con un modello LLM migliore senza rifare tutta l'analisi |
 | 25 feb 2026 | **Import da catalogo Lightroom + Export con struttura** | Elaborazione direttamente da `.lrcat`; copia file con struttura directory originale multi-disco; destinazione XMP disaccoppiata dalla copia; UI Export semplificata e contestuale |
-| 23 feb 2026 | **Migliorata estrazione RAW** | Supporto ampliato per NEF/ARW high-efficiency con fallback multi-stadio; i metadati vengono sempre salvati anche quando l'anteprima non è disponibile |
 
 Storico completo nelle [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
@@ -150,6 +150,7 @@ Tutti i componenti girano localmente, completamente offline:
 - **Badge Visivi**: Score, rating, ranking e stato colore nella gallery
 - **Ordinamento Gallery**: 7 criteri (rilevanza, data, nome, rating, score estetico/tecnico/composito) con direzione ASC/DESC
 - **Menu contestuale**: Per ogni immagine nella Gallery, basta un click per editarla su Lightroom o altro editor, gestire metadati, creare tags e descrizioni, etc.
+- **Solo Gen. AI**: Attiva il checkbox accanto a "Riprocessa tutte" per rieseguire solo il modello LLM (tag, descrizione, titolo) sulle immagini già catalogate, saltando EXIF ed embedding — ideale per aggiornare i contenuti con un modello più capace senza rifare l'analisi completa
 
 ---
 
@@ -580,6 +581,22 @@ For a full step-by-step guide see **[installer/INSTALL_GUIDE.md](installer/INSTA
 
 ---
 
+## Latest News
+
+| Date | What | Notes |
+|------|------|-------|
+| 10 Mar 2026 | **"AI Gen. Only" mode** | New checkbox next to "Reprocess all" in the Processing tab — reruns LLM (tags, description, title) only on photos already in the database, skipping EXIF and embedding. Useful for updating content with a better LLM without redoing the full analysis |
+| 7 Mar 2026 | **Full multilingual support** | GUI, LLM output and tag search independently configurable: 6 languages (IT/EN/FR/DE/ES/PT), automatic offline query translation via Argostranslate |
+| 5 Mar 2026 | **macOS first-launch segfault fix** | The macOS launcher now downloads AI models in a separate process before starting Qt, eliminating the "Segmentation fault: 11" crash on first launch on all Macs |
+| 3 Mar 2026 | **Saved searches** | Save and recall complete search configurations (query, mode, threshold, all EXIF/score/date filters) in one click; archive in `database/saved_searches.json` |
+| 3 Mar 2026 | **New LLM Vision model: Qwen3.5 4B** | Migration to `qwen3.5:4b-q4_K_M` (early fusion); richer descriptions; optimised prompt with BioCLIP species and Italian place names |
+| 1 Mar 2026 | **macOS installer** | Full wizard for Intel and Apple Silicon; Homebrew for ExifTool and Ollama; PyTorch with MPS for Metal GPU; `OffGallery.app` in `~/Applications` |
+| 25 Feb 2026 | **Lightroom catalog import + structured export** | Process directly from `.lrcat`; copy files preserving original multi-disk directory structure; XMP destination decoupled from file copy |
+
+Full history in [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
+
+---
+
 ## Usage
 
 ### GUI Overview
@@ -600,6 +617,7 @@ For a full step-by-step guide see **[installer/INSTALL_GUIDE.md](installer/INSTA
 2. **Search**: Use the Search tab to find photos with natural language ("backlit portrait")
 3. **Browse**: Select, edit and manage results from the Gallery
 4. **Export**: Sync tags back to Lightroom/other tools via XMP, or copy files with original structure to a backup drive
+5. **AI Gen. Only** *(optional)*: Enable the "AI Gen. Only" checkbox next to "Reprocess all" to re-run the LLM (tags, description, title) on already-catalogued photos without redoing EXIF extraction and embedding — handy after switching to a more capable model
 
 ---
 
