@@ -1267,14 +1267,10 @@ class ProcessingTab(QWidget):
             self.input_dir_label.setText(str(directory))
             self.input_dir_label.setStyleSheet("""
                 QLabel {
-                    color: #2c3e50;
-                    padding: 8px 12px;
+                    color: #2c3e50; padding: 4px 8px;
                     background-color: #ecf0f1;
                     border: 1px solid #bdc3c7;
-                    border-radius: 4px;
-                    font-size: 11px;
-                    font-weight: normal;
-                    min-height: 16px;
+                    border-radius: 3px; font-size: 11px;
                 }
             """)
             # Directory selezionata, abilita processing
