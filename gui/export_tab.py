@@ -139,9 +139,15 @@ class ExportTab(QWidget):
         self.format_csv = QCheckBox(t("export.check.csv"))
         self.format_csv.setToolTip(t("export.tooltip.csv"))
 
-        self.csv_include_gps = QCheckBox(t("export.check.include_gps"))
-        self.csv_include_gps.setChecked(True)
-        self.csv_include_gps.setToolTip(t("export.tooltip.include_gps"))
+        self.csv_exclude_gps = QCheckBox(t("export.check.exclude_gps"))
+        self.csv_exclude_gps.setChecked(False)
+        self.csv_exclude_gps.setToolTip(t("export.tooltip.exclude_gps"))
+        self.csv_exclude_gps.setEnabled(False)
+
+        self.csv_exclude_exif = QCheckBox(t("export.check.exclude_exif"))
+        self.csv_exclude_exif.setChecked(False)
+        self.csv_exclude_exif.setToolTip(t("export.tooltip.exclude_exif"))
+        self.csv_exclude_exif.setEnabled(False)
 
         # --- Copia file + opzioni indentate ---
         self.format_copy = QCheckBox(t("export.check.copy_originals"))
@@ -178,7 +184,8 @@ class ExportTab(QWidget):
         csv_row.setContentsMargins(0, 0, 0, 0)
         csv_row.setSpacing(16)
         csv_row.addWidget(self.format_csv)
-        csv_row.addWidget(self.csv_include_gps)
+        csv_row.addWidget(self.csv_exclude_gps)
+        csv_row.addWidget(self.csv_exclude_exif)
         csv_row.addStretch()
         layout.addWidget(csv_row_widget)
 
@@ -309,10 +316,12 @@ class ExportTab(QWidget):
             self.csv_dir_input.setText(directory)
 
     def _on_csv_toggled(self, checked):
-        """Abilita/disabilita campo directory CSV"""
+        """Abilita/disabilita campo directory CSV e opzioni esclusione"""
         self.csv_dir_label.setEnabled(checked)
         self.csv_dir_input.setEnabled(checked)
         self.csv_browse_btn.setEnabled(checked)
+        self.csv_exclude_gps.setEnabled(checked)
+        self.csv_exclude_exif.setEnabled(checked)
 
     def _on_path_mode_changed(self):
         """Aggiorna UI destinazione al cambio radio XMP"""
@@ -745,6 +754,9 @@ class ExportTab(QWidget):
                 ]
                 writer.writerow(headers)
                 
+                exclude_gps = options.get('advanced', {}).get('csv_exclude_gps', False)
+                exclude_exif = options.get('advanced', {}).get('csv_exclude_exif', False)
+
                 # Dati per ogni immagine
                 for item in image_items:
                     data = item.image_data
@@ -783,41 +795,41 @@ class ExportTab(QWidget):
                         safe_float(data.get('aspect_ratio')),
                         safe_float(data.get('megapixels'), 1),
                         # Camera/Lens
-                        data.get('camera_make', ''),
-                        data.get('camera_model', ''),
-                        data.get('lens_model', ''),
+                        '' if exclude_exif else data.get('camera_make', ''),
+                        '' if exclude_exif else data.get('camera_model', ''),
+                        '' if exclude_exif else data.get('lens_model', ''),
                         # Settings fotografici
-                        safe_float(data.get('focal_length'), 0),
-                        safe_float(data.get('focal_length_35mm'), 0),
-                        safe_float(data.get('aperture'), 1),
-                        data.get('shutter_speed', ''),
-                        data.get('iso', ''),
+                        '' if exclude_exif else safe_float(data.get('focal_length'), 0),
+                        '' if exclude_exif else safe_float(data.get('focal_length_35mm'), 0),
+                        '' if exclude_exif else safe_float(data.get('aperture'), 1),
+                        '' if exclude_exif else data.get('shutter_speed', ''),
+                        '' if exclude_exif else data.get('iso', ''),
                         # EXIF avanzato
-                        data.get('exposure_mode', ''),
-                        safe_float(data.get('exposure_bias'), 1),
-                        data.get('metering_mode', ''),
-                        data.get('white_balance', ''),
-                        bool_to_text(data.get('flash_used')),
-                        data.get('flash_mode', ''),
-                        data.get('color_space', ''),
-                        data.get('orientation', ''),
+                        '' if exclude_exif else data.get('exposure_mode', ''),
+                        '' if exclude_exif else safe_float(data.get('exposure_bias'), 1),
+                        '' if exclude_exif else data.get('metering_mode', ''),
+                        '' if exclude_exif else data.get('white_balance', ''),
+                        '' if exclude_exif else bool_to_text(data.get('flash_used')),
+                        '' if exclude_exif else data.get('flash_mode', ''),
+                        '' if exclude_exif else data.get('color_space', ''),
+                        '' if exclude_exif else data.get('orientation', ''),
                         # Date
                         data.get('datetime_original', ''),
                         data.get('datetime_digitized', ''),
                         data.get('datetime_modified', ''),
                         # GPS
-                        safe_float(data.get('gps_latitude'), 6),
-                        safe_float(data.get('gps_longitude'), 6),
-                        safe_float(data.get('gps_altitude'), 1),
-                        safe_float(data.get('gps_direction'), 1),
-                        data.get('gps_city', ''),
-                        data.get('gps_state', ''),
-                        data.get('gps_country', ''),
-                        data.get('gps_location', ''),
+                        '' if exclude_gps else safe_float(data.get('gps_latitude'), 6),
+                        '' if exclude_gps else safe_float(data.get('gps_longitude'), 6),
+                        '' if exclude_gps else safe_float(data.get('gps_altitude'), 1),
+                        '' if exclude_gps else safe_float(data.get('gps_direction'), 1),
+                        '' if exclude_gps else data.get('gps_city', ''),
+                        '' if exclude_gps else data.get('gps_state', ''),
+                        '' if exclude_gps else data.get('gps_country', ''),
+                        '' if exclude_gps else data.get('gps_location', ''),
                         # Metadata autore
-                        data.get('artist', ''),
-                        data.get('copyright', ''),
-                        data.get('software', ''),
+                        '' if exclude_exif else data.get('artist', ''),
+                        '' if exclude_exif else data.get('copyright', ''),
+                        '' if exclude_exif else data.get('software', ''),
                         # XMP Lightroom
                         data.get('title', ''),
                         data.get('description', ''),
@@ -1457,7 +1469,8 @@ class ExportTab(QWidget):
                 "csv_dir": self.csv_dir_input.text().strip(),
             },
             "advanced": {
-                "csv_include_gps": self.csv_include_gps.isChecked(),
+                "csv_exclude_gps": self.csv_exclude_gps.isChecked(),
+                "csv_exclude_exif": self.csv_exclude_exif.isChecked(),
                 "xmp_merge_keywords": self.xmp_merge_keywords.isChecked(),
                 "xmp_preserve_title": self.xmp_preserve_title.isChecked(),
                 "xmp_preserve_description": self.xmp_preserve_description.isChecked(),
