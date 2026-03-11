@@ -470,6 +470,7 @@ class ConfigTab(QWidget):
         self.device_combo = NoWheelComboBox()
         self.device_combo.addItem(t("config.combo.device_autodetect"), "auto")
         self.device_combo.addItem(t("config.combo.device_gpu_cuda"), "cuda")
+        self.device_combo.addItem(t("config.combo.device_mps"), "mps")
         self.device_combo.addItem(t("config.combo.device_cpu_forced"), "cpu")
         self.device_combo.setToolTip(t("config.tooltip.device"))
         self.device_combo.currentIndexChanged.connect(self._update_gpu_info)
@@ -499,6 +500,12 @@ class ConfigTab(QWidget):
                 gpu_name = torch.cuda.get_device_name(0)
                 gpu_mem = torch.cuda.get_device_properties(0).total_memory / (1024**3)
                 self.gpu_info_label.setText(t("config.msg.gpu_detected", name=gpu_name, mem=gpu_mem))
+                self.gpu_info_label.setStyleSheet(f"color: {COLORS['verde']}; font-weight: bold; font-size: 10px; padding: 5px;")
+            elif torch.backends.mps.is_available():
+                # Apple Silicon: memoria condivisa CPU/GPU, non rilevabile come VRAM separata
+                import platform
+                mac_model = platform.processor() or "Apple Silicon"
+                self.gpu_info_label.setText(t("config.msg.gpu_mps_detected", name=mac_model))
                 self.gpu_info_label.setStyleSheet(f"color: {COLORS['verde']}; font-weight: bold; font-size: 10px; padding: 5px;")
             else:
                 self.gpu_info_label.setText(t("config.msg.gpu_none"))

@@ -342,11 +342,13 @@ class ProcessingWorker(QThread):
                 # Aggiorna stats live ogni immagine
                 self.stats_update.emit(stats.copy())
 
-                # Libera memoria GPU dopo ogni immagine
+                # Libera memoria GPU dopo ogni immagine (CUDA o MPS/Apple Silicon)
                 try:
                     import torch
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
+                    elif torch.backends.mps.is_available():
+                        torch.mps.empty_cache()
                 except:
                     pass
 

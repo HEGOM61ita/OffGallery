@@ -286,6 +286,7 @@
   "config.combo.device_gpu_cuda": "Forza GPU (CUDA)",
   "config.combo.device_cpu_forced": "Forza CPU",
   "config.msg.gpu_detected": "✅ GPU disponibile: {name} ({mem:.1f} GB VRAM)",
+  "config.msg.gpu_mps_detected": "✅ Apple Silicon GPU (MPS) disponibile: {name} — memoria condivisa CPU/GPU",
   "config.msg.gpu_none": "⚠️ Nessuna GPU rilevata - verrà usata CPU (elaborazione più lenta)",
   "config.msg.gpu_no_torch": "❌ PyTorch non installato - impossibile rilevare GPU",
   "config.msg.gpu_error": "⚠️ Errore rilevamento GPU: {error}",

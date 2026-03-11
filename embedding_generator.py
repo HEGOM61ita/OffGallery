@@ -113,11 +113,22 @@ class EmbeddingGenerator:
             logger.warning(f"⚠️ Ollama warmup errore: {e}")
 
     def _get_device(self):
-        """Determina device"""
+        """Determina device: legge config, con fallback auto-detect (CUDA > MPS > CPU)"""
         try:
             import torch
+            # Legge preferenza dal config YAML
+            configured = self.embedding_config.get('device', 'auto')
+            if configured == 'cuda':
+                return 'cuda' if torch.cuda.is_available() else 'cpu'
+            if configured == 'mps':
+                return 'mps' if torch.backends.mps.is_available() else 'cpu'
+            if configured == 'cpu':
+                return 'cpu'
+            # auto: CUDA > MPS > CPU
             if torch.cuda.is_available():
                 return 'cuda'
+            if torch.backends.mps.is_available():
+                return 'mps'
             return 'cpu'
         except ImportError:
             return 'cpu'
