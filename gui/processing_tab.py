@@ -1355,9 +1355,15 @@ class ProcessingTab(QWidget):
             # Carica directory salvata
             if 'paths' in config and 'input_dir' in config['paths']:
                 input_dir = config['paths']['input_dir']
-                if Path(input_dir).exists():
+                # Path Windows (es. D:\...) ignorato su Linux/macOS
+                import re as _re
+                import platform as _platform
+                is_windows_path = bool(_re.match(r'^[A-Za-z]:[/\\]', str(input_dir)))
+                if is_windows_path and _platform.system() != 'Windows':
+                    input_dir = ''
+                if input_dir and Path(input_dir).exists():
                     self.set_input_directory(input_dir)
-                else:
+                elif input_dir:
                     self.input_dir_label.setText(t("processing.label.dir_not_available"))
                     self.input_dir_label.setStyleSheet("color: #cc3333;")
 

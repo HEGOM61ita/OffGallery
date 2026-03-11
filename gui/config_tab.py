@@ -1152,7 +1152,12 @@ class ConfigTab(QWidget):
                         editor_data = external_editors[editor_key]
                         self.editor_controls[i-1]['enabled'].setChecked(editor_data.get('enabled', False))
                         self.editor_controls[i-1]['name'].setText(editor_data.get('name', ''))
-                        self.editor_controls[i-1]['path'].setText(editor_data.get('path', ''))
+                        # Path Windows (es. C:\...) ignorato su Linux/macOS
+                        raw_path = editor_data.get('path', '')
+                        import re as _re
+                        is_windows_path = bool(_re.match(r'^[A-Za-z]:[/\\]', raw_path))
+                        safe_path = '' if (is_windows_path and platform.system() != 'Windows') else raw_path
+                        self.editor_controls[i-1]['path'].setText(safe_path)
                         self.editor_controls[i-1]['command_args'].setText(editor_data.get('command_args', ''))
 
             # --------------------------------------------------
