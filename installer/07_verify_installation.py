@@ -26,13 +26,14 @@ def check_python():
     return ok, f"Python {version.major}.{version.minor}.{version.micro}"
 
 def check_torch():
-    """Verifica PyTorch e CUDA"""
+    """Verifica PyTorch, CUDA e MPS (Apple Silicon)"""
     try:
         import torch
-        cuda_available = torch.cuda.is_available()
-        if cuda_available:
+        if torch.cuda.is_available():
             gpu_name = torch.cuda.get_device_name(0)
-            return True, f"PyTorch {torch.__version__} + GPU ({gpu_name})"
+            return True, f"PyTorch {torch.__version__} + GPU CUDA ({gpu_name})"
+        elif torch.backends.mps.is_available():
+            return True, f"PyTorch {torch.__version__} + GPU Apple Silicon (MPS)"
         else:
             return True, f"PyTorch {torch.__version__} (solo CPU)"
     except ImportError:
