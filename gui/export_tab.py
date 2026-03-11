@@ -222,10 +222,10 @@ class ExportTab(QWidget):
         self.format_csv.toggled.connect(self._on_csv_toggled)
 
         def _section_label(icon, text):
-            """Etichetta di sezione con icona e testo in grassetto"""
+            """Etichetta di sezione con icona e testo in grassetto — colore ambra tab attivo"""
             lbl = QLabel(f"{icon}  {text}")
             lbl.setStyleSheet(
-                "font-weight: bold; font-size: 11px; color: #4a6080; padding: 2px 0px;"
+                "font-weight: bold; font-size: 11px; color: #C88B2E; padding: 2px 0px;"
             )
             return lbl
 
