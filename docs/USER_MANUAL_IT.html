@@ -790,37 +790,69 @@
 <!-- ===== TAB ESPORTAZIONE ===== -->
 <h1 id="esportazione"><span class="section-number">8</span>Tab Esportazione</h1>
 
-<h2 id="export-xmp">8.1 Export XMP</h2>
+<p>Il tab Esportazione è organizzato in tre sezioni distinte — <strong>Metadati XMP</strong>, <strong>Foglio dati CSV</strong> e <strong>File immagini</strong> — combinabili liberamente. In cima al riquadro trovi la barra dei <strong>Preset</strong> per salvare e richiamare configurazioni complete.</p>
 
-<p>L'export XMP scrive file <code>.xmp</code> sidecar compatibili con Lightroom, DxO, Capture One e qualsiasi software che rispetta lo standard XMP/IPTC.</p>
+<h2 id="export-preset">8.1 Preset Export</h2>
 
-<p>I campi esportati includono:</p>
+<p>Ogni configurazione dell'intero tab (tutti i flag attivi, le opzioni avanzate) può essere salvata con un nome e richiamata in seguito.</p>
 <ul>
-  <li><strong>dc:subject</strong>: tag utente e tag LLM</li>
-  <li><strong>lr:hierarchicalSubject</strong>: tassonomia BioCLIP con prefisso <code>AI|Taxonomy|...</code> e gerarchia geografica con prefisso <code>GeOFF|...</code></li>
-  <li><strong>xmp:Rating</strong>: stelle (0–5)</li>
-  <li><strong>dc:description</strong>: descrizione generata dal LLM</li>
-  <li><strong>dc:title</strong>: titolo generato dal LLM</li>
+  <li><strong>💾 Salva preset</strong>: salva la configurazione corrente con un nome a tua scelta. Se il nome esiste già, viene chiesto se sovrascrivere.</li>
+  <li><strong>📋 Preset salvati</strong>: apre la lista dei preset salvati. Doppio clic o pulsante <em>Carica</em> per applicare; pulsante <em>Elimina</em> per rimuovere.</li>
 </ul>
 
 <div class="callout note">
   <span class="icon">ℹ️</span>
   <div class="body">
-    <strong>Separazione gerarchica</strong>
-    <p>I prefissi <code>AI|Taxonomy|</code> e <code>GeOFF|</code> garantiscono che la tassonomia BioCLIP e la gerarchia geografica non interferiscano con le keyword utente in Lightroom. In Lightroom appaiono come gerarchie separate nella struttura delle parole chiave.</p>
+    <strong>Persistenza automatica</strong>
+    <p>L'ultima configurazione usata viene ricordata automaticamente: la prossima volta che apri il tab, ritrovi esattamente le stesse opzioni selezionate. I preset vengono salvati in <code>database/saved_exports.json</code>.</p>
   </div>
 </div>
 
+<h2 id="export-xmp">8.2 Metadati XMP</h2>
+
+<p>Scrive file <code>.xmp</code> sidecar o embedded compatibili con Lightroom, DxO, Capture One e qualsiasi software che rispetta lo standard XMP/IPTC.</p>
+
+<table>
+  <thead><tr><th>Opzione</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><strong>XMP Sidecar</strong></td><td>File <code>.xmp</code> separato accanto all'originale</td></tr>
+    <tr><td><strong>XMP Embedded</strong></td><td>Metadati scritti direttamente nel file immagine</td></tr>
+    <tr><td><strong>Includi DNG</strong></td><td>Permette l'embedded anche nei file DNG (disabilitato di default per sicurezza)</td></tr>
+  </tbody>
+</table>
+
+<p>I campi esportati includono: tag utente e LLM (<code>dc:subject</code>), tassonomia BioCLIP (<code>lr:hierarchicalSubject</code> con prefisso <code>AI|Taxonomy|</code>), gerarchia geografica (<code>GeOFF|</code>), stelle, descrizione e titolo LLM.</p>
+
 <h3>Destinazione XMP</h3>
-<p>La destinazione dei file XMP è <strong>indipendente</strong> dalla cartella dei file originali. Puoi scegliere:</p>
-<ul>
-  <li><strong>Accanto all'originale</strong>: il file <code>DSC0001.xmp</code> viene creato nella stessa cartella di <code>DSC0001.NEF</code></li>
-  <li><strong>Cartella custom</strong>: tutti gli XMP vengono scritti in una cartella a tua scelta</li>
-</ul>
+<p>Puoi scegliere tra <strong>Accanto all'originale</strong> (il file <code>.xmp</code> viene creato nella stessa cartella del RAW) e <strong>Cartella unica</strong> (tutti gli XMP in una directory a tua scelta).</p>
 
-<h2 id="export-copia">8.2 Copia con Struttura</h2>
+<h2 id="export-csv">8.3 Foglio dati CSV</h2>
 
-<p>La funzione di copia trasferisce i file originali in una destinazione mantenendo la <strong>gerarchia di cartelle originale</strong>, anche quando le foto provengono da dischi diversi.</p>
+<p>Esporta un file CSV completo con tutti i metadati del database (46 campi: dati file, camera, obiettivo, impostazioni di scatto, date, GPS, valutazioni AI, tag, ecc.).</p>
+
+<table>
+  <thead><tr><th>Opzione</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Escludi GPS</strong></td><td>Omette le colonne GPS dal CSV (coordinate, città, paese)</td></tr>
+    <tr><td><strong>Escludi EXIF</strong></td><td>Omette i dati tecnici EXIF (camera, obiettivo, esposizione, ISO, flash, ecc.)</td></tr>
+  </tbody>
+</table>
+
+<p>Entrambe le opzioni sono disabilitate di default: il CSV include tutto. Le colonne rimangono presenti nel file anche quando escluse (schema fisso), ma i valori sono vuoti — utile per importatori che si aspettano uno schema predefinito.</p>
+
+<h2 id="export-copia">8.4 File immagini</h2>
+
+<p>Copia i file originali in una destinazione mantenendo la <strong>gerarchia di cartelle originale</strong>, anche quando le foto provengono da dischi diversi.</p>
+
+<table>
+  <thead><tr><th>Opzione</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Escludi GPS</strong></td><td>Rimuove i tag GPS dalla copia tramite ExifTool. L'originale non viene mai modificato.</td></tr>
+    <tr><td><strong>Escludi EXIF</strong></td><td>Rimuove tutti i metadati EXIF dalla copia (camera, obiettivo, impostazioni). L'originale non viene mai modificato.</td></tr>
+    <tr><td><strong>Mantieni struttura</strong></td><td>Ricrea la gerarchia di cartelle originale nella destinazione</td></tr>
+    <tr><td><strong>Sovrascrivi esistenti</strong></td><td>Sovrascrive i file se già presenti nella destinazione</td></tr>
+  </tbody>
+</table>
 
 <p>Esempio con foto su due dischi:</p>
 <pre>Sorgente:
@@ -831,7 +863,7 @@ Destinazione (es. E:\Backup):
   E:\Backup\C_drive\Foto\2024\Sardegna\IMG_001.NEF
   E:\Backup\D_drive\Archivio\2023\Toscana\DSC_999.NEF</pre>
 
-<p>Su macOS il prefisso usa il nome del volume (<code>Macintosh HD</code>, nome disco esterno), su Linux il mount point.</p>
+<p>Su macOS il prefisso usa il nome del volume, su Linux il mount point.</p>
 
 <hr>
 

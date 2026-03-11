@@ -616,37 +616,69 @@
 <!-- ===== EXPORT TAB ===== -->
 <h1 id="export"><span class="section-number">8</span>Export Tab</h1>
 
-<h2 id="export-xmp">8.1 XMP Export</h2>
+<p>The Export tab is organised into three distinct sections — <strong>XMP Metadata</strong>, <strong>CSV Data Sheet</strong> and <strong>Image Files</strong> — which can be combined freely. At the top of the panel you'll find the <strong>Presets</strong> bar for saving and recalling complete configurations.</p>
 
-<p>XMP export writes <code>.xmp</code> sidecar files compatible with Lightroom, DxO, Capture One and any software that respects the XMP/IPTC standard.</p>
+<h2 id="export-preset">8.1 Export Presets</h2>
 
-<p>Exported fields include:</p>
+<p>The entire tab configuration (all active flags, advanced options) can be saved with a name and recalled later.</p>
 <ul>
-  <li><strong>dc:subject</strong>: user tags and LLM-generated tags</li>
-  <li><strong>lr:hierarchicalSubject</strong>: BioCLIP taxonomy with prefix <code>AI|Taxonomy|...</code> and geographic hierarchy with prefix <code>GeOFF|...</code></li>
-  <li><strong>xmp:Rating</strong>: stars (0–5)</li>
-  <li><strong>dc:description</strong>: LLM-generated description</li>
-  <li><strong>dc:title</strong>: LLM-generated title</li>
+  <li><strong>💾 Save preset</strong>: saves the current configuration with a name of your choice. If the name already exists, you are asked whether to overwrite.</li>
+  <li><strong>📋 Saved presets</strong>: opens the list of saved presets. Double-click or press <em>Load</em> to apply; press <em>Delete</em> to remove.</li>
 </ul>
 
 <div class="callout note">
   <span class="icon">ℹ️</span>
   <div class="body">
-    <strong>Hierarchical separation</strong>
-    <p>The <code>AI|Taxonomy|</code> and <code>GeOFF|</code> prefixes ensure that BioCLIP taxonomy and geographic hierarchy do not interfere with user keywords in Lightroom. They appear as separate hierarchies in Lightroom's keyword panel.</p>
+    <strong>Automatic persistence</strong>
+    <p>The last configuration used is remembered automatically: next time you open the tab, the same options are pre-selected. Presets are stored in <code>database/saved_exports.json</code>.</p>
   </div>
 </div>
 
+<h2 id="export-xmp">8.2 XMP Metadata</h2>
+
+<p>Writes <code>.xmp</code> sidecar or embedded files compatible with Lightroom, DxO, Capture One and any software that respects the XMP/IPTC standard.</p>
+
+<table>
+  <thead><tr><th>Option</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><strong>XMP Sidecar</strong></td><td>Separate <code>.xmp</code> file alongside the original</td></tr>
+    <tr><td><strong>XMP Embedded</strong></td><td>Metadata written directly into the image file</td></tr>
+    <tr><td><strong>Include DNG</strong></td><td>Allows embedded XMP in DNG files (disabled by default for safety)</td></tr>
+  </tbody>
+</table>
+
+<p>Exported fields include: user and LLM tags (<code>dc:subject</code>), BioCLIP taxonomy (<code>lr:hierarchicalSubject</code> with prefix <code>AI|Taxonomy|</code>), geographic hierarchy (<code>GeOFF|</code>), star rating, LLM description and title.</p>
+
 <h3>XMP destination</h3>
-<p>The XMP file destination is <strong>independent</strong> of the original files folder. You can choose:</p>
-<ul>
-  <li><strong>Next to original</strong>: <code>DSC0001.xmp</code> is created in the same folder as <code>DSC0001.NEF</code></li>
-  <li><strong>Custom folder</strong>: all XMP files are written to a folder of your choice</li>
-</ul>
+<p>Choose between <strong>Next to original</strong> (the <code>.xmp</code> is created in the same folder as the RAW) and <strong>Single folder</strong> (all XMP files written to a folder of your choice).</p>
 
-<h2 id="export-copy">8.2 Structured Copy</h2>
+<h2 id="export-csv">8.3 CSV Data Sheet</h2>
 
-<p>The copy function transfers original files to a destination while preserving the <strong>original folder hierarchy</strong>, even when photos come from different disks.</p>
+<p>Exports a complete CSV file with all database metadata (46 fields: file data, camera, lens, exposure settings, dates, GPS, AI scores, tags, etc.).</p>
+
+<table>
+  <thead><tr><th>Option</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Exclude GPS</strong></td><td>Omits GPS columns from the CSV (coordinates, city, country)</td></tr>
+    <tr><td><strong>Exclude EXIF</strong></td><td>Omits technical EXIF data (camera, lens, exposure, ISO, flash, etc.)</td></tr>
+  </tbody>
+</table>
+
+<p>Both options are disabled by default: the CSV includes everything. Columns remain present in the file even when excluded (fixed schema), but values are empty — useful for importers expecting a predefined schema.</p>
+
+<h2 id="export-copy">8.4 Image Files</h2>
+
+<p>Copies original files to a destination while preserving the <strong>original folder hierarchy</strong>, even when photos come from different disks.</p>
+
+<table>
+  <thead><tr><th>Option</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Exclude GPS</strong></td><td>Removes GPS tags from the copy via ExifTool. The original is never modified.</td></tr>
+    <tr><td><strong>Exclude EXIF</strong></td><td>Removes all EXIF metadata from the copy (camera, lens, settings). The original is never modified.</td></tr>
+    <tr><td><strong>Preserve structure</strong></td><td>Recreates the original folder hierarchy at the destination</td></tr>
+    <tr><td><strong>Overwrite existing</strong></td><td>Overwrites files already present at the destination</td></tr>
+  </tbody>
+</table>
 
 <p>Example with photos on two disks:</p>
 <pre>Source:
@@ -657,7 +689,7 @@ Destination (e.g. E:\Backup):
   E:\Backup\C_drive\Photos\2024\Sardinia\IMG_001.NEF
   E:\Backup\D_drive\Archive\2023\Tuscany\DSC_999.NEF</pre>
 
-<p>On macOS the prefix uses the volume name (e.g. "Macintosh HD"), on Linux the mount point name.</p>
+<p>On macOS the prefix uses the volume name, on Linux the mount point.</p>
 
 <hr>
 

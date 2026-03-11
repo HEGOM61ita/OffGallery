@@ -230,11 +230,10 @@ class ExportTab(QWidget):
             return lbl
 
         def _separator():
-            """Linea divisoria orizzontale"""
+            """Linea divisoria orizzontale — Plain + background per colore uniforme"""
             line = QFrame()
-            line.setFrameShape(QFrame.Shape.HLine)
-            line.setFrameShadow(QFrame.Shadow.Sunken)
-            line.setStyleSheet("color: #c0c8d0; margin: 4px 0px;")
+            line.setFixedHeight(1)
+            line.setStyleSheet("background-color: #d0d8e0; margin: 4px 0px;")
             return line
 
         # --- Layout: sezione XMP ---
