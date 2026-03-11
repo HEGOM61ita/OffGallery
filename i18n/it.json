@@ -665,6 +665,9 @@
   "export.check.copy_originals": "Copia file originali",
 
   "export.group.what_to_export": "📄 Cosa esportare (combinabile)",
+  "export.section.xmp": "Metadati XMP",
+  "export.section.csv": "Foglio dati CSV",
+  "export.section.files": "File immagini",
   "export.check.xmp_sidecar": "XMP sidecar (.xmp)  —  file separato, standard per RAW",
   "export.tooltip.xmp_sidecar": "Crea un file .xmp accanto all'immagine con tutti i metadati OffGallery.\nRaccomandato per workflow Lightroom / Darktable / Capture One.\nNon modifica il file originale.",
   "export.check.xmp_embedded": "XMP embedded nel file  (solo JPG / TIFF / DNG)",

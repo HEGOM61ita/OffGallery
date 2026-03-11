@@ -184,11 +184,33 @@ class ExportTab(QWidget):
         self.format_copy.toggled.connect(self._on_copy_toggled)
         self.format_csv.toggled.connect(self._on_csv_toggled)
 
-        # --- Layout ---
+        def _section_label(icon, text):
+            """Etichetta di sezione con icona e testo in grassetto"""
+            lbl = QLabel(f"{icon}  {text}")
+            lbl.setStyleSheet(
+                "font-weight: bold; font-size: 11px; color: #4a6080; padding: 2px 0px;"
+            )
+            return lbl
+
+        def _separator():
+            """Linea divisoria orizzontale"""
+            line = QFrame()
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setFrameShadow(QFrame.Shadow.Sunken)
+            line.setStyleSheet("color: #c0c8d0; margin: 4px 0px;")
+            return line
+
+        # --- Layout: sezione XMP ---
+        layout.addWidget(_section_label("📋", t("export.section.xmp")))
         layout.addWidget(self.format_sidecar)
         layout.addWidget(self.format_embedded)
         layout.addWidget(self.dng_options_widget)
 
+        # --- Separatore ---
+        layout.addWidget(_separator())
+
+        # --- Sezione CSV ---
+        layout.addWidget(_section_label("📊", t("export.section.csv")))
         csv_row_widget = QWidget()
         csv_row = QHBoxLayout(csv_row_widget)
         csv_row.setContentsMargins(0, 0, 0, 0)
@@ -199,6 +221,11 @@ class ExportTab(QWidget):
         csv_row.addStretch()
         layout.addWidget(csv_row_widget)
 
+        # --- Separatore ---
+        layout.addWidget(_separator())
+
+        # --- Sezione file immagini ---
+        layout.addWidget(_section_label("🖼", t("export.section.files")))
         copy_row_widget = QWidget()
         copy_row = QHBoxLayout(copy_row_widget)
         copy_row.setContentsMargins(0, 0, 0, 0)
