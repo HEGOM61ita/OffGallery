@@ -247,7 +247,6 @@ class ConfigTab(QWidget):
         """)
         search_layout = QVBoxLayout()
         search_layout.addWidget(self.create_search_section())
-        search_layout.addWidget(self.create_metadata_section())
         search_layout.addWidget(self.create_similarity_section())
         search_group.setLayout(search_layout)
         scroll_layout.addWidget(search_group)
@@ -922,30 +921,6 @@ class ConfigTab(QWidget):
         group_box.setLayout(layout)
         return group_box
 
-    def create_metadata_section(self):
-        """Crea sezione configurazione metadati"""
-        group_box = QGroupBox(t("config.group.metadata_section"))
-        group_box.setObjectName("MetadataSection")
-        
-        group_box.setStyleSheet(f"""
-            QGroupBox#MetadataSection {{
-                border: 2px solid {COLORS['blu_petrolio_dark']};
-            }}
-        """)
-        
-        layout = QGridLayout()
-
-        # EXIF extraction
-        self.extract_exif_checkbox = QCheckBox(t("config.check.extract_exif"))
-        layout.addWidget(self.extract_exif_checkbox, 0, 0)
-
-        # GPS extraction
-        self.gps_enabled_checkbox = QCheckBox(t("config.check.extract_gps"))
-        layout.addWidget(self.gps_enabled_checkbox, 0, 1)
-
-        group_box.setLayout(layout)
-        return group_box
-
     def create_similarity_section(self):
         """Crea sezione configurazione ricerca globale"""
         group_box = QGroupBox(t("config.group.search_combined"))
@@ -1130,13 +1105,6 @@ class ConfigTab(QWidget):
             self.semantic_threshold_spin.setValue(search['semantic_threshold'])
 
             # --------------------------------------------------
-            # METADATA
-            # --------------------------------------------------
-            meta = self.config['metadata']
-            self.extract_exif_checkbox.setChecked(meta['extract_exif'])
-            self.gps_enabled_checkbox.setChecked(meta['gps_enabled'])
-
-            # --------------------------------------------------
             # SIMILARITY
             # --------------------------------------------------
             self.similarity_max_results.setValue(self.config['similarity']['max_results'])
@@ -1259,10 +1227,6 @@ class ConfigTab(QWidget):
             # Search
             self.fuzzy_enabled_checkbox.setChecked(True)
             self.semantic_threshold_spin.setValue(0.15)
-            
-            # Metadata
-            self.extract_exif_checkbox.setChecked(True)
-            self.gps_enabled_checkbox.setChecked(True)
             
             # Similarity (rimane come prima)
             self.similarity_max_results.setValue(20)
@@ -1402,12 +1366,6 @@ class ConfigTab(QWidget):
                 'fuzzy_enabled': self.fuzzy_enabled_checkbox.isChecked(),
                 'max_results': self.config.get('search', {}).get('max_results', 100),
                 'semantic_threshold': self.semantic_threshold_spin.value(),
-            }
-            
-            # Metadata
-            self.config['metadata'] = {
-                'extract_exif': self.extract_exif_checkbox.isChecked(),
-                'gps_enabled': self.gps_enabled_checkbox.isChecked(),
             }
             
             # Similarity (ricerca similarità)

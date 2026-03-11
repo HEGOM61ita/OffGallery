@@ -202,9 +202,6 @@ image_processing:
   - .x3f
 logging:
   show_debug: true
-metadata:
-  extract_exif: true
-  gps_enabled: true
 models_repository:
   auto_download: true
   download_on_first_run: true
