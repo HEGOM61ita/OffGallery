@@ -270,7 +270,7 @@
   "config.group.embedding_core": "🧠 Embedding Models (Core)",
   "config.group.ai_classification": "🤖 Classification & Analysis Models",
   "config.group.image_processing_perf": "⚡ Image Processing & Performance",
-  "config.group.search_metadata_section": "🔍 Search & Metadata",
+  "config.group.search_metadata_section": "🔍 Search",
   "config.info.embedding_always_active": "ℹ️  CLIP and DINOv2 embeddings always active (required for semantic search and similarity)",
   "config.label.database": "Database:",
   "config.label.logs": "Logs:",
