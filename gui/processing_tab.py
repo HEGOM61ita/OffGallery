@@ -180,6 +180,9 @@ class ProcessingWorker(QThread):
                         else:
                             found_files = input_dir.glob(pattern)
                         for file_path in found_files:
+                            # Salta file nascosti (es. ._filename.jpg su macOS/Linux)
+                            if file_path.name.startswith('.'):
+                                continue
                             dedup_key = str(file_path).lower() if self.include_subdirs else file_path.name.lower()
                             if dedup_key not in seen_files:
                                 seen_files.add(dedup_key)
@@ -1534,6 +1537,9 @@ class ProcessingTab(QWidget):
                     else:
                         found_files = input_dir.glob(pattern)
                     for file_path in found_files:
+                        # Salta file nascosti (es. ._filename.jpg su macOS/Linux)
+                        if file_path.name.startswith('.'):
+                            continue
                         # Con sotto-cartelle usa path completo per dedup, altrimenti solo nome
                         dedup_key = str(file_path).lower() if include_subdirs else file_path.name.lower()
                         if dedup_key not in seen_files:
