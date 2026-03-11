@@ -153,6 +153,16 @@ class ExportTab(QWidget):
         self.format_copy = QCheckBox(t("export.check.copy_originals"))
         self.format_copy.setToolTip(t("export.tooltip.copy_originals"))
 
+        self.copy_exclude_gps = QCheckBox(t("export.check.exclude_gps"))
+        self.copy_exclude_gps.setChecked(False)
+        self.copy_exclude_gps.setToolTip(t("export.tooltip.exclude_gps"))
+        self.copy_exclude_gps.setEnabled(False)
+
+        self.copy_exclude_exif = QCheckBox(t("export.check.exclude_exif"))
+        self.copy_exclude_exif.setChecked(False)
+        self.copy_exclude_exif.setToolTip(t("export.tooltip.exclude_exif"))
+        self.copy_exclude_exif.setEnabled(False)
+
         self.copy_preserve_structure = QCheckBox(t("export.check.preserve_structure"))
         self.copy_preserve_structure.setToolTip(t("export.tooltip.preserve_structure"))
         self.copy_preserve_structure.setEnabled(False)
@@ -189,7 +199,15 @@ class ExportTab(QWidget):
         csv_row.addStretch()
         layout.addWidget(csv_row_widget)
 
-        layout.addWidget(self.format_copy)
+        copy_row_widget = QWidget()
+        copy_row = QHBoxLayout(copy_row_widget)
+        copy_row.setContentsMargins(0, 0, 0, 0)
+        copy_row.setSpacing(16)
+        copy_row.addWidget(self.format_copy)
+        copy_row.addWidget(self.copy_exclude_gps)
+        copy_row.addWidget(self.copy_exclude_exif)
+        copy_row.addStretch()
+        layout.addWidget(copy_row_widget)
         layout.addWidget(self.copy_options_widget)
 
         return box
@@ -205,6 +223,8 @@ class ExportTab(QWidget):
         """Abilita opzioni copia e aggiorna sezione destinazione"""
         self.copy_preserve_structure.setEnabled(checked)
         self.copy_overwrite.setEnabled(checked)
+        self.copy_exclude_gps.setEnabled(checked)
+        self.copy_exclude_exif.setEnabled(checked)
         self._update_destination_ui()
     
     # ------------------------------------------------------------------
@@ -1348,6 +1368,8 @@ class ExportTab(QWidget):
 
         preserve_structure = options['format'].get('copy_preserve_structure', False)
         overwrite = options['format'].get('copy_overwrite', False)
+        exclude_gps = options['format'].get('copy_exclude_gps', False)
+        exclude_exif = options['format'].get('copy_exclude_exif', False)
 
         copy_count = 0
         copy_failed = 0
@@ -1408,6 +1430,18 @@ class ExportTab(QWidget):
                     # overwrite=True: shutil.copy2 sovrascrive silenziosamente
 
                 shutil.copy2(source_path, dest_path)
+
+                # Strip GPS e/o EXIF dalla copia (mai dall'originale)
+                if exclude_gps or exclude_exif:
+                    strip_cmd = ["exiftool", "-overwrite_original"]
+                    if exclude_gps:
+                        strip_cmd.append("-GPS:All=")
+                    if exclude_exif:
+                        strip_cmd.append("-EXIF:All=")
+                    strip_cmd.append(str(dest_path))
+                    import subprocess as _sp
+                    _sp.run(strip_cmd, capture_output=True)
+
                 copy_count += 1
 
             except Exception as e:
@@ -1461,6 +1495,8 @@ class ExportTab(QWidget):
                 "copy": self.format_copy.isChecked(),
                 "copy_preserve_structure": self.copy_preserve_structure.isChecked(),
                 "copy_overwrite": self.copy_overwrite.isChecked(),
+                "copy_exclude_gps": self.copy_exclude_gps.isChecked(),
+                "copy_exclude_exif": self.copy_exclude_exif.isChecked(),
             },
             "path": {
                 "original": self.path_original.isChecked(),
