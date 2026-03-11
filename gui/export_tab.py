@@ -15,7 +15,12 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QMessageBox,
     QApplication,
-    QLineEdit
+    QLineEdit,
+    QDialog,
+    QDialogButtonBox,
+    QListWidget,
+    QListWidgetItem,
+    QInputDialog,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from pathlib import Path
@@ -27,6 +32,7 @@ import logging
 from gui.gallery_widgets import apply_popup_style
 from xmp_badge_manager import refresh_xmp_badges
 from utils.copy_helpers import compute_common_roots, compute_dest_path
+from utils.paths import get_app_dir, get_database_dir
 from i18n import t
 
 logger = logging.getLogger(__name__)
@@ -44,8 +50,9 @@ class ExportTab(QWidget):
         super().__init__(parent)
         self.main_window = None
         self.images_to_export = []
+        self.config_path = self._get_config_path()
         self._build_ui()
-        # self._set_default_output_dir()
+        self._load_state_from_config()
 
     def set_main_window(self, main_window):
         self.main_window = main_window
@@ -113,6 +120,36 @@ class ExportTab(QWidget):
         layout = QVBoxLayout(box)
         layout.setSpacing(8)
         layout.setContentsMargins(12, 10, 12, 10)
+
+        # --- Preset bar ---
+        preset_bar = QWidget()
+        preset_layout = QHBoxLayout(preset_bar)
+        preset_layout.setContentsMargins(0, 0, 0, 0)
+        preset_layout.setSpacing(8)
+
+        preset_label = QLabel(t("export.label.presets"))
+        preset_label.setStyleSheet("font-size: 11px; color: #555;")
+        preset_layout.addWidget(preset_label)
+
+        save_preset_btn = QPushButton(t("export.btn.save_preset"))
+        save_preset_btn.setFixedHeight(26)
+        save_preset_btn.clicked.connect(self.save_export_preset_dialog)
+        preset_layout.addWidget(save_preset_btn)
+
+        load_preset_btn = QPushButton(t("export.btn.load_preset"))
+        load_preset_btn.setFixedHeight(26)
+        load_preset_btn.clicked.connect(self.load_export_preset_dialog)
+        preset_layout.addWidget(load_preset_btn)
+
+        preset_layout.addStretch()
+        layout.addWidget(preset_bar)
+
+        # Separatore sottile sotto la preset bar
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        sep.setStyleSheet("color: #d0d8e0; margin: 2px 0px 6px 0px;")
+        layout.addWidget(sep)
 
         # --- XMP sidecar ---
         self.format_sidecar = QCheckBox(t("export.check.xmp_sidecar"))
@@ -509,6 +546,239 @@ class ExportTab(QWidget):
 
         return box
     # ------------------------------------------------------------------
+    # CONFIG PATH
+    # ------------------------------------------------------------------
+
+    def _get_config_path(self) -> str:
+        """Trova il percorso di config_new.yaml"""
+        app_dir = get_app_dir()
+        for p in [app_dir / 'config_new.yaml', Path.cwd() / 'config_new.yaml']:
+            if p.exists():
+                return str(p)
+        return str(app_dir / 'config_new.yaml')
+
+    # ------------------------------------------------------------------
+    # PERSISTENZA STATO (config_new.yaml)
+    # ------------------------------------------------------------------
+
+    def _get_export_params(self) -> dict:
+        """Raccoglie lo stato corrente di tutti i widget export"""
+        return {
+            'format': {
+                'sidecar':                 self.format_sidecar.isChecked(),
+                'embedded':                self.format_embedded.isChecked(),
+                'dng_allow_embedded':      self.dng_allow_embedded.isChecked(),
+                'csv':                     self.format_csv.isChecked(),
+                'copy':                    self.format_copy.isChecked(),
+                'copy_preserve_structure': self.copy_preserve_structure.isChecked(),
+                'copy_overwrite':          self.copy_overwrite.isChecked(),
+                'copy_exclude_gps':        self.copy_exclude_gps.isChecked(),
+                'copy_exclude_exif':       self.copy_exclude_exif.isChecked(),
+                'csv_exclude_gps':         self.csv_exclude_gps.isChecked(),
+                'csv_exclude_exif':        self.csv_exclude_exif.isChecked(),
+            },
+            'advanced': {
+                'xmp_merge_keywords':        self.xmp_merge_keywords.isChecked(),
+                'xmp_preserve_title':        self.xmp_preserve_title.isChecked(),
+                'xmp_preserve_description':  self.xmp_preserve_description.isChecked(),
+                'xmp_preserve_rating':       self.xmp_preserve_rating.isChecked(),
+                'xmp_preserve_color_label':  self.xmp_preserve_color_label.isChecked(),
+            },
+        }
+
+    def _set_export_params(self, params: dict):
+        """Ripristina lo stato di tutti i widget dai parametri salvati"""
+        fmt = params.get('format', {})
+        adv = params.get('advanced', {})
+
+        def _set(widget, key, default):
+            val = fmt.get(key, default)
+            widget.blockSignals(True)
+            widget.setChecked(val)
+            widget.blockSignals(False)
+
+        _set(self.format_sidecar,              'sidecar',                 True)
+        _set(self.format_embedded,             'embedded',                False)
+        _set(self.dng_allow_embedded,          'dng_allow_embedded',      False)
+        _set(self.format_csv,                  'csv',                     False)
+        _set(self.format_copy,                 'copy',                    False)
+        _set(self.copy_preserve_structure,     'copy_preserve_structure', False)
+        _set(self.copy_overwrite,              'copy_overwrite',          False)
+        _set(self.copy_exclude_gps,            'copy_exclude_gps',        False)
+        _set(self.copy_exclude_exif,           'copy_exclude_exif',       False)
+        _set(self.csv_exclude_gps,             'csv_exclude_gps',         False)
+        _set(self.csv_exclude_exif,            'csv_exclude_exif',        False)
+
+        def _set_adv(widget, key, default):
+            val = adv.get(key, default)
+            widget.blockSignals(True)
+            widget.setChecked(val)
+            widget.blockSignals(False)
+
+        _set_adv(self.xmp_merge_keywords,       'xmp_merge_keywords',       True)
+        _set_adv(self.xmp_preserve_title,       'xmp_preserve_title',       True)
+        _set_adv(self.xmp_preserve_description, 'xmp_preserve_description', True)
+        _set_adv(self.xmp_preserve_rating,      'xmp_preserve_rating',      True)
+        _set_adv(self.xmp_preserve_color_label, 'xmp_preserve_color_label', True)
+
+        # Aggiorna enabled/disabled dei controlli dipendenti
+        self._on_copy_toggled(self.format_copy.isChecked())
+        self._on_csv_toggled(self.format_csv.isChecked())
+        self._on_embedded_toggled(self.format_embedded.isChecked())
+        self._update_destination_ui()
+
+    def _load_state_from_config(self):
+        """Carica stato export da config_new.yaml (chiamato all'avvio)"""
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            export_cfg = config.get('export', {})
+            if export_cfg:
+                self._set_export_params(export_cfg)
+        except Exception as e:
+            logger.warning(f"Impossibile caricare stato export dal config: {e}")
+
+    def _save_state_to_config(self):
+        """Salva stato export corrente in config_new.yaml"""
+        try:
+            config_path = Path(self.config_path)
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f) or {}
+
+            # Backup prima di scrivere
+            import shutil as _shutil
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup = config_path.with_name(f"{config_path.name}_BACKUP_{timestamp}.yaml")
+            _shutil.copy2(config_path, backup)
+
+            config['export'] = self._get_export_params()
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+        except Exception as e:
+            logger.warning(f"Impossibile salvare stato export nel config: {e}")
+
+    # ------------------------------------------------------------------
+    # PRESET SALVATI (database/saved_exports.json)
+    # ------------------------------------------------------------------
+
+    def _saved_exports_path(self) -> Path:
+        return get_database_dir() / 'saved_exports.json'
+
+    def _load_saved_exports(self) -> list:
+        path = self._saved_exports_path()
+        try:
+            if path.exists():
+                with open(path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return []
+
+    def _save_saved_exports(self, exports: list):
+        path = self._saved_exports_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(exports, f, ensure_ascii=False, indent=2)
+
+    def save_export_preset_dialog(self):
+        """Dialogo per salvare la configurazione export corrente con un nome"""
+        params = self._get_export_params()
+        exports = self._load_saved_exports()
+        existing_names = [e['name'] for e in exports]
+
+        name, ok = QInputDialog.getText(
+            self, t("export.dialog.save_title"), t("export.dialog.save_name_label")
+        )
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+
+        # Gestione duplicati
+        while name in existing_names:
+            answer = QMessageBox.question(
+                self,
+                t("export.msg.duplicate_name_title"),
+                t("export.msg.duplicate_name_overwrite", name=name),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                exports = [e for e in exports if e['name'] != name]
+                break
+            name, ok = QInputDialog.getText(
+                self, t("export.dialog.save_title"), t("export.msg.duplicate_name_input")
+            )
+            if not ok or not name.strip():
+                return
+            name = name.strip()
+
+        exports.append({
+            'name': name,
+            'created': datetime.now().strftime("%Y-%m-%d"),
+            'params': params,
+        })
+        self._save_saved_exports(exports)
+        QMessageBox.information(
+            self,
+            t("export.msg.saved_title"),
+            t("export.msg.saved_msg", name=name),
+        )
+
+    def load_export_preset_dialog(self):
+        """Dialogo per caricare o eliminare un preset export salvato"""
+        exports = self._load_saved_exports()
+        if not exports:
+            QMessageBox.information(self, t("export.msg.no_saved_title"), t("export.msg.no_saved"))
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(t("export.dialog.load_title"))
+        dialog.resize(400, 280)
+        apply_popup_style(dialog)
+
+        dlg_layout = QVBoxLayout(dialog)
+
+        list_widget = QListWidget()
+        for e in exports:
+            item = QListWidgetItem(f"{e['name']}  ({e.get('created', '')})")
+            item.setData(Qt.ItemDataRole.UserRole, e)
+            list_widget.addItem(item)
+        list_widget.setCurrentRow(0)
+        list_widget.itemDoubleClicked.connect(lambda: dialog.accept())
+        dlg_layout.addWidget(list_widget)
+
+        btn_box = QDialogButtonBox()
+        load_btn  = btn_box.addButton(t("export.dialog.btn_load"),   QDialogButtonBox.ButtonRole.AcceptRole)
+        del_btn   = btn_box.addButton(t("export.dialog.btn_delete"),  QDialogButtonBox.ButtonRole.DestructiveRole)
+        cancel_btn = btn_box.addButton(t("export.dialog.btn_cancel"), QDialogButtonBox.ButtonRole.RejectRole)
+        load_btn.clicked.connect(dialog.accept)
+        cancel_btn.clicked.connect(dialog.reject)
+
+        def _delete():
+            item = list_widget.currentItem()
+            if not item:
+                return
+            entry = item.setData(Qt.ItemDataRole.UserRole, None) or item.data(Qt.ItemDataRole.UserRole)
+            # Rileggi il dato prima di None-arlo
+            entry = list_widget.currentItem().data(Qt.ItemDataRole.UserRole)
+            updated = [e for e in exports if e['name'] != entry['name']]
+            self._save_saved_exports(updated)
+            list_widget.takeItem(list_widget.currentRow())
+            exports[:] = updated
+
+        del_btn.clicked.connect(_delete)
+        dlg_layout.addWidget(btn_box)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        selected = list_widget.currentItem()
+        if selected:
+            entry = selected.data(Qt.ItemDataRole.UserRole)
+            if entry:
+                self._set_export_params(entry['params'])
+
+    # ------------------------------------------------------------------
     # EXPORT LOGIC
     # ------------------------------------------------------------------
 
@@ -518,6 +788,7 @@ class ExportTab(QWidget):
             QMessageBox.warning(self, t("export.msg.error_title"), t("export.label.no_selection"))
             return
 
+        self._save_state_to_config()
         options = self.get_export_options()
 
         # Validazione: almeno un formato selezionato

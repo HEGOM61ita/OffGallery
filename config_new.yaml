@@ -52,6 +52,25 @@ embedding:
       description: Punteggio tecnico qualità MUSIQ offline
       enabled: true
       model_name: musiq
+export:
+  advanced:
+    xmp_merge_keywords: true
+    xmp_preserve_color_label: true
+    xmp_preserve_description: true
+    xmp_preserve_rating: true
+    xmp_preserve_title: true
+  format:
+    copy: false
+    copy_exclude_exif: false
+    copy_exclude_gps: false
+    copy_overwrite: false
+    copy_preserve_structure: false
+    csv: false
+    csv_exclude_exif: false
+    csv_exclude_gps: false
+    dng_allow_embedded: false
+    embedded: false
+    sidecar: true
 external_editors:
   editor_1:
     command_args: ''
