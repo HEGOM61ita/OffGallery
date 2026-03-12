@@ -679,7 +679,14 @@ echo.
 echo   PER AVVIARE OFFGALLERY:
 echo.
 echo     Doppio click su "OffGallery" sul Desktop
-echo     oppure esegui: installer\OffGallery_Launcher.bat
+echo.
+echo   IMPORTANTE - AVVIO CORRETTO:
+echo     Usa SEMPRE il collegamento (.lnk) creato sul Desktop.
+echo     NON copiare o spostare OffGallery_Launcher.bat fuori
+echo     dalla cartella installer\: il .bat deve restare nella sua
+echo     posizione originale per trovare l'applicazione.
+echo     Il collegamento .lnk sul Desktop punta al .bat originale
+echo     e funziona correttamente da qualsiasi posizione.
 echo.
 echo   NOTA: Se hai appena installato Miniconda, potrebbe essere
 echo   necessario riavviare il computer prima del primo avvio.

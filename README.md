@@ -245,6 +245,16 @@ L'interfaccia ha 7 tab: **Elaborazione · Ricerca · Galleria · Statistiche · 
 
 Workflow tipico: importa una cartella o un catalogo `.lrcat` → elabora con AI → cerca con linguaggio naturale → esporta XMP verso Lightroom.
 
+### Avviare OffGallery
+
+| Sistema | Metodo consigliato |
+|---------|-------------------|
+| **Windows** | Doppio click sul collegamento **OffGallery.lnk** creato sul Desktop dall'installer |
+| **macOS** | Apri **OffGallery.app** da `~/Applications` o cerca con Spotlight |
+| **Linux** | Usa la voce nel menu applicazioni, oppure `bash installer/offgallery_launcher.sh` dalla cartella dell'app |
+
+> **Attenzione (Windows):** non copiare o spostare `OffGallery_Launcher.bat` sul Desktop o in altre cartelle — il file `.bat` usa il suo percorso per trovare l'applicazione e non funziona se spostato. Usa sempre il **collegamento** `.lnk` creato dall'installer, che punta al `.bat` originale. Se hai perso il collegamento: tasto destro su `installer\OffGallery_Launcher.bat` → **Invia a → Desktop (crea collegamento)**.
+
 > **Manuale Utente completo (IT):** **[docs/USER_MANUAL_IT.html](docs/USER_MANUAL_IT.html)**
 > — Descrizione dettagliata di ogni tab, opzione, badge, concetti avanzati (BioCLIP, geotag, sync state) e troubleshooting.
 
@@ -578,6 +588,16 @@ Full history in [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discu
 The interface has 7 tabs: **Processing · Search · Gallery · Statistics · Export · Configuration · Log**.
 
 Typical workflow: import a folder or `.lrcat` catalog → process with AI → search with natural language → export XMP to Lightroom.
+
+### Launching OffGallery
+
+| OS | Recommended method |
+|----|-------------------|
+| **Windows** | Double-click the **OffGallery.lnk** shortcut created on the Desktop by the installer |
+| **macOS** | Open **OffGallery.app** from `~/Applications` or search via Spotlight |
+| **Linux** | Use the application menu entry, or run `bash installer/offgallery_launcher.sh` from the app folder |
+
+> **Windows note:** do not copy or move `OffGallery_Launcher.bat` to the Desktop or any other folder — the `.bat` uses its own location to find the application and will fail if moved. Always use the `.lnk` **shortcut** created by the installer, which points to the original `.bat`. If you lost the shortcut: right-click `installer\OffGallery_Launcher.bat` → **Send to → Desktop (create shortcut)**.
 
 > **Full User Manual (EN):** **[docs/USER_MANUAL_EN.html](docs/USER_MANUAL_EN.html)**
 > — Detailed description of every tab, option, badge, advanced concepts (BioCLIP, geotagging, sync state) and troubleshooting.
