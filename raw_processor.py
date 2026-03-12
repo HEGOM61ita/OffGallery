@@ -707,12 +707,14 @@ class RAWProcessor:
     def _merge_xmp_data(self, exif_data: Dict, xmp_sidecar_data: Dict) -> Dict[str, Any]:
         """Merge intelligente dati XMP con priorità sidecar"""
         merged = exif_data.copy()
-        
-        # Sovrascrivi con dati sidecar (priorità alta)
+
+        # Sovrascrivi con dati sidecar (priorità alta).
+        # Usare `is not None` invece di `if value` per preservare valori
+        # numerici legittimi come 0.0 (es. coordinate GPS sull'equatore/meridiano).
         for key, value in xmp_sidecar_data.items():
-            if value:  # Solo se non vuoto
+            if value is not None and value != '':
                 merged[key] = value
-                
+
         return merged
     
     def _map_all_fields(self, xmp_data: Dict) -> Dict[str, Any]:
@@ -1141,10 +1143,13 @@ class RAWProcessor:
             return None
     
     def _parse_gps_coordinate(self, gps_value, ref=None) -> Optional[float]:
-        """Converte coordinata GPS in decimali (supporta decimale e DMS ExifTool).
+        """Converte coordinata GPS in decimali.
 
-        Gestisce il formato DMS di ExifTool: "41 deg 3' 14.70""
-        e applica il segno corretto in base al riferimento (S/W → negativo).
+        Gestisce tre formati:
+        - DMS ExifTool da EXIF embedded: "41 deg 3' 14.70\""
+        - Decimal-minutes da XMP sidecar: "31 deg 37.9607' N"  (nessun campo secondi)
+        - Valore decimale diretto: "31.6327"
+        Applica segno corretto in base al riferimento (S/W → negativo).
         """
         if not gps_value:
             return None
@@ -1160,7 +1165,7 @@ class RAWProcessor:
             elif isinstance(gps_value, str):
                 gps_str = gps_value.strip()
 
-                # Formato DMS ExifTool: "41 deg 3' 14.70""
+                # Formato DMS completo: "41 deg 3' 14.70"" (EXIF embedded via ExifTool)
                 dms_match = re.match(
                     r'(\d+(?:\.\d+)?)\s+deg\s+(\d+(?:\.\d+)?)[\'′]\s*([\d.]+)[\"″]?',
                     gps_str
@@ -1171,8 +1176,19 @@ class RAWProcessor:
                     s = float(dms_match.group(3))
                     decimal = d + m / 60.0 + s / 3600.0
                 else:
-                    # Prova come valore decimale diretto
-                    decimal = float(gps_str)
+                    # Formato decimal-minutes: "31 deg 37.9607' N" (XMP sidecar via ExifTool)
+                    # Il campo secondi è assente perché XMP salva gradi+minuti-decimali
+                    dm_match = re.match(
+                        r'(\d+(?:\.\d+)?)\s+deg\s+(\d+(?:\.\d+)?)[\'′]',
+                        gps_str
+                    )
+                    if dm_match:
+                        d = float(dm_match.group(1))
+                        m = float(dm_match.group(2))
+                        decimal = d + m / 60.0
+                    else:
+                        # Prova come valore decimale diretto
+                        decimal = float(gps_str)
 
             if decimal is None:
                 return None
