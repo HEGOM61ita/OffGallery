@@ -72,6 +72,57 @@ env_python_exists() {
     [ -n "$conda_base" ] && [ -x "$conda_base/envs/$ENV_NAME/bin/python" ]
 }
 
+# Verifica che l'architettura di conda corrisponda al sistema.
+# Su Apple Silicon (arm64), un Miniconda x86_64 gira sotto Rosetta 2:
+# il processo Python emulato x86_64 tenta di usare framework Cocoa/Metal
+# nativi arm64 → segfault garantito su PyQt6/Metal.
+check_conda_arch() {
+    # Solo su Apple Silicon: su Intel non esiste il problema
+    [ "$_ARCH" = "arm64" ] || return 0
+
+    local conda_base python_bin python_arch
+    conda_base=$("$CONDA_CMD" info --base 2>/dev/null | tr -d '[:space:]')
+
+    # Cerca il Python della base conda
+    python_bin="$conda_base/bin/python3"
+    [ -x "$python_bin" ] || python_bin="$conda_base/bin/python"
+    [ -x "$python_bin" ] || return 0  # Non verificabile, si procede
+
+    python_arch=$(file "$python_bin" 2>/dev/null | grep -oE 'arm64|x86_64' | head -1)
+    [ -n "$python_arch" ] || return 0  # Non determinabile, si procede
+
+    if [ "$python_arch" != "arm64" ]; then
+        echo ""
+        print_err "ARCHITETTURA CONDA NON COMPATIBILE"
+        echo ""
+        echo "   Sistema:  arm64  (Apple Silicon)"
+        echo "   Conda:    $python_arch  (gira sotto Rosetta 2 — emulazione x86_64)"
+        echo ""
+        echo "   Su Apple Silicon, Miniconda deve essere la versione arm64"
+        echo "   nativa. La versione x86_64 causa segfault con PyQt6/Metal"
+        echo "   anche quando Python è chiamato direttamente (non tramite conda run)."
+        echo ""
+        echo "   ── SOLUZIONE ─────────────────────────────────────────────────"
+        echo ""
+        echo "   1) Disinstalla Miniconda x86_64:"
+        echo "      rm -rf $conda_base"
+        echo "      sed -i.bak '/conda initialize/,/# <<< conda initialize/d' \\"
+        echo "          ~/.zshrc ~/.bash_profile 2>/dev/null; true"
+        echo ""
+        echo "   2) Installa Miniconda arm64 nativo:"
+        echo "      curl -fsSL 'https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh' \\"
+        echo "          -o /tmp/miniconda.sh"
+        echo "      bash /tmp/miniconda.sh -b -p ~/miniconda3"
+        echo "      ~/miniconda3/bin/conda init zsh && rm /tmp/miniconda.sh"
+        echo ""
+        echo "   3) Chiudi e riapri il terminale, poi riesegui questo installer."
+        echo ""
+        exit 1
+    fi
+
+    print_ok "Architettura conda: arm64 (nativo Apple Silicon — OK)"
+}
+
 # ═══════════════════════════════════════════════════════════════════
 # HEADER
 # ═══════════════════════════════════════════════════════════════════
@@ -255,6 +306,9 @@ else
     STATUS_MINICONDA="Installato"
     CONDA_CMD="$MINICONDA_DIR/bin/conda"
 fi
+
+# Verifica architettura conda (blocca se x86_64 su Apple Silicon)
+check_conda_arch
 
 # ═══════════════════════════════════════════════════════════════════
 # STEP 2/5: AMBIENTE OFFGALLERY

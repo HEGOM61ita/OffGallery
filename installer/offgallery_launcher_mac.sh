@@ -61,6 +61,33 @@ export PATH="$HOME/.local/bin:$PATH"
 # su alcuni Mac con macOS 11+).
 export QT_MAC_WANTS_LAYER=1
 
+# Verifica architettura conda su Apple Silicon: un Miniconda x86_64 sotto Rosetta 2
+# causa segfault con PyQt6/Metal anche quando Python è chiamato direttamente.
+_SYS_ARCH=$(uname -m)
+if [ "$_SYS_ARCH" = "arm64" ]; then
+    _CONDA_BASE_TMP=$("$CONDA_CMD" info --base 2>/dev/null | tr -d '[:space:]')
+    _PY_BIN="$_CONDA_BASE_TMP/bin/python3"
+    [ -x "$_PY_BIN" ] || _PY_BIN="$_CONDA_BASE_TMP/bin/python"
+    if [ -x "$_PY_BIN" ]; then
+        _PY_ARCH=$(file "$_PY_BIN" 2>/dev/null | grep -oE 'arm64|x86_64' | head -1)
+        if [ "$_PY_ARCH" = "x86_64" ]; then
+            echo ""
+            echo "  [ERRORE] Conda x86_64 rilevato su Apple Silicon (arm64)."
+            echo ""
+            echo "  Il Miniconda installato gira sotto Rosetta 2 (emulazione x86_64)."
+            echo "  Questo causa segfault con PyQt6/Metal su M1/M2/M3/M4."
+            echo ""
+            echo "  Soluzione: reinstalla Miniconda arm64 nativo."
+            echo "  Esegui:"
+            echo "    bash \"$SCRIPT_DIR/install_offgallery_mac.sh\""
+            echo ""
+            echo "  Il wizard di installazione fornirà le istruzioni dettagliate."
+            echo ""
+            exit 1
+        fi
+    fi
+fi
+
 # Ricava il percorso dell'ambiente conda (necessario per chiamare python direttamente).
 # Su macOS, 'conda run' lancia l'app in un subprocess: il framework Cocoa/Qt richiede
 # di girare nel processo principale → segfault. Chiamiamo il python dell'env direttamente.
