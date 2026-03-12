@@ -1203,7 +1203,7 @@ class RAWProcessor:
                 tail = gps_value.strip().upper()
                 if tail.endswith(' W') or tail.endswith(' S'):
                     effective_ref = tail[-1]
-            if effective_ref and str(effective_ref).strip().upper() in ('S', 'W'):
+            if effective_ref and str(effective_ref).strip().upper() in ('S', 'W', 'SOUTH', 'WEST'):
                 decimal = -abs(decimal)
 
             return decimal
