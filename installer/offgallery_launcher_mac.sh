@@ -98,9 +98,15 @@ if [ -z "$CONDA_ENV_PATH" ] || [ ! -x "$CONDA_ENV_PATH/bin/python" ]; then
 fi
 
 if [ -n "$CONDA_ENV_PATH" ] && [ -x "$CONDA_ENV_PATH/bin/python" ]; then
-    # Attiva le variabili d'ambiente dell'env senza usare conda run
+    # Attiva correttamente l'env conda: setta CONDA_PREFIX, PATH e tutti gli
+    # activation hook dei pacchetti (es. Qt6, torch) tramite lo script ufficiale.
     export CONDA_PREFIX="$CONDA_ENV_PATH"
     export PATH="$CONDA_ENV_PATH/bin:$PATH"
+    if [ -f "$_CONDA_BASE/etc/profile.d/conda.sh" ]; then
+        # shellcheck disable=SC1091
+        source "$_CONDA_BASE/etc/profile.d/conda.sh"
+        conda activate "$ENV_NAME" 2>/dev/null
+    fi
 
     # Scarica i modelli AI PRIMA di avviare Qt se non sono già presenti.
     # Su macOS, il download dentro il processo Qt causa segfault per conflitti
@@ -123,9 +129,13 @@ if [ -n "$CONDA_ENV_PATH" ] && [ -x "$CONDA_ENV_PATH/bin/python" ]; then
         echo ""
     fi
 
-    "$CONDA_ENV_PATH/bin/python" gui_launcher.py
+    # 'exec' sostituisce il processo bash con python invece di crearne un figlio.
+    # Su macOS, Cocoa/Metal richiede che l'app Qt sia il processo originale
+    # (non un subprocess): anche un singolo livello bash→python può causare
+    # SIGSEGV al primo rendering su macOS Ventura/Sonoma/Sequoia con Apple Silicon.
+    exec "$CONDA_ENV_PATH/bin/python" gui_launcher.py
+
 else
-    # NOTA: NON usare 'conda run' qui — su macOS causa segfault con app Qt/Cocoa.
     # Se arriviamo qui, l'ambiente OffGallery non è stato trovato: mostrare diagnostica.
     echo ""
     echo "  [ERRORE] Ambiente Python 'OffGallery' non trovato."
@@ -140,12 +150,3 @@ else
     echo ""
     exit 1
 fi
-
-EXIT_CODE=$?
-if [ $EXIT_CODE -ne 0 ]; then
-    echo ""
-    echo "  [ERRORE] L'applicazione si è chiusa con errore (codice: $EXIT_CODE)."
-    echo ""
-fi
-
-exit $EXIT_CODE
