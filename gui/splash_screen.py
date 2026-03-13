@@ -8,7 +8,7 @@ from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTextEdit, QApplication, QProgressBar
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap
 from pathlib import Path
 
@@ -93,6 +93,14 @@ class SplashLogHandler(logging.Handler):
 class SplashScreen(QWidget):
     """Splash screen con log di caricamento"""
 
+    # Segnale per aggiornamento thread-safe del QTextEdit.
+    # Su macOS con Metal, chiamare log_text.append() direttamente dal call stack
+    # di un C extension (torch/transformers durante l'import) può causare segfault
+    # per conflitto tra il rendering CAMetalLayer di Qt e l'inizializzazione MPS
+    # di torch. Usando un segnale, l'update del widget viene accodato nell'event
+    # loop e eseguito solo quando il main loop è libero.
+    log_signal = pyqtSignal(str)
+
     def __init__(self):
         super().__init__()
         global _splash_instance
@@ -119,6 +127,7 @@ class SplashScreen(QWidget):
 
         # Contatore per progress
         self._log_count = 0
+        self.log_signal.connect(self._append_log)
 
     def _build_ui(self):
         """Costruisce interfaccia splash"""
@@ -191,6 +200,15 @@ class SplashScreen(QWidget):
         """)
         layout.addWidget(self.log_text, 1)
 
+    def _append_log(self, message):
+        """Aggiorna il QTextEdit — eseguito SOLO dall'event loop tramite log_signal.
+        Mai chiamare direttamente: il segnale garantisce che l'update avvenga
+        quando il main loop è libero, evitando conflitti Metal/Cocoa su macOS."""
+        self.log_text.append(message)
+        self.log_text.verticalScrollBar().setValue(
+            self.log_text.verticalScrollBar().maximum()
+        )
+
     def add_log(self, message, process_events=True):
         """Aggiunge messaggio al log e aggiorna progress"""
         global startup_logs
@@ -208,11 +226,11 @@ class SplashScreen(QWidget):
             level = "DEBUG"
         startup_logs.append((timestamp, level, message))
 
-        # Mostra nella splash
-        self.log_text.append(message)
-        self.log_text.verticalScrollBar().setValue(
-            self.log_text.verticalScrollBar().maximum()
-        )
+        # Accoda l'update del widget tramite segnale (thread-safe, evita segfault macOS).
+        # Il segnale viene consegnato solo quando l'event loop è libero, mai
+        # durante il call stack nativo di C extension (torch MPS, ctranslate2, ecc.).
+        if QApplication.instance():
+            self.log_signal.emit(message)
 
         # Aggiorna progress (cresce con i messaggi, max 95%)
         self._log_count += 1
