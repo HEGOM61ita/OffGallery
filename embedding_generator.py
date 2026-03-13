@@ -1047,6 +1047,15 @@ class EmbeddingGenerator:
                     if bioclip_taxonomy:
                         logger.info(f"BioCLIP taxonomy: {bioclip_taxonomy}")
 
+                # Pulizia memoria GPU dopo ogni foto.
+                # Su Apple Silicon (MPS): libera il pool MPS per evitare di ingolfare
+                # la unified memory durante sessioni di elaborazione lunghe.
+                # Su CUDA e CPU: gc.collect() è comunque utile, il ramo MPS non esegue.
+                import gc
+                if torch.backends.mps.is_available():
+                    torch.mps.empty_cache()
+                gc.collect()
+
                 return result
             except Exception as e:
                 logger.error(f"Errore CLIP immagine: {e}")
