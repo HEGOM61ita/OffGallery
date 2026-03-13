@@ -1885,6 +1885,9 @@ class EmbeddingGenerator:
                     location_line = f"- LOCATION: This photo was taken in: {location_hint}. Use standard English place names. Mention the location naturally if relevant.\n"
                 else:
                     location_line = f"- LOCATION: This photo was taken in: {location_hint}. Translate ALL place names to {lang_name}. Mention the location naturally if relevant.\n"
+            else:
+                # Nessun GPS disponibile: vietare esplicitamente al modello di inventare luoghi
+                location_line = "- LOCATION: No GPS data available. Do NOT mention, guess or infer any specific location, city, country or place name. Describe only what is visually present.\n"
 
             language_rules = (
                 f"LANGUAGE: ALL output MUST be in {lang_name}. NEVER mix languages or use words from other languages.\n"
