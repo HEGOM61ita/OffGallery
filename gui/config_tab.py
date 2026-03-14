@@ -1515,6 +1515,7 @@ class ConfigTab(QWidget):
             return
 
         is_ollama = self.llm_radio_ollama.isChecked()
+        provider_name = "Ollama" if is_ollama else "LM Studio"
 
         try:
             import requests
@@ -1560,7 +1561,7 @@ class ConfigTab(QWidget):
                 QMessageBox.information(
                     self,
                     t("config.msg.connection_ok_title"),
-                    t("config.msg.connection_ok_detail", models=models_text)
+                    t("config.msg.connection_ok_detail", provider=provider_name, models=models_text)
                 )
             else:
                 raise requests.RequestException(f"Status code: {response.status_code}")
@@ -1578,7 +1579,7 @@ class ConfigTab(QWidget):
             QMessageBox.warning(
                 self,
                 t("config.msg.connection_fail_title"),
-                t("config.msg.connection_fail_detail", error=str(e))
+                t("config.msg.connection_fail_detail", provider=provider_name, error=str(e))
             )
 
         from PyQt6.QtCore import QTimer
