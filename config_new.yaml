@@ -247,3 +247,5 @@ similarity:
 ui:
   llm_output_language: it
   user_language: it
+updates:
+  check_on_startup: true

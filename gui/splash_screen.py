@@ -294,6 +294,32 @@ def restore_log_capture():
     _splash_instance = None
 
 
+def _check_for_updates(parent_window):
+    """Controlla se è disponibile una nuova versione su GitHub.
+    Confronta VERSION locale con ultimo commit remoto.
+    Se diversi, mostra popup informativo non bloccante."""
+    try:
+        from update import get_local_version, get_remote_version
+        app_dir = get_app_dir()
+
+        local = get_local_version(app_dir)
+        remote = get_remote_version()
+
+        if remote is None or local == remote:
+            return  # Nessun aggiornamento o rete non disponibile
+
+        # Scegli messaggio in base a presenza .git
+        from PyQt6.QtWidgets import QMessageBox
+        is_git = (app_dir / '.git').exists()
+        msg_key = "update.msg.body_git" if is_git else "update.msg.body"
+        body = t(msg_key, local=local, remote=remote)
+
+        QMessageBox.information(parent_window, t("update.msg.title"), body)
+
+    except Exception:
+        pass  # Fallimento silenzioso — non bloccare l'avvio
+
+
 def run_with_splash():
     """Avvia applicazione con splash screen"""
     # Carica lingua prima di creare qualsiasi widget
@@ -412,5 +438,9 @@ def run_with_splash():
     window.show()
     splash.hide()
     splash.deleteLater()
+
+    # Controllo aggiornamenti (se abilitato in config)
+    if _config.get('updates', {}).get('check_on_startup', True):
+        _check_for_updates(window)
 
     sys.exit(app.exec())

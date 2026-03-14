@@ -977,19 +977,30 @@ class ConfigTab(QWidget):
         """Crea sezione configurazione logging"""
         group_box = QGroupBox(t("config.group.logging"))
         layout = QVBoxLayout(group_box)
-        
+
         # Checkbox debug
         self.debug_checkbox = QCheckBox(t("config.check.debug_messages"))
         self.debug_checkbox.setChecked(True)  # Default: abilitato
         self.debug_checkbox.stateChanged.connect(self.on_debug_setting_changed)
         layout.addWidget(self.debug_checkbox)
-        
+
         # Info sul logging
         info_label = QLabel(t("config.info.debug_verbose"))
         info_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; font-style: italic; padding: 5px;")
         info_label.setWordWrap(True)
         layout.addWidget(info_label)
-        
+
+        # Checkbox controllo aggiornamenti
+        self.check_updates_checkbox = QCheckBox(t("config.check.check_updates"))
+        self.check_updates_checkbox.setChecked(True)  # Default: abilitato
+        layout.addWidget(self.check_updates_checkbox)
+
+        # Info aggiornamenti
+        updates_info = QLabel(t("config.info.check_updates"))
+        updates_info.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; font-style: italic; padding: 5px;")
+        updates_info.setWordWrap(True)
+        layout.addWidget(updates_info)
+
         return group_box
 
     # --- Utility Functions ---
@@ -1159,6 +1170,13 @@ class ConfigTab(QWidget):
             # LOGGING
             # --------------------------------------------------
             self.debug_checkbox.setChecked(self.config['logging']['show_debug'])
+
+            # --------------------------------------------------
+            # UPDATES
+            # --------------------------------------------------
+            self.check_updates_checkbox.setChecked(
+                self.config.get('updates', {}).get('check_on_startup', True)
+            )
 
         except KeyError as e:
             raise RuntimeError(f"Configurazione incoerente: chiave mancante {e}")
@@ -1427,6 +1445,11 @@ class ConfigTab(QWidget):
             # Logging
             self.config['logging'] = {
                 'show_debug': self.debug_checkbox.isChecked()
+            }
+
+            # Updates
+            self.config['updates'] = {
+                'check_on_startup': self.check_updates_checkbox.isChecked()
             }
 
             # UI (preserva user_language, aggiorna llm_output_language)
