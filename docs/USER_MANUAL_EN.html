@@ -181,6 +181,7 @@
     <li><a href="#intro">What is OffGallery</a></li>
     <li><a href="#first-launch">First Launch</a></li>
     <li><a href="#interface">Interface Overview</a></li>
+    <li class="sub"><a href="#model-status">Model Status Indicators</a></li>
 
     <li class="section-title"><a>Main Tabs</a></li>
     <li><a href="#processing">Processing Tab</a></li>
@@ -293,6 +294,23 @@
     <tr><td><strong>Log</strong></td><td>Real-time monitoring of processing tasks</td></tr>
   </tbody>
 </table>
+
+<h2 id="model-status">3.1 Model Status Indicators</h2>
+
+<p>In the top-right corner of the main window there is a fixed bar with <strong>coloured indicators</strong> for each AI component. At a glance you can verify what is active without opening Configuration.</p>
+
+<table>
+  <thead><tr><th>Colour</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><span style="color:#2ecc71;font-weight:bold;">● Green</span></td><td>Component found and working correctly</td></tr>
+    <tr><td><span style="color:#888;font-weight:bold;">● Grey</span></td><td>Component not found or disabled</td></tr>
+    <tr><td><span style="color:#e67e22;font-weight:bold;">● Orange</span></td><td>Anomaly: component reachable but with issues (e.g. LLM model not downloaded in Ollama)</td></tr>
+  </tbody>
+</table>
+
+<p>Monitored components: <strong>CLIP</strong>, <strong>DINOv2</strong>, <strong>BioCLIP</strong>, <strong>Aesthetic</strong>, <strong>Technical</strong>, <strong>LLM Vision</strong> (Ollama), <strong>ExifTool</strong> and <strong>Database</strong>.</p>
+
+<p>The <strong>LLM</strong> indicator shows the name of the configured backend (e.g. <em>Ollama</em>) and refreshes automatically every 30 seconds: if you start Ollama after OffGallery is already open, the indicator will turn green without restarting the application.</p>
 
 <hr>
 

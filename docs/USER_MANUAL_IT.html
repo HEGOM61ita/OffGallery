@@ -354,6 +354,7 @@
     <li><a href="#intro">Cos'è OffGallery</a></li>
     <li><a href="#primo-avvio">Primo Avvio</a></li>
     <li><a href="#interfaccia">Panoramica Interfaccia</a></li>
+    <li class="sub"><a href="#stato-modelli">Indicatori di Stato Modelli</a></li>
 
     <li class="section-title"><a>Tab Principali</a></li>
     <li><a href="#elaborazione">Tab Elaborazione</a></li>
@@ -466,6 +467,23 @@
     <tr><td><strong>Log</strong></td><td>Monitoraggio in tempo reale dei processi di elaborazione</td></tr>
   </tbody>
 </table>
+
+<h2 id="stato-modelli">3.1 Indicatori di Stato Modelli</h2>
+
+<p>Nell'angolo in alto a destra della finestra principale è presente una barra fissa con <strong>indicatori colorati</strong> per ogni componente AI. A colpo d'occhio puoi verificare cosa è attivo senza entrare in Configurazione.</p>
+
+<table>
+  <thead><tr><th>Colore</th><th>Significato</th></tr></thead>
+  <tbody>
+    <tr><td><span style="color:#2ecc71;font-weight:bold;">● Verde</span></td><td>Componente trovato e funzionante</td></tr>
+    <tr><td><span style="color:#888;font-weight:bold;">● Grigio</span></td><td>Componente non trovato o disabilitato</td></tr>
+    <tr><td><span style="color:#e67e22;font-weight:bold;">● Arancio</span></td><td>Anomalia: componente raggiungibile ma con problemi (es. modello LLM non scaricato in Ollama)</td></tr>
+  </tbody>
+</table>
+
+<p>I componenti monitorati sono: <strong>CLIP</strong>, <strong>DINOv2</strong>, <strong>BioCLIP</strong>, <strong>Aesthetic</strong>, <strong>Technical</strong>, <strong>LLM Vision</strong> (Ollama), <strong>ExifTool</strong> e <strong>Database</strong>.</p>
+
+<p>L'indicatore <strong>LLM</strong> mostra il nome del backend configurato (es. <em>Ollama</em>) e si aggiorna automaticamente ogni 30 secondi: se avvii Ollama dopo aver aperto OffGallery, il led diventerà verde senza dover riavviare l'applicazione.</p>
 
 <hr>
 
