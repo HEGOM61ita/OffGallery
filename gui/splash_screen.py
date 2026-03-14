@@ -6,9 +6,10 @@ import sys
 import logging
 from datetime import datetime
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QTextEdit, QApplication, QProgressBar
+    QWidget, QVBoxLayout, QLabel, QTextEdit,
+    QApplication, QProgressBar
 )
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QEventLoop
 from PyQt6.QtGui import QFont, QPixmap
 from pathlib import Path
 
@@ -39,11 +40,7 @@ class LogCapture:
         # Aggiungi alla splash se esiste e testo non vuoto
         if text.strip() and _splash_instance:
             try:
-                # process_events=False: stesso motivo di SplashLogHandler.emit().
-                # Su Linux/WSL2, ctranslate2/spacy possono chiamare print() mentre
-                # sono ancora sul call stack nativo; processEvents() in quel momento
-                # causa segfault.
-                _splash_instance.add_log(text.rstrip(), process_events=False)
+                _splash_instance.add_log(text.rstrip())
             except:
                 # Fallback: scrivi su terminale se splash fallisce
                 if self.original:
@@ -81,25 +78,13 @@ class SplashLogHandler(logging.Handler):
         if _splash_instance:
             try:
                 msg = self.format(record)
-                # process_events=False: evita di chiamare QApplication.processEvents()
-                # dall'interno di un logging handler. Su Linux/WSL2, alcune librerie C
-                # (ctranslate2, spacy) chiamano il logger mentre sono ancora sul call
-                # stack nativo; chiamare processEvents() in quel momento causa segfault.
-                _splash_instance.add_log(msg, process_events=False)
+                _splash_instance.add_log(msg)
             except:
                 pass
 
 
 class SplashScreen(QWidget):
     """Splash screen con log di caricamento"""
-
-    # Segnale per aggiornamento thread-safe del QTextEdit.
-    # Su macOS con Metal, chiamare log_text.append() direttamente dal call stack
-    # di un C extension (torch/transformers durante l'import) può causare segfault
-    # per conflitto tra il rendering CAMetalLayer di Qt e l'inizializzazione MPS
-    # di torch. Usando un segnale, l'update del widget viene accodato nell'event
-    # loop e eseguito solo quando il main loop è libero.
-    log_signal = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
@@ -109,12 +94,12 @@ class SplashScreen(QWidget):
         self.setWindowTitle(t("splash.window.title"))
         self.setFixedSize(600, 450)
 
-        # Finestra senza bordi ma con titolo
+        # Barra di sistema nativa: il caricamento è sincrono (main thread bloccato)
+        # quindi solo i controlli gestiti dal window manager (minimizza dal taskbar)
+        # funzionano. Disabilitiamo il pulsante chiudi per evitare chiusure accidentali.
         self.setWindowFlags(
             Qt.WindowType.Window |
-            Qt.WindowType.CustomizeWindowHint |
-            Qt.WindowType.WindowTitleHint |
-            Qt.WindowType.WindowStaysOnTopHint
+            Qt.WindowType.WindowMinimizeButtonHint
         )
 
         # Centra sullo schermo
@@ -127,7 +112,8 @@ class SplashScreen(QWidget):
 
         # Contatore per progress
         self._log_count = 0
-        self.log_signal.connect(self._append_log)
+        # Guardia anti-rientranza per processEvents()
+        self._processing_events = False
 
     def _build_ui(self):
         """Costruisce interfaccia splash"""
@@ -140,7 +126,7 @@ class SplashScreen(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(20, 15, 20, 20)
 
         # Logo
         logo_path = get_app_dir() / 'assets' / 'logo3.jpg'
@@ -200,17 +186,14 @@ class SplashScreen(QWidget):
         """)
         layout.addWidget(self.log_text, 1)
 
-    def _append_log(self, message):
-        """Aggiorna il QTextEdit — eseguito SOLO dall'event loop tramite log_signal.
-        Mai chiamare direttamente: il segnale garantisce che l'update avvenga
-        quando il main loop è libero, evitando conflitti Metal/Cocoa su macOS."""
-        self.log_text.append(message)
-        self.log_text.verticalScrollBar().setValue(
-            self.log_text.verticalScrollBar().maximum()
-        )
+    def add_log(self, message):
+        """Aggiunge messaggio al log e forza aggiornamento UI.
 
-    def add_log(self, message, process_events=True):
-        """Aggiunge messaggio al log e aggiorna progress"""
+        Con caricamento sincrono il main thread è bloccato — processEvents()
+        viene chiamato qui ad ogni messaggio di log per mantenere la finestra
+        reattiva (minimizza, repaint). Una guardia anti-rientranza evita che
+        processEvents() triggeri un nuovo add_log() → processEvents() ricorsivo.
+        """
         global startup_logs
 
         # Salva nel buffer globale per LogTab
@@ -226,11 +209,11 @@ class SplashScreen(QWidget):
             level = "DEBUG"
         startup_logs.append((timestamp, level, message))
 
-        # Accoda l'update del widget tramite segnale (thread-safe, evita segfault macOS).
-        # Il segnale viene consegnato solo quando l'event loop è libero, mai
-        # durante il call stack nativo di C extension (torch MPS, ctranslate2, ecc.).
-        if QApplication.instance():
-            self.log_signal.emit(message)
+        # Aggiorna widget direttamente (siamo nel main thread, sincrono)
+        self.log_text.append(message)
+        self.log_text.verticalScrollBar().setValue(
+            self.log_text.verticalScrollBar().maximum()
+        )
 
         # Aggiorna progress (cresce con i messaggi, max 95%)
         self._log_count += 1
@@ -242,11 +225,23 @@ class SplashScreen(QWidget):
             short_msg = message[:50] + "..." if len(message) > 50 else message
             self.subtitle.setText(short_msg)
 
-        # IMPORTANTE: forza aggiornamento UI
-        # Saltato quando chiamato da SplashLogHandler per evitare segfault
-        # su Linux con ctranslate2/spacy ancora sul call stack nativo.
-        if process_events:
-            QApplication.processEvents()
+        # Forza aggiornamento UI con guardia anti-rientranza.
+        # ExcludeUserInputEvents: processa SOLO repaint/layout/timer, NON click/tastiera.
+        # Questo è il contrario di quello che servirebbe per "minimizza", ma è il flag
+        # sicuro su macOS/Linux dove processare input utente durante il call stack nativo
+        # di torch/ctranslate2 può causare segfault (re-entrance in Metal/xcb).
+        # Il pulsante minimizza del window manager funziona comunque: su tutte le
+        # piattaforme il WM gestisce la minimizzazione a livello OS, non tramite
+        # eventi Qt — il click sulla barra titolo/taskbar è intercettato dal WM prima
+        # che arrivi all'event loop dell'applicazione.
+        if not self._processing_events:
+            self._processing_events = True
+            try:
+                QApplication.processEvents(
+                    QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents
+                )
+            finally:
+                self._processing_events = False
 
     def finish(self):
         """Completa il caricamento.
@@ -326,13 +321,18 @@ def run_with_splash():
     def qt_message_filter(msg_type, context, message):
         if 'qt.imageformats.tiff' in (context.category or ''):
             return  # Ignora warning TIFF su file RAW
-        # Stampa tutti gli altri messaggi normalmente
+        if 'QBackingStore::endPaint' in message:
+            return  # Warning cosmético durante transizione splash→mainwindow, non fatale
+        # Scrivi su stdout originale per evitare loop re-entrante:
+        # print() → LogCapture.write() → splash.add_log() → Qt update → possibile
+        # nuovo messaggio Qt → print() ... Scrivendo direttamente su _original_stdout
+        # si bypassa LogCapture e si spezza il ciclo.
         if msg_type == QtMsgType.QtWarningMsg:
-            print(f"Qt Warning: {message}")
+            _original_stdout.write(f"Qt Warning: {message}\n")
         elif msg_type == QtMsgType.QtCriticalMsg:
-            print(f"Qt Critical: {message}")
+            _original_stdout.write(f"Qt Critical: {message}\n")
         elif msg_type == QtMsgType.QtFatalMsg:
-            print(f"Qt Fatal: {message}")
+            _original_stdout.write(f"Qt Fatal: {message}\n")
     qInstallMessageHandler(qt_message_filter)
 
     app = QApplication(sys.argv)
@@ -361,55 +361,56 @@ def run_with_splash():
     # Crea e mostra splash
     splash = SplashScreen()
     splash.show()
-    splash.add_log(t("splash.msg.init_loading"))
-    QApplication.processEvents()
 
-    # Import e creazione MainWindow (genera i log)
-    print(t("splash.msg.loading_modules"))
+    # Carica config per EmbeddingGenerator
+    import yaml
+    try:
+        with open("config_new.yaml", encoding="utf-8") as _f:
+            _config = yaml.safe_load(_f)
+    except Exception:
+        _config = {}
+
+    # === Caricamento sincrono nel main thread ===
+    # torch/CUDA/MKL/ctranslate2 inizializzano librerie native che NON sono
+    # thread-safe: caricarle in un thread secondario causa crash silenziosi
+    # su tutte le piattaforme (segfault Cocoa/Metal su macOS, xcb su Linux,
+    # MKL/OpenMP su Windows). Il caricamento sincrono blocca la UI ma è
+    # l'unico approccio stabile.
 
     try:
         from gui.main_window import MainWindow, shutdown_badge_manager
-    except Exception as e:
-        import traceback
-        restore_log_capture()
-        from PyQt6.QtWidgets import QMessageBox
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Icon.Critical)
-        msg.setWindowTitle(t("splash.msg.module_error_title"))
-        msg.setText(t("splash.msg.module_load_failed"))
-        msg.setDetailedText(traceback.format_exc())
-        msg.exec()
-        sys.exit(1)
+        from embedding_generator import EmbeddingGenerator
 
-    print(t("splash.msg.init_ui"))
-    try:
-        window = MainWindow()
+        splash.add_log(t("splash.msg.init_loading"))
+        emb_gen = EmbeddingGenerator(_config)
+
+        splash.add_log(t("splash.msg.init_ui"))
+        window = MainWindow(preloaded_models={
+            'embedding_generator': emb_gen,
+            'initialized': True,
+        })
+
     except Exception as e:
         import traceback
+        tb = traceback.format_exc()
         restore_log_capture()
         from PyQt6.QtWidgets import QMessageBox
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Icon.Critical)
         msg.setWindowTitle(t("splash.msg.startup_error_title"))
         msg.setText(t("splash.msg.startup_error", error=e))
-        msg.setDetailedText(traceback.format_exc())
+        msg.setDetailedText(tb)
         msg.exec()
         sys.exit(1)
 
-    # Completa splash
-    splash.finish()
-    # Nessun processEvents() qui: spacy/ctranslate2 ancora sul call stack nativo
-
-    # Breve pausa per mostrare "completato"
-    import time
-    time.sleep(0.3)
-
-    # Ripristina streams e chiudi splash
-    restore_log_capture()
-    splash.close()
-
-    # Mostra finestra principale
-    window.show()
-
+    # Transizione splash → finestra principale
+    app._main_window = window
     app.aboutToQuit.connect(shutdown_badge_manager)
+    splash.finish()
+
+    restore_log_capture()
+    window.show()
+    splash.hide()
+    splash.deleteLater()
+
     sys.exit(app.exec())

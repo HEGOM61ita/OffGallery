@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
     QLabel, QLineEdit, QPushButton, QCheckBox, QSpinBox,
     QDoubleSpinBox, QFileDialog, QMessageBox, QScrollArea,
-    QGridLayout, QTextEdit, QComboBox
+    QGridLayout, QTextEdit, QComboBox, QRadioButton, QButtonGroup
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -631,31 +631,45 @@ class ConfigTab(QWidget):
         return group_box
 
     def create_llm_vision_section(self):
-        """Crea sezione configurazione LLM Vision con controlli granulari per generazione"""
+        """Crea sezione configurazione LLM Vision con selezione backend e parametri generazione"""
         group_box = QGroupBox(t("config.group.llm_vision"))
         group_box.setObjectName("LLMVisionSection")
-
         group_box.setStyleSheet(f"""
             QGroupBox#LLMVisionSection {{
                 border: 2px solid {COLORS['ambra']};
             }}
         """)
-
         layout = QVBoxLayout()
+        layout.setSpacing(8)
 
-        # --- SEZIONE CONNESSIONE ---
+        # --- SELEZIONE BACKEND ---
+        backend_row = QHBoxLayout()
+        backend_row.addWidget(QLabel(t("config.label.llm_backend")))
+
+        self.llm_backend_group = QButtonGroup(self)
+        self.llm_radio_ollama   = QRadioButton("Ollama")
+        self.llm_radio_lmstudio = QRadioButton("LM Studio")
+        self.llm_radio_ollama.setChecked(True)
+        self.llm_backend_group.addButton(self.llm_radio_ollama,   0)
+        self.llm_backend_group.addButton(self.llm_radio_lmstudio, 1)
+        self.llm_backend_group.idClicked.connect(self._on_llm_backend_changed)
+
+        backend_row.addWidget(self.llm_radio_ollama)
+        backend_row.addWidget(self.llm_radio_lmstudio)
+        backend_row.addStretch()
+        layout.addLayout(backend_row)
+
+        # --- CONNESSIONE ---
         conn_layout = QGridLayout()
+        conn_layout.setVerticalSpacing(6)
 
-        # Endpoint con validazione
-        endpoint_layout = QHBoxLayout()
         conn_layout.addWidget(QLabel(t("config.label.llm_endpoint")), 0, 0)
+        endpoint_row = QHBoxLayout()
         self.llm_vision_endpoint = QLineEdit()
-        endpoint_layout.addWidget(self.llm_vision_endpoint)
-
-        # Bottone test connessione
+        endpoint_row.addWidget(self.llm_vision_endpoint)
         self.test_endpoint_btn = QPushButton("🔍 Test")
         self.test_endpoint_btn.setFixedWidth(60)
-        self.test_endpoint_btn.clicked.connect(self.test_ollama_connection)
+        self.test_endpoint_btn.clicked.connect(self.test_llm_connection)
         self.test_endpoint_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {COLORS['blu_petrolio_light']};
@@ -663,18 +677,15 @@ class ConfigTab(QWidget):
                 padding: 2px;
             }}
         """)
-        endpoint_layout.addWidget(self.test_endpoint_btn)
-
+        endpoint_row.addWidget(self.test_endpoint_btn)
         endpoint_widget = QWidget()
-        endpoint_widget.setLayout(endpoint_layout)
+        endpoint_widget.setLayout(endpoint_row)
         conn_layout.addWidget(endpoint_widget, 0, 1)
 
-        # Modello LLM
         conn_layout.addWidget(QLabel(t("config.label.llm_model")), 1, 0)
         self.llm_vision_model = QLineEdit()
         conn_layout.addWidget(self.llm_vision_model, 1, 1)
 
-        # Timeout
         conn_layout.addWidget(QLabel(t("config.label.llm_timeout")), 2, 0)
         self.llm_vision_timeout = NoWheelSpinBox()
         self.llm_vision_timeout.setRange(30, 600)
@@ -683,10 +694,13 @@ class ConfigTab(QWidget):
 
         layout.addLayout(conn_layout)
 
-        # --- SEZIONE PARAMETRI LLM AVANZATI ---
-        adv_group = QGroupBox(t("config.group.llm_params"))
-        adv_group.setStyleSheet(f"QGroupBox {{ color: {COLORS['grigio_medio']}; font-size: 12px; }}")
+        # --- PARAMETRI GENERAZIONE (compatti, senza groupbox annidato) ---
+        sep = QLabel(t("config.label.llm_params_sep"))
+        sep.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 11px; margin-top: 4px;")
+        layout.addWidget(sep)
+
         adv_layout = QGridLayout()
+        adv_layout.setVerticalSpacing(4)
 
         adv_layout.addWidget(QLabel("Temperature:"), 0, 0)
         self.llm_temperature = NoWheelDoubleSpinBox()
@@ -700,7 +714,7 @@ class ConfigTab(QWidget):
         adv_layout.addWidget(QLabel("Top-K:"), 0, 2)
         self.llm_top_k = NoWheelSpinBox()
         self.llm_top_k.setRange(1, 100)
-        self.llm_top_k.setValue(20)
+        self.llm_top_k.setValue(40)
         self.llm_top_k.setToolTip(t("config.tooltip.top_k"))
         adv_layout.addWidget(self.llm_top_k, 0, 3)
 
@@ -717,7 +731,7 @@ class ConfigTab(QWidget):
         self.llm_num_ctx = NoWheelSpinBox()
         self.llm_num_ctx.setRange(512, 32768)
         self.llm_num_ctx.setSingleStep(512)
-        self.llm_num_ctx.setValue(2048)
+        self.llm_num_ctx.setValue(4096)
         self.llm_num_ctx.setToolTip(t("config.tooltip.num_ctx"))
         adv_layout.addWidget(self.llm_num_ctx, 1, 1)
 
@@ -734,8 +748,6 @@ class ConfigTab(QWidget):
         self.llm_keep_alive.setToolTip(t("config.tooltip.keep_alive"))
         adv_layout.addWidget(self.llm_keep_alive, 1, 4, 1, 2)
 
-        # Lingua output LLM — in questo riquadro perché è un parametro di generazione,
-        # non una impostazione di connessione
         adv_layout.addWidget(QLabel(t("config.label.llm_output_lang")), 2, 0)
         self.llm_output_lang_combo = NoWheelComboBox()
         for code, label in [
@@ -750,11 +762,21 @@ class ConfigTab(QWidget):
         self.llm_output_lang_combo.setToolTip(t("config.tooltip.llm_output_lang"))
         adv_layout.addWidget(self.llm_output_lang_combo, 2, 1, 1, 2)
 
-        adv_group.setLayout(adv_layout)
-        layout.addWidget(adv_group)
-
+        layout.addLayout(adv_layout)
         group_box.setLayout(layout)
         return group_box
+
+    def _on_llm_backend_changed(self, btn_id: int):
+        """Aggiorna endpoint di default al cambio backend, solo se non personalizzato."""
+        _OLLAMA_DEFAULT   = 'http://localhost:11434'
+        _LMSTUDIO_DEFAULT = 'http://localhost:1234'
+        current = self.llm_vision_endpoint.text().strip()
+        if btn_id == 0:  # Ollama
+            if current == _LMSTUDIO_DEFAULT:
+                self.llm_vision_endpoint.setText(_OLLAMA_DEFAULT)
+        else:            # LM Studio
+            if current == _OLLAMA_DEFAULT:
+                self.llm_vision_endpoint.setText(_LMSTUDIO_DEFAULT)
 
     def create_image_processing_section(self):
         """Crea sezione configurazione formati file supportati"""
@@ -1054,6 +1076,11 @@ class ConfigTab(QWidget):
 
             # LLM Vision
             llm = models['llm_vision']
+            backend = llm.get('backend', 'ollama')
+            if backend == 'lmstudio':
+                self.llm_radio_lmstudio.setChecked(True)
+            else:
+                self.llm_radio_ollama.setChecked(True)
             self.llm_vision_endpoint.setText(llm['endpoint'])
             self.llm_vision_model.setText(llm['model'])
             self.llm_vision_timeout.setValue(llm['timeout'])
@@ -1314,9 +1341,11 @@ class ConfigTab(QWidget):
                 'max_tags': self.bioclip_max_tags.value(),
             }
             
+            _llm_backend = 'lmstudio' if self.llm_radio_lmstudio.isChecked() else 'ollama'
             self.config['embedding']['models']['llm_vision'] = {
-                'description': 'Genera tag, descrizioni e titoli con LLM vision (richiede Ollama)',
+                'description': 'Genera tag, descrizioni e titoli con LLM Vision',
                 'enabled': True,  # Sempre true per gallery on-demand
+                'backend': _llm_backend,
                 'endpoint': self.llm_vision_endpoint.text(),
                 'model': self.llm_vision_model.text(),
                 'timeout': self.llm_vision_timeout.value(),
@@ -1478,18 +1507,18 @@ class ConfigTab(QWidget):
             if hasattr(self, 'parent_window') and self.parent_window:
                 self.parent_window.log_info("Configurazione resettata ai valori di default")
 
-    def test_ollama_connection(self):
-        """Testa la connessione all'endpoint Ollama"""
+    def test_llm_connection(self):
+        """Testa la connessione all'endpoint LLM attivo (Ollama o LM Studio)."""
         endpoint = self.llm_vision_endpoint.text().strip()
         if not endpoint:
             QMessageBox.warning(self, t("config.msg.endpoint_empty_title"), t("config.msg.endpoint_empty_msg"))
             return
-            
+
+        is_ollama = self.llm_radio_ollama.isChecked()
+
         try:
             import requests
-            import time
-            
-            # Cambio colore bottone durante test
+
             self.test_endpoint_btn.setText("⏳")
             self.test_endpoint_btn.setStyleSheet(f"""
                 QPushButton {{
@@ -1500,16 +1529,25 @@ class ConfigTab(QWidget):
                 }}
             """)
             self.test_endpoint_btn.repaint()
-            
-            # Test connessione con timeout breve
-            response = requests.get(f"{endpoint}/api/tags", timeout=5)
-            
-            if response.status_code == 200:
-                models = response.json().get('models', [])
-                model_names = [m.get('name', 'Unknown') for m in models[:3]]  # Prime 3
-                models_text = ', '.join(model_names) if model_names else 'Nessuno'
 
-                # Successo - verde
+            # Endpoint di verifica diverso per i due backend
+            if is_ollama:
+                check_url = f"{endpoint}/api/tags"
+            else:
+                check_url = f"{endpoint}/v1/models"
+
+            response = requests.get(check_url, timeout=5)
+
+            if response.status_code == 200:
+                data = response.json()
+                if is_ollama:
+                    items = data.get('models', [])
+                    names = [m.get('name', '?') for m in items[:3]]
+                else:
+                    items = data.get('data', [])
+                    names = [m.get('id', '?') for m in items[:3]]
+                models_text = ', '.join(names) if names else t("config.msg.no_models")
+
                 self.test_endpoint_btn.setText("✓")
                 self.test_endpoint_btn.setStyleSheet(f"""
                     QPushButton {{
@@ -1519,7 +1557,6 @@ class ConfigTab(QWidget):
                         padding: 2px;
                     }}
                 """)
-
                 QMessageBox.information(
                     self,
                     t("config.msg.connection_ok_title"),
@@ -1529,7 +1566,6 @@ class ConfigTab(QWidget):
                 raise requests.RequestException(f"Status code: {response.status_code}")
 
         except Exception as e:
-            # Errore - rosso
             self.test_endpoint_btn.setText("✗")
             self.test_endpoint_btn.setStyleSheet(f"""
                 QPushButton {{
@@ -1539,16 +1575,18 @@ class ConfigTab(QWidget):
                     padding: 2px;
                 }}
             """)
-
             QMessageBox.warning(
                 self,
                 t("config.msg.connection_fail_title"),
                 t("config.msg.connection_fail_detail", error=str(e))
             )
-        
-        # Reset bottone dopo 3 secondi
+
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(3000, self.reset_test_button)
+
+    # Manteniamo il vecchio nome come alias per compatibilità con eventuali riferimenti esterni
+    def test_ollama_connection(self):
+        self.test_llm_connection()
     
     def reset_test_button(self):
         """Reset aspetto bottone test endpoint"""

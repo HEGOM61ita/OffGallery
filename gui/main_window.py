@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QStatusBar, QMessageBox,
     QSizePolicy, QLabel, QFrame, QComboBox
 )
-from PyQt6.QtCore import Qt, QSettings, pyqtSignal
+from PyQt6.QtCore import Qt, QSettings, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon, QPalette, QColor, QPixmap, QFont
 from pathlib import Path
 
@@ -156,42 +156,9 @@ class AppHeader(QFrame):
         """)
         self.subtitle_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         brand_layout.addWidget(self.subtitle_label)
-        
-        brand_layout.addStretch()
-        
-        # QWidget per il brand si espande orizzontalmente
-        brand_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        layout.addWidget(brand_widget, stretch=1)  # Stretch per occupare spazio
-        
-        # ============ MODEL VERSIONS (DESTRA) ============
-        info_widget = QWidget()
-        info_layout = QVBoxLayout(info_widget)
-        info_layout.setContentsMargins(20, 10, 0, 10)
-        info_layout.setSpacing(3)
-        
-        # Lista modelli con versioni
-        models = [
-            "CLIP v1.5.1",
-            "DINOv2 v2.0", 
-            "BioCLIP v1.0",
-            "qwen3.5:4b-q4_K_M",
-            "ChromaDB v0.4.x",
-            "Ollama v0.14.1"
-        ]
-        
-        for model in models:
-            model_label = QLabel(model)
-            model_label.setStyleSheet(f"""
-                QLabel {{
-                    font-size: 11px;
-                    color: {COLORS['grigio_medio']};
-                    font-weight: normal;
-                }}
-            """)
-            model_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-            info_layout.addWidget(model_label)
-        
-        # Selettore lingua
+        brand_layout.addSpacing(10)
+
+        # Selettore lingua — allineato a sinistra, distaccato dal sottotitolo
         self.lang_combo = QComboBox()
         self.lang_combo.setStyleSheet(f"""
             QComboBox {{
@@ -220,13 +187,98 @@ class AppHeader(QFrame):
                 self.lang_combo.setCurrentIndex(self.lang_combo.count() - 1)
 
         self.lang_combo.currentIndexChanged.connect(self._on_language_changed)
-        info_layout.addWidget(self.lang_combo, alignment=Qt.AlignmentFlag.AlignRight)
+        brand_layout.addWidget(self.lang_combo, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        brand_layout.addStretch()
+
+        # QWidget per il brand si espande orizzontalmente
+        brand_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        layout.addWidget(brand_widget, stretch=1)  # Stretch per occupare spazio
+        
+        # ============ MODEL STATUS (DESTRA) ============
+        info_widget = QWidget()
+        info_layout = QVBoxLayout(info_widget)
+        info_layout.setContentsMargins(20, 8, 0, 8)
+        info_layout.setSpacing(2)
+
+        # Indicatori modelli: id → (dot_label, text_label)
+        self._model_indicators = {}
+        _model_defs = [
+            ('clip',      'CLIP'),
+            ('dinov2',    'DINOv2'),
+            ('bioclip',   'BioCLIP'),
+            ('aesthetic', 'Aesthetic'),
+            ('technical', 'Technical'),
+            ('llm',       'Ollama'),
+            ('exiftool',  'ExifTool'),
+            ('database',  'Database'),
+        ]
+        for model_id, model_name in _model_defs:
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(5)
+
+            dot = QLabel()
+            dot.setFixedSize(8, 8)
+            dot.setStyleSheet("""
+                QLabel {
+                    background-color: #606060;
+                    border-radius: 4px;
+                }
+            """)
+
+            lbl = QLabel(model_name)
+            lbl.setStyleSheet(f"""
+                QLabel {{
+                    font-size: 11px;
+                    color: {COLORS['grigio_medio']};
+                    font-weight: normal;
+                    background: transparent;
+                }}
+            """)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+            row_layout.addStretch()
+            row_layout.addWidget(lbl)
+            row_layout.addWidget(dot)
+            info_layout.addWidget(row)
+            self._model_indicators[model_id] = (dot, lbl)
 
         info_layout.addStretch()
         info_widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(info_widget, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
     
+    # Colori semaforo
+    _STATUS_COLORS = {
+        'ok':      '#4CAF50',   # verde
+        'missing': '#606060',   # grigio
+        'warning': '#C88B2E',   # ambra/arancio
+    }
+
+    def update_model_status(self, model_id: str, status: str, label: str = None):
+        """Aggiorna il semaforo di un modello nell'header.
+
+        Args:
+            model_id: chiave del modello ('clip', 'dinov2', 'bioclip',
+                      'aesthetic', 'technical', 'llm')
+            status:   'ok' | 'missing' | 'warning'
+            label:    testo opzionale (usato per cambiare 'Ollama' → 'LM Studio')
+        """
+        if model_id not in self._model_indicators:
+            return
+        dot, lbl = self._model_indicators[model_id]
+        color = self._STATUS_COLORS.get(status, self._STATUS_COLORS['missing'])
+        dot.setStyleSheet(f"""
+            QLabel {{
+                background-color: {color};
+                border-radius: 4px;
+            }}
+        """)
+        if label:
+            lbl.setText(label)
+
     def _on_language_changed(self, index: int):
         """Emette il segnale con il codice lingua selezionato"""
         code = self.lang_combo.itemData(index)
@@ -261,20 +313,16 @@ class AppHeader(QFrame):
 class MainWindow(QMainWindow):
     """Finestra principale OffGallery"""
     
-    def __init__(self):
+    def __init__(self, preloaded_models: dict = None):
         super().__init__()
-        
+
         # Settings per salvare preferenze utente
         self.settings = QSettings('OffGallery', 'OffGalleryApp')
 
         self.config_path = Path("config_new.yaml")
-        # Setup UI
 
-        # === INIZIALIZZAZIONE MODELLI AI CENTRALIZZATA ===
+        # === CONFIGURAZIONE ===
         import yaml
-        from embedding_generator import EmbeddingGenerator
-
-        # Carica configurazione
         with open(self.config_path, 'r', encoding='utf-8') as f:
             self.config = yaml.safe_load(f)
 
@@ -283,26 +331,32 @@ class MainWindow(QMainWindow):
         user_lang = self.config.get('ui', {}).get('user_language', 'it')
         i18n_module.load_language(user_lang)
 
-        # Inizializza i modelli AI (non bloccante: l'app parte anche se fallisce)
-        self.ai_models = {'initialized': False}
-        try:
-            self.ai_models['embedding_generator'] = EmbeddingGenerator(self.config)
-            self.ai_models['initialized'] = True
-            print("✅ Modelli AI centralizzati inizializzati")
-        except Exception as e:
-            import traceback
-            print(f"⚠️ Modelli AI non inizializzati: {e}")
-            print("   L'app si avvia ugualmente. Processing non disponibile finché i modelli non sono pronti.")
-            print(traceback.format_exc())
-
-        # Warmup Ollama in background (pre-carica LLM in VRAM)
-        import threading
-        def _ollama_warmup():
+        # === MODELLI AI ===
+        if preloaded_models is not None:
+            # Modelli già inizializzati dal thread di caricamento (caso normale)
+            self.ai_models = preloaded_models
+            print("✅ Modelli AI ricevuti dal loader thread")
+        else:
+            # Fallback: inizializzazione sincrona (avvio diretto senza splash)
+            from embedding_generator import EmbeddingGenerator
+            self.ai_models = {'initialized': False}
             try:
-                self.ai_models['embedding_generator'].warmup_ollama()
+                self.ai_models['embedding_generator'] = EmbeddingGenerator(self.config)
+                self.ai_models['initialized'] = True
+                print("✅ Modelli AI inizializzati")
             except Exception as e:
-                print(f"⚠️ Ollama warmup fallito: {e}")
-        threading.Thread(target=_ollama_warmup, daemon=True).start()
+                import traceback
+                print(f"⚠️ Modelli AI non inizializzati: {e}")
+                print(traceback.format_exc())
+
+        # Warmup LLM in background (pre-carica il modello attivo in VRAM)
+        import threading
+        def _llm_warmup():
+            try:
+                self.ai_models['embedding_generator'].warmup_llm()
+            except Exception as e:
+                print(f"⚠️ LLM warmup fallito: {e}")
+        threading.Thread(target=_llm_warmup, daemon=True).start()
 
         # === INIZIALIZZAZIONE DATABASE CENTRALIZZATA ===
         from db_manager_new import DatabaseManager
@@ -493,9 +547,169 @@ class MainWindow(QMainWindow):
         self.config_tab.config_saved.connect(self._on_config_saved)
         
         layout.addWidget(self.tabs)
-        
-           
-   
+
+        # Aggiorna semafori modelli nell'header (check completo all'avvio)
+        self._update_model_status_indicators()
+
+        # Timer periodico: ricontrolla LLM e Database ogni 30 secondi
+        self._status_timer = QTimer(self)
+        self._status_timer.setInterval(30_000)
+        self._status_timer.timeout.connect(self._check_dynamic_status)
+        self._status_timer.start()
+
+    def _update_model_status_indicators(self):
+        """Legge lo stato dei modelli AI inizializzati e aggiorna i semafori nell'header."""
+        emb_gen = self.ai_models.get('embedding_generator')
+        if emb_gen is None:
+            # Nessun modello caricato: tutto grigio (default)
+            return
+
+        emb_cfg = emb_gen.embedding_config.get('models', {})
+
+        # CLIP
+        clip_ok = emb_gen.clip_model is not None
+        clip_enabled = emb_cfg.get('clip', {}).get('enabled', False)
+        if clip_ok:
+            self.header.update_model_status('clip', 'ok')
+        elif clip_enabled:
+            self.header.update_model_status('clip', 'warning')
+        else:
+            self.header.update_model_status('clip', 'missing')
+
+        # DINOv2
+        dino_ok = emb_gen.dinov2_model is not None
+        dino_enabled = emb_cfg.get('dinov2', {}).get('enabled', False)
+        if dino_ok:
+            self.header.update_model_status('dinov2', 'ok')
+        elif dino_enabled:
+            self.header.update_model_status('dinov2', 'warning')
+        else:
+            self.header.update_model_status('dinov2', 'missing')
+
+        # BioCLIP
+        bio_ok = emb_gen.bioclip_classifier is not None
+        bio_enabled = emb_cfg.get('bioclip', {}).get('enabled', False)
+        if bio_ok:
+            self.header.update_model_status('bioclip', 'ok')
+        elif bio_enabled:
+            self.header.update_model_status('bioclip', 'warning')
+        else:
+            self.header.update_model_status('bioclip', 'missing')
+
+        # Aesthetic
+        aes_ok = emb_gen.aesthetic_model is not None
+        aes_enabled = emb_cfg.get('aesthetic', {}).get('enabled', False)
+        if aes_ok:
+            self.header.update_model_status('aesthetic', 'ok')
+        elif aes_enabled:
+            self.header.update_model_status('aesthetic', 'warning')
+        else:
+            self.header.update_model_status('aesthetic', 'missing')
+
+        # Technical (MUSIQ/BRISQUE — non ha un attributo model, usa brisque_available)
+        tech_enabled = emb_cfg.get('technical', {}).get('enabled', False)
+        if getattr(emb_gen, 'brisque_available', False):
+            self.header.update_model_status('technical', 'ok')
+        elif tech_enabled:
+            self.header.update_model_status('technical', 'warning')
+        else:
+            self.header.update_model_status('technical', 'missing')
+
+        # LLM backend — label dinamica in base al plugin attivo
+        plugin = getattr(emb_gen, 'llm_plugin', None)
+        llm_enabled = emb_cfg.get('llm_vision', {}).get('enabled', False)
+        if plugin is not None:
+            plugin_class = type(plugin).__name__
+            if 'LMStudio' in plugin_class:
+                backend_label = 'LM Studio'
+            else:
+                backend_label = 'Ollama'
+            self.header.update_model_status('llm', 'ok', label=backend_label)
+        elif llm_enabled:
+            self.header.update_model_status('llm', 'warning')
+        else:
+            self.header.update_model_status('llm', 'missing')
+
+        # ExifTool — usa il check già cachato di XMPManagerExtended
+        try:
+            from xmp_manager_extended import XMPManagerExtended
+            xmp = XMPManagerExtended(self.config)
+            if xmp.exiftool_available:
+                self.header.update_model_status('exiftool', 'ok')
+            else:
+                self.header.update_model_status('exiftool', 'warning')
+        except Exception:
+            self.header.update_model_status('exiftool', 'warning')
+
+        # Database — verifica che il DB manager sia attivo e il file esista
+        if self.db_manager is not None:
+            try:
+                db_path = self.config.get('paths', {}).get('database', '')
+                from pathlib import Path as _Path
+                if db_path and _Path(db_path).exists():
+                    self.header.update_model_status('database', 'ok')
+                else:
+                    self.header.update_model_status('database', 'warning')
+            except Exception:
+                self.header.update_model_status('database', 'warning')
+        else:
+            self.header.update_model_status('database', 'missing')
+
+    def _check_dynamic_status(self):
+        """Ricontrolla in background solo gli stati che possono cambiare a runtime:
+        LLM backend (Ollama/LM Studio può andare offline) e Database.
+        Chiamato ogni 30 secondi da QTimer.
+        """
+        emb_gen = self.ai_models.get('embedding_generator')
+        if emb_gen is None:
+            return
+
+        # LLM: re-verifica disponibilità del plugin (fa un HTTP ping leggero)
+        plugin = getattr(emb_gen, 'llm_plugin', None)
+        llm_enabled = emb_gen.embedding_config.get('models', {}).get('llm_vision', {}).get('enabled', False)
+        if plugin is not None:
+            try:
+                alive = plugin.is_available()
+            except Exception:
+                alive = False
+            if alive:
+                plugin_class = type(plugin).__name__
+                label = 'LM Studio' if 'LMStudio' in plugin_class else 'Ollama'
+                self.header.update_model_status('llm', 'ok', label=label)
+            else:
+                plugin_class = type(plugin).__name__
+                label = 'LM Studio' if 'LMStudio' in plugin_class else 'Ollama'
+                self.header.update_model_status('llm', 'warning', label=label)
+        elif llm_enabled:
+            # Nessun plugin caricato ma LLM abilitato: riprova auto-detect
+            try:
+                import sys
+                from utils.paths import get_app_dir
+                _pd = str(get_app_dir() / 'plugins')
+                if _pd not in sys.path:
+                    sys.path.insert(0, _pd)
+                from plugins.loader import load_plugin
+                new_plugin = load_plugin(self.config)
+                if new_plugin:
+                    emb_gen.llm_plugin = new_plugin
+                    plugin_class = type(new_plugin).__name__
+                    label = 'LM Studio' if 'LMStudio' in plugin_class else 'Ollama'
+                    self.header.update_model_status('llm', 'ok', label=label)
+            except Exception:
+                pass
+
+        # Database: verifica accessibilità del file
+        if self.db_manager is not None:
+            try:
+                db_path = self.config.get('paths', {}).get('database', '')
+                from pathlib import Path as _Path
+                if db_path and _Path(db_path).exists():
+                    self.header.update_model_status('database', 'ok')
+                else:
+                    self.header.update_model_status('database', 'warning')
+            except Exception:
+                self.header.update_model_status('database', 'warning')
+
     def _on_config_saved(self, new_config):
         """
         Aggiorna il config in-memory dopo un salvataggio da ConfigTab.

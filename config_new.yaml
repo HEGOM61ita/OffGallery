@@ -36,7 +36,8 @@ embedding:
           enabled: false
           max_words: 10
           overwrite: true
-      description: Genera tag, descrizioni e titoli con LLM vision (richiede Ollama)
+      backend: ollama
+      description: Genera tag, descrizioni e titoli con LLM Vision
       enabled: true
       endpoint: http://localhost:11434
       generation:
@@ -235,7 +236,7 @@ models_repository:
   models_dir: Models
 paths:
   database: database/offgallery.sqlite
-  input_dir: ''
+  input_dir: D:\AI\Scripts\Descrittore\INPUT
   log_dir: logs
 search:
   fuzzy_enabled: true

@@ -59,6 +59,10 @@ class EmbeddingGenerator:
         self._tag_translator_ready = False
         self._init_tag_translator()
 
+        # Plugin LLM Vision (Ollama / LM Studio / altro)
+        self.llm_plugin = None
+        self._init_llm_plugin()
+
         # Inizializzazione selettiva
         if self.enabled:
             if initialization_mode == 'llm_only':
@@ -70,9 +74,29 @@ class EmbeddingGenerator:
 
     def _init_llm_only(self):
         """Inizializza solo componenti LLM"""
-        # LLM Vision non ha inizializzazione di modelli pesanti
-        # Usa direttamente Ollama API
+        # Il plugin viene già inizializzato in __init__ tramite _init_llm_plugin()
         logger.info("Modalità LLM only - nessun modello AI caricato")
+
+    def _init_llm_plugin(self):
+        """Carica il plugin LLM attivo dalla directory /plugins/.
+
+        Delegato interamente al loader: nessuna logica backend-specifica qui.
+        Se nessun backend è disponibile, self.llm_plugin rimane None e la
+        generazione tag/descrizione/titolo usa il codice Ollama legacy come fallback.
+        """
+        try:
+            import sys
+            from utils.paths import get_app_dir
+            _plugins_dir = str(get_app_dir() / 'plugins')
+            if _plugins_dir not in sys.path:
+                sys.path.insert(0, _plugins_dir)
+            from plugins.loader import load_plugin
+            self.llm_plugin = load_plugin(self.config)
+            if self.llm_plugin:
+                logger.debug(f"Plugin LLM caricato: {type(self.llm_plugin).__name__}")
+        except Exception as e:
+            logger.debug(f"Plugin LLM non disponibile (uso Ollama standard): {e}")
+            self.llm_plugin = None
 
     def _init_bioclip_only(self):
         """Inizializza solo BioCLIP"""
@@ -81,6 +105,14 @@ class EmbeddingGenerator:
             self._init_bioclip()
             self.bioclip_enabled = hasattr(self, 'bioclip_classifier') and self.bioclip_classifier is not   None
     
+    def warmup_llm(self):
+        """Pre-carica il modello LLM in VRAM tramite il plugin attivo."""
+        if self.llm_plugin:
+            self.llm_plugin.warmup()
+            return
+        # Fallback: codice legacy Ollama se nessun plugin disponibile
+        self.warmup_ollama()
+
     def warmup_ollama(self):
         """Pre-carica il modello LLM in VRAM di Ollama (metodo ufficiale preload)."""
         try:
@@ -1949,7 +1981,22 @@ class EmbeddingGenerator:
             # (complementare a "think": False nel payload API)
             prompt = "/no_think\n" + prompt
 
-            # --- Payload Ollama ---
+            # --- Delegazione al plugin LLM se disponibile ---
+            if self.llm_plugin:
+                params = {
+                    'model':       model,
+                    'timeout':     timeout,
+                    'keep_alive':  generation.get('keep_alive', -1),
+                    'temperature': temperature,
+                    'top_p':       top_p,
+                    'top_k':       top_k,
+                    'min_p':       min_p,
+                    'num_ctx':     num_ctx,
+                    'num_batch':   num_batch,
+                }
+                return self.llm_plugin.generate(image_data_b64, prompt, max_tokens, params)
+
+            # --- Payload Ollama (legacy fallback) ---
             keep_alive = generation.get('keep_alive', -1)
             payload = {
                 "model": model,
