@@ -296,21 +296,30 @@ def restore_log_capture():
 
 def _check_for_updates(parent_window):
     """Controlla se è disponibile una nuova versione su GitHub.
-    Confronta VERSION locale con ultimo commit remoto.
-    Se diversi, mostra popup informativo non bloccante."""
+    Confronta versione locale con ultimo commit remoto.
+    In repo git usa git rev-parse, altrimenti legge il file VERSION."""
     try:
         from update import get_local_version, get_remote_version
         app_dir = get_app_dir()
 
-        local = get_local_version(app_dir)
+        # In repo git, la versione locale è lo SHA corrente di HEAD
+        is_git = (app_dir / '.git').exists()
+        if is_git:
+            import subprocess
+            result = subprocess.run(
+                ['git', 'rev-parse', '--short', 'HEAD'],
+                capture_output=True, text=True, cwd=str(app_dir), timeout=5
+            )
+            local = result.stdout.strip() if result.returncode == 0 else get_local_version(app_dir)
+        else:
+            local = get_local_version(app_dir)
+
         remote = get_remote_version()
 
         if remote is None or local == remote:
             return  # Nessun aggiornamento o rete non disponibile
 
-        # Scegli messaggio in base a presenza .git
         from PyQt6.QtWidgets import QMessageBox
-        is_git = (app_dir / '.git').exists()
         msg_key = "update.msg.body_git" if is_git else "update.msg.body"
         body = t(msg_key, local=local, remote=remote)
 
