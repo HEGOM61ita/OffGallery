@@ -32,6 +32,7 @@ import logging
 from gui.gallery_widgets import apply_popup_style
 from xmp_badge_manager import refresh_xmp_badges
 from utils.copy_helpers import compute_common_roots, compute_dest_path
+from utils.subprocess_utils import subprocess_creation_kwargs
 from utils.paths import get_app_dir, get_database_dir
 from i18n import t
 
@@ -1294,7 +1295,8 @@ class ExportTab(QWidget):
                             try:
                                 hier_result = subprocess.run(
                                     ['exiftool', '-j', '-XMP-lr:HierarchicalSubject', str(image_file)],
-                                    capture_output=True, text=True, timeout=10
+                                    capture_output=True, text=True, timeout=10,
+                                    **subprocess_creation_kwargs()
                                 )
                                 if hier_result.returncode == 0 and hier_result.stdout.strip():
                                     hier_data = json.loads(hier_result.stdout)
@@ -1322,7 +1324,8 @@ class ExportTab(QWidget):
                     try:
                         hier_result = subprocess.run(
                             ['exiftool', '-j', '-XMP-lr:HierarchicalSubject', str(image_file)],
-                            capture_output=True, text=True, timeout=10
+                            capture_output=True, text=True, timeout=10,
+                            **subprocess_creation_kwargs()
                         )
                         if hier_result.returncode == 0 and hier_result.stdout.strip():
                             hier_data = json.loads(hier_result.stdout)
@@ -1341,7 +1344,8 @@ class ExportTab(QWidget):
                     print(f"⚠️ Errore scrittura Geo HierarchicalSubject embedded: {e}")
 
             cmd.append(str(image_file))
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
+                                    **subprocess_creation_kwargs())
 
             if result.returncode == 0:
                 return True
@@ -1403,7 +1407,8 @@ class ExportTab(QWidget):
             if sidecar_path.exists():
                 try:
                     clear_cmd = ["exiftool", "-overwrite_original", "-XMP-dc:Subject=", str(sidecar_path)]
-                    clear_result = subprocess.run(clear_cmd, capture_output=True, text=True, timeout=10)
+                    clear_result = subprocess.run(clear_cmd, capture_output=True, text=True, timeout=10,
+                                                  **subprocess_creation_kwargs())
                     if clear_result.returncode != 0:
                         print(f"❌ Errore pulizia Subject nel sidecar, export annullato per sicurezza: {clear_result.stderr}")
                         return False
@@ -1475,7 +1480,8 @@ class ExportTab(QWidget):
                                 try:
                                     hier_result = subprocess.run(
                                         ['exiftool', '-j', '-XMP-lr:HierarchicalSubject', str(sidecar_path)],
-                                        capture_output=True, text=True, timeout=10
+                                        capture_output=True, text=True, timeout=10,
+                                        **subprocess_creation_kwargs()
                                     )
                                     if hier_result.returncode == 0 and hier_result.stdout.strip():
                                         hier_data = json.loads(hier_result.stdout)
@@ -1505,7 +1511,8 @@ class ExportTab(QWidget):
                         try:
                             hier_result = subprocess.run(
                                 ['exiftool', '-j', '-XMP-lr:HierarchicalSubject', str(sidecar_path)],
-                                capture_output=True, text=True, timeout=10
+                                capture_output=True, text=True, timeout=10,
+                                **subprocess_creation_kwargs()
                             )
                             if hier_result.returncode == 0 and hier_result.stdout.strip():
                                 hier_data = json.loads(hier_result.stdout)
@@ -1524,7 +1531,8 @@ class ExportTab(QWidget):
                     print(f"⚠️ Errore scrittura Geo HierarchicalSubject sidecar: {e}")
 
             cmd.append(str(sidecar_path))
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
+                                    **subprocess_creation_kwargs())
 
             if result.returncode == 0:
                 self._update_database_sync_state(image_file, 'PERFECT_SYNC')
@@ -1570,7 +1578,8 @@ class ExportTab(QWidget):
                 "-XMP-xmp:Rating", "-XMP-xmp:Label",
                 str(xmp_path)
             ]
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10,
+                              **subprocess_creation_kwargs())
             if r.returncode == 0 and r.stdout.strip():
                 data = json.loads(r.stdout)
                 if data:
@@ -1608,7 +1617,8 @@ class ExportTab(QWidget):
             
             # Usa ExifTool per leggere keywords esistenti
             cmd = ["exiftool", "-XMP-dc:Subject", "-j", str(xmp_path)]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10,
+                                    **subprocess_creation_kwargs())
             
             if result.returncode != 0:
                 print(f"⚠️ Errore lettura XMP esistente: {result.stderr}")

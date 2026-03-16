@@ -5,11 +5,14 @@ setlocal EnableDelayedExpansion
 :: ═══════════════════════════════════════════════════════════════════
 :: OffGallery - Wizard di Installazione Unificato
 :: Esegui con doppio click per installare tutti i componenti
+:: Rileva automaticamente GPU (NVIDIA/AMD) e permette la scelta
+:: del backend LLM (Ollama o LM Studio)
 :: ═══════════════════════════════════════════════════════════════════
 
 :: === VARIABILI GLOBALI ===
 set "SCRIPT_DIR=%~dp0"
 set "APP_ROOT=%~dp0.."
+set "CONFIG_FILE=%APP_ROOT%\config_new.yaml"
 set "REQUIREMENTS=%SCRIPT_DIR%requirements_offgallery.txt"
 set "LAUNCHER=%SCRIPT_DIR%OffGallery_Launcher.bat"
 set "ENV_NAME=OffGallery"
@@ -18,17 +21,35 @@ set "MINICONDA_URL=https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows
 set "MINICONDA_INSTALLER=%TEMP%\miniconda_installer.exe"
 set "MINICONDA_DIR=C:\miniconda3"
 set "CONDA_BAT=%MINICONDA_DIR%\condabin\conda.bat"
+
+:: Ollama
 set "OLLAMA_URL=https://ollama.com/download/OllamaSetup.exe"
 set "OLLAMA_INSTALLER=%TEMP%\OllamaSetup.exe"
 set "OLLAMA_MODEL=qwen3.5:4b-q4_K_M"
+
+:: LM Studio
+set "LMSTUDIO_URL=https://lmstudio.ai/download/latest/win32/x64"
+set "LMSTUDIO_PATH=%LOCALAPPDATA%\Programs\LM Studio"
+set "LMSTUDIO_EXE=%LOCALAPPDATA%\Programs\LM Studio\LM Studio.exe"
+set "LMSTUDIO_INSTALLER=%TEMP%\lmstudio.exe"
+set "LMSTUDIO_CONFIG_SOURCE=%SCRIPT_DIR%lmstudio_settings.json"
+set "LMSTUDIO_SERVER_SOURCE=%SCRIPT_DIR%lmstudio_http-server-config.json"
+set "LMSTUDIO_CONFIG_DEST=%USERPROFILE%\.lmstudio\config.json"
+set "LMSTUDIO_SERVER_DEST=%USERPROFILE%\.lmstudio\.internal\http-server-config.json"
+set "LMSTUDIO_MODEL=qwen/qwen3-vl-4b"
+
 set "STEP_TOTAL=5"
 
 :: Flag di stato per riepilogo
 set "STATUS_MINICONDA=-"
 set "STATUS_ENV=-"
 set "STATUS_PACKAGES=-"
-set "STATUS_OLLAMA=-"
+set "STATUS_LLM=-"
+set "STATUS_LLM_MODEL=-"
 set "STATUS_SHORTCUT=-"
+set "GPU_TYPE=Nessuna"
+set "PYTORCH_VARIANT=cpu"
+set "LLM_BACKEND=none"
 
 :: ═══════════════════════════════════════════════════════════════════
 :: HEADER
@@ -50,7 +71,7 @@ echo   Componenti:
 echo     [1] Miniconda (gestore ambienti Python)
 echo     [2] Ambiente Python OffGallery
 echo     [3] Librerie Python (PyTorch, CLIP, BioCLIP, etc.)
-echo     [4] Ollama + modello LLM Vision (opzionale)
+echo     [4] Backend LLM Vision: Ollama o LM Studio (opzionale)
 echo     [5] Collegamento sul Desktop
 echo.
 echo  ----------------------------------------------------------------
@@ -59,7 +80,7 @@ echo   REQUISITI DI SISTEMA:
 echo     Sistema Operativo:  Windows 10/11 64-bit
 echo     RAM:                8 GB minimo, 16 GB consigliato
 echo     Spazio Disco:       15-25 GB liberi
-echo     GPU (opzionale):    NVIDIA con 4+ GB VRAM
+echo     GPU (opzionale):    NVIDIA con 4+ GB VRAM oppure AMD
 echo     Internet:           Necessaria per l'installazione
 echo.
 echo  ----------------------------------------------------------------
@@ -145,7 +166,7 @@ echo.
 echo   Download Miniconda (~80 MB)...
 echo.
 
-powershell -Command "& { try { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '!MINICONDA_URL!' -OutFile '!MINICONDA_INSTALLER!' -UseBasicParsing; Write-Host '  [OK] Download completato.' } catch { Write-Host '  [ERRORE] Download fallito:' $_.Exception.Message; exit 1 } }"
+powershell -NoProfile -Command "& { try { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '!MINICONDA_URL!' -OutFile '!MINICONDA_INSTALLER!' -UseBasicParsing; Write-Host '  [OK] Download completato.' } catch { Write-Host '  [ERRORE] Download fallito:' $_.Exception.Message; exit 1 } }"
 
 if !ERRORLEVEL! NEQ 0 (
     echo.
@@ -313,7 +334,7 @@ echo   [OK] Ambiente "!ENV_NAME!" creato!
 set "STATUS_ENV=Creato"
 
 :: ═══════════════════════════════════════════════════════════════════
-:: STEP 3/5: DIPENDENZE PYTHON
+:: STEP 3/5: DIPENDENZE PYTHON (con rilevamento GPU automatico)
 :: ═══════════════════════════════════════════════════════════════════
 :STEP3_PACKAGES
 set "STEP_CURRENT=3"
@@ -336,7 +357,7 @@ echo   Download stimato: ~3-4 GB
 echo   Tempo stimato: 10-20 minuti
 echo.
 echo   Componenti:
-echo     - PyTorch (GPU con CUDA se scheda NVIDIA presente, altrimenti CPU)
+echo     - PyTorch (GPU automatica se NVIDIA o AMD presente)
 echo     - Transformers (HuggingFace)
 echo     - BioCLIP (classificazione natura)
 echo     - PyQt6 (interfaccia grafica)
@@ -349,27 +370,51 @@ echo.
 echo  ----------------------------------------------------------------
 echo.
 
-:: === RILEVAMENTO SCHEDA GRAFICA NVIDIA ===
+:: === RILEVAMENTO SCHEDA GRAFICA ===
 echo   Rilevamento scheda grafica...
 set "PYTORCH_VARIANT=cpu"
 set "PYTORCH_INDEX=https://download.pytorch.org/whl/cpu"
+set "GPU_TYPE=Nessuna"
+set "INSTALL_DIRECTML=0"
 
+:: --- Prova NVIDIA prima ---
 nvidia-smi >nul 2>&1
 if !ERRORLEVEL! EQU 0 (
-    echo   [OK] Scheda NVIDIA rilevata - PyTorch installato con supporto GPU ^(CUDA 11.8^)
+    echo   [OK] Scheda NVIDIA rilevata!
+    for /f "tokens=*" %%G in ('nvidia-smi --query-gpu=name --format^=csv^,noheader 2^>nul') do echo        Modello: %%G
+    echo   PyTorch verra' installato con supporto GPU ^(CUDA 11.8^)
     set "PYTORCH_VARIANT=cu118"
     set "PYTORCH_INDEX=https://download.pytorch.org/whl/cu118"
-) else (
-    echo   [INFO] Nessuna scheda NVIDIA rilevata - PyTorch installato in modalita' CPU
-    echo         ^(se hai una GPU NVIDIA, installa prima i driver NVIDIA e riesegui^)
+    set "GPU_TYPE=NVIDIA (CUDA)"
+    goto :GPU_DETECTED
 )
+
+:: --- Prova AMD ---
+powershell -NoProfile -Command "Get-CimInstance -ClassName Win32_VideoController | Select-Object Name" 2>nul | findstr /I "AMD Radeon" >nul 2>&1
+if !ERRORLEVEL! EQU 0 (
+    echo   [OK] Scheda AMD rilevata!
+    for /f "tokens=*" %%G in ('powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match 'AMD|Radeon' } | Select-Object -ExpandProperty Name" 2^>nul') do echo        Modello: %%G
+    echo   PyTorch verra' installato con supporto GPU ^(DirectML^)
+    set "PYTORCH_VARIANT=DirectML"
+    set "PYTORCH_INDEX=https://download.pytorch.org/whl/cpu"
+    set "GPU_TYPE=AMD (DirectML)"
+    set "INSTALL_DIRECTML=1"
+    goto :GPU_DETECTED
+)
+
+:: --- Nessuna GPU dedicata ---
+echo   [INFO] Nessuna scheda grafica dedicata rilevata.
+echo          PyTorch installato in modalita' solo CPU.
+echo          ^(Se hai una GPU, installa prima i driver e riesegui^)
+
+:GPU_DETECTED
 echo.
 
-:: Aggiorna pip (usa conda run per evitare problemi con conda activate in batch)
+:: Aggiorna pip
 echo   [1/3] Aggiornamento pip...
 call "!CONDA_CMD!" run -n !ENV_NAME! python -m pip install --upgrade pip -q 2>nul
 
-:: Pre-installa PyTorch con la variante corretta (CUDA o CPU)
+:: Pre-installa PyTorch con la variante corretta
 echo   [2/3] Installazione PyTorch ^(!PYTORCH_VARIANT!^)...
 echo         ^(download ~2 GB, attendere pazientemente^)
 echo.
@@ -378,7 +423,21 @@ if !ERRORLEVEL! NEQ 0 (
     echo.
     echo   [!!] Installazione PyTorch !PYTORCH_VARIANT! fallita. Riprovo con CPU...
     echo.
+    set "PYTORCH_VARIANT=cpu"
+    set "GPU_TYPE=Nessuna (fallback CPU)"
+    set "INSTALL_DIRECTML=0"
     call "!CONDA_CMD!" run -n !ENV_NAME! pip install torch torchvision --index-url "https://download.pytorch.org/whl/cpu"
+)
+
+:: Installa torch-directml se GPU AMD rilevata
+if "!INSTALL_DIRECTML!"=="1" (
+    echo.
+    echo   Installazione torch-directml per GPU AMD...
+    call "!CONDA_CMD!" run -n !ENV_NAME! pip install torch-directml
+    if !ERRORLEVEL! NEQ 0 (
+        echo   [!!] torch-directml non installato. GPU AMD non sara' utilizzata.
+        set "GPU_TYPE=AMD (fallback CPU)"
+    )
 )
 
 :: Installa le restanti dipendenze
@@ -406,8 +465,14 @@ echo.
 echo   Verifica installazione...
 set "INSTALL_OK=1"
 
-call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import torch; print('  [OK] PyTorch', torch.__version__, '- CUDA:', 'SI' if torch.cuda.is_available() else 'NO (solo CPU)')" 2>nul
+call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import torch; print('  [OK] PyTorch', torch.__version__, '- CUDA:', 'SI' if torch.cuda.is_available() else 'NO')" 2>nul
 if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] torch non trovato & set "INSTALL_OK=0" )
+
+:: Verifica DirectML se installato
+if "!INSTALL_DIRECTML!"=="1" (
+    call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import torch_directml; print('  [OK] torch-directml - GPU AMD:', 'SI' if torch_directml.device() else 'NO')" 2>nul
+    if !ERRORLEVEL! NEQ 0 ( echo   [!!] torch-directml non verificato )
+)
 
 call "!CONDA_CMD!" run -n !ENV_NAME! python -c "from PyQt6.QtWidgets import QApplication; print('  [OK] PyQt6')" 2>nul
 if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] PyQt6 non trovato & set "INSTALL_OK=0" )
@@ -445,37 +510,50 @@ echo   [OK] Dipendenze Python installate!
 set "STATUS_PACKAGES=Installato"
 
 :: ═══════════════════════════════════════════════════════════════════
-:: STEP 4/5: OLLAMA (OPZIONALE)
+:: STEP 4/5: BACKEND LLM VISION (OPZIONALE)
 :: ═══════════════════════════════════════════════════════════════════
-:STEP4_OLLAMA
+:STEP4_LLM
 set "STEP_CURRENT=4"
 echo.
 echo  ================================================================
-echo    STEP 4/%STEP_TOTAL%: Ollama (Opzionale)
+echo    STEP 4/%STEP_TOTAL%: Backend LLM Vision (Opzionale)
 echo  ================================================================
 echo.
-echo   Ollama e' un programma per eseguire modelli LLM in locale.
-echo   Serve per generare descrizioni e tag automatici con AI.
+echo   Un backend LLM serve per generare descrizioni, tag e titoli
+echo   automatici con AI. Puoi scegliere tra:
+echo.
+echo     [1] Ollama   - Piu' diffuso, supporta molti modelli
+echo     [2] LM Studio - Interfaccia grafica, buon supporto AMD
+echo     [3] Nessuno   - Installo dopo, oppure ho gia' il mio
 echo.
 echo   Se non lo installi ora, puoi farlo in seguito.
-echo   Le funzioni di ricerca e classificazione funzionano senza Ollama.
+echo   Le funzioni di ricerca e classificazione funzionano senza.
 echo.
 
-set /p "INSTALL_OLLAMA=  Vuoi installare Ollama? (S/N): "
-if /i "!INSTALL_OLLAMA!" NEQ "S" (
-    echo.
-    echo   Ollama saltato. Potrai installarlo in seguito da:
-    echo   https://ollama.com/download
-    set "STATUS_OLLAMA=Saltato"
-    goto :STEP5_SHORTCUT
-)
+set /p "LLM_CHOICE=  Scegli [1/2/3]: "
+
+if "!LLM_CHOICE!"=="1" goto :INSTALL_OLLAMA
+if "!LLM_CHOICE!"=="2" goto :INSTALL_LMSTUDIO
+:: Qualunque altra scelta = nessuno
+echo.
+echo   Backend LLM saltato. Potrai installarlo in seguito.
+set "STATUS_LLM=Saltato"
+set "STATUS_LLM_MODEL=-"
+set "LLM_BACKEND=none"
+goto :STEP5_SHORTCUT
+
+:: -----------------------------------------------------------------
+:: INSTALLAZIONE OLLAMA
+:: -----------------------------------------------------------------
+:INSTALL_OLLAMA
+set "LLM_BACKEND=ollama"
 
 :: Verifica se Ollama e' gia' installato
 where ollama >nul 2>&1
 if !ERRORLEVEL! EQU 0 (
     echo.
     echo   [OK] Ollama gia' installato.
-    goto :STEP4_MODEL
+    goto :OLLAMA_MODEL
 )
 
 :: Download Ollama
@@ -485,14 +563,14 @@ echo.
 
 powershell -NoProfile -Command "& { try { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '!OLLAMA_URL!' -OutFile '!OLLAMA_INSTALLER!' -UseBasicParsing; Write-Host '  [OK] Download completato.' } catch { Write-Host '  [ERRORE] Download fallito:' $_.Exception.Message; exit 1 } }"
 
-:: Verifica concreta che il file sia stato scaricato
 if not exist "!OLLAMA_INSTALLER!" (
     echo.
     echo   [!!] Download Ollama fallito. Puoi installarlo manualmente da:
     echo       https://ollama.com/download
     echo.
     echo   Proseguo con gli step successivi...
-    set "STATUS_OLLAMA=Fallito"
+    set "STATUS_LLM=Fallito"
+    set "STATUS_LLM_MODEL=-"
     pause
     goto :STEP5_SHORTCUT
 )
@@ -529,14 +607,15 @@ if !ERRORLEVEL! NEQ 0 (
         echo   [!!] Ollama installato ma non trovato nel PATH.
         echo       Riavvia il computer e poi esegui:
         echo       ollama pull !OLLAMA_MODEL!
-        set "STATUS_OLLAMA=Richiede riavvio"
+        set "STATUS_LLM=Richiede riavvio"
+        set "STATUS_LLM_MODEL=-"
         goto :STEP5_SHORTCUT
     )
 )
 
 echo   [OK] Ollama installato!
 
-:STEP4_MODEL
+:OLLAMA_MODEL
 echo.
 echo   Verifica modello !OLLAMA_MODEL!...
 
@@ -552,7 +631,8 @@ for %%t in (8 5 5) do (
 ollama list 2>nul | findstr /C:"!OLLAMA_MODEL!" >nul 2>&1
 if !ERRORLEVEL! EQU 0 (
     echo   [OK] Modello !OLLAMA_MODEL! gia' installato.
-    set "STATUS_OLLAMA=Gia' presente"
+    set "STATUS_LLM=Ollama"
+    set "STATUS_LLM_MODEL=OK"
     goto :STEP5_SHORTCUT
 )
 
@@ -565,7 +645,8 @@ if /i "!PULL_MODEL!" NEQ "S" (
     echo.
     echo   Puoi scaricarlo in seguito con:
     echo   ollama pull !OLLAMA_MODEL!
-    set "STATUS_OLLAMA=Senza modello"
+    set "STATUS_LLM=Ollama (senza modello)"
+    set "STATUS_LLM_MODEL=Non scaricato"
     goto :STEP5_SHORTCUT
 )
 
@@ -579,26 +660,185 @@ if !ERRORLEVEL! NEQ 0 (
     echo.
     echo   [!!] Download modello fallito.
     echo   Puoi riprovare con: ollama pull !OLLAMA_MODEL!
-    set "STATUS_OLLAMA=Modello non scaricato"
+    set "STATUS_LLM=Ollama"
+    set "STATUS_LLM_MODEL=Non scaricato"
     pause
     goto :STEP5_SHORTCUT
 )
 
 echo.
 echo   [OK] Ollama + modello installati!
-set "STATUS_OLLAMA=Installato"
+set "STATUS_LLM=Ollama"
+set "STATUS_LLM_MODEL=OK"
+goto :STEP5_SHORTCUT
+
+:: -----------------------------------------------------------------
+:: INSTALLAZIONE LM STUDIO
+:: -----------------------------------------------------------------
+:INSTALL_LMSTUDIO
+set "LLM_BACKEND=lmstudio"
+
+:: Verifica se LM Studio e' gia' installato
+if exist "!LMSTUDIO_EXE!" (
+    echo.
+    echo   [OK] LM Studio gia' installato.
+    goto :LMSTUDIO_CONFIG
+)
+
+:: Download LM Studio
+echo.
+echo   Download LM Studio...
+echo.
+
+powershell -NoProfile -Command "& { try { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '!LMSTUDIO_URL!' -OutFile '!LMSTUDIO_INSTALLER!' -UseBasicParsing; Write-Host '  [OK] Download completato.' } catch { Write-Host '  [ERRORE] Download fallito:' $_.Exception.Message; exit 1 } }"
+
+if not exist "!LMSTUDIO_INSTALLER!" (
+    echo.
+    echo   [!!] Download LM Studio fallito. Puoi installarlo manualmente da:
+    echo       https://lmstudio.ai
+    echo.
+    echo   Proseguo con gli step successivi...
+    set "STATUS_LLM=Fallito"
+    set "STATUS_LLM_MODEL=-"
+    pause
+    goto :STEP5_SHORTCUT
+)
+
+:: Installazione LM Studio (interattiva)
+echo.
+echo   ---------------------------------------------------
+echo   ------------------  ATTENZIONE!  ------------------
+echo   ---------------------------------------------------
+echo.
+echo           Si aprira' l'installer interattivo!
+echo.
+echo     Lasciare tutte le opzioni a DEFAULT, lasciando
+echo     partire, a fine installazione, il processo di
+echo     LM Studio (sara' poi chiuso automaticamente,
+echo     per la successiva configurazione).
+echo.
+echo   ---------------------------------------------------
+echo.
+timeout /t 5 /nobreak >nul 2>&1
+start /wait "" "!LMSTUDIO_INSTALLER!" 2>nul
+
+if not exist "!LMSTUDIO_EXE!" (
+    echo.
+    echo   [!!] Installazione LM Studio fallita.
+    echo       Puoi installarlo manualmente da: https://lmstudio.ai
+    echo.
+    set "STATUS_LLM=Fallito"
+    set "STATUS_LLM_MODEL=-"
+    pause
+    goto :STEP5_SHORTCUT
+)
+
+:: Pulizia
+del /f /q "!LMSTUDIO_INSTALLER!" 2>nul
+
+:: Aggiorna PATH per questa sessione
+set "PATH=!PATH!;!LMSTUDIO_PATH!"
+
+:LMSTUDIO_CONFIG
+echo.
+echo   Configurazione LM Studio...
+
+:: Verifica che LM Studio sia stato avviato almeno una volta
+:: (necessario per creare la cartella .lmstudio)
+if exist "%USERPROFILE%\.lmstudio" (
+    goto :LMSTUDIO_COPY_CONFIG
+)
+
+:: Prima partenza di LM Studio per creare le cartelle
+powershell -NoProfile -Command "Start-Process -FilePath '!LMSTUDIO_EXE!' -WindowStyle Hidden"
+echo   Attesa prima partenza di LM Studio...
+echo.
+:WAIT_LM
+tasklist /FI "IMAGENAME eq LM Studio.exe" | find /I "LM Studio.exe" >nul
+if errorlevel 1 (
+    timeout /t 10 /nobreak >nul
+    goto :WAIT_LM
+)
+timeout /t 5 /nobreak >nul 2>&1
+echo   Chiudo LM Studio per copiare la configurazione...
+taskkill /IM "LM Studio.exe" /F >nul 2>&1
+
+:LMSTUDIO_COPY_CONFIG
+:: Copia file di configurazione per server locale auto-start
+if exist "!LMSTUDIO_CONFIG_SOURCE!" (
+    copy /Y "!LMSTUDIO_CONFIG_SOURCE!" "!LMSTUDIO_CONFIG_DEST!" >nul 2>&1
+)
+if exist "!LMSTUDIO_SERVER_SOURCE!" (
+    if not exist "%USERPROFILE%\.lmstudio\.internal" mkdir "%USERPROFILE%\.lmstudio\.internal" 2>nul
+    copy /Y "!LMSTUDIO_SERVER_SOURCE!" "!LMSTUDIO_SERVER_DEST!" >nul 2>&1
+)
+echo   [OK] Configurazione copiata.
+
+:: Download modello
+echo.
+echo   Il modello !LMSTUDIO_MODEL! non e' installato.
+echo   Dimensione download: ~3.3 GB (in due parti).
+echo   Impieghera' da 3 a 15 minuti.
+echo.
+echo   NOTA: se il modello e' gia' stato scaricato in precedenza,
+echo         puoi tranquillamente saltare questo passaggio.
+echo.
+set /p "INSTALL_MODEL=  Vuoi scaricare il modello ora? (S/N): "
+if /i "!INSTALL_MODEL!"=="S" (
+    lms get !LMSTUDIO_MODEL!
+    echo   [OK] Modello scaricato!
+    set "STATUS_LLM_MODEL=OK"
+) else (
+    echo.
+    echo   Puoi scaricarlo in seguito aprendo LM Studio
+    echo   e cercando: !LMSTUDIO_MODEL!
+    set "STATUS_LLM_MODEL=Non scaricato"
+)
+
+:: Verifica server LM Studio
+powershell -NoProfile -Command "Start-Process -FilePath '!LMSTUDIO_EXE!' -WindowStyle Hidden"
+set "LMSTUDIO_READY=0"
+for %%t in (8 5 5) do (
+    if !LMSTUDIO_READY! EQU 0 (
+        timeout /t %%t /nobreak >nul 2>&1
+        powershell -NoProfile -Command "(Invoke-WebRequest -Uri 'http://localhost:1234/v1/models' -TimeoutSec 2).StatusCode" >nul 2>&1
+        if !ERRORLEVEL! EQU 0 set "LMSTUDIO_READY=1"
+    )
+)
+if !LMSTUDIO_READY! EQU 1 (
+    echo   [OK] LM Studio server in funzione!
+    set "STATUS_LLM=LM Studio"
+) else (
+    echo   [!!] LM Studio server non risponde. Verificare manualmente.
+    set "STATUS_LLM=LM Studio (server non verificato)"
+)
+goto :STEP5_SHORTCUT
 
 :: ═══════════════════════════════════════════════════════════════════
-:: STEP 5/5: COLLEGAMENTO DESKTOP
+:: STEP 5/5: COLLEGAMENTO DESKTOP + CONFIGURAZIONE
 :: ═══════════════════════════════════════════════════════════════════
 :STEP5_SHORTCUT
 set "STEP_CURRENT=5"
 echo.
 echo  ================================================================
-echo    STEP 5/%STEP_TOTAL%: Collegamento Desktop
+echo    STEP 5/%STEP_TOTAL%: Collegamento Desktop + Configurazione
 echo  ================================================================
 echo.
 
+:: --- Scrivi backend scelto nel config_new.yaml ---
+if "!LLM_BACKEND!" NEQ "none" (
+    if exist "!CONFIG_FILE!" (
+        echo   Configurazione backend LLM: !LLM_BACKEND!
+        call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import yaml; p='!CONFIG_FILE!'.replace('\\','/'); c=yaml.safe_load(open(p,'r',encoding='utf-8')); lv=c.setdefault('embedding',{}).setdefault('llm_vision',{}); lv['backend']='!LLM_BACKEND!'; lv['endpoint']='http://localhost:1234' if '!LLM_BACKEND!'=='lmstudio' else 'http://localhost:11434'; lv['model']='!LMSTUDIO_MODEL!' if '!LLM_BACKEND!'=='lmstudio' else '!OLLAMA_MODEL!'; yaml.dump(c,open(p,'w',encoding='utf-8'),default_flow_style=False,allow_unicode=True)" 2>nul
+        if !ERRORLEVEL! EQU 0 (
+            echo   [OK] Backend '!LLM_BACKEND!' salvato in config_new.yaml
+        ) else (
+            echo   [!!] Scrittura config fallita. Puoi configurarlo da Config Tab.
+        )
+    )
+)
+
+:: --- Collegamento Desktop ---
 :: Rileva percorso Desktop reale dal registro (supporta OneDrive)
 set "DESKTOP="
 for /f "tokens=2*" %%a in ('reg query "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" /v Desktop 2^>nul') do set "DESKTOP=%%b"
@@ -655,7 +895,9 @@ echo.
 echo     Miniconda:          !STATUS_MINICONDA!
 echo     Ambiente Python:    !STATUS_ENV!
 echo     Librerie Python:    !STATUS_PACKAGES! ^(PyTorch: !PYTORCH_VARIANT!^)
-echo     Ollama:             !STATUS_OLLAMA!
+echo     GPU Rilevata:       !GPU_TYPE!
+echo     Backend LLM:        !STATUS_LLM!
+echo     Modello LLM:        !STATUS_LLM_MODEL!
 echo     Collegamento:       !STATUS_SHORTCUT!
 echo.
 echo  ----------------------------------------------------------------

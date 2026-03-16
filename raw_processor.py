@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 from PIL import Image
 from io import BytesIO
+from utils.subprocess_utils import subprocess_creation_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -531,7 +532,8 @@ class RAWProcessor:
             try:
                 result = subprocess.run(
                     ['exiftool', '-b', tag, str(file_path)],
-                    capture_output=True, timeout=15
+                    capture_output=True, timeout=15,
+                    **subprocess_creation_kwargs()
                 )
                 if result.returncode == 0 and result.stdout and len(result.stdout) > 1000:
                     try:
@@ -571,7 +573,7 @@ class RAWProcessor:
         try:
             result = subprocess.run([
                 'exiftool', '-ThumbnailImage', '-b', str(file_path)
-            ], capture_output=True, timeout=15)
+            ], capture_output=True, timeout=15, **subprocess_creation_kwargs())
             
             if result.returncode == 0 and result.stdout and len(result.stdout) > 1000:
                 # Converti bytes in PIL Image
@@ -589,7 +591,7 @@ class RAWProcessor:
         try:
             result = subprocess.run([
                 'exiftool', '-PreviewImage', '-b', str(file_path)
-            ], capture_output=True, timeout=15)
+            ], capture_output=True, timeout=15, **subprocess_creation_kwargs())
             
             if result.returncode == 0 and result.stdout and len(result.stdout) > 1000:
                 thumbnail = Image.open(BytesIO(result.stdout))
@@ -607,7 +609,8 @@ class RAWProcessor:
             try:
                 result = subprocess.run(
                     ['exiftool', '-b', tag, str(file_path)],
-                    capture_output=True, timeout=30
+                    capture_output=True, timeout=30,
+                    **subprocess_creation_kwargs()
                 )
                 if result.returncode == 0 and result.stdout and len(result.stdout) > 1000:
                     try:
@@ -658,7 +661,7 @@ class RAWProcessor:
             # -e = Includi anche tag vuoti/error
             result = subprocess.run([
                 'exiftool', '-json', '-G', '-a', '-s', '-e', str(file_path)
-            ], capture_output=True, text=True, timeout=30)
+            ], capture_output=True, text=True, timeout=30, **subprocess_creation_kwargs())
             
             if result.returncode == 0 and result.stdout:
                 data_list = json.loads(result.stdout)
@@ -691,7 +694,7 @@ class RAWProcessor:
                 # Flag coerenti con _extract_with_exiftool
                 result = subprocess.run([
                     'exiftool', '-json', '-G', '-a', '-s', '-e', str(xmp_path)
-                ], capture_output=True, text=True, timeout=15)
+                ], capture_output=True, text=True, timeout=15, **subprocess_creation_kwargs())
                 
                 if result.returncode == 0 and result.stdout:
                     data_list = json.loads(result.stdout)

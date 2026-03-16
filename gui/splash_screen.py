@@ -306,9 +306,11 @@ def _check_for_updates(parent_window):
         is_git = (app_dir / '.git').exists()
         if is_git:
             import subprocess
+            from utils.subprocess_utils import subprocess_creation_kwargs
             result = subprocess.run(
                 ['git', 'rev-parse', '--short', 'HEAD'],
-                capture_output=True, text=True, cwd=str(app_dir), timeout=5
+                capture_output=True, text=True, cwd=str(app_dir), timeout=5,
+                **subprocess_creation_kwargs()
             )
             local = result.stdout.strip() if result.returncode == 0 else get_local_version(app_dir)
         else:

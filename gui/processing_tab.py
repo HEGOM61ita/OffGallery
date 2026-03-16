@@ -345,13 +345,16 @@ class ProcessingWorker(QThread):
                 # Aggiorna stats live ogni immagine
                 self.stats_update.emit(stats.copy())
 
-                # Libera memoria GPU dopo ogni immagine (CUDA o MPS/Apple Silicon)
+                # Libera memoria GPU dopo ogni immagine (CUDA, MPS/Apple Silicon, DirectML/AMD)
                 try:
-                    import torch
+                    import torch, gc
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
                     elif torch.backends.mps.is_available():
                         torch.mps.empty_cache()
+                    else:
+                        # DirectML (AMD Windows) non ha empty_cache, forza GC
+                        gc.collect()
                 except:
                     pass
 

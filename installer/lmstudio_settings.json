@@ -1,0 +1,119 @@
+{
+  "language": "en",
+  "downloadsFolder": "",
+  "sidebar": {
+    "showButtonNames": false,
+    "monochromeSidebarIcons": true
+  },
+  "configs": {
+    "expandConfigsOnClick": true
+  },
+  "chat": {
+    "showSuggestionsOnNewChat": true,
+    "allowOnlyOneNewChat": true,
+    "alwaysShowPromptTemplate": false,
+    "useShiftEnterToSendMessage": false,
+    "useKeychordToRegenerate": true,
+    "unloadPreviousModelOnSelect": true,
+    "highlightChatMessageOnHover": true,
+    "doubleClickMessageToEdit": false,
+    "doubleClickChatCellRenames": false,
+    "aiNamingMode": "auto",
+    "autoExpandReasoningBlocks": false,
+    "reasoningBlocksVignette": true,
+    "messageGenInfoMode": "lastMessage",
+    "visualizeSpeculativeDecoding": false,
+    "chatFullWidth": false,
+    "neverAskForToolConfirmation": false,
+    "skipToolConfirmationPatterns": [],
+    "showChatUtilityMenuLabels": true,
+    "pinnedPlugins": [],
+    "showRoleAndInsertButtons": false,
+    "showSyncInputToggleInFooter": true,
+    "scrollLastMessageToTop": "scrollToTopNoLatch",
+    "showTokenCountInChatListings": false,
+    "moveDeletedItemsToTrash": false,
+    "sidebarSort": {
+      "field": "createdAt",
+      "direction": "desc"
+    },
+    "showSpringboardWhenClosingAllTabsInSplit": false,
+    "imageInputs": {
+      "userMaxImageDimensionPixelsEnabled": true,
+      "userMaxImageDimensionPixels": 2048,
+      "ignoreModelPreferredMaxImageDimension": false
+    }
+  },
+  "developer": {
+    "showExperimentalFeatures": false,
+    "experimentalLoadPresets": false,
+    "showDebugInfoBlocksInChat": false,
+    "showModelDownloadOptionData": false,
+    "showResourceConsumptionWidget": false,
+    "backendDownloadChannel": "stable",
+    "appUpdateChannel": "stable",
+    "allowDevelopmentPlugins": true,
+    "unloadPreviousJITModelOnLoad": true,
+    "jitModelTTL": {
+      "enabled": true,
+      "ttlSeconds": 3600
+    },
+    "autoUpdateExtensionPacks": true,
+    "autoDeleteExtensionPacks": true,
+    "separateReasoningContent": false,
+    "experimentFlags": [],
+    "apiPredictionHistoryEviction": {
+      "type": "time",
+      "ttlDays": 30
+    },
+    "syncedChatInputGuardrails": {
+      "syncSendMaxModels": 4,
+      "syncSendGlobalTabCap": 10
+    },
+    "syncedChatSend": {
+      "sendMode": "simultaneous"
+    },
+    "attemptedInstallLmsCliOnStartup": true
+  },
+  "ui": {
+    "missionControlFullscreen": false,
+    "showModelFileNameInMyModels": false,
+    "configureLoadParamsBeforeLoad": false,
+    "alwaysOpenModelLoaderFromPicker": false,
+    "contextDisplayMode": "percentage",
+    "appNavigationBarPosition": "left",
+    "showTabStripScrollBar": false,
+    "tabStripFullStripStyle": false,
+    "openDownloadsPaneOnStartNewModelDownload": false
+  },
+  "configPresetInclusiveness": {
+    "speculativeDecoding": false
+  },
+  "toggledConfigDropdowns": [],
+  "developerMode": true,
+  "userInterfaceComplexityLevel": 0,
+  "appFirstLoad": false,
+  "autoLoadBundledLLM": true,
+  "modelLoadingGuardrails": {
+    "mode": "high",
+    "customThresholdBytes": 4294967296,
+    "alwaysAllowLoadAnyway": false
+  },
+  "dismissedModals": [
+    "LM Link Sidebar Button Popover"
+  ],
+  "dismissedConversationSnackbars": [],
+  "pre030ChatsMigrated": 3,
+  "appPostUpdateNotificationPending": false,
+  "promptWhenCommittingUnsavedChangesWithNewFields": false,
+  "enableLocalService": true,
+  "cliInstalled": false,
+  "useHFProxy": true,
+  "hfSearchToken": "",
+  "hfDownloadToken": "",
+  "defaultContextLength": {
+    "type": "custom",
+    "value": 4096
+  },
+  "appIntroAcceptedForBuild": null
+}

@@ -17,6 +17,7 @@ Uso:
 
 import subprocess
 import sys
+from utils.subprocess_utils import subprocess_creation_kwargs
 from pathlib import Path
 from io import BytesIO
 
@@ -88,7 +89,8 @@ def extract_raw_thumbnail(filepath: Path) -> tuple:
     try:
         res = subprocess.run(
             ['exiftool', '-Orientation#', '-s3', str(filepath)],
-            capture_output=True, text=True, timeout=5
+            capture_output=True, text=True, timeout=5,
+            **subprocess_creation_kwargs()
         )
         if res.returncode == 0 and res.stdout.strip():
             orientation = int(res.stdout.strip())
@@ -100,7 +102,8 @@ def extract_raw_thumbnail(filepath: Path) -> tuple:
         try:
             res = subprocess.run(
                 ['exiftool', '-b', tag, str(filepath)],
-                capture_output=True, timeout=15
+                capture_output=True, timeout=15,
+                **subprocess_creation_kwargs()
             )
             if res.returncode == 0 and res.stdout and len(res.stdout) > 500:
                 img = Image.open(BytesIO(res.stdout))

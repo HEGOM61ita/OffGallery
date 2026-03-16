@@ -26,6 +26,7 @@ import subprocess
 import platform
 import yaml
 import os
+from utils.subprocess_utils import subprocess_creation_kwargs
 import time
 from utils.paths import get_app_dir
 from i18n import t
@@ -307,7 +308,8 @@ class _ThumbnailLoader(QRunnable):
             if self.filepath.suffix.lower() in self._RAW_EXT:
                 result = subprocess.run(
                     ['exiftool', '-b', '-PreviewImage', str(self.filepath)],
-                    capture_output=True, timeout=10
+                    capture_output=True, timeout=10,
+                    **subprocess_creation_kwargs()
                 )
                 if result.returncode == 0 and result.stdout:
                     data = result.stdout
@@ -1334,7 +1336,7 @@ class ImageCard(QFrame):
             # Apri cartelle esistenti
             for folder in folders:
                 if platform.system() == "Windows":
-                    subprocess.run(["explorer", str(folder)])
+                    subprocess.run(["explorer", str(folder)], **subprocess_creation_kwargs())
                 elif platform.system() == "Darwin":
                     subprocess.run(["open", str(folder)])
                 else:
@@ -2879,8 +2881,9 @@ class ImageCard(QFrame):
                 str(xmp_source)
             ]
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10,
+                                    **subprocess_creation_kwargs())
+
             if result.returncode != 0:
                 print(f"ExifTool error: {result.stderr}")
                 return None
