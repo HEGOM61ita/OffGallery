@@ -472,7 +472,10 @@ class GalleryTab(QWidget):
             QTimer.singleShot(100, lambda: refresh_xmp_badges(uncached, "sort_reorder"))
 
     def display_results(self, results):
-        """Mostra risultati come griglia di card"""
+        """Mostra risultati come griglia di card (creazione a batch per evitare freeze)"""
+        # Cancella eventuale batch in corso da ricerca precedente
+        self._batch_gen = getattr(self, '_batch_gen', 0) + 1
+
         # Resetta checker e badge queue prima di ogni nuova gallery
         # per liberare riferimenti a card stale di ricerche precedenti
         self.viewport_xmp_manager.reset_for_new_gallery()
@@ -488,38 +491,58 @@ class GalleryTab(QWidget):
         self.sort_combo.setCurrentIndex(0)
         self.sort_combo.blockSignals(False)
         count = len(results)
-        import time
-        start_time = time.time()
-        
+
         self.count_label.setText(t("gallery.label.count", count=count) if count > 0 else t("gallery.label.no_results_count"))
         self.selection_label.setText("")
-        
+
         has_results = count > 0
         self.select_all_btn.setEnabled(has_results)
         self.deselect_all_btn.setEnabled(False)
-        
+
         if count == 0:
             no_results = QLabel(t("gallery.label.empty_state"))
             no_results.setAlignment(Qt.AlignmentFlag.AlignCenter)
             no_results.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 14px; padding: 50px;")
             self.flow_layout.addWidget(no_results)
             return
-        
-        for image_data in results:
-            card = ImageCard(image_data, parent=self) 
+
+        # Creazione a batch: cede controllo all'event loop tra un lotto e l'altro
+        self._batch_results = list(results)
+        self._batch_index = 0
+        self._batch_size = 25
+        self._create_next_batch(self._batch_gen)
+
+    def _create_next_batch(self, gen):
+        """Crea il prossimo lotto di card, cedendo controllo all'event loop tra i lotti"""
+        if gen != self._batch_gen:
+            return
+
+        end = min(self._batch_index + self._batch_size, len(self._batch_results))
+
+        for i in range(self._batch_index, end):
+            image_data = self._batch_results[i]
+            card = ImageCard(image_data, parent=self)
             card.selection_changed.connect(self._on_item_selection_changed)
             card.find_similar_requested.connect(self.find_similar)
             card.bioclip_requested.connect(self.run_bioclip_batch)
             card.llm_tagging_requested.connect(self.run_llm_tagging_batch)
-            # Connetti segnali XMP Sync
-            
             self.cards.append(card)
             self.flow_layout.addWidget(card)
-        
-        QTimer.singleShot(10, self._do_relayout)
 
-        # Refresh badge XMP: card visibili nel viewport elaborate per prime
-        QTimer.singleShot(200, self._refresh_badges_viewport_first)
+        is_first_batch = (self._batch_index == 0)
+        self._batch_index = end
+
+        if self._batch_index < len(self._batch_results):
+            # Dopo il primo batch: relayout per mostrare subito le card visibili
+            if is_first_batch:
+                self._do_relayout()
+            QTimer.singleShot(0, lambda g=gen: self._create_next_batch(g))
+        else:
+            # Tutti i batch completati
+            self._batch_results = None  # Libera riferimento
+            QTimer.singleShot(10, self._do_relayout)
+            # Refresh badge XMP: card visibili nel viewport elaborate per prime
+            QTimer.singleShot(200, self._refresh_badges_viewport_first)
     
     def _refresh_badges_viewport_first(self):
         """
