@@ -6,9 +6,12 @@ CORRECTED: Fix ricerca semantica con embedding_generator corretto
 
 import yaml
 import sys
+import logging
 from pathlib import Path
 import json
 from i18n import t
+
+logger = logging.getLogger(__name__)
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
     QLabel, QLineEdit, QPushButton, QCheckBox,
@@ -1296,10 +1299,10 @@ class SearchTab(QWidget):
         try:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
-                print("✅ Config caricato correttamente")
+                logger.debug("Config caricato correttamente")
         except Exception as e:
             config = {}
-            print(f"⚠️ Errore caricamento config: {e}")
+            logger.warning(f"Errore caricamento config: {e}")
     
         search_config = config.get('search', {})
     
@@ -1335,16 +1338,16 @@ class SearchTab(QWidget):
             else:
                 missing_widgets.append(widget_name)
                 
-        print(f"✅ Widget esistenti: {len(all_widgets)}")
+        logger.debug(f"Widget esistenti: {len(all_widgets)}")
         if missing_widgets:
-            print(f"⚠️ Widget mancanti: {missing_widgets}")
+            logger.debug(f"Widget mancanti: {missing_widgets}")
     
         # Blocca segnali
         for w in all_widgets:
             try:
                 w.blockSignals(True)
             except Exception as e:
-                print(f"❌ Errore blocco segnali: {e}")
+                logger.debug(f"Errore blocco segnali: {e}")
                 pass
     
         reset_success = 0
@@ -1392,28 +1395,28 @@ class SearchTab(QWidget):
                     reset_success += 1
                 except Exception as e:
                     reset_errors += 1
-                    print(f"❌ Errore reset widget {widget_name}: {e}")
+                    logger.debug(f"Errore reset widget {widget_name}: {e}")
                     continue
         
-            print(f"📊 Reset completato: {reset_success} successi, {reset_errors} errori")
+            logger.debug(f"Reset completato: {reset_success} successi, {reset_errors} errori")
         
             # Date speciali con controllo sicurezza
             try:
                 if hasattr(self, "date_from") and self.date_from:
                     self.date_from.setDate(self.date_from.minimumDate())
                     self.date_from.setEnabled(False)
-                    print("✅ date_from reset")
+                    logger.debug("date_from reset")
             except Exception as e:
-                print(f"⚠️ Errore reset date_from: {e}")
+                logger.debug(f"Errore reset date_from: {e}")
                 pass
                 
             try:
                 if hasattr(self, "date_to") and self.date_to:
                     self.date_to.setDate(self.date_to.maximumDate())
                     self.date_to.setEnabled(False)
-                    print("✅ date_to reset")
+                    logger.debug("date_to reset")
             except Exception as e:
-                print(f"⚠️ Errore reset date_to: {e}")
+                logger.debug(f"Errore reset date_to: {e}")
                 pass
         
         finally:
@@ -1421,13 +1424,13 @@ class SearchTab(QWidget):
                 try:
                     w.blockSignals(False)
                 except Exception as e:
-                    print(f"❌ Errore sblocco segnali: {e}")
+                    logger.debug(f"Errore sblocco segnali: {e}")
                     pass
         
             try:
                 self.update_search_mode()
                 self.update_deep_search_mode()
-                print("✅ Modi di ricerca aggiornati")
+                logger.debug("Modi di ricerca aggiornati")
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).error(f"Errore aggiornamento modi: {e}")
