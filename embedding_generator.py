@@ -82,7 +82,7 @@ class EmbeddingGenerator:
 
         Delegato interamente al loader: nessuna logica backend-specifica qui.
         Se nessun backend è disponibile, self.llm_plugin rimane None e la
-        generazione tag/descrizione/titolo usa il codice Ollama legacy come fallback.
+        generazione tag/descrizione/titolo viene saltata con warning.
         """
         try:
             import sys
@@ -95,7 +95,7 @@ class EmbeddingGenerator:
             if self.llm_plugin:
                 logger.debug(f"Plugin LLM caricato: {type(self.llm_plugin).__name__}")
         except Exception as e:
-            logger.debug(f"Plugin LLM non disponibile (uso Ollama standard): {e}")
+            logger.debug(f"Plugin LLM non disponibile: {e}")
             self.llm_plugin = None
 
     def _init_bioclip_only(self):
@@ -109,40 +109,8 @@ class EmbeddingGenerator:
         """Pre-carica il modello LLM in VRAM tramite il plugin attivo."""
         if self.llm_plugin:
             self.llm_plugin.warmup()
-            return
-        # Fallback: codice legacy Ollama se nessun plugin disponibile
-        self.warmup_ollama()
-
-    def warmup_ollama(self):
-        """Pre-carica il modello LLM in VRAM di Ollama (metodo ufficiale preload)."""
-        try:
-            import requests
-            llm_config = self.embedding_config.get('models', {}).get('llm_vision', {})
-            if not llm_config.get('enabled', False):
-                return
-            endpoint = llm_config.get('endpoint', 'http://localhost:11434')
-            model = llm_config.get('model', 'qwen3.5:4b-q4_K_M')
-            generation = llm_config.get('generation', {})
-            keep_alive = generation.get('keep_alive', -1)
-            # Metodo ufficiale Ollama: invia solo il nome modello per forzare il preload
-            payload = {
-                "model": model,
-                "keep_alive": keep_alive,
-            }
-            logger.info(f"Warmup Ollama: preload {model} in VRAM...")
-            response = requests.post(
-                f"{endpoint}/api/generate",
-                json=payload,
-                timeout=120
-            )
-            if response.status_code == 200:
-                logger.info(f"✅ Ollama warmup completato: {model} pronto in VRAM (keep_alive={keep_alive})")
-            else:
-                logger.warning(f"⚠️ Ollama warmup fallito: HTTP {response.status_code} - {response.text[:200]}")
-        except requests.exceptions.ConnectionError:
-            logger.warning("⚠️ Ollama non raggiungibile - warmup saltato (Ollama è avviato?)")
-        except Exception as e:
-            logger.warning(f"⚠️ Ollama warmup errore: {e}")
+        else:
+            logger.warning("⚠️ Nessun plugin LLM disponibile — warmup saltato")
 
     def _get_device(self):
         """Determina device: legge config, con fallback auto-detect (CUDA > MPS > CPU)"""
@@ -1768,7 +1736,7 @@ class EmbeddingGenerator:
                 return None
 
             # Genera in IT con hint di categoria e luogo nel prompt
-            response = self._call_ollama_vision_api(image_b64, mode='description', max_description_words=max_description_words, category_hint=category_hint, location_hint=location_hint)
+            response = self._call_llm_vision(image_b64, mode='description', max_description_words=max_description_words, category_hint=category_hint, location_hint=location_hint)
 
             # Prependi nome latino da BioCLIP
             if bioclip_context and response:
@@ -1792,7 +1760,7 @@ class EmbeddingGenerator:
                 return []
 
             # Genera in IT con hint di categoria e luogo nel prompt
-            response = self._call_ollama_vision_api(image_b64, mode='tags', max_tags=max_tags, category_hint=category_hint, location_hint=location_hint)
+            response = self._call_llm_vision(image_b64, mode='tags', max_tags=max_tags, category_hint=category_hint, location_hint=location_hint)
             if response:
                 tags = self._parse_llm_tags_response(response, max_tags)
 
@@ -1819,7 +1787,7 @@ class EmbeddingGenerator:
                 return None
 
             # Genera in IT con hint di categoria e luogo nel prompt
-            response = self._call_ollama_vision_api(image_b64, mode='title', max_title_words=max_title_words, category_hint=category_hint, location_hint=location_hint)
+            response = self._call_llm_vision(image_b64, mode='title', max_title_words=max_title_words, category_hint=category_hint, location_hint=location_hint)
             if response:
                 title = response.strip().strip('"').strip("'").rstrip('.').rstrip(',').strip()
 
@@ -1876,7 +1844,7 @@ class EmbeddingGenerator:
             logger.error(f"Errore LLM content generation: {e}")
             return None
 
-    def _call_ollama_vision_api(self, image_data_b64: str, mode: str, max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5, category_hint: Optional[str] = None, location_hint: Optional[str] = None) -> Optional[str]:
+    def _call_llm_vision(self, image_data_b64: str, mode: str, max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5, category_hint: Optional[str] = None, location_hint: Optional[str] = None) -> Optional[str]:
         """Chiama API Ollama Vision (Qwen3-VL) e ritorna SOLO il contenuto finale.
 
         Args:
@@ -1995,77 +1963,29 @@ class EmbeddingGenerator:
             # (complementare a "think": False nel payload API)
             prompt = "/no_think\n" + prompt
 
-            # --- Delegazione al plugin LLM se disponibile ---
-            if self.llm_plugin:
-                params = {
-                    'model':       model,
-                    'timeout':     timeout,
-                    'keep_alive':  generation.get('keep_alive', -1),
-                    'temperature': temperature,
-                    'top_p':       top_p,
-                    'top_k':       top_k,
-                    'min_p':       min_p,
-                    'num_ctx':     num_ctx,
-                    'num_batch':   num_batch,
-                }
-                return self.llm_plugin.generate(image_data_b64, prompt, max_tokens, params)
-
-            # --- Payload Ollama (legacy fallback) ---
-            keep_alive = generation.get('keep_alive', -1)
-            payload = {
-                "model": model,
-                "prompt": prompt,
-                "images": [image_data_b64],
-                "stream": False,
-                "think": False,
-                "keep_alive": keep_alive,
-                "options": {
-                    "num_predict": max_tokens,
-                    "temperature": temperature,
-                    "top_p": top_p,
-                    "top_k": top_k,
-                    "min_p": min_p,
-                    "num_ctx": num_ctx,
-                    "num_batch": num_batch,
-                }
-            }
-
-            response = requests.post(
-                f"{endpoint}/api/generate",
-                json=payload,
-                timeout=timeout
-            )
-
-            if response.status_code != 200:
-                logger.error(f"Ollama API error: {response.status_code} - {response.text}")
+            # --- Delegazione al plugin LLM ---
+            if not self.llm_plugin:
+                logger.warning("⚠️ Nessun plugin LLM disponibile — generazione testo saltata. "
+                               "Installa Ollama o LM Studio e configura il backend in Config Tab.")
                 return None
 
-            result = response.json()
-            final_response = result.get("response", "").strip()
-
-            # Rimuovi blocchi <think>...</think> da modelli qwen3
-            final_response = self._strip_think_blocks(final_response)
-
-            return final_response
+            params = {
+                'model':       model,
+                'timeout':     timeout,
+                'keep_alive':  generation.get('keep_alive', -1),
+                'temperature': temperature,
+                'top_p':       top_p,
+                'top_k':       top_k,
+                'min_p':       min_p,
+                'num_ctx':     num_ctx,
+                'num_batch':   num_batch,
+            }
+            return self.llm_plugin.generate(image_data_b64, prompt, max_tokens, params)
 
         except Exception as e:
-            logger.error(f"Errore chiamata Ollama Vision: {e}")
+            logger.error(f"Errore chiamata LLM Vision: {e}")
             return None
 
-    @staticmethod
-    def _strip_think_blocks(text: str) -> str:
-        """Rimuovi blocchi <think>...</think> dalla risposta LLM (qwen3)."""
-        import re
-        if '<think>' in text:
-            cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-            if cleaned:
-                return cleaned
-            # Se dopo la rimozione non resta nulla, potrebbe essere un blocco non chiuso
-            if '</think>' not in text:
-                # Blocco <think> non chiuso: prendi tutto dopo <think>
-                # (il modello ha usato tutti i token per il thinking)
-                return ''
-        return text
 
 
     def _parse_llm_tags_response(self, response: str, max_tags: int = 10) -> List[str]:
