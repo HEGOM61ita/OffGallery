@@ -129,6 +129,24 @@ def apply_popup_style(widget):
     widget.setStyleSheet(POPUP_STYLE)
 
 
+# ── Cache in-memory QPixmap thumbnail (evita re-decode da disco) ──
+_thumb_pixmap_cache = {}
+_THUMB_PIXMAP_CACHE_MAX = 500
+
+
+def _get_cached_pixmap(filepath_str):
+    """Ritorna QPixmap dalla cache in-memory, o None"""
+    return _thumb_pixmap_cache.get(filepath_str)
+
+
+def _set_cached_pixmap(filepath_str, pixmap):
+    """Salva QPixmap nella cache in-memory con eviction FIFO"""
+    if len(_thumb_pixmap_cache) >= _THUMB_PIXMAP_CACHE_MAX:
+        oldest = next(iter(_thumb_pixmap_cache))
+        del _thumb_pixmap_cache[oldest]
+    _thumb_pixmap_cache[filepath_str] = pixmap
+
+
 class FlowLayout(QLayout):
     """
     FlowLayout reale con wrapping automatico.
@@ -320,23 +338,26 @@ class _ThumbnailLoader(QRunnable):
             logger.debug(f"Thumbnail load error {self.filepath.name}: {e}")
 
         if data:
-            self._populate_cache(data)
-            self.signals.loaded.emit(data)
+            thumb_bytes = self._resize_and_cache(data)
+            # Emetti bytes già ridimensionati a 150px (o originali come fallback)
+            self.signals.loaded.emit(thumb_bytes if thumb_bytes else data)
         else:
             self.signals.failed.emit()
 
-    def _populate_cache(self, data: bytes):
-        """Salva thumbnail 150px in cache (worker thread — sicuro per I/O)."""
+    def _resize_and_cache(self, data: bytes):
+        """Salva thumbnail 150px in cache disco, ritorna i bytes della thumb già ridimensionata."""
         try:
             from PIL import Image
             import io
-            from utils.thumb_cache import save_gallery_thumb
+            from utils.thumb_cache import save_gallery_thumb, load_gallery_thumb_bytes
             img = Image.open(io.BytesIO(data))
             img.load()  # Forza decodifica completa prima che BytesIO esca dallo scope
             save_gallery_thumb(self.filepath, img)
-            logger.debug(f"Cache thumbnail salvata: {self.filepath.name}")
+            # Rileggi i bytes della thumbnail appena salvata (già 150px JPEG, ~5KB)
+            return load_gallery_thumb_bytes(self.filepath)
         except Exception as e:
             logger.warning(f"Cache write fallita per {self.filepath.name}: {e}")
+            return None
 
 
 class ImageCard(QFrame):
@@ -473,7 +494,14 @@ class ImageCard(QFrame):
                 """)
                 return
 
-            # 1) CACHE HIT: lettura veloce (~5ms), sincrona nel main thread
+            # 0) CACHE IN-MEMORY (istantanea, nessun I/O disco)
+            if self.filepath:
+                cached_pm = _get_cached_pixmap(str(self.filepath))
+                if cached_pm is not None:
+                    self.thumbnail_label.setPixmap(cached_pm)
+                    return
+
+            # 1) CACHE DISCO: lettura veloce (~5ms), sincrona nel main thread
             if self.filepath:
                 try:
                     from utils.thumb_cache import load_gallery_thumb_bytes
@@ -481,6 +509,7 @@ class ImageCard(QFrame):
                     if cached_bytes:
                         pixmap = QPixmap()
                         if pixmap.loadFromData(cached_bytes):
+                            _set_cached_pixmap(str(self.filepath), pixmap)
                             self.thumbnail_label.setPixmap(pixmap)
                             return
                 except Exception as _ce:
@@ -502,16 +531,19 @@ class ImageCard(QFrame):
             self.thumbnail_label.setText("❌\nError")
 
     def _on_thumb_loaded(self, data: bytes):
-        """Riceve bytes dal worker thread, crea QPixmap nel main thread.
-        Il salvataggio cache è già avvenuto nel worker thread."""
+        """Riceve bytes dal worker thread (già 150px), crea QPixmap nel main thread."""
         pixmap = QPixmap()
         if pixmap.loadFromData(data):
-            scaled = pixmap.scaled(
-                self.THUMB_SIZE, self.THUMB_SIZE,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            self.thumbnail_label.setPixmap(scaled)
+            # I bytes sono già ridimensionati dal worker; scale solo se fallback raw
+            if pixmap.width() > self.THUMB_SIZE or pixmap.height() > self.THUMB_SIZE:
+                pixmap = pixmap.scaled(
+                    self.THUMB_SIZE, self.THUMB_SIZE,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+            if self.filepath:
+                _set_cached_pixmap(str(self.filepath), pixmap)
+            self.thumbnail_label.setPixmap(pixmap)
             self.thumbnail_label.setStyleSheet("")
         else:
             self._on_thumb_failed()
