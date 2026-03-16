@@ -1,0 +1,10 @@
+{
+  "id": "llm_ollama",
+  "name": "Ollama LLM Vision",
+  "version": "1.0.0",
+  "description": "Plugin per backend Ollama. Supporta modelli vision come qwen3-VL, llava, gemma3.",
+  "default_endpoint": "http://localhost:11434",
+  "health_check_path": "/api/tags",
+  "generate_path": "/api/generate",
+  "author": "OffGallery"
+}
