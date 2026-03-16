@@ -154,13 +154,27 @@ class EmbeddingGenerator:
                 return 'cuda' if torch.cuda.is_available() else 'cpu'
             if configured == 'mps':
                 return 'mps' if torch.backends.mps.is_available() else 'cpu'
+            if configured == 'directml':
+                try:
+                    import torch_directml
+                    return torch_directml.device()
+                except ImportError:
+                    logger.warning("torch_directml non installato, fallback su CPU")
+                    return 'cpu'
             if configured == 'cpu':
                 return 'cpu'
-            # auto: CUDA > MPS > CPU
+            # auto: CUDA > MPS > DirectML (AMD Windows) > CPU
             if torch.cuda.is_available():
                 return 'cuda'
             if torch.backends.mps.is_available():
                 return 'mps'
+            # Supporto GPU AMD su Windows via DirectML
+            try:
+                import torch_directml
+                if torch_directml.device():
+                    return torch_directml.device()
+            except ImportError:
+                pass
             return 'cpu'
         except ImportError:
             return 'cpu'

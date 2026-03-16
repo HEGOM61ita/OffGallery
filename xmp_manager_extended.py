@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List
 from enum import Enum
 import xml.etree.ElementTree as ET
+from utils.subprocess_utils import subprocess_creation_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,8 @@ class XMPManagerExtended:
         if _perl.exists() and _script.exists():
             try:
                 result = subprocess.run([str(_perl), str(_script), '-ver'],
-                                        capture_output=True, timeout=10)
+                                        capture_output=True, timeout=10,
+                                        **subprocess_creation_kwargs())
                 if result.returncode == 0:
                     version = result.stdout.decode().strip()
                     logger.info(f"✓ ExifTool bundled disponibile: v{version}")
@@ -83,7 +85,8 @@ class XMPManagerExtended:
         if _local_et.exists():
             try:
                 result = subprocess.run([str(_local_et), '-ver'],
-                                        capture_output=True, timeout=5)
+                                        capture_output=True, timeout=5,
+                                        **subprocess_creation_kwargs())
                 if result.returncode == 0:
                     version = result.stdout.decode().strip()
                     logger.info(f"✓ ExifTool locale disponibile: v{version}")
@@ -97,7 +100,8 @@ class XMPManagerExtended:
         # 3. Fallback: exiftool di sistema nel PATH
         try:
             result = subprocess.run(['exiftool', '-ver'],
-                                    capture_output=True, timeout=5)
+                                    capture_output=True, timeout=5,
+                                    **subprocess_creation_kwargs())
             if result.returncode == 0:
                 version = result.stdout.decode().strip()
                 logger.info(f"✓ ExifTool di sistema disponibile: v{version}")
@@ -283,8 +287,9 @@ class XMPManagerExtended:
             str(file_path)
         ]
             
-            result = subprocess.run(cmd, capture_output=True, timeout=30)
-            
+            result = subprocess.run(cmd, capture_output=True, timeout=30,
+                                    **subprocess_creation_kwargs())
+
             if result.returncode == 0 and result.stdout:
                 data = json.loads(result.stdout.decode())[0]
                 
@@ -344,7 +349,8 @@ class XMPManagerExtended:
             cmd.extend(self._build_exiftool_args_from_dict(xmp_dict))
             cmd.append(str(file_path))
 
-            result = subprocess.run(cmd, capture_output=True, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, timeout=30,
+                                    **subprocess_creation_kwargs())
 
             if result.returncode == 0:
                 logger.info(f"✓ XMP embedded scritto in {file_path.name}")
@@ -907,7 +913,8 @@ class XMPManagerExtended:
 
                 cmd.append(str(sidecar_path))
 
-                result = subprocess.run(cmd, capture_output=True, timeout=30)
+                result = subprocess.run(cmd, capture_output=True, timeout=30,
+                                        **subprocess_creation_kwargs())
 
                 if result.returncode == 0:
                     logger.info(f"✓ XMP sidecar scritto: {sidecar_path.name}")
@@ -931,7 +938,8 @@ class XMPManagerExtended:
         try:
             result = subprocess.run(
                 [*XMPManagerExtended._exiftool_cmd, '-j', '-XMP-dc:Subject', str(sidecar_path)],
-                capture_output=True, text=True, timeout=10
+                capture_output=True, text=True, timeout=10,
+                **subprocess_creation_kwargs()
             )
             if result.returncode != 0 or not result.stdout.strip():
                 return []
@@ -1026,7 +1034,8 @@ class XMPManagerExtended:
                 result = subprocess.run(
                     [*XMPManagerExtended._exiftool_cmd, '-j',
                      '-XMP-lr:HierarchicalSubject', str(target)],
-                    capture_output=True, text=True, timeout=10
+                    capture_output=True, text=True, timeout=10,
+                    **subprocess_creation_kwargs()
                 )
                 if result.returncode == 0 and result.stdout.strip():
                     data = json.loads(result.stdout)
@@ -1045,7 +1054,8 @@ class XMPManagerExtended:
             cmd.append(f'-XMP-lr:HierarchicalSubject+={hierarchical_path}')
             cmd.append(str(target))
 
-            result = subprocess.run(cmd, capture_output=True, timeout=15)
+            result = subprocess.run(cmd, capture_output=True, timeout=15,
+                                    **subprocess_creation_kwargs())
             if result.returncode == 0:
                 logger.info(f"✓ HierarchicalSubject BioCLIP scritto: {target.name}")
                 return True
@@ -1082,7 +1092,8 @@ class XMPManagerExtended:
                 result = subprocess.run(
                     [*XMPManagerExtended._exiftool_cmd, '-j',
                      '-XMP-lr:HierarchicalSubject', str(target)],
-                    capture_output=True, text=True, timeout=10
+                    capture_output=True, text=True, timeout=10,
+                    **subprocess_creation_kwargs()
                 )
                 if result.returncode == 0 and result.stdout.strip():
                     data = json.loads(result.stdout)
@@ -1102,7 +1113,8 @@ class XMPManagerExtended:
             cmd.append(f'-XMP-lr:HierarchicalSubject+={geo_hierarchy}')
             cmd.append(str(target))
 
-            result = subprocess.run(cmd, capture_output=True, timeout=15)
+            result = subprocess.run(cmd, capture_output=True, timeout=15,
+                                    **subprocess_creation_kwargs())
             if result.returncode == 0:
                 logger.info(f"✓ HierarchicalSubject GeOFF scritto: {target.name} → {geo_hierarchy}")
                 return True

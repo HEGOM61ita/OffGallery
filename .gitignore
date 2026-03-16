@@ -24,6 +24,14 @@
 !utils/*.py
 !catalog_readers/
 !catalog_readers/*.py
+!plugins/
+!plugins/*.py
+!plugins/llm_ollama/
+!plugins/llm_ollama/*.py
+!plugins/llm_ollama/*.json
+!plugins/llm_lmstudio/
+!plugins/llm_lmstudio/*.py
+!plugins/llm_lmstudio/*.json
 
 # Configurazione
 !*.yaml
@@ -36,6 +44,7 @@
 !installer/*.sh
 !installer/*.md
 !installer/*.txt
+!installer/*.json
 
 # Documentazione (manuale utente)
 !docs/
