@@ -321,6 +321,16 @@ def _check_for_updates(parent_window):
         if remote is None or local == remote:
             return  # Nessun aggiornamento o rete non disponibile
 
+        # In repo git: se il commit remoto è antenato del locale, siamo avanti (commit non pushati)
+        if is_git:
+            merge_base = subprocess.run(
+                ['git', 'merge-base', '--is-ancestor', remote, 'HEAD'],
+                capture_output=True, cwd=str(app_dir), timeout=5,
+                **subprocess_creation_kwargs()
+            )
+            if merge_base.returncode == 0:
+                return  # Il remoto è un antenato: siamo avanti, nessun aggiornamento necessario
+
         from PyQt6.QtWidgets import QMessageBox
         msg_key = "update.msg.body_git" if is_git else "update.msg.body"
         body = t(msg_key, local=local, remote=remote)
