@@ -921,10 +921,19 @@ Destination (e.g. E:\Backup):
 <p>Some high-efficiency RAW formats (e.g. NEF with lossless compression) do not contain an extractable JPEG preview. In these cases OffGallery saves EXIF metadata but skips embeddings and LLM. Check the Log tab for details.</p>
 
 <h3>How do I update OffGallery?</h3>
-<p>Download the new ZIP from GitHub, extract it over the existing folder (excluding the <code>database/</code> and <code>INPUT/</code> folders). The database is compatible across versions.</p>
+<p>Download the new ZIP from GitHub and extract it over the existing folder. Your data (<code>database/</code>, <code>INPUT/</code>, <code>cache/</code>) is not included in the ZIP and remains untouched. If you installed with <code>git clone</code>, just run <code>git pull</code> from the OffGallery folder.</p>
 
 <h3>Can I use a different LLM model or backend?</h3>
 <p>Yes. In Configuration you can select a different backend (Ollama or LM Studio) and change the model. Tested with Ollama: <code>qwen3.5:4b</code>, <code>llava:7b</code>, <code>minicpm-v</code>, <code>moondream</code>. With LM Studio: <code>qwen3-VL</code> (recommended). Best results with multimodal vision models.</p>
+
+<h3>How do I switch to LM Studio?</h3>
+<p>Install LM Studio, download a vision model (recommended: <code>qwen3-VL</code>) and start the server. In OffGallery, go to <strong>Configuration</strong> and select <strong>LM Studio</strong>: the endpoint updates automatically to <code>http://localhost:1234</code>. Enter the model name and click <strong>Test</strong>. No manual file editing required.</p>
+
+<h3>Does LM Studio work with NVIDIA GPUs?</h3>
+<p>Yes. LM Studio automatically detects NVIDIA GPUs and uses CUDA. No extra configuration needed. LM Studio is especially useful for <strong>AMD GPU</strong> users (DirectML support), where Ollama doesn't work well. With NVIDIA, both backends work equally well.</p>
+
+<h3>Do I need to reconfigure the LLM backend after updating?</h3>
+<p>No. If you were using Ollama, it continues to work automatically. The system detects Ollama as the default backend even if your configuration file doesn't have the backend entry yet. The backend selector appears in the Configuration tab only for those who want to switch.</p>
 
 <h3>BioCLIP data appears as keywords in Lightroom</h3>
 <p>This is expected behaviour. They appear as a separate <code>AI &gt; Taxonomy &gt; ...</code> hierarchy in Lightroom's keyword structure. They do not interfere with your own keywords.</p>
