@@ -204,6 +204,7 @@
     <li class="sub"><a href="#export-xmp">XMP Export</a></li>
     <li class="sub"><a href="#export-copy">Structured Copy</a></li>
     <li><a href="#configuration">Configuration Tab</a></li>
+    <li><a href="#llm-plugins">LLM Plugins</a></li>
     <li><a href="#log">Log Tab</a></li>
 
     <li class="section-title"><a>Advanced Concepts</a></li>
@@ -716,12 +717,13 @@ Destination (e.g. E:\Backup):
 
 <p>The Configuration tab lets you customise parameters for all AI models and application preferences. Settings are saved in <code>config_new.yaml</code>.</p>
 
-<h3>Section: LLM Connection (Ollama)</h3>
+<h3>Section: LLM Connection</h3>
 <table>
   <thead><tr><th>Parameter</th><th>Description</th><th>Default</th></tr></thead>
   <tbody>
-    <tr><td><strong>Endpoint</strong></td><td>Ollama server URL</td><td><code>http://localhost:11434</code></td></tr>
-    <tr><td><strong>Model</strong></td><td>Ollama model name</td><td><code>qwen3.5:4b-q4_K_M</code></td></tr>
+    <tr><td><strong>Backend</strong></td><td>LLM plugin to use (Ollama, LM Studio)</td><td>Ollama</td></tr>
+    <tr><td><strong>Endpoint</strong></td><td>LLM server URL</td><td>Depends on selected plugin</td></tr>
+    <tr><td><strong>Model</strong></td><td>Model name</td><td><code>qwen3.5:4b-q4_K_M</code></td></tr>
     <tr><td><strong>Timeout</strong></td><td>Maximum seconds to wait for a response</td><td>180</td></tr>
   </tbody>
 </table>
@@ -748,6 +750,38 @@ Destination (e.g. E:\Backup):
 
 <h3>Section: AI Models</h3>
 <p>Path of the AI models directory (<code>Models/</code>). Can be relative to the OffGallery root or an absolute path (e.g. on a large external drive).</p>
+
+<hr>
+
+<!-- ===== LLM PLUGINS ===== -->
+<h1 id="llm-plugins"><span class="section-number">9b</span>LLM Plugins</h1>
+
+<p>OffGallery uses a plugin system for generating tags, descriptions and titles via LLM Vision models. Plugins are auto-detected from the <code>plugins/</code> folder at startup.</p>
+
+<h3>Available plugins</h3>
+<table>
+  <thead><tr><th>Plugin</th><th>Backend</th><th>Default endpoint</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Ollama</strong></td><td>Local Ollama</td><td><code>http://localhost:11434</code></td><td>Default. Supports qwen3.5, llava, gemma3 and other vision models</td></tr>
+    <tr><td><strong>LM Studio</strong></td><td>LM Studio server</td><td><code>http://localhost:1234</code></td><td>Alternative with AMD/DirectML support. Compatible with VL models (qwen3-VL recommended)</td></tr>
+  </tbody>
+</table>
+
+<h3>Switching backends</h3>
+<ol>
+  <li>Open the <strong>Configuration</strong> tab</li>
+  <li>In the <strong>LLM Connection</strong> section, select the backend from the dropdown</li>
+  <li>Verify that endpoint and model are correct for the chosen backend</li>
+  <li>Click <strong>Test Connection</strong> to verify</li>
+</ol>
+
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>No restart required</strong>
+    <p>Switching LLM backends does not require an application restart. Tags and descriptions already in the database remain unchanged regardless of the backend used.</p>
+  </div>
+</div>
 
 <hr>
 
@@ -889,8 +923,8 @@ Destination (e.g. E:\Backup):
 <h3>How do I update OffGallery?</h3>
 <p>Download the new ZIP from GitHub, extract it over the existing folder (excluding the <code>database/</code> and <code>INPUT/</code> folders). The database is compatible across versions.</p>
 
-<h3>Can I use an LLM model other than Qwen3.5?</h3>
-<p>Yes. In Configuration you can change the Ollama model name. Tested models: <code>llava:7b</code>, <code>minicpm-v</code>, <code>moondream</code>. Best results with multimodal vision models. After switching, update the <code>num_ctx</code> and <code>top_k</code> parameters in <code>config_new.yaml</code>.</p>
+<h3>Can I use a different LLM model or backend?</h3>
+<p>Yes. In Configuration you can select a different backend (Ollama or LM Studio) and change the model. Tested with Ollama: <code>qwen3.5:4b</code>, <code>llava:7b</code>, <code>minicpm-v</code>, <code>moondream</code>. With LM Studio: <code>qwen3-VL</code> (recommended). Best results with multimodal vision models.</p>
 
 <h3>BioCLIP data appears as keywords in Lightroom</h3>
 <p>This is expected behaviour. They appear as a separate <code>AI &gt; Taxonomy &gt; ...</code> hierarchy in Lightroom's keyword structure. They do not interfere with your own keywords.</p>

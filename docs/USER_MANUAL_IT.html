@@ -377,6 +377,7 @@
     <li class="sub"><a href="#export-xmp">Export XMP</a></li>
     <li class="sub"><a href="#export-copia">Copia con Struttura</a></li>
     <li><a href="#configurazione">Tab Configurazione</a></li>
+    <li><a href="#plugin-llm">Plugin LLM</a></li>
     <li><a href="#log">Tab Log</a></li>
 
     <li class="section-title"><a>Concetti Avanzati</a></li>
@@ -890,12 +891,13 @@ Destinazione (es. E:\Backup):
 
 <p>Il tab Configurazione permette di personalizzare i parametri di tutti i modelli AI e le preferenze dell'applicazione. Le impostazioni vengono salvate in <code>config_new.yaml</code>.</p>
 
-<h3>Sezione: Connessione LLM (Ollama)</h3>
+<h3>Sezione: Connessione LLM</h3>
 <table>
   <thead><tr><th>Parametro</th><th>Descrizione</th><th>Default</th></tr></thead>
   <tbody>
-    <tr><td><strong>Endpoint</strong></td><td>URL del server Ollama</td><td><code>http://localhost:11434</code></td></tr>
-    <tr><td><strong>Modello</strong></td><td>Nome del modello Ollama</td><td><code>qwen3.5:4b-q4_K_M</code></td></tr>
+    <tr><td><strong>Backend</strong></td><td>Plugin LLM da utilizzare (Ollama, LM Studio)</td><td>Ollama</td></tr>
+    <tr><td><strong>Endpoint</strong></td><td>URL del server LLM</td><td>Dipende dal plugin selezionato</td></tr>
+    <tr><td><strong>Modello</strong></td><td>Nome del modello da utilizzare</td><td><code>qwen3.5:4b-q4_K_M</code></td></tr>
     <tr><td><strong>Timeout</strong></td><td>Secondi massimi per risposta</td><td>180</td></tr>
   </tbody>
 </table>
@@ -922,6 +924,38 @@ Destinazione (es. E:\Backup):
 
 <h3>Sezione: Modelli AI</h3>
 <p>Percorso della directory dei modelli AI (<code>Models/</code>). Può essere relativo alla root di OffGallery o un percorso assoluto (es. su un disco esterno capiente).</p>
+
+<hr>
+
+<!-- ===== PLUGIN LLM ===== -->
+<h1 id="plugin-llm"><span class="section-number">9b</span>Plugin LLM</h1>
+
+<p>OffGallery utilizza un sistema di plugin per la generazione di tag, descrizioni e titoli tramite modelli LLM Vision. I plugin vengono rilevati automaticamente dalla cartella <code>plugins/</code> all'avvio.</p>
+
+<h3>Plugin disponibili</h3>
+<table>
+  <thead><tr><th>Plugin</th><th>Backend</th><th>Endpoint default</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Ollama</strong></td><td>Ollama locale</td><td><code>http://localhost:11434</code></td><td>Default. Supporta qwen3.5, llava, gemma3 e altri modelli vision</td></tr>
+    <tr><td><strong>LM Studio</strong></td><td>LM Studio server</td><td><code>http://localhost:1234</code></td><td>Alternativa con supporto AMD/DirectML. Compatibile con modelli VL (qwen3-VL consigliato)</td></tr>
+  </tbody>
+</table>
+
+<h3>Come cambiare backend</h3>
+<ol>
+  <li>Vai nel tab <strong>Configurazione</strong></li>
+  <li>Nella sezione <strong>Connessione LLM</strong>, seleziona il backend dal menu a tendina</li>
+  <li>Verifica che endpoint e modello siano corretti per il backend scelto</li>
+  <li>Clicca <strong>Test Connessione</strong> per verificare il collegamento</li>
+</ol>
+
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>Cambio senza riavvio</strong>
+    <p>Il cambio di backend LLM non richiede il riavvio dell'applicazione. I tag e le descrizioni già generati nel database restano invariati indipendentemente dal backend utilizzato.</p>
+  </div>
+</div>
 
 <hr>
 
@@ -1063,8 +1097,8 @@ Destinazione (es. E:\Backup):
 <h3>Come aggiorno OffGallery?</h3>
 <p>Scarica il nuovo ZIP da GitHub, estrai sovrascrivendo la cartella esistente (esclusa la cartella <code>database/</code> e <code>INPUT/</code>). Il database è compatibile tra versioni.</p>
 
-<h3>Posso usare un modello LLM diverso da Qwen3.5?</h3>
-<p>Sì. In Configurazione puoi cambiare il nome del modello Ollama. Modelli testati: <code>llava:7b</code>, <code>minicpm-v</code>, <code>moondream</code>. Risultati migliori con modelli vision multimodali. Dopo il cambio, aggiorna i parametri <code>num_ctx</code> e <code>top_k</code> in <code>config_new.yaml</code>.</p>
+<h3>Posso usare un modello o backend LLM diverso?</h3>
+<p>Sì. In Configurazione puoi selezionare un backend diverso (Ollama o LM Studio) e cambiare il modello. Modelli testati con Ollama: <code>qwen3.5:4b</code>, <code>llava:7b</code>, <code>minicpm-v</code>, <code>moondream</code>. Con LM Studio: <code>qwen3-VL</code> (consigliato). Risultati migliori con modelli vision multimodali.</p>
 
 <h3>I dati BioCLIP appaiono come keyword in Lightroom</h3>
 <p>È il comportamento atteso. Appariranno come gerarchia separata <code>AI &gt; Taxonomy &gt; ...</code> nella struttura parole chiave di Lightroom. Non interferisce con le tue keyword.</p>

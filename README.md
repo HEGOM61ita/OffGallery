@@ -50,13 +50,13 @@
 
 | Data | Cosa | Note |
 |------|------|------|
-| 14 mar 2026 | **Splash screen minimizzabile** | La finestra di avvio è ora minimizzabile durante il caricamento dei modelli AI; loading stabile su Windows, macOS e Linux |
-| 10 mar 2026 | **Modalità "Solo Gen. AI"** | Nel tab Elaborazione, nuova opzione accanto a "Riprocessa tutte" per aggiornare tag, descrizione e titolo (LLM) solo sulle immagini già nel database, saltando EXIF ed embedding — utile per riscansionare una cartella con un modello LLM migliore senza rifare tutta l'analisi |
-| 7 mar 2026 | **Supporto multilingua completo** | GUI, LLM output e ricerca tag ora indipendenti: 6 lingue (IT/EN/FR/DE/ES/PT), traduzione query automatica Argostranslate offline |
-| 5 mar 2026 | **Fix segfault macOS al primo avvio** | Il launcher macOS scarica ora i modelli AI in un processo separato prima di avviare Qt, eliminando il crash "Segmentation fault: 11" che si verificava al primo avvio su tutti i Mac |
-| 3 mar 2026 | **Ricerche salvate** | Salva e richiama configurazioni di ricerca complete (query, mode, soglia, tutti i filtri EXIF/score/date) con un click; archivio in `database/saved_searches.json` |
-| 3 mar 2026 | **Nuovo modello LLM Vision: Qwen3.5 4B** | Migrazione a `qwen3.5:4b-q4_K_M` (early fusion); descrizioni più ricche; prompt ottimizzato: specie da BioCLIP, toponymi tradotti in italiano, parametri generation aggiornati (`num_ctx: 4096`, `top_k: 40`) |
-| 1 mar 2026 | **Installer macOS** | Wizard completo per Intel e Apple Silicon; Homebrew per ExifTool e Ollama; PyTorch con MPS per GPU Metal; `OffGallery.app` in `~/Applications` cercabile via Spotlight e Launchpad; percorso Miniconda configurabile dal wizard su Windows |
+| 17 mar 2026 | **Sistema Plugin LLM** | OffGallery supporta ora plugin per backend LLM alternativi. Inclusi: **Ollama** (default) e **LM Studio**. Il backend si seleziona dal tab Configurazione; i plugin vengono rilevati automaticamente dalla cartella `plugins/` |
+| 17 mar 2026 | **Gallery più veloce** | Caricamento risultati a batch progressivi e cache thumbnail in memoria: la gallery risponde subito anche con centinaia di foto |
+| 14 mar 2026 | **Splash screen minimizzabile** | La finestra di avvio è ora minimizzabile durante il caricamento dei modelli AI |
+| 10 mar 2026 | **Modalità "Solo Gen. AI"** | Aggiorna solo tag, descrizione e titolo (LLM) su foto già nel database, saltando EXIF ed embedding |
+| 7 mar 2026 | **Supporto multilingua completo** | GUI, LLM output e ricerca tag indipendenti: 6 lingue (IT/EN/FR/DE/ES/PT), traduzione automatica offline |
+| 3 mar 2026 | **Ricerche salvate** | Salva e richiama configurazioni di ricerca complete con un click |
+| 1 mar 2026 | **Installer macOS** | Wizard completo per Intel e Apple Silicon; PyTorch con MPS per Metal GPU |
 
 Storico completo nelle [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
@@ -77,6 +77,7 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 | **Ricerca similarità visiva** | Un semplice click per trovare immagini simili, doppioni, etc. |
 | **Import da catalogo Lightroom** | Elabora direttamente i file indicizzati in un catalogo `.lrcat` come sorgente di input, senza dover specificare cartelle manualmente |
 | **Integrazione Lightroom** | Sincronizzazione/export bidirezionale XMP con rating, tag e metadati. Nessun dato proprietario viene modificato |
+| **Plugin LLM** | Sistema plugin per backend LLM alternativi (Ollama, LM Studio). Auto-discovery all'avvio, cambio backend senza riavvio |
 | **Valutazione Estetica** | Score automatico della qualità artistica (0-10) |
 | **Identificazione Specie** | BioCLIP2 riconosce ~450.000 specie con tassonomia completa a 7 livelli |
 | **Geotag Offline** | Gerarchia geografica automatica da GPS: paese, regione, città — senza API esterne, dati GeoNames bundled |
@@ -98,8 +99,8 @@ Tutti i componenti girano localmente, completamente offline:
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
 │  │   CLIP   │  │  DINOv2  │  │ BioCLIP  │  │ LLM Vision       │ │
-│  │ Ricerca  │  │Similarità│  │  Flora   │  │ (Qwen3.5/Ollama) │ │
-│  │Semantica │  │  Visiva  │  │  Fauna   │  │ Tag & Descrizioni│ │
+│  │ Ricerca  │  │Similarità│  │  Flora   │  │ (Plugin: Ollama  │ │
+│  │Semantica │  │  Visiva  │  │  Fauna   │  │  o LM Studio)    │ │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ │
 │  ┌──────────────────────┐  ┌────────────────────────────────┐   │
 │  │  Aesthetic Predictor │  │  MUSIQ (Technical Quality)     │   │
@@ -126,6 +127,7 @@ OffGallery offre ricerca semantica, analisi immagini con più modelli AI, workfl
 | **Analisi AI** | CLIP · DINOv2 · BioCLIP2 · LLM Vision · Score Estetico · Score Tecnico · Geotag |
 | **Workflow Lightroom** | Import `.lrcat` · Import XMP · Export XMP gerarchico · Copia con struttura |
 | **Solo Gen. AI** | Rigenera solo tag/descrizione/titolo LLM su foto già nel DB, salta EXIF ed embedding |
+| **Plugin LLM** | Seleziona backend LLM (Ollama o LM Studio) dal tab Configurazione; plugin rilevati automaticamente |
 
 ---
 
@@ -266,6 +268,26 @@ Per la documentazione completa delle opzioni di configurazione, consulta **[CONF
 
 ---
 
+## Plugin LLM
+
+OffGallery utilizza un sistema di plugin per la generazione di tag, descrizioni e titoli tramite modelli LLM Vision. I plugin vengono rilevati automaticamente dalla cartella `plugins/` all'avvio dell'applicazione.
+
+### Plugin inclusi
+
+| Plugin | Backend | Endpoint default | Note |
+|--------|---------|------------------|------|
+| **Ollama** | Ollama locale | `http://localhost:11434` | Default. Supporta qwen3.5, llava, gemma3 e altri modelli vision |
+| **LM Studio** | LM Studio server | `http://localhost:1234` | Alternativa con supporto AMD/DirectML. Compatibile con modelli VL (qwen3-VL consigliato) |
+
+### Come usare un plugin diverso
+
+1. Vai nel tab **Configurazione**
+2. Nella sezione **Connessione LLM**, seleziona il backend desiderato dal menu a tendina
+3. Verifica che endpoint e modello siano corretti
+4. Clicca **Test Connessione** per verificare
+
+Il cambio di backend non richiede riavvio. I tag e le descrizioni già generati nel database restano invariati.
+
 ## Architettura
 
 ```
@@ -284,6 +306,9 @@ offgallery/
 ├── geo_enricher.py           # Geolocalizzazione offline GPS → GeOFF
 ├── catalog_readers/          # Lettori cataloghi esterni
 │   └── lightroom_reader.py   # Legge .lrcat (SQLite) → lista file
+├── plugins/                  # Plugin LLM (auto-discovery)
+│   ├── llm_ollama/           # Backend Ollama (default)
+│   └── llm_lmstudio/         # Backend LM Studio
 ├── utils/                    # Utility cross-platform
 │   ├── paths.py              # Path resolver (script/EXE/WSL)
 │   └── copy_helpers.py       # Copia con struttura multi-disco
@@ -442,6 +467,7 @@ A photographer's tool to catalog thousands of RAW images without sending them to
 | **Visual Similarity** | One click to find similar images or near-duplicates |
 | **Lightroom Catalog Import** | Process files directly from a `.lrcat` catalog — read-only, no catalog modification |
 | **Lightroom Integration** | Bidirectional XMP sync: ratings, tags, metadata. No proprietary data is modified |
+| **LLM Plugins** | Plugin system for alternative LLM backends (Ollama, LM Studio). Auto-discovery at startup, switch backends without restart |
 | **Aesthetic Scoring** | Automatic artistic quality score (0–10) |
 | **Species Identification** | BioCLIP2 recognizes ~450,000 species with full 7-level taxonomy |
 | **Offline Geotagging** | Automatic geographic hierarchy from GPS: continent, country, region, city — no external API, bundled GeoNames data |
@@ -459,8 +485,8 @@ All components run locally, completely offline:
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
 │  │   CLIP   │  │  DINOv2  │  │ BioCLIP  │  │ LLM Vision       │ │
-│  │ Semantic │  │  Visual  │  │  Flora   │  │ (Qwen3.5/Ollama) │ │
-│  │  Search  │  │Similarity│  │  Fauna   │  │ Tags & Captions  │ │
+│  │ Semantic │  │  Visual  │  │  Flora   │  │ (Plugin: Ollama  │ │
+│  │  Search  │  │Similarity│  │  Fauna   │  │  or LM Studio)   │ │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ │
 │  ┌──────────────────────┐  ┌────────────────────────────────┐   │
 │  │  Aesthetic Predictor │  │  MUSIQ (Technical Quality)     │   │
@@ -487,6 +513,7 @@ OffGallery provides semantic search, multi-model AI image analysis, full Lightro
 | **AI Analysis** | CLIP · DINOv2 · BioCLIP2 · LLM Vision · Aesthetic Score · Technical Score · Geotag |
 | **Lightroom Workflow** | `.lrcat` import · XMP import · Hierarchical XMP export · Structured copy |
 | **AI Gen. Only** | Regenerate tags/description/title (LLM) on existing DB photos, skip EXIF and embeddings |
+| **LLM Plugins** | Select LLM backend (Ollama or LM Studio) from the Configuration tab; plugins auto-detected |
 
 ---
 
@@ -571,13 +598,13 @@ For a full step-by-step guide see **[installer/INSTALL_GUIDE.md](installer/INSTA
 
 | Date | What | Notes |
 |------|------|-------|
-| 14 Mar 2026 | **Minimizable splash screen** | The startup loading screen can now be minimized while AI models are loading; stable on Windows, macOS and Linux |
-| 10 Mar 2026 | **"AI Gen. Only" mode** | New checkbox next to "Reprocess all" in the Processing tab — reruns LLM (tags, description, title) only on photos already in the database, skipping EXIF and embedding. Useful for updating content with a better LLM without redoing the full analysis |
-| 7 Mar 2026 | **Full multilingual support** | GUI, LLM output and tag search independently configurable: 6 languages (IT/EN/FR/DE/ES/PT), automatic offline query translation via Argostranslate |
-| 5 Mar 2026 | **macOS first-launch segfault fix** | The macOS launcher now downloads AI models in a separate process before starting Qt, eliminating the "Segmentation fault: 11" crash on first launch on all Macs |
-| 3 Mar 2026 | **Saved searches** | Save and recall complete search configurations (query, mode, threshold, all EXIF/score/date filters) in one click; archive in `database/saved_searches.json` |
-| 3 Mar 2026 | **New LLM Vision model: Qwen3.5 4B** | Migration to `qwen3.5:4b-q4_K_M` (early fusion); richer descriptions; optimised prompt with BioCLIP species and Italian place names |
-| 1 Mar 2026 | **macOS installer** | Full wizard for Intel and Apple Silicon; Homebrew for ExifTool and Ollama; PyTorch with MPS for Metal GPU; `OffGallery.app` in `~/Applications` |
+| 17 Mar 2026 | **LLM Plugin System** | OffGallery now supports plugins for alternative LLM backends. Included: **Ollama** (default) and **LM Studio**. Select the backend from the Configuration tab; plugins are auto-detected from the `plugins/` folder |
+| 17 Mar 2026 | **Faster Gallery** | Progressive batch loading and in-memory thumbnail cache: gallery responds instantly even with hundreds of photos |
+| 14 Mar 2026 | **Minimizable splash screen** | Startup loading screen can now be minimized while AI models load |
+| 10 Mar 2026 | **"AI Gen. Only" mode** | Regenerate tags/description/title (LLM) on existing DB photos, skipping EXIF and embeddings |
+| 7 Mar 2026 | **Full multilingual support** | GUI, LLM output and tag search independently configurable: 6 languages, automatic offline translation |
+| 3 Mar 2026 | **Saved searches** | Save and recall complete search configurations in one click |
+| 1 Mar 2026 | **macOS installer** | Full wizard for Intel and Apple Silicon; PyTorch with MPS for Metal GPU |
 
 Full history in [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
@@ -603,6 +630,26 @@ Typical workflow: import a folder or `.lrcat` catalog → process with AI → se
 > — Detailed description of every tab, option, badge, advanced concepts (BioCLIP, geotagging, sync state) and troubleshooting.
 
 ---
+
+## LLM Plugins
+
+OffGallery uses a plugin system for generating tags, descriptions and titles via LLM Vision models. Plugins are auto-detected from the `plugins/` folder at startup.
+
+### Included plugins
+
+| Plugin | Backend | Default endpoint | Notes |
+|--------|---------|-----------------|-------|
+| **Ollama** | Local Ollama | `http://localhost:11434` | Default. Supports qwen3.5, llava, gemma3 and other vision models |
+| **LM Studio** | LM Studio server | `http://localhost:1234` | Alternative with AMD/DirectML support. Compatible with VL models (qwen3-VL recommended) |
+
+### Switching backends
+
+1. Open the **Configuration** tab
+2. In the **LLM Connection** section, select the desired backend from the dropdown
+3. Verify that endpoint and model are correct
+4. Click **Test Connection** to verify
+
+Switching backends does not require a restart. Tags and descriptions already in the database are not affected.
 
 ## Supported Formats
 
