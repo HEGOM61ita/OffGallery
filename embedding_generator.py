@@ -39,6 +39,7 @@ class EmbeddingGenerator:
         self.brisque_model_path = None
         self.brisque_range_path = None
         self.bioclip_classifier = None
+        self.bioclip_on_cpu = False
 
         # Cache immagine LLM: evita estrazione/base64 ripetute per la stessa immagine
         self._llm_image_cache = {'source': None, 'base64': None, 'temp_path': None}
@@ -570,35 +571,58 @@ class EmbeddingGenerator:
                 except Exception as e:
                     logger.warning(f"DINOv2: cartella locale non valida ({e}), uso repo...")
 
-            # 2. Repo congelato HuggingFace
+            # 2. Repo congelato: copia file per file (evita save_pretrained che fallisce su CUDA)
             if not loaded and frozen_repo:
                 try:
-                    self.dinov2_model = AutoModel.from_pretrained(frozen_repo, subfolder=dinov2_subfolder).to(self.device)
-                    self.dinov2_processor = AutoImageProcessor.from_pretrained(frozen_repo, subfolder=dinov2_subfolder)
-                    loaded = True
-                    logger.info("[OK] DINOv2 caricato da repo")
-                    try:
-                        dinov2_local.mkdir(parents=True, exist_ok=True)
-                        self.dinov2_model.save_pretrained(str(dinov2_local))
-                        self.dinov2_processor.save_pretrained(str(dinov2_local))
-                        logger.info(f"DINOv2 salvato in {dinov2_local}")
-                    except Exception as se:
-                        logger.warning(f"DINOv2: impossibile salvare in locale ({se})")
+                    from huggingface_hub import hf_hub_download
+                    import shutil as _shutil
+
+                    dinov2_local.mkdir(parents=True, exist_ok=True)
+                    _dinov2_files = [
+                        'config.json', 'model.safetensors', 'preprocessor_config.json'
+                    ]
+                    for _fname in _dinov2_files:
+                        try:
+                            _dl = hf_hub_download(
+                                repo_id=frozen_repo,
+                                filename=f"{dinov2_subfolder}/{_fname}",
+                                repo_type="model"
+                            )
+                            _shutil.copy2(_dl, dinov2_local / _fname)
+                        except Exception:
+                            pass  # file opzionale o non presente
+
+                    if (dinov2_local / 'config.json').exists() and (dinov2_local / 'model.safetensors').exists():
+                        self.dinov2_model = AutoModel.from_pretrained(str(dinov2_local)).to(self.device)
+                        self.dinov2_processor = AutoImageProcessor.from_pretrained(str(dinov2_local))
+                        loaded = True
+                        logger.info("[OK] DINOv2 caricato da repo")
+                    else:
+                        logger.warning("DINOv2: repo congelato incompleto, uso fallback...")
                 except Exception as e:
                     logger.warning(f"DINOv2: repo congelato non disponibile ({e}), uso fallback...")
 
-            # 3. Fallback repo ufficiale
+            # 3. Fallback repo ufficiale: snapshot_download diretto in Models/dinov2/
             if not loaded:
-                self.dinov2_model = AutoModel.from_pretrained(fallback_model).to(self.device)
-                self.dinov2_processor = AutoImageProcessor.from_pretrained(fallback_model)
-                logger.info(f"[OK] DINOv2 caricato (fallback: {fallback_model})")
                 try:
+                    from huggingface_hub import snapshot_download
                     dinov2_local.mkdir(parents=True, exist_ok=True)
-                    self.dinov2_model.save_pretrained(str(dinov2_local))
-                    self.dinov2_processor.save_pretrained(str(dinov2_local))
-                    logger.info(f"DINOv2 salvato in {dinov2_local}")
-                except Exception as se:
-                    logger.warning(f"DINOv2: impossibile salvare in locale ({se})")
+                    snapshot_download(
+                        repo_id=fallback_model,
+                        local_dir=str(dinov2_local),
+                        local_dir_use_symlinks=False,
+                        ignore_patterns=['*.msgpack', '*.h5', 'rust_model.ot', 'tf_model.h5', 'flax_model.msgpack']
+                    )
+                    self.dinov2_model = AutoModel.from_pretrained(str(dinov2_local)).to(self.device)
+                    self.dinov2_processor = AutoImageProcessor.from_pretrained(str(dinov2_local))
+                    logger.info(f"[OK] DINOv2 caricato e salvato (fallback: {fallback_model})")
+                    loaded = True
+                except Exception as fe:
+                    logger.error(f"DINOv2: snapshot_download fallito ({fe}), provo from_pretrained in memoria...")
+                    self.dinov2_model = AutoModel.from_pretrained(fallback_model).to(self.device)
+                    self.dinov2_processor = AutoImageProcessor.from_pretrained(fallback_model)
+                    logger.info(f"[OK] DINOv2 caricato in memoria senza persistenza (fallback: {fallback_model})")
+                    loaded = True
 
             self.dinov2_model.eval()
             self.dinov2_enabled = True
@@ -711,12 +735,26 @@ class EmbeddingGenerator:
         """Inizializza BRISQUE per valutazione qualità tecnica"""
         try:
             import cv2
-            app_dir = get_app_dir()
+            _model_name = 'brisque_model_live.yml'
+            _range_name = 'brisque_range_live.yml'
 
-            self.brisque_model_path = app_dir / 'brisque_models' / 'brisque_model_live.yml'
-            self.brisque_range_path = app_dir / 'brisque_models' / 'brisque_range_live.yml'
+            # Cerca i file YAML bundled in più posizioni possibili
+            _candidates = [
+                get_app_dir() / 'brisque_models',                          # root progetto
+                Path(__file__).parent / 'brisque_models',                   # stessa dir di embedding_generator
+            ]
 
-            if self.brisque_model_path.exists() and self.brisque_range_path.exists():
+            self.brisque_model_path = None
+            self.brisque_range_path = None
+            for _dir in _candidates:
+                _m = _dir / _model_name
+                _r = _dir / _range_name
+                if _m.exists() and _r.exists():
+                    self.brisque_model_path = _m
+                    self.brisque_range_path = _r
+                    break
+
+            if self.brisque_model_path:
                 try:
                     cv2.quality.QualityBRISQUE_create(str(self.brisque_model_path), str(self.brisque_range_path))
                     self.brisque_available = True
@@ -724,14 +762,11 @@ class EmbeddingGenerator:
                     logger.warning(f"BRISQUE: errore caricamento modelli locali ({e})")
                     self.brisque_available = False
             else:
-                try:
-                    _ = cv2.quality.QualityBRISQUE_create()
-                    self.brisque_available = True
-                    self.brisque_model_path = None
-                    self.brisque_range_path = None
-                except Exception as e:
-                    logger.warning(f"BRISQUE: modelli non disponibili ({e})")
-                    self.brisque_available = False
+                logger.warning(
+                    f"BRISQUE: file YAML non trovati. Cercati in: "
+                    f"{[str(d) for d in _candidates]}"
+                )
+                self.brisque_available = False
 
             logger.info(f"[OK] BRISQUE: {'disponibile' if self.brisque_available else 'non disponibile'}")
 
@@ -828,17 +863,30 @@ class EmbeddingGenerator:
             # Carica da cartella locale se disponibile
             if bioclip_local_ok and treeoflife_local_ok:
                 try:
-                    # Carica modello con open_clip usando architettura ViT-L-14 e pesi locali
-                    model, _, preprocess = open_clip.create_model_and_transforms(
-                        model_name='ViT-L-14',  # Architettura BioCLIP (ViT-L/14)
-                        pretrained=str(bioclip_dir / 'open_clip_model.safetensors'),
-                        device=self.device
-                    )
+                    # Determina device per BioCLIP (fallback CPU se VRAM insufficiente)
+                    bioclip_device = self.device
+                    try:
+                        model, _, preprocess = open_clip.create_model_and_transforms(
+                            model_name='ViT-L-14',
+                            pretrained=str(bioclip_dir / 'open_clip_model.safetensors'),
+                            device=bioclip_device
+                        )
+                    except RuntimeError as vram_err:
+                        if 'not enough' in str(vram_err).lower() or 'out of memory' in str(vram_err).lower():
+                            logger.warning(f"BioCLIP: VRAM insufficiente, caricamento su CPU...")
+                            bioclip_device = 'cpu'
+                            model, _, preprocess = open_clip.create_model_and_transforms(
+                                model_name='ViT-L-14',
+                                pretrained=str(bioclip_dir / 'open_clip_model.safetensors'),
+                                device=bioclip_device
+                            )
+                        else:
+                            raise
 
                     # Carica TreeOfLife embeddings
                     txt_emb = torch.from_numpy(
                         np.load(treeoflife_dir / 'txt_emb_species.npy')
-                    ).to(self.device)
+                    ).to(bioclip_device)
 
                     # Normalizza shape: il file può essere (dim, N_specie) o (N_specie, dim)
                     # Deve essere (N_specie, dim) per matmul con image_features (1, dim)
@@ -944,18 +992,32 @@ class EmbeddingGenerator:
                                 return results
 
                     self.bioclip_classifier = LocalTreeOfLifeClassifier(
-                        model, preprocess, txt_emb, txt_names, self.device
+                        model, preprocess, txt_emb, txt_names, bioclip_device
                     )
-                    logger.info("[OK] BioCLIP caricato")
+                    self.bioclip_on_cpu = (bioclip_device == 'cpu')
+                    if self.bioclip_on_cpu:
+                        logger.info("[OK] BioCLIP caricato (CPU — VRAM insufficiente per GPU)")
+                    else:
+                        logger.info("[OK] BioCLIP caricato")
                     return True
 
                 except Exception as e:
                     logger.warning(f"BioCLIP: caricamento locale fallito ({e}), uso fallback...")
 
             # Fallback: TreeOfLifeClassifier standard (scarica da repo ufficiale)
-            self.bioclip_classifier = TreeOfLifeClassifier(device=self.device)
-            logger.info("[OK] BioCLIP caricato (fallback)")
-            return True
+            try:
+                self.bioclip_classifier = TreeOfLifeClassifier(device=self.device)
+                self.bioclip_on_cpu = False
+                logger.info("[OK] BioCLIP caricato (fallback)")
+                return True
+            except RuntimeError as vram_err:
+                if 'not enough' in str(vram_err).lower() or 'out of memory' in str(vram_err).lower():
+                    logger.warning("BioCLIP fallback: VRAM insufficiente, caricamento su CPU...")
+                    self.bioclip_classifier = TreeOfLifeClassifier(device='cpu')
+                    self.bioclip_on_cpu = True
+                    logger.info("[OK] BioCLIP caricato (fallback, CPU)")
+                    return True
+                raise
 
         except Exception as e:
             logger.error(f"BioCLIP: {e}")

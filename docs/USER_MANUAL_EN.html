@@ -303,15 +303,18 @@
 <table>
   <thead><tr><th>Colour</th><th>Meaning</th></tr></thead>
   <tbody>
-    <tr><td><span style="color:#2ecc71;font-weight:bold;">● Green</span></td><td>Component found and working correctly</td></tr>
-    <tr><td><span style="color:#888;font-weight:bold;">● Grey</span></td><td>Component not found or disabled</td></tr>
-    <tr><td><span style="color:#e67e22;font-weight:bold;">● Orange</span></td><td>Anomaly: component reachable but with issues (e.g. LLM model not downloaded in Ollama)</td></tr>
+    <tr><td><span style="color:#4CAF50;font-weight:bold;">● Green</span></td><td>Component loaded in <strong>VRAM</strong> (GPU) — optimal performance</td></tr>
+    <tr><td><span style="color:#C88B2E;font-weight:bold;">● Amber</span></td><td>Component loaded on <strong>CPU</strong> — working but slower (e.g. BioCLIP with insufficient VRAM, BRISQUE, Technical/MUSIQ)</td></tr>
+    <tr><td><span style="color:#E74C3C;font-weight:bold;">● Red</span></td><td>Component <strong>enabled but not loaded</strong> — loading error (e.g. model not found, VRAM exhausted without fallback)</td></tr>
+    <tr><td><span style="color:#606060;font-weight:bold;">● Grey</span></td><td>Component <strong>disabled</strong> in configuration</td></tr>
   </tbody>
 </table>
 
-<p>Monitored components: <strong>CLIP</strong>, <strong>DINOv2</strong>, <strong>BioCLIP</strong>, <strong>Aesthetic</strong>, <strong>Technical</strong>, <strong>LLM Vision</strong> (Ollama), <strong>ExifTool</strong> and <strong>Database</strong>.</p>
+<p>Monitored components: <strong>CLIP</strong>, <strong>DINOv2</strong>, <strong>BioCLIP</strong>, <strong>Aesthetic</strong>, <strong>Technical</strong> (MUSIQ/BRISQUE), <strong>LLM Vision</strong>, <strong>ExifTool</strong> and <strong>Database</strong>.</p>
 
-<p>The <strong>LLM</strong> indicator shows the name of the configured backend (e.g. <em>Ollama</em>) and refreshes automatically every 30 seconds: if you start Ollama after OffGallery is already open, the indicator will turn green without restarting the application.</p>
+<p><strong>Note:</strong> BioCLIP attempts to load into VRAM; if memory is insufficient, it automatically falls back to CPU (amber indicator). BRISQUE and Technical/MUSIQ models always run on CPU by design, so their normal status is amber.</p>
+
+<p>The <strong>LLM</strong> indicator shows the name of the detected backend (Ollama or LM Studio) and refreshes automatically every 30 seconds. With the backend set to <code>auto</code> (default), OffGallery automatically detects which server is running with no manual configuration needed.</p>
 
 <hr>
 

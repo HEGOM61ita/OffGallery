@@ -50,13 +50,13 @@
 
 | Data | Cosa | Note |
 |------|------|------|
-| 17 mar 2026 | **Sistema Plugin LLM** | OffGallery supporta ora plugin per backend LLM alternativi. Inclusi: **Ollama** (default) e **LM Studio**. Il backend si seleziona dal tab Configurazione; i plugin vengono rilevati automaticamente dalla cartella `plugins/` |
-| 17 mar 2026 | **Gallery più veloce** | Caricamento risultati a batch progressivi e cache thumbnail in memoria: la gallery risponde subito anche con centinaia di foto |
+| 21 mar 2026 | **Sistema Plugin LLM** | Plugin per backend LLM alternativi: **Ollama** (default) e **LM Studio**. Auto-discovery all'avvio, backend selezionabile dal tab Configurazione. Il backend viene rilevato automaticamente (`auto`) senza configurazione manuale |
+| 21 mar 2026 | **Indicatori stato modelli migliorati** | Nuovo schema semafori a 4 stati: verde (VRAM), ambra (CPU), rosso (errore), grigio (disabilitato). BioCLIP con fallback automatico su CPU se VRAM insufficiente |
+| 21 mar 2026 | **Gallery più veloce** | Lettura cache disco spostata su thread worker: la gallery non blocca più la GUI anche con centinaia di risultati |
 | 14 mar 2026 | **Splash screen minimizzabile** | La finestra di avvio è ora minimizzabile durante il caricamento dei modelli AI |
 | 10 mar 2026 | **Modalità "Solo Gen. AI"** | Aggiorna solo tag, descrizione e titolo (LLM) su foto già nel database, saltando EXIF ed embedding |
 | 7 mar 2026 | **Supporto multilingua completo** | GUI, LLM output e ricerca tag indipendenti: 6 lingue (IT/EN/FR/DE/ES/PT), traduzione automatica offline |
 | 3 mar 2026 | **Ricerche salvate** | Salva e richiama configurazioni di ricerca complete con un click |
-| 1 mar 2026 | **Installer macOS** | Wizard completo per Intel e Apple Silicon; PyTorch con MPS per Metal GPU |
 
 Storico completo nelle [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
@@ -598,13 +598,13 @@ For a full step-by-step guide see **[installer/INSTALL_GUIDE.md](installer/INSTA
 
 | Date | What | Notes |
 |------|------|-------|
-| 17 Mar 2026 | **LLM Plugin System** | OffGallery now supports plugins for alternative LLM backends. Included: **Ollama** (default) and **LM Studio**. Select the backend from the Configuration tab; plugins are auto-detected from the `plugins/` folder |
-| 17 Mar 2026 | **Faster Gallery** | Progressive batch loading and in-memory thumbnail cache: gallery responds instantly even with hundreds of photos |
+| 21 Mar 2026 | **LLM Plugin System** | Plugins for alternative LLM backends: **Ollama** (default) and **LM Studio**. Auto-discovery at startup, backend selectable from the Configuration tab. Backend auto-detected (`auto`) with no manual setup needed |
+| 21 Mar 2026 | **Improved model status indicators** | New 4-state semaphore scheme: green (VRAM), amber (CPU), red (error), grey (disabled). BioCLIP with automatic CPU fallback if VRAM is insufficient |
+| 21 Mar 2026 | **Faster Gallery** | Disk cache reads moved to worker threads: gallery no longer blocks the GUI even with hundreds of results |
 | 14 Mar 2026 | **Minimizable splash screen** | Startup loading screen can now be minimized while AI models load |
 | 10 Mar 2026 | **"AI Gen. Only" mode** | Regenerate tags/description/title (LLM) on existing DB photos, skipping EXIF and embeddings |
 | 7 Mar 2026 | **Full multilingual support** | GUI, LLM output and tag search independently configurable: 6 languages, automatic offline translation |
 | 3 Mar 2026 | **Saved searches** | Save and recall complete search configurations in one click |
-| 1 Mar 2026 | **macOS installer** | Full wizard for Intel and Apple Silicon; PyTorch with MPS for Metal GPU |
 
 Full history in [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
