@@ -321,6 +321,17 @@ class _ThumbnailLoader(QRunnable):
         self.setAutoDelete(True)
 
     def run(self):
+        # Prima controlla cache disco (I/O nel worker thread, non blocca la GUI)
+        try:
+            from utils.thumb_cache import load_gallery_thumb_bytes
+            cached = load_gallery_thumb_bytes(self.filepath)
+            if cached:
+                self.signals.loaded.emit(cached)
+                return
+        except Exception:
+            pass
+
+        # Cache miss: estrazione thumbnail dal file originale
         data = None
         try:
             if self.filepath.suffix.lower() in self._RAW_EXT:
@@ -501,22 +512,8 @@ class ImageCard(QFrame):
                     self.thumbnail_label.setPixmap(cached_pm)
                     return
 
-            # 1) CACHE DISCO: lettura veloce (~5ms), sincrona nel main thread
-            if self.filepath:
-                try:
-                    from utils.thumb_cache import load_gallery_thumb_bytes
-                    cached_bytes = load_gallery_thumb_bytes(self.filepath)
-                    if cached_bytes:
-                        pixmap = QPixmap()
-                        if pixmap.loadFromData(cached_bytes):
-                            _set_cached_pixmap(str(self.filepath), pixmap)
-                            self.thumbnail_label.setPixmap(pixmap)
-                            return
-                except Exception as _ce:
-                    logger.debug(f"Cache read error: {_ce}")
-
-            # 2) CACHE MISS: placeholder + caricamento asincrono in background
-            self.thumbnail_label.setText("⏳")
+            # 1) Caricamento asincrono (cache disco + fallback ExifTool/file)
+            # Nessun I/O disco nel main thread — tutto nel worker thread
             if not self.filepath:
                 return
 

@@ -252,9 +252,10 @@ class AppHeader(QFrame):
     
     # Colori semaforo
     _STATUS_COLORS = {
-        'ok':      '#4CAF50',   # verde
-        'missing': '#606060',   # grigio
-        'warning': '#C88B2E',   # ambra/arancio
+        'ok':      '#4CAF50',   # verde — caricato in VRAM
+        'cpu':     '#C88B2E',   # ambra — caricato su CPU (VRAM insufficiente)
+        'error':   '#E74C3C',   # rosso — abilitato ma non caricato (anomalia)
+        'missing': '#606060',   # grigio — disabilitato
     }
 
     def update_model_status(self, model_id: str, status: str, label: str = None):
@@ -262,8 +263,8 @@ class AppHeader(QFrame):
 
         Args:
             model_id: chiave del modello ('clip', 'dinov2', 'bioclip',
-                      'aesthetic', 'technical', 'llm')
-            status:   'ok' | 'missing' | 'warning'
+                      'aesthetic', 'technical', 'llm', 'exiftool', 'database')
+            status:   'ok' (VRAM) | 'cpu' (ambra) | 'error' (rosso) | 'missing' (grigio)
             label:    testo opzionale (usato per cambiare 'Ollama' → 'LM Studio')
         """
         if model_id not in self._model_indicators:
@@ -558,60 +559,71 @@ class MainWindow(QMainWindow):
         self._status_timer.start()
 
     def _update_model_status_indicators(self):
-        """Legge lo stato dei modelli AI inizializzati e aggiorna i semafori nell'header."""
+        """Legge lo stato dei modelli AI inizializzati e aggiorna i semafori nell'header.
+
+        Logica semafori:
+          verde  (ok)      — modello caricato in VRAM (GPU)
+          ambra  (cpu)     — modello caricato su CPU (VRAM insufficiente)
+          rosso  (error)   — modello abilitato ma non caricato (anomalia)
+          grigio (missing) — modello disabilitato dall'utente
+        """
         emb_gen = self.ai_models.get('embedding_generator')
         if emb_gen is None:
-            # Nessun modello caricato: tutto grigio (default)
             return
 
         emb_cfg = emb_gen.embedding_config.get('models', {})
 
+        # Device globale: 'cuda'/'mps'/DirectML = VRAM, 'cpu' = CPU
+        device = str(getattr(emb_gen, 'device', 'cpu'))
+        on_gpu = device != 'cpu'
+        # Stato per modelli che usano il device globale
+        gpu_status = 'ok' if on_gpu else 'cpu'
+
         # CLIP
-        clip_ok = emb_gen.clip_model is not None
         clip_enabled = emb_cfg.get('clip', {}).get('enabled', False)
-        if clip_ok:
-            self.header.update_model_status('clip', 'ok')
+        if emb_gen.clip_model is not None:
+            self.header.update_model_status('clip', gpu_status)
         elif clip_enabled:
-            self.header.update_model_status('clip', 'warning')
+            self.header.update_model_status('clip', 'error')
         else:
             self.header.update_model_status('clip', 'missing')
 
         # DINOv2
-        dino_ok = emb_gen.dinov2_model is not None
         dino_enabled = emb_cfg.get('dinov2', {}).get('enabled', False)
-        if dino_ok:
-            self.header.update_model_status('dinov2', 'ok')
+        if emb_gen.dinov2_model is not None:
+            self.header.update_model_status('dinov2', gpu_status)
         elif dino_enabled:
-            self.header.update_model_status('dinov2', 'warning')
+            self.header.update_model_status('dinov2', 'error')
         else:
             self.header.update_model_status('dinov2', 'missing')
 
-        # BioCLIP
-        bio_ok = emb_gen.bioclip_classifier is not None
+        # BioCLIP (ha fallback CPU proprio)
         bio_enabled = emb_cfg.get('bioclip', {}).get('enabled', False)
-        if bio_ok:
-            self.header.update_model_status('bioclip', 'ok')
+        if emb_gen.bioclip_classifier is not None:
+            if getattr(emb_gen, 'bioclip_on_cpu', False):
+                self.header.update_model_status('bioclip', 'cpu')
+            else:
+                self.header.update_model_status('bioclip', gpu_status)
         elif bio_enabled:
-            self.header.update_model_status('bioclip', 'warning')
+            self.header.update_model_status('bioclip', 'error')
         else:
             self.header.update_model_status('bioclip', 'missing')
 
         # Aesthetic
-        aes_ok = emb_gen.aesthetic_model is not None
         aes_enabled = emb_cfg.get('aesthetic', {}).get('enabled', False)
-        if aes_ok:
-            self.header.update_model_status('aesthetic', 'ok')
+        if emb_gen.aesthetic_model is not None:
+            self.header.update_model_status('aesthetic', gpu_status)
         elif aes_enabled:
-            self.header.update_model_status('aesthetic', 'warning')
+            self.header.update_model_status('aesthetic', 'error')
         else:
             self.header.update_model_status('aesthetic', 'missing')
 
-        # Technical (MUSIQ/BRISQUE — non ha un attributo model, usa brisque_available)
+        # Technical (BRISQUE — gira sempre su CPU, non usa GPU)
         tech_enabled = emb_cfg.get('technical', {}).get('enabled', False)
         if getattr(emb_gen, 'brisque_available', False):
-            self.header.update_model_status('technical', 'ok')
+            self.header.update_model_status('technical', 'cpu')
         elif tech_enabled:
-            self.header.update_model_status('technical', 'warning')
+            self.header.update_model_status('technical', 'error')
         else:
             self.header.update_model_status('technical', 'missing')
 
@@ -626,22 +638,22 @@ class MainWindow(QMainWindow):
                 backend_label = 'Ollama'
             self.header.update_model_status('llm', 'ok', label=backend_label)
         elif llm_enabled:
-            self.header.update_model_status('llm', 'warning')
+            self.header.update_model_status('llm', 'error')
         else:
             self.header.update_model_status('llm', 'missing')
 
-        # ExifTool — usa il check già cachato di XMPManagerExtended
+        # ExifTool
         try:
             from xmp_manager_extended import XMPManagerExtended
             xmp = XMPManagerExtended(self.config)
             if xmp.exiftool_available:
                 self.header.update_model_status('exiftool', 'ok')
             else:
-                self.header.update_model_status('exiftool', 'warning')
+                self.header.update_model_status('exiftool', 'error')
         except Exception:
-            self.header.update_model_status('exiftool', 'warning')
+            self.header.update_model_status('exiftool', 'error')
 
-        # Database — verifica che il DB manager sia attivo e il file esista
+        # Database
         if self.db_manager is not None:
             try:
                 db_path = self.config.get('paths', {}).get('database', '')
@@ -649,9 +661,9 @@ class MainWindow(QMainWindow):
                 if db_path and _Path(db_path).exists():
                     self.header.update_model_status('database', 'ok')
                 else:
-                    self.header.update_model_status('database', 'warning')
+                    self.header.update_model_status('database', 'error')
             except Exception:
-                self.header.update_model_status('database', 'warning')
+                self.header.update_model_status('database', 'error')
         else:
             self.header.update_model_status('database', 'missing')
 
@@ -679,7 +691,7 @@ class MainWindow(QMainWindow):
             else:
                 plugin_class = type(plugin).__name__
                 label = 'LM Studio' if 'LMStudio' in plugin_class else 'Ollama'
-                self.header.update_model_status('llm', 'warning', label=label)
+                self.header.update_model_status('llm', 'error', label=label)
         elif llm_enabled:
             # Nessun plugin caricato ma LLM abilitato: riprova auto-detect
             try:
@@ -706,9 +718,9 @@ class MainWindow(QMainWindow):
                 if db_path and _Path(db_path).exists():
                     self.header.update_model_status('database', 'ok')
                 else:
-                    self.header.update_model_status('database', 'warning')
+                    self.header.update_model_status('database', 'error')
             except Exception:
-                self.header.update_model_status('database', 'warning')
+                self.header.update_model_status('database', 'error')
 
     def _on_config_saved(self, new_config):
         """

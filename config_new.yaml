@@ -10,7 +10,7 @@ embedding:
       returns_score: true
     bioclip:
       description: Classificazione flora/fauna TreeOfLife (~450k specie)
-      enabled: true
+      enabled: false
       max_tags: 3
       threshold: 0.2
     clip:
@@ -25,7 +25,7 @@ embedding:
     llm_vision:
       auto_import:
         description:
-          enabled: false
+          enabled: true
           max_words: 50
           overwrite: true
         tags:
@@ -33,10 +33,10 @@ embedding:
           max_tags: 10
           overwrite: true
         title:
-          enabled: false
+          enabled: true
           max_words: 10
           overwrite: true
-      backend: ollama
+      backend: auto
       description: Genera tag, descrizioni e titoli con LLM Vision
       enabled: true
       endpoint: http://localhost:11434
@@ -236,7 +236,7 @@ models_repository:
   models_dir: Models
 paths:
   database: database/offgallery.sqlite
-  input_dir: D:\AI\Scripts\Descrittore\INPUT
+  input_dir: I:\IMMAGINI\OM10Mark4
   log_dir: logs
 search:
   fuzzy_enabled: true
