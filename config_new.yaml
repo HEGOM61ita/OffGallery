@@ -51,7 +51,6 @@ embedding:
       timeout: 240
     technical:
       description: Punteggio tecnico qualità MUSIQ (pyiqa)
-      device: cpu
       enabled: true
       model_name: musiq
 export:
