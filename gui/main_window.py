@@ -618,10 +618,14 @@ class MainWindow(QMainWindow):
         else:
             self.header.update_model_status('aesthetic', 'missing')
 
-        # Technical (BRISQUE — gira sempre su CPU, non usa GPU)
+        # Technical (MUSIQ — configurabile CPU/GPU, default CPU)
         tech_enabled = emb_cfg.get('technical', {}).get('enabled', False)
-        if getattr(emb_gen, 'brisque_available', False):
-            self.header.update_model_status('technical', 'cpu')
+        if getattr(emb_gen, 'musiq_available', False):
+            musiq_dev = getattr(emb_gen, 'musiq_device', 'cpu')
+            if musiq_dev in ('cuda', 'mps'):
+                self.header.update_model_status('technical', 'ok')
+            else:
+                self.header.update_model_status('technical', 'cpu')
         elif tech_enabled:
             self.header.update_model_status('technical', 'error')
         else:

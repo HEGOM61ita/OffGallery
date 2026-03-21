@@ -10,7 +10,7 @@ embedding:
       returns_score: true
     bioclip:
       description: Classificazione flora/fauna TreeOfLife (~450k specie)
-      enabled: false
+      enabled: true
       max_tags: 3
       threshold: 0.2
     clip:
@@ -36,7 +36,7 @@ embedding:
           enabled: true
           max_words: 10
           overwrite: true
-      backend: auto
+      backend: ollama
       description: Genera tag, descrizioni e titoli con LLM Vision
       enabled: true
       endpoint: http://localhost:11434
@@ -50,7 +50,8 @@ embedding:
       model: qwen3.5:4b-q4_K_M
       timeout: 240
     technical:
-      description: Punteggio tecnico qualità MUSIQ offline
+      description: Punteggio tecnico qualità MUSIQ (pyiqa)
+      device: cpu
       enabled: true
       model_name: musiq
 export:
@@ -154,10 +155,12 @@ image_optimization:
       target_size: 256
       upscale: false
     technical_score:
-      description: BRISQUE - Analisi qualità tecnica (solo non-RAW)
-      enabled: true
-      max_size: 1024
-      mode: optimized
+      description: MUSIQ - Analisi qualità tecnica (JPG e RAW)
+      method: preview_optimized
+      quality: 75
+      resampling: LANCZOS
+      target_size: 1024
+      upscale: false
   resampling_methods:
     BICUBIC: Qualità media
     BILINEAR: Buona qualità (veloce)

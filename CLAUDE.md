@@ -18,7 +18,7 @@ Sistema di catalogazione automatica e retrieval di immagini fotografiche (RAW, J
 ```
 /aesthetic           - Modelli e logica per valutazione estetica
 /assets              - Risorse grafiche, icone, file statici UI
-/brisque_models      - Modelli BRISQUE (file YAML bundled, NON scaricati — non vanno in /Models)
+/brisque_models      - DEPRECATO (era BRISQUE, sostituito da MUSIQ via pyiqa — directory mantenuta per compatibilità)
 /catalog_readers     - Lettori cataloghi fotografici esterni
                        lightroom_reader.py: legge .lrcat (SQLite) → lista Path + stats
                        dxo_reader.py: futuro
@@ -109,9 +109,8 @@ if isinstance(raw_data, bytes):
 | BioCLIP v2 | `embedding.models.bioclip` | `bioclip_taxonomy` (7 livelli, ~450k TreeOfLife) | `Models/bioclip/` |
 | TreeOfLife | (scaricato con BioCLIP) | — | `Models/treeoflife/` |
 | Aesthetic | `embedding.models.aesthetic` | `aesthetic_score` (0-10) | `Models/aesthetic/` |
-| Technical/MUSIQ | `embedding.models.technical` | `technical_score` | — (usa torch hub) |
+| MUSIQ | `embedding.models.technical` | `technical_score` (~0-100) | — (pyiqa, scarica pesi ~104 MB al primo uso) |
 | LLM Vision | `embedding.models.llm_vision` | tags, description, title | — (Ollama, gestito separatamente) |
-| BRISQUE | — | qualità tecnica non-RAW | `brisque_models/` (bundled YAML, NON in /Models) |
 
 - **BioCLIP**: versione 2 (`pybioclip>=1.0`, architettura ViT-L-14). Accetta filepath o PIL.Image
 - **CLIP/DINOv2**: al primo avvio scaricano da HuggingFace repo e vengono salvati in `Models/` via `save_pretrained()`. Avvii successivi: caricamento locale offline

@@ -492,8 +492,9 @@ class ProcessingWorker(QThread):
                 active_profiles.append('bioclip_classification')
             if models_cfg.get('aesthetic', {}).get('enabled', False):
                 active_profiles.append('aesthetic_score')
-            # NOTA: BRISQUE/technical_score NON incluso nel calcolo MAX size
-            # perché BRISQUE usa l'immagine ORIGINALE, non il thumbnail
+            # MUSIQ/technical_score usa il thumbnail a 1024px
+            if models_cfg.get('technical', {}).get('enabled', False):
+                active_profiles.append('technical_score')
             if llm_gen_config.get('tags', {}).get('enabled') or \
                llm_gen_config.get('description', {}).get('enabled') or \
                llm_gen_config.get('title', {}).get('enabled'):
@@ -549,11 +550,8 @@ class ProcessingWorker(QThread):
                 embedding_input = cached_thumbnail
 
                 # Genera embedding con controllo errori
-                # NOTA: Passa original_path per BRISQUE (che richiede file originale, non thumbnail)
-                embeddings = embedding_generator.generate_embeddings(
-                    embedding_input,
-                    original_path=image_path if not is_raw else None  # BRISQUE solo per non-RAW
-                )
+                # MUSIQ lavora su thumbnail (non richiede file originale)
+                embeddings = embedding_generator.generate_embeddings(embedding_input)
                 
                 if embeddings and isinstance(embeddings, dict):
                     self.log_message.emit(f"🔬 Embedding generati: {list(embeddings.keys())}", "info")
@@ -582,9 +580,8 @@ class ProcessingWorker(QThread):
                     image_data['dinov2_embedding'] = dinov2_emb
                     image_data['aesthetic_score'] = embeddings.get('aesthetic_score')
                     
-                    # Technical score solo per non-RAW (come da specifiche)
-                    if not is_raw:
-                        image_data['technical_score'] = embeddings.get('technical_score')
+                    # Technical score MUSIQ — funziona sia per RAW che non-RAW
+                    image_data['technical_score'] = embeddings.get('technical_score')
                     
                     # BioCLIP tassonomia nel campo dedicato (separato dai tags)
                     bioclip_tags = embeddings.get('bioclip_tags')

@@ -1,6 +1,6 @@
 """
 Embedding Generator - Generazione embedding per ricerca semantica e similarita
-Modelli: CLIP (semantica), DINOv2 (visiva), Aesthetic, BRISQUE, BioCLIP (natura)
+Modelli: CLIP (semantica), DINOv2 (visiva), Aesthetic, MUSIQ (qualità tecnica), BioCLIP (natura)
 LLM: Qwen2-VL via Ollama per descrizioni e tag AI
 
 """
@@ -35,9 +35,9 @@ class EmbeddingGenerator:
         self.aesthetic_model = None
         self.aesthetic_head = None
         self.aesthetic_processor = None
-        self.brisque_available = False
-        self.brisque_model_path = None
-        self.brisque_range_path = None
+        self.musiq_model = None
+        self.musiq_available = False
+        self.musiq_device = 'cpu'  # MUSIQ gira su CPU di default (leggero, 0.28s/foto)
         self.bioclip_classifier = None
         self.bioclip_on_cpu = False
 
@@ -163,7 +163,7 @@ class EmbeddingGenerator:
             'dinov2_embedding': {'target_size': 518, 'resampling': Image.Resampling.LANCZOS},  # DINOv2 input 518x518 (14x37)
             'bioclip_classification': {'target_size': 224, 'resampling': Image.Resampling.LANCZOS},  # ViT-B/16 input 224x224
             'aesthetic_score': {'target_size': 224, 'resampling': Image.Resampling.BILINEAR},  # CLIP-based input 224x224
-            'technical_score': {'target_size': 512, 'resampling': Image.Resampling.LANCZOS},  # BRISQUE/MUSIQ
+            'technical_score': {'target_size': 1024, 'resampling': Image.Resampling.LANCZOS},  # MUSIQ a 1024px
             'llm_vision': {'target_size': 512, 'resampling': Image.Resampling.LANCZOS},  # Qwen3-VL 448-512px
             'default': {'target_size': 512, 'resampling': Image.Resampling.LANCZOS}
         }
@@ -437,11 +437,9 @@ class EmbeddingGenerator:
             self._init_dinov2()
         if models_config.get('aesthetic', {}).get('enabled', False):
             self._init_aesthetic()
-        # BRISQUE/Technical: controlla sia models.technical che brisque_enabled
-        brisque_enabled = models_config.get('technical', {}).get('enabled', False) or \
-                          self.embedding_config.get('brisque_enabled', False)
-        if brisque_enabled:
-            self._init_brisque()
+        # MUSIQ/Technical: valutazione qualità tecnica
+        if models_config.get('technical', {}).get('enabled', False):
+            self._init_musiq()
         if models_config.get('bioclip', {}).get('enabled', False):
             self._init_bioclip()
             self.bioclip_enabled = hasattr(self, 'bioclip_classifier') and self.bioclip_classifier is not None
@@ -731,48 +729,44 @@ class EmbeddingGenerator:
             logger.error(f"Aesthetic: {e}")
             self.aesthetic_enabled = False
 
-    def _init_brisque(self):
-        """Inizializza BRISQUE per valutazione qualità tecnica"""
+    def _init_musiq(self):
+        """Inizializza MUSIQ per valutazione qualità tecnica (sostituisce BRISQUE).
+        Usa pyiqa, funziona su CPU/GPU/MPS. Input normalizzato a 1024px."""
         try:
-            import cv2
-            _model_name = 'brisque_model_live.yml'
-            _range_name = 'brisque_range_live.yml'
+            import pyiqa
 
-            # Cerca i file YAML bundled in più posizioni possibili
-            _candidates = [
-                get_app_dir() / 'brisque_models',                          # root progetto
-                Path(__file__).parent / 'brisque_models',                   # stessa dir di embedding_generator
-            ]
+            # Leggi device preferito dal config (default: cpu — leggero, 0.28s/foto)
+            tech_cfg = self.embedding_config.get('models', {}).get('technical', {})
+            preferred_device = tech_cfg.get('device', 'cpu')
 
-            self.brisque_model_path = None
-            self.brisque_range_path = None
-            for _dir in _candidates:
-                _m = _dir / _model_name
-                _r = _dir / _range_name
-                if _m.exists() and _r.exists():
-                    self.brisque_model_path = _m
-                    self.brisque_range_path = _r
-                    break
-
-            if self.brisque_model_path:
-                try:
-                    cv2.quality.QualityBRISQUE_create(str(self.brisque_model_path), str(self.brisque_range_path))
-                    self.brisque_available = True
-                except Exception as e:
-                    logger.warning(f"BRISQUE: errore caricamento modelli locali ({e})")
-                    self.brisque_available = False
+            # Determina device effettivo
+            import torch
+            if preferred_device == 'auto':
+                if torch.cuda.is_available():
+                    musiq_device = 'cuda'
+                elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+                    musiq_device = 'mps'
+                else:
+                    musiq_device = 'cpu'
+            elif preferred_device in ('cuda', 'gpu') and torch.cuda.is_available():
+                musiq_device = 'cuda'
+            elif preferred_device == 'mps' and hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+                musiq_device = 'mps'
             else:
-                logger.warning(
-                    f"BRISQUE: file YAML non trovati. Cercati in: "
-                    f"{[str(d) for d in _candidates]}"
-                )
-                self.brisque_available = False
+                musiq_device = 'cpu'
 
-            logger.info(f"[OK] BRISQUE: {'disponibile' if self.brisque_available else 'non disponibile'}")
+            self.musiq_model = pyiqa.create_metric('musiq', device=musiq_device)
+            self.musiq_device = musiq_device
+            self.musiq_available = True
 
+            logger.info(f"[OK] MUSIQ: caricato su {musiq_device} (~104 MB)")
+
+        except ImportError:
+            logger.warning("MUSIQ: pyiqa non installato (pip install pyiqa)")
+            self.musiq_available = False
         except Exception as e:
-            logger.error(f"BRISQUE: {e}")
-            self.brisque_available = False
+            logger.error(f"MUSIQ: errore inizializzazione: {e}")
+            self.musiq_available = False
 
     def _init_bioclip(self):
         """
@@ -1029,7 +1023,7 @@ class EmbeddingGenerator:
             'clip': getattr(self, 'clip_enabled', False),
             'dinov2': getattr(self, 'dinov2_enabled', False),
             'aesthetic': getattr(self, 'aesthetic_enabled', False),
-            'brisque': self.brisque_available,
+            'musiq': self.musiq_available,
             'bioclip': self.bioclip_classifier is not None
         }
 
@@ -1040,8 +1034,7 @@ class EmbeddingGenerator:
 
         Args:
             input_data: PIL Image, path string, o testo per query
-            original_path: Path originale del file (opzionale, usato per BRISQUE)
-                          BRISQUE richiede il file originale, non un thumbnail
+            original_path: Path originale del file (opzionale, legacy)
         """
         import os
         import torch
@@ -1101,17 +1094,13 @@ class EmbeddingGenerator:
                     result['aesthetic_score'] = aesthetic
                     logger.debug(f"Aesthetic score generato: {aesthetic}")
 
-                # Technical score / BRISQUE (se abilitato)
-                # NOTA: BRISQUE richiede il PATH originale di un file NON-RAW
-                # Per file RAW: original_path sarà None → skip BRISQUE
-                if getattr(self, 'brisque_available', False) and original_path is not None:
-                    technical = self._generate_brisque_score(original_path)
+                # Technical score / MUSIQ (se abilitato)
+                # MUSIQ lavora su PIL Image (thumbnail), funziona sia per RAW che JPG
+                if getattr(self, 'musiq_available', False):
+                    technical = self._generate_musiq_score(input_data)
                     result['technical_score'] = technical
                     if technical is not None:
-                        logger.debug(f"Technical score generato: {technical}")
-                elif getattr(self, 'brisque_available', False):
-                    # RAW file - BRISQUE non applicabile
-                    result['technical_score'] = None
+                        logger.debug(f"Technical score MUSIQ: {technical}")
 
                 # BioCLIP tags + tassonomia completa (se abilitato)
                 if getattr(self, 'bioclip_enabled', False):
@@ -1297,65 +1286,46 @@ class EmbeddingGenerator:
             logger.error(f"Errore aesthetic score: {e}")
             return None
 
-    def _generate_brisque_score(self, image_path) -> Optional[float]:
+    def _generate_musiq_score(self, input_data) -> Optional[float]:
         """
-        Genera BRISQUE score SOLO da file path non-RAW.
-
-        Configurazione in config_new.yaml → image_optimization.profiles.technical_score:
-        - mode: 'optimized' (riduce a max_size) o 'original' (file intero)
-        - max_size: dimensione max per mode optimized (default 1024)
-
-        Args:
-            image_path: Path del file immagine (DEVE essere path, non PIL Image)
+        Genera score qualità tecnica con MUSIQ via pyiqa.
+        Accetta PIL Image o path. Normalizza a 1024px (lato lungo).
+        Funziona su JPG e RAW (tramite thumbnail/preview).
 
         Returns:
-            float: score 0-100 (100 = qualità perfetta) o None se non applicabile
+            float: score MUSIQ (scala ~0-100, maggiore = migliore) o None
         """
         try:
-            import cv2
+            import torch
             from PIL import Image
 
-            # BRISQUE richiede il PATH del file originale
-            if isinstance(image_path, Image.Image):
-                logger.warning("BRISQUE: ricevuto PIL Image invece di path - skip")
+            if self.musiq_model is None:
                 return None
 
-            image_path_obj = Path(image_path) if not isinstance(image_path, Path) else image_path
-            if not image_path_obj.exists():
-                logger.warning(f"BRISQUE: file non trovato {image_path}")
-                return None
-
-            # Carica immagine
-            img = cv2.imread(str(image_path_obj))
-            if img is None:
-                logger.warning(f"BRISQUE: impossibile caricare {image_path}")
-                return None
-
-            # Leggi configurazione mode/max_size dal config
-            brisque_cfg = self.config.get('image_optimization', {}).get('profiles', {}).get('technical_score', {})
-            mode = brisque_cfg.get('mode', 'optimized')
-            max_size = brisque_cfg.get('max_size', 1024)
-
-            # Applica ridimensionamento se mode=optimized
-            h, w = img.shape[:2]
-            if mode == 'optimized' and max(h, w) > max_size:
-                scale = max_size / max(h, w)
-                new_size = (int(w * scale), int(h * scale))
-                img = cv2.resize(img, new_size, interpolation=cv2.INTER_AREA)
-                logger.debug(f"BRISQUE: {w}x{h} → {new_size[0]}x{new_size[1]}")
-
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
-
-            if self.brisque_model_path:
-                brisque = cv2.quality.QualityBRISQUE_create(str(self.brisque_model_path), str(self.brisque_range_path))
+            # Ottieni PIL Image
+            if isinstance(input_data, Image.Image):
+                img = input_data.convert('RGB')
+            elif isinstance(input_data, (str, Path)):
+                img = Image.open(str(input_data)).convert('RGB')
             else:
-                brisque = cv2.quality.QualityBRISQUE_create()
+                logger.warning(f"MUSIQ: tipo input non supportato: {type(input_data)}")
+                return None
 
-            score = brisque.compute(gray)[0]
-            # Inversione: BRISQUE 0 è perfetto, 100 è pessimo
-            return round(max(0.0, min(100.0, 100.0 - score)), 2)
+            # Normalizza a 1024px (lato lungo) per score comparabili
+            max_side = max(img.size)
+            if max_side > 1024:
+                scale = 1024 / max_side
+                img = img.resize(
+                    (int(img.size[0] * scale), int(img.size[1] * scale)),
+                    Image.Resampling.LANCZOS
+                )
+
+            with torch.no_grad():
+                score = self.musiq_model(img).item()
+
+            return round(score, 2)
         except Exception as e:
-            logger.error(f"Errore BRISQUE: {e}")
+            logger.error(f"Errore MUSIQ: {e}")
             return None
 
     def generate_text_embedding(self, text_query: str):
