@@ -234,6 +234,7 @@ models_repository:
     bioclip: bioclip
     clip: clip
     dinov2: dinov2
+    musiq: musiq
     treeoflife: treeoflife
   models_dir: Models
 paths:
