@@ -735,31 +735,26 @@ class EmbeddingGenerator:
         try:
             import pyiqa
 
-            # Leggi device preferito dal config (default: cpu — leggero, 0.28s/foto)
-            tech_cfg = self.embedding_config.get('models', {}).get('technical', {})
-            preferred_device = tech_cfg.get('device', 'cpu')
-
-            # Determina device effettivo
+            # Default: usa la stessa GPU degli altri modelli, fallback CPU
             import torch
-            if preferred_device == 'auto':
-                if torch.cuda.is_available():
-                    musiq_device = 'cuda'
-                elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-                    musiq_device = 'mps'
-                else:
+            musiq_device = self.device  # stessa logica degli altri modelli
+
+            try:
+                self.musiq_model = pyiqa.create_metric('musiq', device=musiq_device)
+                self.musiq_device = musiq_device
+                self.musiq_available = True
+                logger.info(f"[OK] MUSIQ: caricato su {musiq_device} (~104 MB)")
+            except RuntimeError as vram_err:
+                # Fallback CPU se VRAM insufficiente (come BioCLIP)
+                if 'out of memory' in str(vram_err).lower() or 'not enough' in str(vram_err).lower():
+                    logger.warning(f"MUSIQ: VRAM insufficiente su {musiq_device}, fallback CPU...")
                     musiq_device = 'cpu'
-            elif preferred_device in ('cuda', 'gpu') and torch.cuda.is_available():
-                musiq_device = 'cuda'
-            elif preferred_device == 'mps' and hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-                musiq_device = 'mps'
-            else:
-                musiq_device = 'cpu'
-
-            self.musiq_model = pyiqa.create_metric('musiq', device=musiq_device)
-            self.musiq_device = musiq_device
-            self.musiq_available = True
-
-            logger.info(f"[OK] MUSIQ: caricato su {musiq_device} (~104 MB)")
+                    self.musiq_model = pyiqa.create_metric('musiq', device='cpu')
+                    self.musiq_device = 'cpu'
+                    self.musiq_available = True
+                    logger.info(f"[OK] MUSIQ: caricato su CPU (fallback)")
+                else:
+                    raise
 
         except ImportError:
             logger.warning("MUSIQ: pyiqa non installato (pip install pyiqa)")
