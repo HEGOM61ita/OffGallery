@@ -731,30 +731,75 @@ class EmbeddingGenerator:
 
     def _init_musiq(self):
         """Inizializza MUSIQ per valutazione qualità tecnica (sostituisce BRISQUE).
-        Usa pyiqa, funziona su CPU/GPU/MPS. Input normalizzato a 1024px."""
+        Priorità: locale Models/musiq/ → repo HF frozen → download pyiqa.
+        Usa pyiqa per architettura, pesi dal repo congelato. Fallback CPU come BioCLIP."""
         try:
             import pyiqa
-
-            # Default: usa la stessa GPU degli altri modelli, fallback CPU
             import torch
-            musiq_device = self.device  # stessa logica degli altri modelli
+            from pyiqa.archs.arch_util import load_pretrained_network
+
+            _MUSIQ_WEIGHTS = 'musiq_koniq_ckpt-e95806b9.pth'
+            models_dir = self._get_models_dir()
+            musiq_local = models_dir / 'musiq'
+            local_weights = musiq_local / _MUSIQ_WEIGHTS
+            frozen_repo = self.config.get('models_repository', {}).get('huggingface_repo', '')
+
+            # 1. Scarica pesi se non presenti in locale
+            if not local_weights.exists():
+                # Prova repo HF frozen
+                if frozen_repo:
+                    try:
+                        from huggingface_hub import hf_hub_download
+                        import shutil as _shutil
+
+                        musiq_local.mkdir(parents=True, exist_ok=True)
+                        _dl = hf_hub_download(
+                            repo_id=frozen_repo,
+                            filename=f"musiq/{_MUSIQ_WEIGHTS}",
+                            repo_type="model"
+                        )
+                        _shutil.copy2(_dl, local_weights)
+                        logger.info(f"MUSIQ: pesi scaricati da repo frozen → {local_weights}")
+                    except Exception as e:
+                        logger.warning(f"MUSIQ: repo frozen non disponibile ({e})")
+
+            # 2. Crea modello e carica pesi
+            musiq_device = self.device
+
+            def _create_and_load(device):
+                if local_weights.exists():
+                    # Crea architettura senza scaricare pesi, poi carica da locale
+                    model = pyiqa.create_metric('musiq', device=device, pretrained=False)
+                    load_pretrained_network(model.net, str(local_weights), strict=True)
+                    model.net = model.net.to(device)
+                    logger.info(f"[OK] MUSIQ: caricato da locale su {device}")
+                else:
+                    # Fallback: lascia che pyiqa scarichi i pesi (primo avvio senza HF)
+                    model = pyiqa.create_metric('musiq', device=device)
+                    # Salva pesi in locale per avvii successivi
+                    try:
+                        musiq_local.mkdir(parents=True, exist_ok=True)
+                        torch.save(model.net.state_dict(), local_weights)
+                        logger.info(f"MUSIQ: pesi salvati in {local_weights}")
+                    except Exception:
+                        pass
+                    logger.info(f"[OK] MUSIQ: caricato da pyiqa su {device}")
+                return model
 
             try:
-                self.musiq_model = pyiqa.create_metric('musiq', device=musiq_device)
+                self.musiq_model = _create_and_load(musiq_device)
                 self.musiq_device = musiq_device
-                self.musiq_available = True
-                logger.info(f"[OK] MUSIQ: caricato su {musiq_device} (~104 MB)")
             except RuntimeError as vram_err:
                 # Fallback CPU se VRAM insufficiente (come BioCLIP)
                 if 'out of memory' in str(vram_err).lower() or 'not enough' in str(vram_err).lower():
                     logger.warning(f"MUSIQ: VRAM insufficiente su {musiq_device}, fallback CPU...")
                     musiq_device = 'cpu'
-                    self.musiq_model = pyiqa.create_metric('musiq', device='cpu')
+                    self.musiq_model = _create_and_load('cpu')
                     self.musiq_device = 'cpu'
-                    self.musiq_available = True
-                    logger.info(f"[OK] MUSIQ: caricato su CPU (fallback)")
                 else:
                     raise
+
+            self.musiq_available = True
 
         except ImportError:
             logger.warning("MUSIQ: pyiqa non installato (pip install pyiqa)")

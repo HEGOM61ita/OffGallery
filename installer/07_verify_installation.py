@@ -141,16 +141,20 @@ def check_ollama():
         return False, "Ollama NON raggiungibile (avvialo o esegui 06_setup_ollama.bat)"
 
 def check_opencv():
-    """Verifica OpenCV con BRISQUE"""
+    """Verifica OpenCV"""
     try:
         import cv2
-        # Verifica modulo quality
-        _ = cv2.quality.QualityBRISQUE_create
-        return True, f"OpenCV {cv2.__version__} + BRISQUE"
+        return True, f"OpenCV {cv2.__version__}"
     except ImportError:
         return False, "OpenCV NON installato"
-    except AttributeError:
-        return True, f"OpenCV {cv2.__version__} (senza BRISQUE)"
+
+def check_pyiqa():
+    """Verifica pyiqa (MUSIQ per qualità tecnica)"""
+    try:
+        import pyiqa
+        return True, f"pyiqa {pyiqa.__version__} (MUSIQ)"
+    except ImportError:
+        return False, "pyiqa NON installato (pip install pyiqa)"
 
 def main():
     print_header()
@@ -164,6 +168,7 @@ def main():
         ("Transformers", check_transformers),
         ("PyQt6 (UI)", check_pyqt6),
         ("OpenCV", check_opencv),
+        ("pyiqa (MUSIQ)", check_pyiqa),
         ("CLIP Model", check_clip_model),
         ("DINOv2 Model", check_dinov2_model),
         ("Aesthetic Model", check_aesthetic_model),
