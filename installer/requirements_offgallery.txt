@@ -21,13 +21,16 @@ timm
 pybioclip>=1.0
 open-clip-torch==3.2.0
 
+# MUSIQ - Valutazione qualità tecnica (sostituisce BRISQUE)
+pyiqa
+
 # Geocoding offline (dati GeoNames bundled, ~3MB, nessuna API)
 reverse_geocoder
 
 # === IMAGE PROCESSING ===
 pillow
 rawpy
-opencv-contrib-python-headless
+opencv-python-headless
 numpy
 
 # === TRANSLATION ===
