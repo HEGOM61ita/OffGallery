@@ -579,27 +579,21 @@ class ImageCard(QFrame):
                 except (ValueError, TypeError):
                     pass
 
-            # Technical score (solo per non-RAW)
+            # Technical score (MUSIQ - funziona su tutti i formati inclusi RAW)
             technical = self.image_data.get('technical_score')
             if technical is not None:
                 try:
-                    is_raw = False
-                    if self.filepath:
-                        raw_extensions = {'.cr2', '.cr3', '.nef', '.arw', '.orf', '.rw2', '.pef', '.dng', '.nrw', '.srf', '.sr2'}
-                        is_raw = self.filepath.suffix.lower() in raw_extensions
-
-                    if not is_raw:
-                        score_val = float(technical)
-                        technical_label = QLabel(f"TEC: {score_val:.0f}")
-                        technical_label.setStyleSheet(f"""
-                            background-color: {COLORS['blu_petrolio']};
-                            color: white;
-                            padding: 2px 4px;
-                            border-radius: 2px;
-                            font-size: 8px;
-                            font-weight: bold;
-                        """)
-                        scores_layout.addWidget(technical_label)
+                    score_val = float(technical)
+                    technical_label = QLabel(f"TEC: {score_val:.0f}")
+                    technical_label.setStyleSheet(f"""
+                        background-color: {COLORS['blu_petrolio']};
+                        color: white;
+                        padding: 2px 4px;
+                        border-radius: 2px;
+                        font-size: 8px;
+                        font-weight: bold;
+                    """)
+                    scores_layout.addWidget(technical_label)
                 except (ValueError, TypeError):
                     pass
 
