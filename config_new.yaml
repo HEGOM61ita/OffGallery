@@ -10,7 +10,7 @@ embedding:
     bioclip:
       description: Classificazione flora/fauna TreeOfLife (~450k specie)
       device: gpu
-      enabled: true
+      enabled: false
       max_tags: 3
       threshold: 0.2
     clip:
@@ -242,8 +242,9 @@ models_repository:
   models_dir: Models
 paths:
   database: database/offgallery.sqlite
-  input_dir: I:\IMMAGINI\OM10Mark4
+  input_dir: D:\AI\Scripts\Descrittore\INPUT
   log_dir: logs
+  temp_cache_dir: temp_cache
 search:
   fuzzy_enabled: true
   max_results: 100

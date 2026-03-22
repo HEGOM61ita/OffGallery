@@ -368,6 +368,22 @@ class ConfigTab(QWidget):
         models_dir_warn.setStyleSheet("color: #e6a817; font-size: 10px;")
         layout.addWidget(models_dir_warn, 3, 1)
 
+        # Temp Cache Directory
+        layout.addWidget(QLabel(t("config.label.temp_cache")), 4, 0)
+        self.temp_cache_edit = QLineEdit()
+        self.temp_cache_edit.setToolTip(t("config.tooltip.temp_cache"))
+        self.temp_cache_edit.setPlaceholderText("Es: temp_cache")
+        layout.addWidget(self.temp_cache_edit, 4, 1)
+
+        temp_cache_browse_btn = QPushButton("📂")
+        temp_cache_browse_btn.setFixedWidth(40)
+        temp_cache_browse_btn.clicked.connect(lambda: self._select_directory(self.temp_cache_edit, t("config.dialog.select_temp_cache")))
+        layout.addWidget(temp_cache_browse_btn, 4, 2)
+
+        temp_cache_info = QLabel(t("config.info.temp_cache"))
+        temp_cache_info.setStyleSheet("color: #7f8c8d; font-size: 10px;")
+        layout.addWidget(temp_cache_info, 5, 1)
+
         group_box.setLayout(layout)
         return group_box
     
@@ -1230,6 +1246,7 @@ class ConfigTab(QWidget):
             self.log_dir_edit.setText(paths['log_dir'])
             models_dir_val = self.config.get('models_repository', {}).get('models_dir', 'Models')
             self.models_dir_edit.setText(str(models_dir_val))
+            self.temp_cache_edit.setText(paths.get('temp_cache_dir', 'temp_cache'))
 
             # --------------------------------------------------
             # EMBEDDING / DEVICE PER-MODELLO
@@ -1411,6 +1428,7 @@ class ConfigTab(QWidget):
             self.db_path_edit.setText('database/offgallery.sqlite')
             self.log_dir_edit.setText('logs')
             self.models_dir_edit.setText('Models')
+            self.temp_cache_edit.setText('temp_cache')
             
             # Device per-modello: auto-ottimizza al reset
             self._on_auto_optimize()
@@ -1501,8 +1519,9 @@ class ConfigTab(QWidget):
             paths_data = {
                 'database': self.db_path_edit.text(),
                 'log_dir': self.log_dir_edit.text(),
+                'temp_cache_dir': self.temp_cache_edit.text().strip() or 'temp_cache',
             }
-            
+
             # Preserva input_dir se presente (gestito solo da processing_tab)
             if 'paths' in self.config and 'input_dir' in self.config['paths']:
                 paths_data['input_dir'] = self.config['paths']['input_dir']
