@@ -12,7 +12,8 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
     QLabel, QLineEdit, QPushButton, QCheckBox, QSpinBox,
     QDoubleSpinBox, QFileDialog, QMessageBox, QScrollArea,
-    QGridLayout, QTextEdit, QComboBox, QRadioButton, QButtonGroup
+    QGridLayout, QTextEdit, QComboBox, QRadioButton, QButtonGroup,
+    QProgressBar
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -449,72 +450,253 @@ class ConfigTab(QWidget):
         return group_box
     
     def create_device_section(self):
-        """Crea sezione device elaborazione (NUOVO)"""
+        """Crea sezione device elaborazione con tabella per-modello e auto-ottimizzazione"""
+        from device_allocator import (
+            detect_hardware, auto_allocate, MODEL_VRAM_ESTIMATES,
+            ALL_MODELS, get_vram_budget_info
+        )
+
         group_box = QGroupBox(t("config.group.device_section"))
         group_box.setObjectName("DeviceSection")
-        
+
         group_box.setStyleSheet(f"""
             QGroupBox#DeviceSection {{
                 border: 2px solid {COLORS['ambra']};
             }}
         """)
-        
-        layout = QVBoxLayout()
-        layout.setSpacing(10)
-        
-        # Dropdown device
-        device_layout = QHBoxLayout()
-        device_layout.addWidget(QLabel(t("config.label.select_device")))
 
-        self.device_combo = NoWheelComboBox()
-        self.device_combo.addItem(t("config.combo.device_autodetect"), "auto")
-        self.device_combo.addItem(t("config.combo.device_gpu_cuda"), "cuda")
-        self.device_combo.addItem(t("config.combo.device_mps"), "mps")
-        self.device_combo.addItem(t("config.combo.device_cpu_forced"), "cpu")
-        self.device_combo.setToolTip(t("config.tooltip.device"))
-        self.device_combo.currentIndexChanged.connect(self._update_gpu_info)
-        device_layout.addWidget(self.device_combo)
-        device_layout.addStretch()
-        
-        layout.addLayout(device_layout)
-        
+        layout = QVBoxLayout()
+        layout.setSpacing(8)
+
+        # Rileva hardware una sola volta
+        self._hw_info = detect_hardware()
+
         # Label info GPU dinamica
         self.gpu_info_label = QLabel(t("config.msg.gpu_detecting"))
-        self.gpu_info_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; padding: 5px;")
+        self.gpu_info_label.setStyleSheet(
+            f"color: {COLORS['grigio_medio']}; font-size: 10px; padding: 5px;")
         self.gpu_info_label.setWordWrap(True)
         layout.addWidget(self.gpu_info_label)
-        
-        # Aggiorna info al caricamento
         self._update_gpu_info()
-        
+
+        # Tabella per-modello: Modello | VRAM | Device
+        header_label = QLabel(t("config.label.model_device_header"))
+        header_label.setStyleSheet(f"color: {COLORS['grigio_chiaro']}; font-weight: bold; padding-top: 5px;")
+        layout.addWidget(header_label)
+
+        grid = QGridLayout()
+        grid.setSpacing(6)
+
+        # Header riga
+        for col, key in enumerate(["config.label.model_col", "config.label.vram_col", "config.label.device_col"]):
+            lbl = QLabel(t(key))
+            lbl.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; font-weight: bold;")
+            grid.addWidget(lbl, 0, col)
+
+        # Nomi modelli per la UI
+        _model_display = {
+            'clip': 'CLIP',
+            'dinov2': 'DINOv2',
+            'aesthetic': 'Aesthetic',
+            'bioclip': 'BioCLIP',
+            'technical': 'MUSIQ',
+        }
+
+        self.model_device_combos = {}
+        gpu_available = self._hw_info['backend'] != 'cpu'
+
+        for row_idx, model_key in enumerate(ALL_MODELS, start=1):
+            # Nome modello
+            name_lbl = QLabel(_model_display.get(model_key, model_key))
+            name_lbl.setStyleSheet(f"color: {COLORS['grigio_chiaro']};")
+            grid.addWidget(name_lbl, row_idx, 0)
+
+            # VRAM stimata
+            vram_est = MODEL_VRAM_ESTIMATES.get(model_key, 0)
+            vram_lbl = QLabel(f"~{vram_est:.1f} GB")
+            vram_lbl.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px;")
+            grid.addWidget(vram_lbl, row_idx, 1)
+
+            # ComboBox GPU/CPU
+            combo = NoWheelComboBox()
+            combo.addItem(t("config.combo.model_device_gpu"), "gpu")
+            combo.addItem(t("config.combo.model_device_cpu"), "cpu")
+            combo.setFixedWidth(90)
+            if not gpu_available:
+                combo.setCurrentIndex(1)  # CPU
+                combo.setEnabled(False)
+            combo.currentIndexChanged.connect(self._update_vram_budget)
+            self.model_device_combos[model_key] = combo
+            grid.addWidget(combo, row_idx, 2)
+
+        # Riga LLM Vision (VRAM reale, no combo — gestito da Ollama/LM Studio)
+        llm_row = len(ALL_MODELS) + 1
+        llm_name = QLabel("LLM Vision")
+        llm_name.setStyleSheet(f"color: {COLORS['grigio_chiaro']};")
+        grid.addWidget(llm_name, llm_row, 0)
+
+        self._llm_vram_label = QLabel("—")
+        self._llm_vram_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px;")
+        grid.addWidget(self._llm_vram_label, llm_row, 1)
+
+        llm_device_lbl = QLabel("Ollama/LMS")
+        llm_device_lbl.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; font-style: italic;")
+        grid.addWidget(llm_device_lbl, llm_row, 2)
+
+        # VRAM LLM: aggiornata in _load_config quando la config è disponibile
+        self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
+
+        layout.addLayout(grid)
+
+        # Barra budget VRAM
+        budget_layout = QHBoxLayout()
+        budget_label = QLabel(t("config.label.vram_budget"))
+        budget_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px;")
+        budget_layout.addWidget(budget_label)
+
+        self.vram_budget_bar = QProgressBar()
+        self.vram_budget_bar.setFixedHeight(16)
+        self.vram_budget_bar.setTextVisible(True)
+        self.vram_budget_bar.setMaximum(100)
+        budget_layout.addWidget(self.vram_budget_bar)
+        layout.addLayout(budget_layout)
+
+        # Label budget dettaglio
+        self.vram_budget_label = QLabel("")
+        self.vram_budget_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; padding: 2px;")
+        self.vram_budget_label.setWordWrap(True)
+        layout.addWidget(self.vram_budget_label)
+
+        # Nascondi barra su MPS (unified memory) o CPU-only
+        if self._hw_info['is_unified_memory']:
+            self.vram_budget_bar.setVisible(False)
+            self.vram_budget_label.setText(t("config.msg.vram_unified"))
+            self.vram_budget_label.setStyleSheet(
+                f"color: {COLORS['verde']}; font-size: 10px; padding: 2px;")
+        elif not gpu_available:
+            self.vram_budget_bar.setVisible(False)
+            self.vram_budget_label.setText(t("config.msg.vram_cpu_only"))
+
+        # Bottone Auto-ottimizza
+        auto_btn = QPushButton(f"🔧 {t('config.btn.auto_optimize')}")
+        auto_btn.setToolTip(t("config.tooltip.auto_optimize"))
+        auto_btn.setFixedWidth(180)
+        auto_btn.clicked.connect(self._on_auto_optimize)
+        if not gpu_available:
+            auto_btn.setEnabled(False)
+        btn_layout = QHBoxLayout()
+        btn_layout.addWidget(auto_btn)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+
+        # Label "riavvia per applicare" — accanto al bottone, nascosta di default
+        self._device_restart_label = QLabel(t("config.msg.device_restart"))
+        self._device_restart_label.setStyleSheet(
+            f"color: {COLORS['ambra']}; font-size: 9px; font-style: italic; padding: 2px;")
+        self._device_restart_label.setVisible(False)
+        btn_layout.addWidget(self._device_restart_label)
+
+        # Aggiorna budget iniziale (senza mostrare messaggio restart)
+        self._update_vram_budget()
+        self._device_restart_label.setVisible(False)
+
         group_box.setLayout(layout)
         return group_box
-    
+
     def _update_gpu_info(self):
-        """Aggiorna label info GPU in base a disponibilità"""
-        try:
-            import torch
-            
-            if torch.cuda.is_available():
-                gpu_name = torch.cuda.get_device_name(0)
-                gpu_mem = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-                self.gpu_info_label.setText(t("config.msg.gpu_detected", name=gpu_name, mem=gpu_mem))
-                self.gpu_info_label.setStyleSheet(f"color: {COLORS['verde']}; font-weight: bold; font-size: 10px; padding: 5px;")
-            elif torch.backends.mps.is_available():
-                # Apple Silicon: memoria condivisa CPU/GPU, non rilevabile come VRAM separata
-                import platform
-                mac_model = platform.processor() or "Apple Silicon"
-                self.gpu_info_label.setText(t("config.msg.gpu_mps_detected", name=mac_model))
-                self.gpu_info_label.setStyleSheet(f"color: {COLORS['verde']}; font-weight: bold; font-size: 10px; padding: 5px;")
-            else:
-                self.gpu_info_label.setText(t("config.msg.gpu_none"))
-                self.gpu_info_label.setStyleSheet(f"color: {COLORS['ambra']}; font-size: 10px; padding: 5px;")
-        except ImportError:
-            self.gpu_info_label.setText(t("config.msg.gpu_no_torch"))
-            self.gpu_info_label.setStyleSheet(f"color: {COLORS['rosso']}; font-size: 10px; padding: 5px;")
-        except Exception as e:
-            self.gpu_info_label.setText(t("config.msg.gpu_error", error=e))
-            self.gpu_info_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; padding: 5px;")
+        """Aggiorna label info GPU in base a hardware rilevato"""
+        hw = self._hw_info
+        if hw['backend'] == 'cuda':
+            self.gpu_info_label.setText(
+                t("config.msg.gpu_detected", name=hw['gpu_name'], mem=hw['vram_total_gb']))
+            self.gpu_info_label.setStyleSheet(
+                f"color: {COLORS['verde']}; font-weight: bold; font-size: 10px; padding: 5px;")
+        elif hw['backend'] == 'mps':
+            self.gpu_info_label.setText(
+                t("config.msg.gpu_mps_detected", name=hw['gpu_name'] or 'Apple Silicon'))
+            self.gpu_info_label.setStyleSheet(
+                f"color: {COLORS['verde']}; font-weight: bold; font-size: 10px; padding: 5px;")
+        elif hw['backend'] == 'directml':
+            self.gpu_info_label.setText(
+                t("config.msg.gpu_detected", name=hw['gpu_name'] or 'DirectML', mem=hw['vram_total_gb'] or 0))
+            self.gpu_info_label.setStyleSheet(
+                f"color: {COLORS['verde']}; font-weight: bold; font-size: 10px; padding: 5px;")
+        else:
+            self.gpu_info_label.setText(t("config.msg.gpu_none"))
+            self.gpu_info_label.setStyleSheet(
+                f"color: {COLORS['ambra']}; font-size: 10px; padding: 5px;")
+
+    def _on_auto_optimize(self):
+        """Esegue auto-allocazione GPU/CPU in base alla VRAM e popola i combo"""
+        from device_allocator import auto_allocate
+        # Considera solo modelli abilitati nella config corrente
+        enabled = []
+        models_cfg = self.config.get('embedding', {}).get('models', {})
+        for model_key in self.model_device_combos:
+            if models_cfg.get(model_key, {}).get('enabled', True):
+                enabled.append(model_key)
+        llm_vram = getattr(self, '_llm_vram_info', {}).get('vram_gb', 0.0)
+        allocation = auto_allocate(self._hw_info, enabled, llm_vram_gb=llm_vram)
+        for model_key, device in allocation.items():
+            combo = self.model_device_combos.get(model_key)
+            if combo:
+                idx = combo.findData(device)
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
+
+    def _update_vram_budget(self):
+        """Aggiorna barra e label budget VRAM in base ai combo correnti"""
+        from device_allocator import get_vram_budget_info
+        allocation = {k: combo.currentData() for k, combo in self.model_device_combos.items()}
+        llm_vram = getattr(self, '_llm_vram_info', {}).get('vram_gb', 0.0)
+        info = get_vram_budget_info(allocation, self._hw_info.get('vram_total_gb'), llm_vram)
+
+        # Aggiorna barra
+        if self._hw_info['is_unified_memory'] or self._hw_info['backend'] == 'cpu':
+            return  # Barra nascosta
+
+        pct = min(info['percentage'], 100)
+        self.vram_budget_bar.setValue(int(pct))
+
+        # Colore barra
+        if info['status'] == 'ok':
+            bar_color = COLORS['verde']
+        elif info['status'] == 'warning':
+            bar_color = COLORS['ambra']
+        else:
+            bar_color = COLORS['rosso']
+
+        self.vram_budget_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {COLORS['grafite_dark']};
+                border: 1px solid {COLORS['grigio_medio']};
+                border-radius: 3px;
+                text-align: center;
+                color: {COLORS['grigio_chiaro']};
+                font-size: 10px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {bar_color};
+                border-radius: 2px;
+            }}
+        """)
+        self.vram_budget_bar.setFormat(f"{info['used_gb']:.1f} / {info['total_gb']:.1f} GB")
+
+        # Label dettaglio
+        if info['status'] == 'over':
+            self.vram_budget_label.setText(
+                t("config.msg.vram_over_budget", used=info['used_gb'], total=info['total_gb']))
+            self.vram_budget_label.setStyleSheet(
+                f"color: {COLORS['rosso']}; font-size: 10px; padding: 2px;")
+        else:
+            self.vram_budget_label.setText(
+                t("config.msg.vram_budget_ok", used=info['used_gb'], total=info['total_gb'], pct=info['percentage']))
+            self.vram_budget_label.setStyleSheet(
+                f"color: {COLORS['grigio_medio']}; font-size: 10px; padding: 2px;")
+
+        # Mostra "riavvia per applicare" quando un combo cambia
+        if hasattr(self, '_device_restart_label'):
+            self._device_restart_label.setVisible(True)
 
     def create_dinov2_section(self):
         """Crea sezione configurazione DINOv2 (MODIFICATO - rimosso checkbox enabled e device)"""
@@ -585,7 +767,7 @@ class ConfigTab(QWidget):
         self.aesthetic_enabled = QCheckBox(t("config.check.aesthetic_enabled"))
         layout.addWidget(self.aesthetic_enabled, 0, 0, 1, 2)
 
-        # Abilita Technical Score (BRISQUE)
+        # Abilita Technical Score (MUSIQ)
         self.technical_enabled = QCheckBox(t("config.check.technical_enabled"))
         layout.addWidget(self.technical_enabled, 1, 0, 1, 2)
 
@@ -1050,14 +1232,28 @@ class ConfigTab(QWidget):
             self.models_dir_edit.setText(str(models_dir_val))
 
             # --------------------------------------------------
-            # EMBEDDING / DEVICE
+            # EMBEDDING / DEVICE PER-MODELLO
             # --------------------------------------------------
             embedding = self.config['embedding']
-            device = embedding['device']
-            idx = self.device_combo.findData(device)
-            if idx < 0:
-                raise ValueError(f"Device non valido: {device}")
-            self.device_combo.setCurrentIndex(idx)
+            models_cfg = embedding.get('models', {})
+            for model_key, combo in self.model_device_combos.items():
+                model_device = models_cfg.get(model_key, {}).get('device', 'gpu')
+                idx = combo.findData(model_device)
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
+            # Rileva VRAM LLM (ora la config è caricata)
+            from device_allocator import detect_llm_vram
+            self._llm_vram_info = detect_llm_vram(self.config)
+            if self._llm_vram_info['vram_gb'] > 0:
+                src = "API" if self._llm_vram_info['source'] == 'ollama_api' else "stima"
+                self._llm_vram_label.setText(f"~{self._llm_vram_info['vram_gb']:.1f} GB ({src})")
+            else:
+                self._llm_vram_label.setText("— (non attivo)")
+
+            self._update_vram_budget()
+            # Nasconde messaggio restart dopo load (non è un cambio utente)
+            if hasattr(self, '_device_restart_label'):
+                self._device_restart_label.setVisible(False)
 
             models = embedding['models']
 
@@ -1074,9 +1270,10 @@ class ConfigTab(QWidget):
             aesthetic = models.get('aesthetic', {})
             self.aesthetic_enabled.setChecked(aesthetic.get('enabled', True))
 
-            # Technical Score (BRISQUE)
+            # Technical Score (MUSIQ)
             # Non c'è sezione dedicata, usa flag generale
-            self.technical_enabled.setChecked(self.config.get('embedding', {}).get('brisque_enabled', True))
+            self.technical_enabled.setChecked(
+                self.config.get('embedding', {}).get('models', {}).get('technical', {}).get('enabled', True))
 
             # BioCLIP
             bioclip = models['bioclip']
@@ -1215,8 +1412,8 @@ class ConfigTab(QWidget):
             self.log_dir_edit.setText('logs')
             self.models_dir_edit.setText('Models')
             
-            # Device
-            self.device_combo.setCurrentIndex(0)  # auto
+            # Device per-modello: auto-ottimizza al reset
+            self._on_auto_optimize()
             
             # DINOv2
             self.dinov2_model_name.setText('facebook/dinov2-base')
@@ -1322,45 +1519,49 @@ class ConfigTab(QWidget):
                 self.config['embedding'] = {}
             
             self.config['embedding']['enabled'] = True
-            self.config['embedding']['device'] = self.device_combo.currentData()
+            # Salva device per-modello
+            for model_key, combo in self.model_device_combos.items():
+                self.config['embedding'].setdefault('models', {}).setdefault(model_key, {})['device'] = combo.currentData()
             
             if 'models' not in self.config['embedding']:
                 self.config['embedding']['models'] = {}
             
-            # Aggiorna solo modelli gestiti dall'UI
-            self.config['embedding']['models']['dinov2'] = {
+            # Aggiorna solo modelli gestiti dall'UI (preserva device per-modello)
+            _models = self.config['embedding']['models']
+
+            _models.setdefault('dinov2', {}).update({
                 'description': 'Similarità visiva (composizione, texture, forma)',
                 'enabled': True,
                 'model_name': self.dinov2_model_name.text(),
                 'similarity_threshold': self.dinov2_similarity_threshold.value(),
-            }
-            
-            self.config['embedding']['models']['clip'] = {
+            })
+
+            _models.setdefault('clip', {}).update({
                 'description': 'Ricerca semantica (query naturali)',
                 'enabled': True,
                 'model_name': self.clip_model_name.text(),
-            }
+            })
 
             # Quality Scores
-            self.config['embedding']['models']['aesthetic'] = {
+            _models.setdefault('aesthetic', {}).update({
                 'description': 'Punteggio estetico (qualità artistica)',
                 'enabled': self.aesthetic_enabled.isChecked(),
                 'model_name': 'aesthetic-predictor',
                 'returns_score': True,
-            }
+            })
 
-            # BRISQUE (technical score) - flag a livello embedding
-            self.config['embedding']['brisque_enabled'] = self.technical_enabled.isChecked()
+            # Technical score (MUSIQ) - salva in models.technical.enabled
+            _models.setdefault('technical', {})['enabled'] = self.technical_enabled.isChecked()
 
-            self.config['embedding']['models']['bioclip'] = {
+            _models.setdefault('bioclip', {}).update({
                 'description': 'Classificazione flora/fauna TreeOfLife (~450k specie)',
                 'enabled': self.bioclip_enabled.isChecked(),
                 'threshold': self.bioclip_threshold.value(),
                 'max_tags': self.bioclip_max_tags.value(),
-            }
+            })
             
             _llm_backend = 'lmstudio' if self.llm_radio_lmstudio.isChecked() else 'ollama'
-            self.config['embedding']['models']['llm_vision'] = {
+            _models.setdefault('llm_vision', {}).update({
                 'description': 'Genera tag, descrizioni e titoli con LLM Vision',
                 'enabled': True,  # Sempre true per gallery on-demand
                 'backend': _llm_backend,
@@ -1375,12 +1576,7 @@ class ConfigTab(QWidget):
                     'num_batch': self.llm_num_batch.value(),
                     'keep_alive': -1 if self.llm_keep_alive.isChecked() else 300,
                 },
-                'auto_import': self.config.get('embedding', {}).get('models', {}).get('llm_vision', {}).get('auto_import', {
-                    'tags': {'enabled': False, 'overwrite': False, 'max_tags': 10},
-                    'description': {'enabled': False, 'overwrite': False, 'max_words': 100},
-                    'title': {'enabled': False, 'overwrite': False, 'max_words': 5},
-                })
-            }
+            })
             
             # Image Processing
             # Estrae formati dalla text area e li converte in lista

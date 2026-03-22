@@ -44,8 +44,11 @@ class EmbeddingGenerator:
         # Cache immagine LLM: evita estrazione/base64 ripetute per la stessa immagine
         self._llm_image_cache = {'source': None, 'base64': None, 'temp_path': None}
 
-        # Device
-        self.device = self._get_device()
+        # Device per-modello (allocazione da config o auto-detect)
+        from device_allocator import detect_hardware, resolve_device
+        self._hardware = detect_hardware()
+        self._hw_backend = self._hardware['backend']
+        self._model_devices = {}  # cache device risolti per modello
 
         # CARICAMENTO PROFILI OTTIMIZZAZIONE DA CONFIG
         self.optimization_profiles = self._load_optimization_profiles()
@@ -113,40 +116,15 @@ class EmbeddingGenerator:
         else:
             logger.warning("⚠️ Nessun plugin LLM disponibile — warmup saltato")
 
-    def _get_device(self):
-        """Determina device: legge config, con fallback auto-detect (CUDA > MPS > CPU)"""
-        try:
-            import torch
-            # Legge preferenza dal config YAML
-            configured = self.embedding_config.get('device', 'auto')
-            if configured == 'cuda':
-                return 'cuda' if torch.cuda.is_available() else 'cpu'
-            if configured == 'mps':
-                return 'mps' if torch.backends.mps.is_available() else 'cpu'
-            if configured == 'directml':
-                try:
-                    import torch_directml
-                    return torch_directml.device()
-                except ImportError:
-                    logger.warning("torch_directml non installato, fallback su CPU")
-                    return 'cpu'
-            if configured == 'cpu':
-                return 'cpu'
-            # auto: CUDA > MPS > DirectML (AMD Windows) > CPU
-            if torch.cuda.is_available():
-                return 'cuda'
-            if torch.backends.mps.is_available():
-                return 'mps'
-            # Supporto GPU AMD su Windows via DirectML
-            try:
-                import torch_directml
-                if torch_directml.device():
-                    return torch_directml.device()
-            except ImportError:
-                pass
-            return 'cpu'
-        except ImportError:
-            return 'cpu'
+    def _device_for(self, model_key: str) -> str:
+        """Restituisce device torch per un modello specifico (con cache)."""
+        if model_key not in self._model_devices:
+            from device_allocator import resolve_device
+            device = resolve_device(model_key, self.config, self._hw_backend)
+            self._model_devices[model_key] = device
+            logger.info(f"📍 {model_key.upper()} → device: {device}")
+        return self._model_devices[model_key]
+
 
     def _load_optimization_profiles(self) -> Dict:
         """
@@ -460,7 +438,7 @@ class EmbeddingGenerator:
             # 1. Cartella locale (models_dir/clip/)
             if clip_local.exists() and (clip_local / 'config.json').exists():
                 try:
-                    self.clip_model = CLIPModel.from_pretrained(str(clip_local)).to(self.device)
+                    self.clip_model = CLIPModel.from_pretrained(str(clip_local)).to(self._device_for('clip'))
                     self.clip_processor = CLIPProcessor.from_pretrained(str(clip_local))
                     loaded = True
                     logger.info("[OK] CLIP caricato da locale")
@@ -491,7 +469,7 @@ class EmbeddingGenerator:
                             pass  # file opzionale o non presente
 
                     if (clip_local / 'config.json').exists() and (clip_local / 'model.safetensors').exists():
-                        self.clip_model = CLIPModel.from_pretrained(str(clip_local)).to(self.device)
+                        self.clip_model = CLIPModel.from_pretrained(str(clip_local)).to(self._device_for('clip'))
                         self.clip_processor = CLIPProcessor.from_pretrained(str(clip_local))
                         loaded = True
                         logger.info("[OK] CLIP caricato da repo")
@@ -511,13 +489,13 @@ class EmbeddingGenerator:
                         local_dir_use_symlinks=False,
                         ignore_patterns=['*.msgpack', '*.h5', 'rust_model.ot', 'tf_model.h5', 'flax_model.msgpack']
                     )
-                    self.clip_model = CLIPModel.from_pretrained(str(clip_local)).to(self.device)
+                    self.clip_model = CLIPModel.from_pretrained(str(clip_local)).to(self._device_for('clip'))
                     self.clip_processor = CLIPProcessor.from_pretrained(str(clip_local))
                     logger.info(f"[OK] CLIP caricato e salvato (fallback: {fallback_model})")
                     loaded = True
                 except Exception as fe:
                     logger.error(f"CLIP: snapshot_download fallito ({fe}), provo from_pretrained in memoria...")
-                    self.clip_model = CLIPModel.from_pretrained(fallback_model).to(self.device)
+                    self.clip_model = CLIPModel.from_pretrained(fallback_model).to(self._device_for('clip'))
                     self.clip_processor = CLIPProcessor.from_pretrained(fallback_model)
                     logger.info(f"[OK] CLIP caricato in memoria senza persistenza (fallback: {fallback_model})")
                     loaded = True
@@ -562,7 +540,7 @@ class EmbeddingGenerator:
             # 1. Cartella locale (models_dir/dinov2/)
             if dinov2_local.exists() and (dinov2_local / 'config.json').exists():
                 try:
-                    self.dinov2_model = AutoModel.from_pretrained(str(dinov2_local)).to(self.device)
+                    self.dinov2_model = AutoModel.from_pretrained(str(dinov2_local)).to(self._device_for('dinov2'))
                     self.dinov2_processor = AutoImageProcessor.from_pretrained(str(dinov2_local))
                     loaded = True
                     logger.info("[OK] DINOv2 caricato da locale")
@@ -591,7 +569,7 @@ class EmbeddingGenerator:
                             pass  # file opzionale o non presente
 
                     if (dinov2_local / 'config.json').exists() and (dinov2_local / 'model.safetensors').exists():
-                        self.dinov2_model = AutoModel.from_pretrained(str(dinov2_local)).to(self.device)
+                        self.dinov2_model = AutoModel.from_pretrained(str(dinov2_local)).to(self._device_for('dinov2'))
                         self.dinov2_processor = AutoImageProcessor.from_pretrained(str(dinov2_local))
                         loaded = True
                         logger.info("[OK] DINOv2 caricato da repo")
@@ -611,13 +589,13 @@ class EmbeddingGenerator:
                         local_dir_use_symlinks=False,
                         ignore_patterns=['*.msgpack', '*.h5', 'rust_model.ot', 'tf_model.h5', 'flax_model.msgpack']
                     )
-                    self.dinov2_model = AutoModel.from_pretrained(str(dinov2_local)).to(self.device)
+                    self.dinov2_model = AutoModel.from_pretrained(str(dinov2_local)).to(self._device_for('dinov2'))
                     self.dinov2_processor = AutoImageProcessor.from_pretrained(str(dinov2_local))
                     logger.info(f"[OK] DINOv2 caricato e salvato (fallback: {fallback_model})")
                     loaded = True
                 except Exception as fe:
                     logger.error(f"DINOv2: snapshot_download fallito ({fe}), provo from_pretrained in memoria...")
-                    self.dinov2_model = AutoModel.from_pretrained(fallback_model).to(self.device)
+                    self.dinov2_model = AutoModel.from_pretrained(fallback_model).to(self._device_for('dinov2'))
                     self.dinov2_processor = AutoImageProcessor.from_pretrained(fallback_model)
                     logger.info(f"[OK] DINOv2 caricato in memoria senza persistenza (fallback: {fallback_model})")
                     loaded = True
@@ -654,7 +632,7 @@ class EmbeddingGenerator:
             # 1. Prova a caricare da directory locale (già scaricato)
             if local_exists:
                 try:
-                    clip_model = CLIPModel.from_pretrained(str(aesthetic_dir)).to(self.device)
+                    clip_model = CLIPModel.from_pretrained(str(aesthetic_dir)).to(self._device_for('aesthetic'))
                     self.aesthetic_processor = CLIPProcessor.from_pretrained(str(aesthetic_dir))
                     logger.info("[OK] Aesthetic caricato da locale")
                 except Exception as e:
@@ -685,7 +663,7 @@ class EmbeddingGenerator:
                             pass  # file opzionale o non presente
 
                     if (aesthetic_dir / 'config.json').exists() and (aesthetic_dir / 'model.safetensors').exists():
-                        clip_model = CLIPModel.from_pretrained(str(aesthetic_dir)).to(self.device)
+                        clip_model = CLIPModel.from_pretrained(str(aesthetic_dir)).to(self._device_for('aesthetic'))
                         self.aesthetic_processor = CLIPProcessor.from_pretrained(str(aesthetic_dir))
                         logger.info("[OK] Aesthetic caricato da repo")
                     else:
@@ -705,18 +683,18 @@ class EmbeddingGenerator:
                         local_dir_use_symlinks=False,
                         ignore_patterns=['*.msgpack', '*.h5', 'rust_model.ot', 'tf_model.h5', 'flax_model.msgpack']
                     )
-                    clip_model = CLIPModel.from_pretrained(str(aesthetic_dir)).to(self.device)
+                    clip_model = CLIPModel.from_pretrained(str(aesthetic_dir)).to(self._device_for('aesthetic'))
                     self.aesthetic_processor = CLIPProcessor.from_pretrained(str(aesthetic_dir))
                     logger.info(f"[OK] Aesthetic caricato e salvato (fallback: {fallback_model})")
                 except Exception as fe:
                     logger.error(f"Aesthetic: snapshot_download fallito ({fe}), provo from_pretrained in memoria...")
-                    clip_model = CLIPModel.from_pretrained(fallback_model).to(self.device)
+                    clip_model = CLIPModel.from_pretrained(fallback_model).to(self._device_for('aesthetic'))
                     self.aesthetic_processor = CLIPProcessor.from_pretrained(fallback_model)
                     logger.info(f"[OK] Aesthetic caricato in memoria senza persistenza (fallback: {fallback_model})")
 
             # Head per score estetico
             pooler_dim = clip_model.vision_model.config.hidden_size
-            self.aesthetic_head = nn.Linear(pooler_dim, 1).to(self.device)
+            self.aesthetic_head = nn.Linear(pooler_dim, 1).to(self._device_for('aesthetic'))
             torch.nn.init.xavier_normal_(self.aesthetic_head.weight)
             torch.nn.init.constant_(self.aesthetic_head.bias, 0.0)
 
@@ -730,7 +708,7 @@ class EmbeddingGenerator:
             self.aesthetic_enabled = False
 
     def _init_musiq(self):
-        """Inizializza MUSIQ per valutazione qualità tecnica (sostituisce BRISQUE).
+        """Inizializza MUSIQ per valutazione qualità tecnica.
         Priorità: locale Models/musiq/ → repo HF frozen → download pyiqa.
         Usa pyiqa per architettura, pesi dal repo congelato. Fallback CPU come BioCLIP."""
         try:
@@ -764,7 +742,7 @@ class EmbeddingGenerator:
                         logger.warning(f"MUSIQ: repo frozen non disponibile ({e})")
 
             # 2. Crea modello e carica pesi
-            musiq_device = self.device
+            musiq_device = self._device_for('technical')
 
             def _create_and_load(device):
                 if local_weights.exists():
@@ -898,7 +876,7 @@ class EmbeddingGenerator:
             if bioclip_local_ok and treeoflife_local_ok:
                 try:
                     # Determina device per BioCLIP (fallback CPU se VRAM insufficiente)
-                    bioclip_device = self.device
+                    bioclip_device = self._device_for('bioclip')
                     try:
                         model, _, preprocess = open_clip.create_model_and_transforms(
                             model_name='ViT-L-14',
@@ -1040,7 +1018,7 @@ class EmbeddingGenerator:
 
             # Fallback: TreeOfLifeClassifier standard (scarica da repo ufficiale)
             try:
-                self.bioclip_classifier = TreeOfLifeClassifier(device=self.device)
+                self.bioclip_classifier = TreeOfLifeClassifier(device=self._device_for('bioclip'))
                 self.bioclip_on_cpu = False
                 logger.info("[OK] BioCLIP caricato (fallback)")
                 return True
@@ -1089,7 +1067,7 @@ class EmbeddingGenerator:
                     return None
                 
                 # Tokenizzazione e generazione embedding con la libreria Transformers
-                inputs = self.clip_processor(text=[input_data], return_tensors="pt", padding=True).to(self.device)
+                inputs = self.clip_processor(text=[input_data], return_tensors="pt", padding=True).to(self._device_for('clip'))
                 
                 with torch.no_grad():
                     # Path manuale deterministico: bypassa get_text_features() per
@@ -1264,7 +1242,7 @@ class EmbeddingGenerator:
             image = self._load_image_from_input(image_input, input_type)
             # Prepara con profilo ottimizzazione (target_size e resampling da config)
             image = self._prepare_image_for_model(image, 'clip_embedding')
-            inputs = self.clip_processor(images=image, return_tensors="pt").to(self.device)
+            inputs = self.clip_processor(images=image, return_tensors="pt").to(self._device_for('clip'))
             with torch.no_grad():
                 # Path manuale deterministico: bypassa get_image_features() che cambia
                 # comportamento tra versioni di transformers (causa principale di score
@@ -1291,7 +1269,7 @@ class EmbeddingGenerator:
             image = self._load_image_from_input(image_input, input_type)
             # Prepara con profilo ottimizzazione (target_size e resampling da config)
             image = self._prepare_image_for_model(image, 'dinov2_embedding')
-            inputs = self.dinov2_processor(images=image, return_tensors="pt").to(self.device)
+            inputs = self.dinov2_processor(images=image, return_tensors="pt").to(self._device_for('dinov2'))
             with torch.no_grad():
                 outputs = self.dinov2_model(**inputs)
                 features = outputs.last_hidden_state[:, 0, :]  # CLS token
@@ -1310,7 +1288,7 @@ class EmbeddingGenerator:
             image = self._load_image_from_input(image_input, input_type)
             # Prepara con profilo ottimizzazione (target_size e resampling da config)
             image = self._prepare_image_for_model(image, 'aesthetic_score')
-            inputs = self.aesthetic_processor(images=image, return_tensors="pt").to(self.device)
+            inputs = self.aesthetic_processor(images=image, return_tensors="pt").to(self._device_for('aesthetic'))
             
             with torch.no_grad():
                 vision_outputs = self.aesthetic_model(**inputs)
@@ -1375,7 +1353,7 @@ class EmbeddingGenerator:
             if not getattr(self, 'clip_enabled', False): 
                 return None
             translated = self._translate_to_english(text_query) if self.translator else text_query
-            inputs = self.clip_processor(text=[translated], return_tensors="pt", padding=True).to(self.device)
+            inputs = self.clip_processor(text=[translated], return_tensors="pt", padding=True).to(self._device_for('clip'))
             with torch.no_grad():
                 # Path manuale deterministico (come generate_embeddings)
                 text_out = self.clip_model.text_model(

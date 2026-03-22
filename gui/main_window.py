@@ -573,16 +573,18 @@ class MainWindow(QMainWindow):
 
         emb_cfg = emb_gen.embedding_config.get('models', {})
 
-        # Device globale: 'cuda'/'mps'/DirectML = VRAM, 'cpu' = CPU
-        device = str(getattr(emb_gen, 'device', 'cpu'))
-        on_gpu = device != 'cpu'
-        # Stato per modelli che usano il device globale
-        gpu_status = 'ok' if on_gpu else 'cpu'
+        # Device per-modello: legge dalla cache dell'embedding_generator
+        _devices = getattr(emb_gen, '_model_devices', {})
+
+        def _gpu_status(model_key):
+            """Restituisce 'ok' (GPU) o 'cpu' in base al device del modello"""
+            dev = str(_devices.get(model_key, 'cpu'))
+            return 'ok' if dev != 'cpu' else 'cpu'
 
         # CLIP
         clip_enabled = emb_cfg.get('clip', {}).get('enabled', False)
         if emb_gen.clip_model is not None:
-            self.header.update_model_status('clip', gpu_status)
+            self.header.update_model_status('clip', _gpu_status('clip'))
         elif clip_enabled:
             self.header.update_model_status('clip', 'error')
         else:
@@ -591,7 +593,7 @@ class MainWindow(QMainWindow):
         # DINOv2
         dino_enabled = emb_cfg.get('dinov2', {}).get('enabled', False)
         if emb_gen.dinov2_model is not None:
-            self.header.update_model_status('dinov2', gpu_status)
+            self.header.update_model_status('dinov2', _gpu_status('dinov2'))
         elif dino_enabled:
             self.header.update_model_status('dinov2', 'error')
         else:
@@ -603,7 +605,7 @@ class MainWindow(QMainWindow):
             if getattr(emb_gen, 'bioclip_on_cpu', False):
                 self.header.update_model_status('bioclip', 'cpu')
             else:
-                self.header.update_model_status('bioclip', gpu_status)
+                self.header.update_model_status('bioclip', _gpu_status('bioclip'))
         elif bio_enabled:
             self.header.update_model_status('bioclip', 'error')
         else:
@@ -612,17 +614,17 @@ class MainWindow(QMainWindow):
         # Aesthetic
         aes_enabled = emb_cfg.get('aesthetic', {}).get('enabled', False)
         if emb_gen.aesthetic_model is not None:
-            self.header.update_model_status('aesthetic', gpu_status)
+            self.header.update_model_status('aesthetic', _gpu_status('aesthetic'))
         elif aes_enabled:
             self.header.update_model_status('aesthetic', 'error')
         else:
             self.header.update_model_status('aesthetic', 'missing')
 
-        # Technical (MUSIQ — configurabile CPU/GPU, default CPU)
+        # Technical (MUSIQ)
         tech_enabled = emb_cfg.get('technical', {}).get('enabled', False)
         if getattr(emb_gen, 'musiq_available', False):
-            musiq_dev = getattr(emb_gen, 'musiq_device', 'cpu')
-            if musiq_dev in ('cuda', 'mps'):
+            musiq_dev = str(getattr(emb_gen, 'musiq_device', 'cpu'))
+            if musiq_dev != 'cpu':
                 self.header.update_model_status('technical', 'ok')
             else:
                 self.header.update_model_status('technical', 'cpu')
