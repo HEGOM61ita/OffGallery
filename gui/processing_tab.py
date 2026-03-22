@@ -9,7 +9,7 @@ import yaml
 import sys
 from pathlib import Path
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QGridLayout,
     QLabel, QPushButton, QProgressBar, QTextEdit,
     QMessageBox, QDialog, QScrollArea, QApplication,
     QCheckBox, QRadioButton, QButtonGroup, QSpinBox, QFileDialog
@@ -19,22 +19,42 @@ from PyQt6.QtGui import QFont
 from datetime import datetime
 import time
 import json
+import threading
+import queue
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import logging
 
 from utils.paths import get_app_dir
 from catalog_readers.lightroom_reader import LightroomCatalogReader
 from i18n import t
 
+logger = logging.getLogger(__name__)
+
 
 class ProcessingWorker(QThread):
-    """Worker thread per processing immagini in background - VERSIONE CORRETTA"""
-    
-    # Segnali
-    progress = pyqtSignal(int, int)  # current, total
-    log_message = pyqtSignal(str, str)  # message, level (info/warning/error)
+    """Worker thread per processing immagini — ARCHITETTURA MULTI-THREAD
+
+    Flusso:
+      Fase 0 (prep, sequenziale): EXIF + thumbnail + geo + hash → inserimento DB record base
+      Fase 1 (parallela): 6 thread indipendenti (CLIP, DINOv2, BioCLIP, Aesthetic, MUSIQ, LLM)
+      Ogni thread processa tutte le immagini col proprio modello e aggiorna il DB campo per campo.
+      BioCLIP→LLM: coda (queue.Queue) per passare contesto tassonomico appena disponibile.
+
+    Sincronizzazione:
+      - db_lock: un solo Lock per serializzare scritture DB (SQLite non è thread-safe)
+      - llm_queue: Queue per dipendenza BioCLIP→LLM (nessun lock necessario)
+      - bioclip_results + bioclip_lock: contesto per LLM (lock separato, mai annidato)
+      - is_running / is_paused: controllati da TUTTI i thread
+    """
+
+    # Segnali (emessi solo dal QThread principale o con Qt.QueuedConnection implicita)
+    progress = pyqtSignal(int, int)  # current, total (fase prep)
+    model_progress = pyqtSignal(str, int, int)  # model_key, current, total
+    log_message = pyqtSignal(str, str)  # message, level
     stats_update = pyqtSignal(dict)  # statistiche live
     finished = pyqtSignal(dict)  # statistiche finali
-    
+
     def __init__(self, config_path, input_directory, embedding_gen=None, options=None,
                  include_subdirs=False, image_list=None):
         super().__init__()
@@ -43,91 +63,89 @@ class ProcessingWorker(QThread):
         self.embedding_gen = embedding_gen
         self.options = options or {}
         self.include_subdirs = include_subdirs
-        self.image_list = image_list  # Se non None, bypassa la scansione directory
+        self.image_list = image_list
         self.is_running = True
         self.is_paused = False
+        # Sincronizzazione multi-thread
+        self._db_lock = threading.Lock()
+        self._stats_lock = threading.Lock()
+        self._model_threads = []  # riferimenti ai thread modello attivi
 
+    def _wait_if_paused(self):
+        """Attende se in pausa. Ritorna True se si può continuare, False se stoppato."""
+        while self.is_paused and self.is_running:
+            time.sleep(0.1)
+        return self.is_running
+
+    # ─────────────────────────────────────────────────────────────
+    # RUN — Orchestratore principale
+    # ─────────────────────────────────────────────────────────────
     def run(self):
-        """Esegue processing (viene chiamato da start())"""
+        """Fase 0 (prep sequenziale) + Fase 1 (modelli paralleli)"""
         try:
-            # Import moduli processing
             import sys
             sys.path.insert(0, str(get_app_dir()))
-            
+
             from db_manager_new import DatabaseManager
             from raw_processor import RAWProcessor
             from embedding_generator import EmbeddingGenerator
-            
-            # Carica config
+
+            # === CARICAMENTO CONFIG ===
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
-            
-            # DEBUG: Mostra struttura config
-            self.log_message.emit("🔧 Config caricato, chiavi principali:", "info")
-            for key in config.keys():
-                self.log_message.emit(f"  - {key}: {type(config[key])}", "info")
-            
-            # CORRETTO: Accesso al database path (config è YAML diretto)
+
+            self.log_message.emit("🔧 Config caricato", "info")
+
             db_path = config['paths']['database']
-            self.log_message.emit(f"📄 Database path: {db_path}", "info")
-            
-            # Verifica file database
             db_path_obj = Path(db_path)
             if not db_path_obj.parent.exists():
                 db_path_obj.parent.mkdir(parents=True, exist_ok=True)
-                self.log_message.emit(f"✓ Directory database creata: {db_path_obj.parent}", "info")
-            
-            # Inizializza componenti
+
             db_manager = DatabaseManager(db_path)
             raw_processor = RAWProcessor(config)
-            
-            # CRITICO: Verifica se embedding è abilitato PRIMA di inizializzarlo
+
+            # === EMBEDDING GENERATOR ===
             embedding_enabled = config.get('embedding', {}).get('enabled', False)
             embedding_generator = None
             solo_gen_ai = self.options.get('solo_gen_ai', False)
+
             if solo_gen_ai:
-                embedding_enabled = False  # Solo Gen. AI: salta embedding
-                # In modalità Solo Gen. AI serve comunque il generator per le chiamate LLM
+                embedding_enabled = False
                 embedding_generator = self.embedding_gen or EmbeddingGenerator(config, initialization_mode='llm_only')
                 self.log_message.emit("🤖 Modalità Solo Gen. AI: embedding saltato, solo LLM attivo", "info")
-            # Leggi configurazione auto_import per LLM (nuova struttura granulare)
+
+            # Configurazione LLM dal YAML
             llm_auto_import = config.get('embedding', {}).get('models', {}).get('llm_vision', {}).get('auto_import', {})
-
-            # Configurazione Tags
-            tags_cfg = llm_auto_import.get('tags', {})
-            gen_tags = tags_cfg.get('enabled', False)
-            tags_overwrite = tags_cfg.get('overwrite', False)
-            max_tags = tags_cfg.get('max_tags', 10)
-
-            # Configurazione Description
-            desc_cfg = llm_auto_import.get('description', {})
-            gen_description = desc_cfg.get('enabled', False)
-            desc_overwrite = desc_cfg.get('overwrite', False)
-            max_description_words = desc_cfg.get('max_words', 100)
-
-            # Configurazione Title
-            title_cfg = llm_auto_import.get('title', {})
-            gen_title = title_cfg.get('enabled', False)
-            title_overwrite = title_cfg.get('overwrite', False)
-            max_title_words = title_cfg.get('max_words', 5)
-
-            # Costruisci oggetto config per passarlo al worker
             llm_gen_config = {
-                'tags': {'enabled': gen_tags, 'overwrite': tags_overwrite, 'max': max_tags},
-                'description': {'enabled': gen_description, 'overwrite': desc_overwrite, 'max': max_description_words},
-                'title': {'enabled': gen_title, 'overwrite': title_overwrite, 'max': max_title_words}
+                'tags': {
+                    'enabled': llm_auto_import.get('tags', {}).get('enabled', False),
+                    'overwrite': llm_auto_import.get('tags', {}).get('overwrite', False),
+                    'max': llm_auto_import.get('tags', {}).get('max_tags', 10),
+                },
+                'description': {
+                    'enabled': llm_auto_import.get('description', {}).get('enabled', False),
+                    'overwrite': llm_auto_import.get('description', {}).get('overwrite', False),
+                    'max': llm_auto_import.get('description', {}).get('max_words', 100),
+                },
+                'title': {
+                    'enabled': llm_auto_import.get('title', {}).get('enabled', False),
+                    'overwrite': llm_auto_import.get('title', {}).get('overwrite', False),
+                    'max': llm_auto_import.get('title', {}).get('max_words', 5),
+                },
             }
 
-            # Log configurazione
+            # Log configurazione LLM
             gen_items = []
-            if gen_tags: gen_items.append(f"Tags (max:{max_tags}, sovr:{tags_overwrite})")
-            if gen_description: gen_items.append(f"Desc (max:{max_description_words}w, sovr:{desc_overwrite})")
-            if gen_title: gen_items.append(f"Title (max:{max_title_words}w, sovr:{title_overwrite})")
-
+            for k, cfg in llm_gen_config.items():
+                if cfg['enabled']:
+                    gen_items.append(f"{k} (max:{cfg['max']}, sovr:{cfg['overwrite']})")
             if gen_items:
                 self.log_message.emit(f"🤖 LLM Auto-import attivo: {', '.join(gen_items)}", "info")
             else:
                 self.log_message.emit("🤖 LLM Auto-import: disabilitato", "info")
+
+            models_status = {}  # disponibilità reale dei modelli
+
             if embedding_enabled:
                 if self.embedding_gen:
                     self.log_message.emit("🧠 Utilizzo EmbeddingGenerator già inizializzato", "info")
@@ -135,320 +153,313 @@ class ProcessingWorker(QThread):
                 else:
                     self.log_message.emit("🧠 Inizializzazione EmbeddingGenerator...", "info")
                     embedding_generator = EmbeddingGenerator(config)
-                
-                # Test modelli AI - verifica se sono disponibili
+
                 models_status = embedding_generator.test_models()
                 for model_name, available in models_status.items():
                     status = "[✓ OK]" if available else "[❌ NO]"
                     self.log_message.emit(f"  {status} {model_name.upper()}", "info")
-                    
-                # Se nessun modello è disponibile, disabilita embedding
+
                 if not any(models_status.values()):
                     self.log_message.emit("⚠️ Nessun modello AI disponibile - processing senza embedding", "warning")
                     embedding_generator = None
                     embedding_enabled = False
             else:
                 self.log_message.emit("➡️ Embedding disabilitato nel config", "info")
-            
-            # Trova immagini da processare
-            supported_formats = config.get('image_processing', {}).get('supported_formats', [])
 
+            # === SCANSIONE IMMAGINI ===
+            supported_formats = config.get('image_processing', {}).get('supported_formats', [])
             if not supported_formats:
                 self.log_message.emit("❌ Nessun formato supportato configurato", "error")
                 self.finished.emit({'total': 0, 'processed': 0, 'errors': 1})
                 return
 
             if self.image_list is not None:
-                # Sorgente catalogo: usa la lista fornita direttamente
                 all_images = list(self.image_list)
                 self.log_message.emit(f"📋 Sorgente: catalogo — {len(all_images)} immagini", "info")
             else:
-                # Sorgente directory: scansiona il filesystem
                 input_dir = self.input_directory
                 if not input_dir or not input_dir.exists():
                     self.log_message.emit(f"❌ Directory input non trovata: {input_dir}", "error")
                     self.finished.emit({'total': 0, 'processed': 0, 'errors': 1})
                     return
-
                 all_images = []
                 seen_files = set()
-
                 for ext in supported_formats:
                     for pattern in [f"*{ext}", f"*{ext.upper()}"]:
-                        if self.include_subdirs:
-                            found_files = input_dir.rglob(pattern)
-                        else:
-                            found_files = input_dir.glob(pattern)
-                        for file_path in found_files:
-                            # Salta file nascosti (es. ._filename.jpg su macOS/Linux)
-                            if file_path.name.startswith('.'):
+                        found = input_dir.rglob(pattern) if self.include_subdirs else input_dir.glob(pattern)
+                        for fp in found:
+                            if fp.name.startswith('.'):
                                 continue
-                            dedup_key = str(file_path).lower() if self.include_subdirs else file_path.name.lower()
-                            if dedup_key not in seen_files:
-                                seen_files.add(dedup_key)
-                                all_images.append(file_path)
-            
+                            dk = str(fp).lower() if self.include_subdirs else fp.name.lower()
+                            if dk not in seen_files:
+                                seen_files.add(dk)
+                                all_images.append(fp)
+
             if not all_images:
                 self.log_message.emit("⚠️ Nessuna immagine trovata nella directory input", "warning")
                 self.finished.emit({'total': 0, 'processed': 0, 'errors': 0})
                 return
-            
-            self.log_message.emit(f"🔍 Trovate {len(all_images)} immagini uniche da processare", "info")
 
-            # Pre-filtra immagini da processare basandosi sulla modalità
+            self.log_message.emit(f"🔍 Trovate {len(all_images)} immagini uniche", "info")
+
+            # === FILTRO MODALITÀ ===
             processing_mode = self.options.get('processing_mode', 'new_only')
             images_to_process = []
-
             for image_path in all_images:
-                should_process = False
-
+                should = False
                 if solo_gen_ai:
-                    # Solo Gen. AI: aggiorna solo immagini già nel database
-                    should_process = db_manager.image_exists(image_path.name)
+                    should = db_manager.image_exists(image_path.name)
                 elif processing_mode == 'new_only':
-                    should_process = not db_manager.image_exists(image_path.name)
+                    should = not db_manager.image_exists(image_path.name)
                 elif processing_mode == 'reprocess_all':
-                    should_process = True
+                    should = True
                 elif processing_mode == 'new_plus_errors':
-                    has_errors = False
-                    if hasattr(db_manager, 'had_processing_errors'):
-                        has_errors = db_manager.had_processing_errors(image_path.name)
-                    should_process = not db_manager.image_exists(image_path.name) or has_errors
-
-                if should_process:
+                    has_err = hasattr(db_manager, 'had_processing_errors') and db_manager.had_processing_errors(image_path.name)
+                    should = not db_manager.image_exists(image_path.name) or has_err
+                if should:
                     images_to_process.append(image_path)
 
             total_to_process = len(images_to_process)
             skipped_count = len(all_images) - total_to_process
 
             if skipped_count > 0:
-                self.log_message.emit(f"⏭️ {skipped_count} immagini già processate (skip), {total_to_process} da elaborare", "info")
-
+                self.log_message.emit(f"⏭️ {skipped_count} già processate, {total_to_process} da elaborare", "info")
             if total_to_process == 0:
                 self.log_message.emit("✅ Tutte le immagini sono già state processate", "info")
-                self.finished.emit({'total': len(all_images), 'processed': len(all_images), 'errors': 0, 'skipped_existing': len(all_images)})
+                self.finished.emit({'total': len(all_images), 'processed': len(all_images),
+                                    'errors': 0, 'skipped_existing': len(all_images)})
                 return
 
-            # Stats
+            # Stats thread-safe
             stats = {
-                'total': len(all_images),
-                'processed': 0,
-                'success': 0,
-                'errors': 0,
-                'with_embedding': 0,
-                'with_tags': 0,
+                'total': len(all_images), 'processed': 0, 'success': 0,
+                'errors': 0, 'with_embedding': 0, 'with_tags': 0,
                 'skipped_existing': skipped_count
             }
-
             start_time = time.time()
 
-            # Processa ogni immagine (solo quelle filtrate)
+            # ─── FASE 0: PREPARAZIONE (sequenziale) ───
+            # Estrae EXIF, thumbnail, geo, hash — inserisce record base nel DB
+            self.log_message.emit("═" * 50, "info")
+            self.log_message.emit("FASE 0: Preparazione (EXIF + thumbnail)", "info")
+            self.log_message.emit("═" * 50, "info")
+
+            prep_cache = {}  # filename → dict con thumbnail, image_data, geo, ecc.
+            emb_flags = self.options.get('embedding_model_flags', {})
+
             for i, image_path in enumerate(images_to_process, 1):
-                if not self.is_running:
+                if not self._wait_if_paused():
                     break
-
-                # Pausa se richiesta
-                while self.is_paused and self.is_running:
-                    time.sleep(0.1)
-
-                self.log_message.emit(f"📂 Processing: {image_path.name}", "info")
                 self.progress.emit(i, total_to_process)
-                
-                try:
-                    # Log modalità se riprocesso immagine esistente
-                    if db_manager.image_exists(image_path.name):
-                        if processing_mode == 'reprocess_all':
-                            self.log_message.emit(f"🔄 Riprocesso: {image_path.name}", "info")
-                        elif processing_mode == 'new_plus_errors':
-                            self.log_message.emit(f"🔄 Riprovo (errori precedenti): {image_path.name}", "info")
 
-                    # PROCESSING COMPLETO E CORRETTO
-                    result = self._process_image_complete_corrected(
-                        image_path, raw_processor, embedding_generator, embedding_enabled,
-                        llm_gen_config, config, solo_gen_ai=solo_gen_ai
-                    )
-
-                    if result['success']:
-                        # Salva nel database con logica corretta
-                        try:
-                            processing_mode = self.options.get('processing_mode', 'new_only')
-                            image_exists = db_manager.image_exists(image_path.name)
-
-                            if solo_gen_ai:
-                                # Solo Gen. AI: aggiorna solo i campi LLM, sempre update
-                                success = db_manager.update_image(image_path.name, result)
-                                if success:
-                                    self.log_message.emit(f"✅ Aggiornati campi AI: {image_path.name}", "info")
-                                else:
-                                    self.log_message.emit(f"❌ Errore aggiornamento AI: {image_path.name}", "error")
-                                    stats['errors'] += 1
-                            elif processing_mode in ['reprocess_all', 'new_plus_errors'] and image_exists:
-                                # AGGIORNA record esistente
-                                try:
-                                    if hasattr(db_manager, 'update_image'):
-                                        success = db_manager.update_image(image_path.name, result)
-                                        if success:
-                                            self.log_message.emit(f"✅ Aggiornato: {image_path.name}", "info")
-                                        else:
-                                            self.log_message.emit(f"❌ Errore aggiornamento database: {image_path.name}", "error")
-                                            stats['errors'] += 1
-                                            success = False
-                                    else:
-                                        # Fallback: considera come successo parziale senza log errore
-                                        success = True
-                                        self.log_message.emit(f"✅ Riprocessato: {image_path.name}", "info")
-                                        
-                                except Exception as e:
-                                    self.log_message.emit(f"❌ Errore aggiornamento per {image_path.name}: {e}", "error")
-                                    stats['errors'] += 1
-                                    success = False
-                            else:
-                                # INSERISCI nuovo record
-                                try:
-                                    image_id = db_manager.insert_image(result)
-                                    if image_id:
-                                        success = True
-                                        self.log_message.emit(f"✅ Inserito: {image_path.name} (ID: {image_id})", "info")
-                                    else:
-                                        success = False
-                                        self.log_message.emit(f"❌ Errore inserimento database: {image_path.name}", "error")
-                                        stats['errors'] += 1
-                                except Exception as e:
-                                    success = False
-                                    self.log_message.emit(f"❌ Errore inserimento per {image_path.name}: {e}", "error")
-                                    stats['errors'] += 1
-                            
-                            # Aggiorna statistiche solo se successo
-                            if success:
-                                stats['success'] += 1
-                                stats['processed'] += 1
-                                
-                                if result.get('embedding_generated', False):
-                                    stats['with_embedding'] += 1
-                                if result.get('tags'):
-                                    stats['with_tags'] += 1
-                                    
-                        except Exception as e:
-                            self.log_message.emit(f"❌ Errore database per {image_path.name}: {e}", "error")
-                            stats['errors'] += 1
-                    else:
+                prep = self._prep_image(
+                    image_path, raw_processor, config, db_manager,
+                    processing_mode, solo_gen_ai, emb_flags, llm_gen_config
+                )
+                if prep:
+                    prep_cache[image_path.name] = prep
+                    with self._stats_lock:
+                        stats['success'] += 1
+                        stats['processed'] += 1
+                else:
+                    with self._stats_lock:
                         stats['errors'] += 1
-                        error_msg = result.get('error_message', 'Errore sconosciuto')
-                        self.log_message.emit(f"❌ Processing fallito per {image_path.name}: {error_msg}", "error")
-                
-                except Exception as e:
-                    stats['errors'] += 1
-                    self.log_message.emit(f"❌ Errore processing {image_path.name}: {e}", "error")
-                    import traceback
-                    self.log_message.emit(f"Traceback: {traceback.format_exc()}", "error")
-                
-                # Aggiorna stats live ogni immagine
-                self.stats_update.emit(stats.copy())
 
-                # Libera memoria GPU dopo ogni immagine (CUDA, MPS/Apple Silicon, DirectML/AMD)
-                try:
-                    import torch, gc
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-                    elif torch.backends.mps.is_available():
-                        torch.mps.empty_cache()
-                    else:
-                        # DirectML (AMD Windows) non ha empty_cache, forza GC
-                        gc.collect()
-                except:
-                    pass
+            if not self.is_running:
+                stats['processing_time'] = time.time() - start_time
+                self.finished.emit(stats)
+                return
 
-            # Stats finali
+            self.log_message.emit(f"✅ Fase 0 completata: {len(prep_cache)}/{total_to_process} immagini preparate", "info")
+
+            # ─── FASE 1: THREAD MODELLI PARALLELI ───
+            self.log_message.emit("═" * 50, "info")
+            self.log_message.emit("FASE 1: Modelli AI (thread paralleli)", "info")
+            self.log_message.emit("═" * 50, "info")
+
+            # Strutture condivise per dipendenza BioCLIP→LLM
+            llm_queue = queue.Queue()
+            bioclip_results = {}  # filename → {'context': str, 'category_hint': str}
+            bioclip_lock = threading.Lock()
+
+            # Mappa disponibilità reale modelli (test_models usa 'musiq', UI usa 'technical')
+            _models_avail = models_status if embedding_enabled else {}
+            _avail_map = {
+                'clip': _models_avail.get('clip', False),
+                'dinov2': _models_avail.get('dinov2', False),
+                'aesthetic': _models_avail.get('aesthetic', False),
+                'technical': _models_avail.get('musiq', False),
+                'bioclip': _models_avail.get('bioclip', False),
+            }
+
+            bioclip_active = (emb_flags.get('bioclip', {}).get('active', False)
+                              and embedding_enabled and embedding_generator is not None
+                              and _avail_map.get('bioclip', False))
+            llm_active = (llm_gen_config.get('tags', {}).get('enabled') or
+                          llm_gen_config.get('description', {}).get('enabled') or
+                          llm_gen_config.get('title', {}).get('enabled'))
+
+            # Immagini con thumbnail valido per i modelli AI
+            model_images = [ip for ip in images_to_process
+                            if ip.name in prep_cache and prep_cache[ip.name]['thumbnail'] is not None]
+            model_total = len(model_images)
+
+            model_threads = []
+
+            # Thread embedding indipendenti (CLIP, DINOv2, Aesthetic, MUSIQ)
+            _emb_thread_defs = [
+                ('clip', self._thread_clip),
+                ('dinov2', self._thread_dinov2),
+                ('aesthetic', self._thread_aesthetic),
+                ('technical', self._thread_musiq),
+            ]
+            for model_key, thread_func in _emb_thread_defs:
+                if not emb_flags.get(model_key, {}).get('active', False):
+                    continue
+                if not (embedding_enabled and embedding_generator is not None):
+                    continue
+                if not _avail_map.get(model_key, False):
+                    self.log_message.emit(
+                        f"⚠️ {model_key.upper()} selezionato ma non caricato — thread saltato", "warning")
+                    continue
+                t = threading.Thread(
+                    target=thread_func,
+                    args=(model_images, prep_cache, embedding_generator, db_manager,
+                          emb_flags.get(model_key, {}), stats, model_total,
+                          processing_mode),
+                    name=f"model-{model_key}", daemon=True
+                )
+                model_threads.append(t)
+                self.log_message.emit(f"🚀 Thread {model_key.upper()} pronto ({model_total} immagini)", "info")
+
+            # Thread BioCLIP (produce risultati per LLM via queue)
+            if (emb_flags.get('bioclip', {}).get('active', False)
+                    and not _avail_map.get('bioclip', False)):
+                self.log_message.emit(
+                    "⚠️ BIOCLIP selezionato ma non caricato — thread saltato", "warning")
+            if bioclip_active:
+                t = threading.Thread(
+                    target=self._thread_bioclip,
+                    args=(model_images, prep_cache, embedding_generator, db_manager,
+                          emb_flags.get('bioclip', {}), stats, model_total,
+                          bioclip_results, bioclip_lock, llm_queue, llm_active,
+                          processing_mode),
+                    name="model-bioclip", daemon=True
+                )
+                model_threads.append(t)
+                self.log_message.emit(f"🚀 Thread BIOCLIP pronto ({model_total} immagini)", "info")
+
+            # Thread LLM Vision
+            if llm_active and embedding_generator is not None:
+                if not bioclip_active:
+                    # Nessuna dipendenza BioCLIP: accoda tutte le immagini subito
+                    for img_path in model_images:
+                        llm_queue.put(img_path)
+                    llm_queue.put(None)  # sentinella fine coda
+
+                t = threading.Thread(
+                    target=self._thread_llm,
+                    args=(prep_cache, embedding_generator, db_manager,
+                          llm_gen_config, stats, model_total,
+                          bioclip_results, bioclip_lock, llm_queue),
+                    name="model-llm", daemon=True
+                )
+                model_threads.append(t)
+                self.log_message.emit(f"🚀 Thread LLM pronto ({model_total} immagini)", "info")
+
+            self._model_threads = model_threads
+
+            # Avvia tutti i thread contemporaneamente
+            for t in model_threads:
+                t.start()
+
+            # Attendi completamento con check is_running (permette stop reattivo)
+            for t in model_threads:
+                while t.is_alive():
+                    t.join(timeout=0.5)
+                    if not self.is_running:
+                        # Stop richiesto: i thread controllano is_running e si fermeranno
+                        # Svuota llm_queue per sbloccare il thread LLM se in attesa
+                        try:
+                            while not llm_queue.empty():
+                                llm_queue.get_nowait()
+                        except queue.Empty:
+                            pass
+                        llm_queue.put(None)  # sentinella per sbloccare get()
+                        break
+
+            # Attendi termine effettivo di tutti i thread
+            # LLM può avere una chiamata HTTP in corso (fino a ~30s), timeout generoso
+            for t in model_threads:
+                _timeout = 60 if 'llm' in t.name else 15
+                t.join(timeout=_timeout)
+                if t.is_alive():
+                    self.log_message.emit(f"⚠️ Thread {t.name} non terminato in tempo", "warning")
+
+            self._model_threads = []
+
+            # Libera VRAM al termine di tutti i modelli
+            self._cleanup_gpu_memory()
+
+            # === STATISTICHE FINALI ===
             total_time = time.time() - start_time
             stats['processing_time'] = total_time
-            
-            self.log_message.emit("=" * 50, "info")
+
+            self.log_message.emit("═" * 50, "info")
             self.log_message.emit("PROCESSING COMPLETATO", "info")
             self.log_message.emit(f"Totali: {stats['total']}", "info")
-            self.log_message.emit(f"Processate: {stats['processed']}", "info")
-            self.log_message.emit(f"Successi: {stats['success']}", "info")
+            self.log_message.emit(f"Preparate: {stats['processed']}", "info")
             self.log_message.emit(f"Già esistenti: {stats['skipped_existing']}", "info")
             self.log_message.emit(f"Errori: {stats['errors']}", "info")
             self.log_message.emit(f"Con embedding: {stats['with_embedding']}", "info")
             self.log_message.emit(f"Con tag: {stats['with_tags']}", "info")
-            self.log_message.emit(f"Tempo totale: {total_time//60:02.0f}:{total_time%60:02.0f}", "info")
-            self.log_message.emit("=" * 50, "info")
-            
+            self.log_message.emit(f"Tempo totale: {total_time // 60:02.0f}:{total_time % 60:02.0f}", "info")
+            self.log_message.emit("═" * 50, "info")
+
             self.finished.emit(stats)
-            
+
         except Exception as e:
             self.log_message.emit(f"❌ Errore critico processing: {e}", "error")
             import traceback
             self.log_message.emit(f"Traceback: {traceback.format_exc()}", "error")
             self.finished.emit({'total': 0, 'processed': 0, 'errors': 1})
 
-    def _process_image_complete_corrected(self, image_path: Path, raw_processor, embedding_generator, embedding_enabled, llm_gen_config=None, config=None, solo_gen_ai=False):
-        """
-        PROCESSING COMPLETO CORRECTED
-        Corregge tutti i problemi di mapping XMP e generazione embedding.
-        OTTIMIZZATO: Calcola MAX size dai profili config per estrazione thumbnail ottimale.
-
-        llm_gen_config: dict con struttura:
-            {'tags': {'enabled': bool, 'overwrite': bool, 'max': int},
-             'description': {'enabled': bool, 'overwrite': bool, 'max': int},
-             'title': {'enabled': bool, 'overwrite': bool, 'max': int}}
-        config: configurazione completa (per accesso a profili ottimizzazione)
-        solo_gen_ai: se True, salta EXIF ed embedding — aggiorna solo i campi LLM
-        """
-        if llm_gen_config is None:
-            llm_gen_config = {
-                'tags': {'enabled': False, 'overwrite': False, 'max': 10},
-                'description': {'enabled': False, 'overwrite': False, 'max': 100},
-                'title': {'enabled': False, 'overwrite': False, 'max': 5}
-            }
-        if config is None:
-            config = {}
-        self.log_message.emit(f"🔍 Analizzando {image_path.name}...", "info")
-
-        # === MODALITÀ SOLO GEN. AI ===
-        # Salta EXIF ed embedding, estrae solo thumbnail per LLM e aggiorna i campi AI
-        if solo_gen_ai:
-            image_data = {'success': True, 'error_message': None, 'llm_generated': False}
-            llm_any = (llm_gen_config.get('tags', {}).get('enabled') or
-                       llm_gen_config.get('description', {}).get('enabled') or
-                       llm_gen_config.get('title', {}).get('enabled'))
-            if not llm_any or not embedding_generator:
-                image_data['success'] = False
-                image_data['error_message'] = 'Solo Gen. AI: nessun campo LLM abilitato o generator non disponibile'
-                return image_data
+    # ─────────────────────────────────────────────────────────────
+    # FASE 0 — Preparazione singola immagine
+    # ─────────────────────────────────────────────────────────────
+    def _prep_image(self, image_path, raw_processor, config, db_manager,
+                    processing_mode, solo_gen_ai, emb_flags, llm_gen_config):
+        """Estrae EXIF + thumbnail + geo + hash, inserisce/aggiorna record DB base.
+        Ritorna dict con dati prep oppure None in caso di errore fatale."""
+        try:
+            fname = image_path.name
+            self.log_message.emit(f"📂 Prep: {fname}", "info")
             is_raw = raw_processor.is_raw_file(image_path)
-            cached_thumbnail = self._prepare_image_for_ai_corrected(
-                image_path, raw_processor, is_raw, target_size=512
-            )
-            if cached_thumbnail is None:
-                image_data['success'] = False
-                image_data['error_message'] = f'Impossibile estrarre thumbnail da {image_path.name}'
-                return image_data
-            # Legge tags/description/title esistenti dal DB per gestire overwrite
-            image_data['tags'] = None
-            image_data['description'] = None
-            image_data['title'] = None
-            geo_hierarchy = None
-            location_hint = None
-            bioclip_context = None
-            category_hint = None
-        else:
-            # Determina se è RAW
-            is_raw = raw_processor.is_raw_file(image_path)
-            self.log_message.emit(f"📁 File {image_path.name} - RAW: {is_raw}", "info")
 
-            # === ESTRAZIONE METADATA COMPLETA ===
-            self.log_message.emit(f"🔧 Estrazione metadata per {image_path.name}...", "info")
+            # --- Modalità Solo Gen. AI: solo thumbnail, niente EXIF ---
+            if solo_gen_ai:
+                thumbnail = self._prepare_image_for_ai_corrected(
+                    image_path, raw_processor, is_raw, target_size=512)
+                if thumbnail is None:
+                    self.log_message.emit(f"⚠️ {fname}: thumbnail non estraibile", "warning")
+                return {
+                    'image_path': image_path,
+                    'thumbnail': thumbnail,
+                    'image_data': {},
+                    'geo_hierarchy': None,
+                    'location_hint': None,
+                    'is_new': False,
+                }
+
+            # --- Estrazione EXIF metadata ---
             try:
                 extracted_metadata = raw_processor.extract_raw_metadata(image_path)
-                self.log_message.emit(f"✅ Metadata estratti: {len(extracted_metadata)} campi", "info")
             except Exception as e:
-                self.log_message.emit(f"⚠️ Errore estrazione metadata: {e}", "warning")
+                self.log_message.emit(f"⚠️ Errore EXIF {fname}: {e}", "warning")
                 extracted_metadata = {}
 
-            # === PREPARAZIONE DATI BASE ===
             image_data = {
-                'filename': image_path.name,
+                'filename': fname,
                 'filepath': str(image_path),
                 'file_size': image_path.stat().st_size,
                 'file_format': image_path.suffix.lower().replace('.', ''),
@@ -457,403 +468,510 @@ class ProcessingWorker(QThread):
                 'error_message': None,
                 'embedding_generated': False,
                 'llm_generated': False,
-                'app_version': '1.0'
+                'app_version': '1.0',
+                'tags': json.dumps([], ensure_ascii=False),
             }
-
-            # === MAPPING DIRETTO METADATA → DATABASE FIELDS ===
             if extracted_metadata:
                 for key, value in extracted_metadata.items():
                     if key not in ['is_raw', 'raw_info']:
                         image_data[key] = value
-                image_data['tags'] = json.dumps([], ensure_ascii=False)
 
-        # Contesto BioCLIP per LLM (inizializzato qui, valorizzato dopo BioCLIP)
-        if not solo_gen_ai:
-            bioclip_context = None
-            category_hint = None
-
-        # === CACHE THUMBNAIL PER OTTIMIZZAZIONE ===
-        # In solo_gen_ai il thumbnail è già estratto sopra — qui gestiamo solo il caso normale
-        if not solo_gen_ai:
-            cached_thumbnail = None
-        if (not solo_gen_ai) and (embedding_enabled or llm_gen_config.get('tags', {}).get('enabled') or \
-           llm_gen_config.get('description', {}).get('enabled') or \
-           llm_gen_config.get('title', {}).get('enabled')):
-
-            # Determina quali profili sono attivi per calcolare MAX size
-            active_profiles = []
-            models_cfg = config.get('embedding', {}).get('models', {})
-
-            if models_cfg.get('clip', {}).get('enabled', False):
-                active_profiles.append('clip_embedding')
-            if models_cfg.get('dinov2', {}).get('enabled', False):
-                active_profiles.append('dinov2_embedding')
-            if models_cfg.get('bioclip', {}).get('enabled', False):
-                active_profiles.append('bioclip_classification')
-            if models_cfg.get('aesthetic', {}).get('enabled', False):
-                active_profiles.append('aesthetic_score')
-            # MUSIQ/technical_score usa il thumbnail a 1024px
-            if models_cfg.get('technical', {}).get('enabled', False):
-                active_profiles.append('technical_score')
-            if llm_gen_config.get('tags', {}).get('enabled') or \
-               llm_gen_config.get('description', {}).get('enabled') or \
-               llm_gen_config.get('title', {}).get('enabled'):
-                active_profiles.append('llm_vision')
-
-            # Calcola MAX size dai profili attivi
-            max_target_size = raw_processor.get_max_target_size(active_profiles) if active_profiles else 1024
-            self.log_message.emit(f"📐 MAX target size per cache: {max_target_size}px (profili: {active_profiles})", "info")
-
-            cached_thumbnail = self._prepare_image_for_ai_corrected(
-                image_path, raw_processor, is_raw, target_size=max_target_size
-            )
-            if cached_thumbnail:
-                thumb_size = cached_thumbnail.size if hasattr(cached_thumbnail, 'size') else 'N/A'
-                self.log_message.emit(f"📥 Thumbnail cached per AI: {thumb_size}", "info")
-                # Salva thumbnail nella cache gallery (150px) per display veloce in gallery.
-                # Applica correzione orientazione (PIL transpose in-memory, zero I/O aggiuntivo).
-                try:
-                    from utils.thumb_cache import save_gallery_thumb
-                    from PIL import Image as _PILImage
-                    _ORIENT_OPS = {
-                        2: [_PILImage.Transpose.FLIP_LEFT_RIGHT],
-                        3: [_PILImage.Transpose.ROTATE_180],
-                        4: [_PILImage.Transpose.FLIP_TOP_BOTTOM],
-                        5: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_90],
-                        6: [_PILImage.Transpose.ROTATE_270],
-                        7: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_270],
-                        8: [_PILImage.Transpose.ROTATE_90],
-                    }
-                    orientation = image_data.get('orientation')
-                    ops = _ORIENT_OPS.get(int(orientation), []) if orientation and orientation != 1 else []
-                    if ops:
-                        thumb_oriented = cached_thumbnail.copy()
-                        for op in ops:
-                            thumb_oriented = thumb_oriented.transpose(op)
-                        save_gallery_thumb(image_path, thumb_oriented)
-                    else:
-                        save_gallery_thumb(image_path, cached_thumbnail)
-                except Exception as _e:
-                    logger.warning(f"Errore salvataggio thumbnail cache gallery: {_e}")
-            elif is_raw:
-                self.log_message.emit(
-                    f"⚠️ {image_path.name}: nessuna immagine estraibile dal RAW — "
-                    f"embedding e LLM saltati, solo metadati salvati", "warning"
-                )
-
-        # === GENERAZIONE EMBEDDING (se abilitato) ===
-        if embedding_enabled and embedding_generator and cached_thumbnail is not None:
-            self.log_message.emit(f"🧠 Generazione embedding per {image_path.name}...", "info")
-
+            # --- Hash file ---
             try:
-                # Usa thumbnail cached invece di estrarre di nuovo
-                embedding_input = cached_thumbnail
+                import hashlib
+                md5 = hashlib.md5()
+                with open(image_path, 'rb') as f:
+                    for chunk in iter(lambda: f.read(8192), b''):
+                        md5.update(chunk)
+                image_data['file_hash'] = md5.hexdigest()
+            except Exception:
+                pass
 
-                # Genera embedding con controllo errori
-                # MUSIQ lavora su thumbnail (non richiede file originale)
-                embeddings = embedding_generator.generate_embeddings(embedding_input)
-                
-                if embeddings and isinstance(embeddings, dict):
-                    self.log_message.emit(f"🔬 Embedding generati: {list(embeddings.keys())}", "info")
-                    
-                    # Verifica e salva embedding con controllo NaN
-                    clip_emb = embeddings.get('clip_embedding')
-                    dinov2_emb = embeddings.get('dinov2_embedding')
-                    
-                    # Controlli qualità embedding
-                    if clip_emb is not None:
-                        import numpy as np
-                        if isinstance(clip_emb, np.ndarray):
-                            if np.any(np.isnan(clip_emb)):
-                                self.log_message.emit(f"🚨 CLIP embedding NaN per {image_path.name}!", "error")
-                                clip_emb = None
+            # --- Geo hierarchy da GPS ---
+            geo_hierarchy = None
+            location_hint = None
+            gps_lat = image_data.get('gps_latitude')
+            gps_lon = image_data.get('gps_longitude')
+            if gps_lat is not None and gps_lon is not None:
+                try:
+                    from geo_enricher import get_geo_hierarchy, get_location_hint
+                    geo_hierarchy = get_geo_hierarchy(float(gps_lat), float(gps_lon))
+                    if geo_hierarchy:
+                        image_data['geo_hierarchy'] = geo_hierarchy
+                        location_hint = get_location_hint(geo_hierarchy)
+                        self.log_message.emit(f"🌍 {fname}: {geo_hierarchy}", "info")
+                except Exception as geo_err:
+                    self.log_message.emit(f"⚠️ Geo enricher {fname}: {geo_err}", "warning")
 
-                    if dinov2_emb is not None:
-                        import numpy as np
-                        if isinstance(dinov2_emb, np.ndarray):
-                            if np.any(np.isnan(dinov2_emb)):
-                                self.log_message.emit(f"🚨 DINOv2 embedding NaN per {image_path.name}!", "error")
-                                dinov2_emb = None
-                        
-                    # Salva embedding
-                    image_data['clip_embedding'] = clip_emb
-                    image_data['dinov2_embedding'] = dinov2_emb
-                    image_data['aesthetic_score'] = embeddings.get('aesthetic_score')
-                    
-                    # Technical score MUSIQ — funziona sia per RAW che non-RAW
-                    image_data['technical_score'] = embeddings.get('technical_score')
-                    
-                    # BioCLIP tassonomia nel campo dedicato (separato dai tags)
-                    bioclip_tags = embeddings.get('bioclip_tags')
-                    bioclip_taxonomy = embeddings.get('bioclip_taxonomy')
-                    if bioclip_taxonomy and isinstance(bioclip_taxonomy, list):
-                        image_data['bioclip_taxonomy'] = json.dumps(bioclip_taxonomy, ensure_ascii=False)
-                        self.log_message.emit(f"🌿 BioCLIP taxonomy: {len([l for l in bioclip_taxonomy if l])} livelli", "info")
-
-                    # Estrai contesto BioCLIP per LLM: nome latino + hint categoria
-                    from embedding_generator import EmbeddingGenerator
-                    bioclip_context = EmbeddingGenerator.extract_bioclip_context(
-                        bioclip_tags if (bioclip_tags and isinstance(bioclip_tags, list)) else []
-                    )
-                    category_hint = EmbeddingGenerator.extract_category_hint(
-                        bioclip_taxonomy if (bioclip_taxonomy and isinstance(bioclip_taxonomy, list)) else []
-                    )
-                    if bioclip_context:
-                        self.log_message.emit(f"🔗 Contesto BioCLIP per LLM: {bioclip_context}", "info")
-                    if category_hint:
-                        self.log_message.emit(f"🏷️ Hint categoria: {category_hint}", "info")
-
-                    # Calcola gerarchia geografica da GPS (import lazy, solo se coordinate disponibili)
-                    geo_hierarchy = None
-                    location_hint = None
-                    gps_lat = image_data.get('gps_latitude')
-                    gps_lon = image_data.get('gps_longitude')
-                    if gps_lat is not None and gps_lon is not None:
-                        try:
-                            from geo_enricher import get_geo_hierarchy, get_location_hint
-                            geo_hierarchy = get_geo_hierarchy(float(gps_lat), float(gps_lon))
-                            if geo_hierarchy:
-                                image_data['geo_hierarchy'] = geo_hierarchy
-                                location_hint = get_location_hint(geo_hierarchy)
-                                self.log_message.emit(f"🌍 Geo hierarchy: {geo_hierarchy}", "info")
-                                if location_hint:
-                                    self.log_message.emit(f"📍 Location hint per LLM: {location_hint}", "info")
-                        except Exception as geo_err:
-                            self.log_message.emit(f"⚠️ Errore geo enricher: {geo_err}", "warning")
-
-                    # Flag embedding generato
-                    has_embedding = any([clip_emb is not None, dinov2_emb is not None])
-                    image_data['embedding_generated'] = has_embedding
-
-                    if has_embedding:
-                        self.log_message.emit(f"✅ Embedding completato per {image_path.name}", "info")
+            # --- Inserimento/aggiornamento record DB base ---
+            image_exists = db_manager.image_exists(fname)
+            is_new = False
+            ai_fields = {}  # stato campi AI già popolati (per logica overwrite)
+            with self._db_lock:
+                if image_exists and processing_mode in ['reprocess_all', 'new_plus_errors']:
+                    # Leggi stato campi AI PRIMA di aggiornare EXIF
+                    ai_fields = db_manager.get_ai_fields_status(fname)
+                    db_manager.update_image(fname, image_data)
+                    self.log_message.emit(f"🔄 DB aggiornato (reprocess): {fname}", "info")
+                elif not image_exists:
+                    image_id = db_manager.insert_image(image_data)
+                    is_new = True
+                    if image_id:
+                        self.log_message.emit(f"✅ DB inserito: {fname} (ID: {image_id})", "info")
                     else:
-                        self.log_message.emit(f"⚠️ Nessun embedding valido per {image_path.name}", "warning")
-                else:
-                    self.log_message.emit(f"❌ Embedding generation fallita per {image_path.name}", "error")
-                        
-            except Exception as embedding_error:
-                self.log_message.emit(f"❌ Errore embedding per {image_path.name}: {embedding_error}", "error")
-                import traceback
-                self.log_message.emit(f"Traceback: {traceback.format_exc()}", "error")
-        else:
-            self.log_message.emit(f"➡️ Embedding disabilitato per {image_path.name}", "info")
-        # === GENERAZIONE LLM AUTO-IMPORT (se abilitato) - PARALLELIZZATO ===
+                        self.log_message.emit(f"❌ DB inserimento fallito: {fname}", "error")
+                        return None
+
+            # --- Thumbnail per modelli AI ---
+            thumbnail = None
+            any_model_active = any(
+                emb_flags.get(k, {}).get('active', False)
+                for k in ('clip', 'dinov2', 'bioclip', 'aesthetic', 'technical')
+            )
+            llm_active = (llm_gen_config.get('tags', {}).get('enabled') or
+                          llm_gen_config.get('description', {}).get('enabled') or
+                          llm_gen_config.get('title', {}).get('enabled'))
+
+            if any_model_active or llm_active:
+                # Calcola MAX target size dai profili attivi
+                active_profiles = []
+                models_cfg = config.get('embedding', {}).get('models', {})
+                _profile_map = {
+                    'clip': 'clip_embedding', 'dinov2': 'dinov2_embedding',
+                    'bioclip': 'bioclip_classification', 'aesthetic': 'aesthetic_score',
+                    'technical': 'technical_score',
+                }
+                for mk, prof in _profile_map.items():
+                    if emb_flags.get(mk, {}).get('active', False):
+                        active_profiles.append(prof)
+                if llm_active:
+                    active_profiles.append('llm_vision')
+
+                max_size = raw_processor.get_max_target_size(active_profiles) if active_profiles else 1024
+                thumbnail = self._prepare_image_for_ai_corrected(
+                    image_path, raw_processor, is_raw, target_size=max_size)
+
+                if thumbnail and hasattr(thumbnail, 'size'):
+                    # Salva thumbnail cache gallery con correzione orientazione
+                    try:
+                        from utils.thumb_cache import save_gallery_thumb
+                        from PIL import Image as _PILImage
+                        _ORIENT_OPS = {
+                            2: [_PILImage.Transpose.FLIP_LEFT_RIGHT],
+                            3: [_PILImage.Transpose.ROTATE_180],
+                            4: [_PILImage.Transpose.FLIP_TOP_BOTTOM],
+                            5: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_90],
+                            6: [_PILImage.Transpose.ROTATE_270],
+                            7: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_270],
+                            8: [_PILImage.Transpose.ROTATE_90],
+                        }
+                        orientation = image_data.get('orientation')
+                        ops = _ORIENT_OPS.get(int(orientation), []) if orientation and orientation != 1 else []
+                        if ops:
+                            thumb_oriented = thumbnail.copy()
+                            for op in ops:
+                                thumb_oriented = thumb_oriented.transpose(op)
+                            save_gallery_thumb(image_path, thumb_oriented)
+                        else:
+                            save_gallery_thumb(image_path, thumbnail)
+                    except Exception as _e:
+                        logger.warning(f"Errore thumbnail cache gallery: {_e}")
+                elif is_raw:
+                    self.log_message.emit(
+                        f"⚠️ {fname}: nessuna immagine estraibile dal RAW — "
+                        f"embedding e LLM saltati", "warning")
+
+            return {
+                'image_path': image_path,
+                'thumbnail': thumbnail,
+                'image_data': image_data,
+                'geo_hierarchy': geo_hierarchy,
+                'location_hint': location_hint,
+                'is_new': is_new,
+                'ai_fields': ai_fields,  # campi AI già popolati nel DB
+            }
+
+        except Exception as e:
+            self.log_message.emit(f"❌ Errore prep {image_path.name}: {e}", "error")
+            import traceback
+            self.log_message.emit(f"Traceback: {traceback.format_exc()}", "error")
+            return None
+
+    # ─────────────────────────────────────────────────────────────
+    # THREAD MODELLI EMBEDDING
+    # ─────────────────────────────────────────────────────────────
+    def _thread_clip(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
+                     processing_mode='new_only'):
+        """Thread CLIP: genera embedding 768-dim per tutte le immagini."""
+        import numpy as np
+        overwrite = flags.get('overwrite', False)
+        for i, image_path in enumerate(images, 1):
+            if not self._wait_if_paused():
+                break
+            fname = image_path.name
+            prep = prep_cache[fname]
+            thumb = prep['thumbnail']
+            # Skip se overwrite OFF e campo già popolato nel DB
+            if not overwrite and not prep.get('is_new', True):
+                if prep.get('ai_fields', {}).get('clip_embedding', False):
+                    self.model_progress.emit('clip', i, total)
+                    continue
+            try:
+                clip_emb = emb_gen._generate_clip_embedding(thumb, 'pil')
+                if clip_emb is not None and isinstance(clip_emb, np.ndarray):
+                    if np.any(np.isnan(clip_emb)):
+                        self.log_message.emit(f"🚨 CLIP NaN: {fname}", "error")
+                    else:
+                        with self._db_lock:
+                            db_manager.update_image(fname, {
+                                'clip_embedding': clip_emb, 'embedding_generated': True})
+                        with self._stats_lock:
+                            stats['with_embedding'] += 1
+            except Exception as e:
+                self.log_message.emit(f"❌ CLIP {fname}: {e}", "error")
+            self.model_progress.emit('clip', i, total)
+
+    def _thread_dinov2(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
+                       processing_mode='new_only'):
+        """Thread DINOv2: genera embedding 768-dim per tutte le immagini."""
+        import numpy as np
+        overwrite = flags.get('overwrite', False)
+        for i, image_path in enumerate(images, 1):
+            if not self._wait_if_paused():
+                break
+            fname = image_path.name
+            prep = prep_cache[fname]
+            thumb = prep['thumbnail']
+            if not overwrite and not prep.get('is_new', True):
+                if prep.get('ai_fields', {}).get('dinov2_embedding', False):
+                    self.model_progress.emit('dinov2', i, total)
+                    continue
+            try:
+                dinov2_emb = emb_gen._generate_dinov2_embedding(thumb, 'pil')
+                if dinov2_emb is not None and isinstance(dinov2_emb, np.ndarray):
+                    if np.any(np.isnan(dinov2_emb)):
+                        self.log_message.emit(f"🚨 DINOv2 NaN: {fname}", "error")
+                    else:
+                        with self._db_lock:
+                            db_manager.update_image(fname, {
+                                'dinov2_embedding': dinov2_emb, 'embedding_generated': True})
+                        with self._stats_lock:
+                            stats['with_embedding'] += 1
+            except Exception as e:
+                self.log_message.emit(f"❌ DINOv2 {fname}: {e}", "error")
+            self.model_progress.emit('dinov2', i, total)
+
+    def _thread_aesthetic(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
+                          processing_mode='new_only'):
+        """Thread Aesthetic: calcola punteggio estetico 0-10."""
+        overwrite = flags.get('overwrite', False)
+        for i, image_path in enumerate(images, 1):
+            if not self._wait_if_paused():
+                break
+            fname = image_path.name
+            prep = prep_cache[fname]
+            thumb = prep['thumbnail']
+            if not overwrite and not prep.get('is_new', True):
+                if prep.get('ai_fields', {}).get('aesthetic_score', False):
+                    self.model_progress.emit('aesthetic', i, total)
+                    continue
+            try:
+                score = emb_gen._generate_aesthetic_score(thumb, 'pil')
+                if score is not None:
+                    with self._db_lock:
+                        db_manager.update_image(fname, {'aesthetic_score': score})
+            except Exception as e:
+                self.log_message.emit(f"❌ Aesthetic {fname}: {e}", "error")
+            self.model_progress.emit('aesthetic', i, total)
+
+    def _thread_musiq(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
+                      processing_mode='new_only'):
+        """Thread MUSIQ/Technical: calcola punteggio qualità tecnica ~0-100."""
+        overwrite = flags.get('overwrite', False)
+        for i, image_path in enumerate(images, 1):
+            if not self._wait_if_paused():
+                break
+            fname = image_path.name
+            prep = prep_cache[fname]
+            thumb = prep['thumbnail']
+            if not overwrite and not prep.get('is_new', True):
+                if prep.get('ai_fields', {}).get('technical_score', False):
+                    self.model_progress.emit('technical', i, total)
+                    continue
+            try:
+                score = emb_gen._generate_musiq_score(thumb)
+                if score is not None:
+                    with self._db_lock:
+                        db_manager.update_image(fname, {'technical_score': score})
+            except Exception as e:
+                self.log_message.emit(f"❌ Technical {fname}: {e}", "error")
+            self.model_progress.emit('technical', i, total)
+
+    # ─────────────────────────────────────────────────────────────
+    # THREAD BIOCLIP (produce per LLM)
+    # ─────────────────────────────────────────────────────────────
+    def _thread_bioclip(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
+                        bioclip_results, bioclip_lock, llm_queue, llm_active,
+                        processing_mode='new_only'):
+        """Thread BioCLIP: tassonomia + alimenta coda LLM."""
+        from embedding_generator import EmbeddingGenerator
+        overwrite = flags.get('overwrite', False)
+
+        for i, image_path in enumerate(images, 1):
+            if not self._wait_if_paused():
+                # Stop: metti sentinella per sbloccare LLM
+                if llm_active:
+                    llm_queue.put(None)
+                break
+            fname = image_path.name
+            thumb = prep_cache[fname]['thumbnail']
+            prep = prep_cache[fname]
+            is_new = prep.get('is_new', True)
+
+            skip_bioclip = (not overwrite and not is_new
+                            and prep.get('ai_fields', {}).get('bioclip_taxonomy', False))
+
+            if not skip_bioclip:
+                try:
+                    bioclip_tags, bioclip_taxonomy = emb_gen.generate_bioclip_tags(thumb)
+
+                    if bioclip_taxonomy and isinstance(bioclip_taxonomy, list):
+                        with self._db_lock:
+                            db_manager.update_image(fname, {
+                                'bioclip_taxonomy': json.dumps(bioclip_taxonomy, ensure_ascii=False)
+                            })
+                        self.log_message.emit(
+                            f"🌿 BioCLIP {fname}: {len([l for l in bioclip_taxonomy if l])} livelli", "info")
+
+                    # Estrai contesto per LLM
+                    ctx = EmbeddingGenerator.extract_bioclip_context(bioclip_tags or [])
+                    cat = EmbeddingGenerator.extract_category_hint(bioclip_taxonomy or [])
+                    with bioclip_lock:
+                        bioclip_results[fname] = {'context': ctx, 'category_hint': cat}
+
+                except Exception as e:
+                    self.log_message.emit(f"❌ BioCLIP {fname}: {e}", "error")
+
+            # Accoda per LLM (anche se BioCLIP è stato saltato)
+            if llm_active:
+                llm_queue.put(image_path)
+
+            self.model_progress.emit('bioclip', i, total)
+
+        # Sentinella fine coda per LLM
+        if llm_active:
+            llm_queue.put(None)
+
+    # ─────────────────────────────────────────────────────────────
+    # THREAD LLM VISION
+    # ─────────────────────────────────────────────────────────────
+    def _thread_llm(self, prep_cache, emb_gen, db_manager, llm_gen_config, stats, total,
+                    bioclip_results, bioclip_lock, llm_queue):
+        """Thread LLM: consuma dalla coda, genera tags/descrizione/titolo."""
         gen_tags_cfg = llm_gen_config.get('tags', {})
         gen_desc_cfg = llm_gen_config.get('description', {})
         gen_title_cfg = llm_gen_config.get('title', {})
+        processed = 0
 
-        llm_enabled = gen_tags_cfg.get('enabled') or gen_desc_cfg.get('enabled') or gen_title_cfg.get('enabled')
+        while self.is_running:
+            # Attendi prossima immagine dalla coda (timeout per controllare is_running)
+            try:
+                image_path = llm_queue.get(timeout=2.0)
+            except queue.Empty:
+                continue
 
-        if llm_enabled and embedding_generator and cached_thumbnail is not None:
-            self.log_message.emit(f"🤖 Generazione LLM auto-import per {image_path.name}...", "info")
+            if image_path is None:
+                break  # sentinella: fine coda
+
+            if not self._wait_if_paused():
+                break
+
+            fname = image_path.name
+            prep = prep_cache.get(fname)
+            if not prep or prep['thumbnail'] is None:
+                processed += 1
+                self.model_progress.emit('llm', processed, total)
+                continue
+
+            thumb = prep['thumbnail']
+
+            # Contesto BioCLIP (potrebbe non esserci se BioCLIP disabilitato)
+            with bioclip_lock:
+                bc = bioclip_results.get(fname, {})
+            bioclip_context = bc.get('context')
+            category_hint = bc.get('category_hint')
+            location_hint = prep.get('location_hint')
+            geo_hierarchy = prep.get('geo_hierarchy')
 
             try:
-                # Usa thumbnail cached invece di estrarre di nuovo
-                llm_input = cached_thumbnail
+                # Determina cosa generare (rispettando overwrite)
+                # Usa ai_fields per sapere se tags/desc/title sono già nel DB
+                ai_fields = prep.get('ai_fields', {})
+                is_new = prep.get('is_new', True)
 
-                # Prepara task paralleli per LLM (I/O bound - chiamate HTTP a Ollama)
+                # Tags: se overwrite OFF e campo già popolato, non rigenerare
+                should_gen_tags = gen_tags_cfg.get('enabled', False)
+                if should_gen_tags and not gen_tags_cfg.get('overwrite') and not is_new:
+                    if ai_fields.get('tags', False):
+                        should_gen_tags = False
+
+                should_gen_desc = gen_desc_cfg.get('enabled', False)
+                if should_gen_desc and not gen_desc_cfg.get('overwrite') and not is_new:
+                    if ai_fields.get('description', False):
+                        should_gen_desc = False
+
+                should_gen_title = gen_title_cfg.get('enabled', False)
+                if should_gen_title and not gen_title_cfg.get('overwrite') and not is_new:
+                    if ai_fields.get('title', False):
+                        should_gen_title = False
+
+                # Carica tags esistenti per merge (solo se non sovrascriviamo)
+                existing_tags = []
+                img_data = prep.get('image_data', {})
+                if img_data.get('tags') and not gen_tags_cfg.get('overwrite'):
+                    try:
+                        existing_tags = json.loads(img_data['tags'])
+                    except (json.JSONDecodeError, TypeError):
+                        existing_tags = []
+
+                if not (should_gen_tags or should_gen_desc or should_gen_title):
+                    processed += 1
+                    self.model_progress.emit('llm', processed, total)
+                    continue
+
+                self.log_message.emit(f"🤖 LLM: {fname}", "info")
+
+                # Esegui chiamate LLM in parallelo (I/O bound — chiamate HTTP a Ollama)
                 llm_futures = {}
                 llm_results = {'tags': None, 'description': None, 'title': None}
 
-                # Determina quali generazioni eseguire
-                existing_tags = []
-                if 'tags' in image_data and image_data['tags']:
-                    try:
-                        existing_tags = json.loads(image_data['tags'])
-                    except:
-                        existing_tags = []
-
-                existing_desc = image_data.get('description', '') or ''
-                existing_title = image_data.get('title', '') or ''
-
-                should_gen_tags = gen_tags_cfg.get('enabled', False)
-                should_gen_desc = gen_desc_cfg.get('enabled') and (gen_desc_cfg.get('overwrite') or not existing_desc.strip())
-                should_gen_title = gen_title_cfg.get('enabled') and (gen_title_cfg.get('overwrite') or not existing_title.strip())
-
-                # Conta operazioni da eseguire per log
-                ops_count = sum([should_gen_tags, should_gen_desc, should_gen_title])
-                if ops_count > 1:
-                    self.log_message.emit(f"⚡ Esecuzione parallela di {ops_count} operazioni LLM...", "info")
-
-                # Esegui chiamate LLM in parallelo (max 3 thread per evitare sovraccarico Ollama)
                 with ThreadPoolExecutor(max_workers=3) as executor:
                     if should_gen_tags:
                         llm_futures['tags'] = executor.submit(
-                            embedding_generator.generate_llm_tags,
-                            llm_input,
+                            emb_gen.generate_llm_tags, thumb,
                             gen_tags_cfg.get('max', 10),
-                            bioclip_context,
-                            category_hint,
-                            location_hint
-                        )
-
+                            bioclip_context, category_hint, location_hint)
                     if should_gen_desc:
                         llm_futures['description'] = executor.submit(
-                            embedding_generator.generate_llm_description,
-                            llm_input,
+                            emb_gen.generate_llm_description, thumb,
                             gen_desc_cfg.get('max', 100),
-                            bioclip_context,
-                            category_hint,
-                            location_hint
-                        )
-
+                            bioclip_context, category_hint, location_hint)
                     if should_gen_title:
                         llm_futures['title'] = executor.submit(
-                            embedding_generator.generate_llm_title,
-                            llm_input,
+                            emb_gen.generate_llm_title, thumb,
                             gen_title_cfg.get('max', 5),
-                            bioclip_context,
-                            category_hint,
-                            location_hint
-                        )
+                            bioclip_context, category_hint, location_hint)
 
-                    # Raccogli risultati
                     for key, future in llm_futures.items():
                         try:
-                            llm_results[key] = future.result(timeout=200)  # timeout generoso per LLM
+                            llm_results[key] = future.result(timeout=200)
                         except Exception as e:
-                            self.log_message.emit(f"⚠️ LLM {key} timeout/errore: {e}", "warning")
+                            self.log_message.emit(f"⚠️ LLM {key} {fname}: {e}", "warning")
 
-                # Pulisci cache immagine LLM (libera memoria e file temp)
-                embedding_generator._cleanup_llm_image_cache()
+                # Pulisci cache immagine LLM
+                emb_gen._cleanup_llm_image_cache()
 
-                # === APPLICA RISULTATI TAGS (solo LLM + user, NO BioCLIP) ===
+                # Costruisci update dict per DB
+                update_data = {'llm_generated': True}
+
+                # Tags
                 if llm_results['tags']:
                     llm_tags = llm_results['tags']
-
                     if gen_tags_cfg.get('overwrite'):
-                        # Sovrascrivi tutti i tag con i nuovi LLM
-                        image_data['tags'] = json.dumps(llm_tags, ensure_ascii=False)
-                        self.log_message.emit(f"🏷️ LLM tags (sovrascritti): {len(llm_tags)} tag", "info")
+                        final_tags = llm_tags
                     else:
                         existing_lower = {t.lower() for t in existing_tags}
-                        new_llm_tags = [t for t in llm_tags if t.lower() not in existing_lower]
-                        unified_tags = existing_tags + new_llm_tags
-                        image_data['tags'] = json.dumps(unified_tags, ensure_ascii=False)
-                        self.log_message.emit(f"🏷️ LLM tags aggiunti: {len(new_llm_tags)} nuovi tag", "info")
+                        new_tags = [t for t in llm_tags if t.lower() not in existing_lower]
+                        final_tags = existing_tags + new_tags
 
-                # Aggiungi città geo come tag se non già presente (come BioCLIP aggiunge il nome latino)
-                if geo_hierarchy:
-                    try:
-                        from geo_enricher import get_geo_leaf
-                        city_tag = get_geo_leaf(geo_hierarchy)
-                        if city_tag:
-                            current_tags_str = image_data.get('tags', '[]')
-                            current_tags = json.loads(current_tags_str) if current_tags_str else []
-                            if city_tag.lower() not in {t.lower() for t in current_tags}:
-                                current_tags.append(city_tag)
-                                image_data['tags'] = json.dumps(current_tags, ensure_ascii=False)
-                                self.log_message.emit(f"📍 Tag città aggiunto: {city_tag}", "info")
-                    except Exception as geo_tag_err:
-                        self.log_message.emit(f"⚠️ Errore aggiunta tag città: {geo_tag_err}", "warning")
+                    # Aggiungi città geo come tag
+                    if geo_hierarchy:
+                        try:
+                            from geo_enricher import get_geo_leaf
+                            city_tag = get_geo_leaf(geo_hierarchy)
+                            if city_tag and city_tag.lower() not in {t.lower() for t in final_tags}:
+                                final_tags.append(city_tag)
+                        except Exception:
+                            pass
 
-                # === APPLICA RISULTATI DESCRIZIONE ===
+                    update_data['tags'] = json.dumps(final_tags, ensure_ascii=False)
+                    self.log_message.emit(f"🏷️ LLM tags {fname}: {len(final_tags)} tag", "info")
+                    with self._stats_lock:
+                        stats['with_tags'] += 1
+
+                # Descrizione
                 if llm_results['description']:
-                    image_data['description'] = llm_results['description']
-                    self.log_message.emit(f"📝 LLM descrizione generata: {len(llm_results['description'])} caratteri", "info")
-                elif should_gen_desc and not llm_results['description']:
-                    pass  # Silenzioso se fallisce
-                elif gen_desc_cfg.get('enabled') and not should_gen_desc:
-                    self.log_message.emit(f"⏭️ Descrizione esistente preservata (overwrite=False)", "info")
+                    update_data['description'] = llm_results['description']
+                    self.log_message.emit(f"📝 LLM desc {fname}: {len(llm_results['description'])} car", "info")
 
-                # === APPLICA RISULTATI TITOLO ===
+                # Titolo
                 if llm_results['title']:
-                    image_data['title'] = llm_results['title']
-                    self.log_message.emit(f"📌 LLM titolo generato: {llm_results['title']}", "info")
-                elif gen_title_cfg.get('enabled') and not should_gen_title:
-                    self.log_message.emit(f"⏭️ Titolo esistente preservato (overwrite=False)", "info")
+                    update_data['title'] = llm_results['title']
+                    self.log_message.emit(f"📌 LLM title {fname}: {llm_results['title']}", "info")
 
-                image_data['llm_generated'] = True
+                # Aggiorna DB
+                with self._db_lock:
+                    db_manager.update_image(fname, update_data)
 
-            except Exception as llm_error:
-                self.log_message.emit(f"❌ Errore LLM auto-import per {image_path.name}: {llm_error}", "error")
+            except Exception as e:
+                self.log_message.emit(f"❌ LLM {fname}: {e}", "error")
+                import traceback
+                self.log_message.emit(f"Traceback: {traceback.format_exc()}", "error")
 
-        elif llm_enabled:
-            self.log_message.emit(f"⚠️ LLM auto-import richiesto ma embedding_generator non disponibile", "warning")
+            processed += 1
+            self.model_progress.emit('llm', processed, total)
 
-        # Calcola hash file per deduplicazione
+    # ─────────────────────────────────────────────────────────────
+    # UTILITY
+    # ─────────────────────────────────────────────────────────────
+    def _cleanup_gpu_memory(self):
+        """Libera memoria GPU al termine del processing."""
         try:
-            import hashlib
-            md5 = hashlib.md5()
-            with open(image_path, 'rb') as f:
-                for chunk in iter(lambda: f.read(8192), b''):
-                    md5.update(chunk)
-            image_data['file_hash'] = md5.hexdigest()
-        except Exception as e:
-            self.log_message.emit(f"⚠️ Errore calcolo hash per {image_path.name}: {e}", "warning")
-
-        return image_data
+            import torch
+            import gc
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            elif torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+            gc.collect()
+        except Exception:
+            pass
 
     def _prepare_image_for_ai_corrected(self, image_path, raw_processor, is_raw, target_size=1024):
-        """
-        Prepara input per AI con dimensioni ottimali.
-        OTTIMIZZATO: Estrae a risoluzione massima (1024) per cache, i processor
-        dei singoli modelli ridimensionano poi secondo le loro esigenze.
-
-        Args:
-            image_path: Path dell'immagine
-            raw_processor: RAWProcessor instance
-            is_raw: True se file RAW
-            target_size: Dimensione target (default 1024 per cache ottimale)
-        """
+        """Prepara immagine PIL per modelli AI con dimensioni ottimali.
+        Estrae a risoluzione massima per cache condivisa fra tutti i modelli."""
         try:
-            # Se è RAW, usa RAWProcessor per estrarre thumbnail ottimizzato
             if is_raw:
-                self.log_message.emit(f"🔄 Preparazione RAW per AI: {image_path.name}", "info")
-
-                # Usa extract_thumbnail con dimensione massima per cache
+                self.log_message.emit(f"🔄 Preparazione RAW: {image_path.name}", "info")
                 pil_image = raw_processor.extract_thumbnail(image_path, target_size=target_size)
-
                 if pil_image:
-                    dimensions = f"{pil_image.size[0]}x{pil_image.size[1]}"
-                    self.log_message.emit(f"✅ RAW convertito per AI: {image_path.name} - {dimensions}", "info")
                     return pil_image
                 else:
                     self.log_message.emit(f"❌ Conversione RAW fallita: {image_path.name}", "error")
                     return None
-
-            # File standard: ottimizza per cache se troppo grandi
             else:
                 try:
                     from PIL import Image
                     with Image.open(image_path) as img:
-                        max_size = max(img.size)
-                        # Se molto grande, riduci a target_size per cache
-                        if max_size > target_size:
-                            # Crea copia e riduci mantenendo qualità
-                            pil_image = img.copy()
-                            if pil_image.mode not in ['RGB', 'L']:
-                                pil_image = pil_image.convert('RGB')
-
-                            # Ridimensiona mantenendo aspect ratio
-                            pil_image.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
-                            dimensions = f"{pil_image.size[0]}x{pil_image.size[1]}"
-                            self.log_message.emit(f"✅ Immagine ottimizzata per AI: {image_path.name} - {dimensions}", "info")
-                            return pil_image
-
-                        # Se già dimensioni OK, carica come PIL per cache
                         pil_image = img.copy()
                         if pil_image.mode not in ['RGB', 'L']:
                             pil_image = pil_image.convert('RGB')
-                        self.log_message.emit(f"➡️ File dimensioni OK per AI: {image_path.name}", "info")
+                        if max(pil_image.size) > target_size:
+                            pil_image.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
                         return pil_image
-
                 except Exception as e:
-                    self.log_message.emit(f"❌ Errore ottimizzazione immagine {image_path.name}: {e}", "error")
-                    return image_path
-
+                    self.log_message.emit(f"❌ Errore immagine {image_path.name}: {e}", "error")
+                    return None
         except Exception as e:
-            filename = str(image_path.name if hasattr(image_path, 'name') else image_path)
-            self.log_message.emit(f"❌ Errore prepare_image_for_ai {filename}: {e}", "error")
-            return image_path
+            self.log_message.emit(f"❌ Errore prepare_image {image_path.name}: {e}", "error")
+            return None
 
     def stop(self):
-        """Ferma processing"""
+        """Ferma processing — tutti i thread controllano is_running e si fermano."""
         self.is_running = False
 
     def pause(self):
-        """Pausa processing"""
+        """Pausa processing — tutti i thread si bloccano in _wait_if_paused()."""
         self.is_paused = True
 
     def resume(self):
@@ -902,8 +1020,8 @@ class ProcessingTab(QWidget):
     
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 4)
-        layout.setSpacing(4)
+        layout.setContentsMargins(6, 4, 6, 2)
+        layout.setSpacing(2)
 
         path_label_style = """
             QLabel {
@@ -916,9 +1034,8 @@ class ProcessingTab(QWidget):
 
         # ===== SORGENTE IMMAGINI (unica sezione per dir + catalogo) =====
         source_group = QGroupBox(t("processing.group.source_icon"))
-        from PyQt6.QtWidgets import QGridLayout
         source_grid = QGridLayout()
-        source_grid.setVerticalSpacing(4)
+        source_grid.setVerticalSpacing(2)
         source_grid.setHorizontalSpacing(6)
 
         self.source_btn_group = QButtonGroup()
@@ -972,32 +1089,26 @@ class ProcessingTab(QWidget):
         self.catalog_info_label.setVisible(False)
         source_grid.addWidget(self.catalog_info_label, 2, 1, 1, 4)
 
+        # Riga status integrata nel gruppo sorgente (risparmia un QGroupBox)
+        status_row = QHBoxLayout()
+        status_row.setContentsMargins(0, 0, 0, 0)
+        self.db_label = QLabel(t("processing.label.db_init"))
+        self.db_label.setStyleSheet("font-size: 10px; color: #7f8c8d;")
+        status_row.addWidget(self.db_label)
+        _sep_s = QLabel("|")
+        _sep_s.setStyleSheet("color: #bdc3c7; margin: 0 4px;")
+        status_row.addWidget(_sep_s)
+        self.scan_label = QLabel(t("processing.label.select_source"))
+        self.scan_label.setStyleSheet("font-size: 10px; color: #7f8c8d;")
+        status_row.addWidget(self.scan_label)
+        status_row.addStretch()
+        source_grid.addLayout(status_row, 3, 0, 1, 5)
+
         source_grid.setColumnStretch(1, 1)  # Path label si espande
         source_group.setLayout(source_grid)
         layout.addWidget(source_group)
 
         self.source_btn_group.idClicked.connect(self._on_source_changed)
-
-        # ===== STATUS (riga singola compatta) =====
-        status_group = QGroupBox(t("processing.group.status"))
-        status_layout = QHBoxLayout()
-        status_layout.setContentsMargins(8, 4, 8, 4)
-
-        self.db_label = QLabel(t("processing.label.db_init"))
-        self.db_label.setStyleSheet("font-size: 11px;")
-        status_layout.addWidget(self.db_label)
-
-        sep = QLabel("|")
-        sep.setStyleSheet("color: #bdc3c7; margin: 0 6px;")
-        status_layout.addWidget(sep)
-
-        self.scan_label = QLabel(t("processing.label.select_source"))
-        self.scan_label.setStyleSheet("font-size: 11px;")
-        status_layout.addWidget(self.scan_label)
-        status_layout.addStretch()
-
-        status_group.setLayout(status_layout)
-        layout.addWidget(status_group)
 
         # ===== MODALITÀ + GENERAZIONE AI (fianco a fianco) =====
         mid_layout = QHBoxLayout()
@@ -1006,8 +1117,8 @@ class ProcessingTab(QWidget):
         # --- Modalità Processing ---
         options_group = QGroupBox(t("processing.group.mode"))
         options_layout = QVBoxLayout()
-        options_layout.setContentsMargins(8, 6, 8, 6)
-        options_layout.setSpacing(4)
+        options_layout.setContentsMargins(6, 4, 6, 4)
+        options_layout.setSpacing(2)
 
         self.processing_mode_group = QButtonGroup()
 
@@ -1052,81 +1163,173 @@ class ProcessingTab(QWidget):
         options_group.setLayout(options_layout)
         mid_layout.addWidget(options_group, stretch=1)
 
-        # --- Generazione AI ---
-        gen_ai_group = QGroupBox(t("processing.group.gen_ai"))
-        gen_ai_layout = QVBoxLayout()
-        gen_ai_layout.setContentsMargins(8, 6, 8, 4)
-        gen_ai_layout.setSpacing(3)
+        # --- Modelli AI (griglia unica: embedding + LLM con progress bar per modello) ---
+        models_group = QGroupBox(t("processing.group.gen_ai"))
+        models_grid = QGridLayout()
+        models_grid.setHorizontalSpacing(4)
+        models_grid.setVerticalSpacing(2)
+        models_grid.setContentsMargins(6, 4, 6, 4)
 
-        # Header riga
-        hdr_layout = QHBoxLayout()
-        hdr_layout.addWidget(QLabel(""))          # spazio allineamento checkbox
-        hdr_lbl = QLabel(t("processing.label.col_generate"))
-        hdr_lbl.setStyleSheet("font-weight: bold; font-size: 10px;")
-        hdr_layout.addWidget(hdr_lbl)
-        hdr_sovr = QLabel(t("processing.label.col_overwrite"))
-        hdr_sovr.setStyleSheet("font-weight: bold; font-size: 10px;")
-        hdr_layout.addWidget(hdr_sovr)
-        hdr_max = QLabel(t("processing.label.col_max"))
-        hdr_max.setStyleSheet("font-weight: bold; font-size: 10px;")
-        hdr_layout.addWidget(hdr_max)
-        gen_ai_layout.addLayout(hdr_layout)
+        # Stile progress bar compatta per singolo modello
+        _pb_style = """
+            QProgressBar { border: 1px solid #555; background: #2a2a2a;
+                           border-radius: 3px; max-height: 8px; }
+            QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+                stop:0 #C88B2E, stop:1 #E0A84A); border-radius: 2px; }
+        """
 
-        def _gen_row(label, tooltip_check, tooltip_sovr):
-            row = QHBoxLayout()
-            row.setSpacing(6)
+        # Colonne: 0=Nome  1=Genera  2=Sovrascrivi  3=Max  4=ProgressBar
+        #
+        # Riga 0: header
+        _COL_NAME, _COL_GEN, _COL_OVR, _COL_MAX, _COL_BAR = range(5)
+        _hdr_style = "font-weight: bold; font-size: 10px;"
+
+        # Header: solo Genera / Sovrascrivi / Max (le altre colonne senza header)
+        for ci, col_text in [(_COL_GEN, t("processing.label.col_generate")),
+                             (_COL_OVR, t("processing.label.col_overwrite")),
+                             (_COL_MAX, t("processing.label.col_max"))]:
+            _h = QLabel(col_text)
+            _h.setStyleSheet(_hdr_style)
+            _h.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            models_grid.addWidget(_h, 0, ci)
+
+        _cur_row = 1  # riga corrente nella griglia
+
+        # === Helper: aggiunge riga modello embedding ===
+        def _add_emb_row(row, label, description):
+            # Nome + descrizione nella stessa cella
+            name_w = QWidget()
+            name_lay = QHBoxLayout(name_w)
+            name_lay.setContentsMargins(0, 0, 0, 0)
+            name_lay.setSpacing(4)
             lbl = QLabel(label)
-            lbl.setFixedWidth(68)
-            lbl.setStyleSheet("font-size: 11px;")
-            row.addWidget(lbl)
+            lbl.setStyleSheet("font-size: 11px; font-weight: bold;")
+            name_lay.addWidget(lbl)
+            desc_lbl = QLabel(description)
+            desc_lbl.setStyleSheet("font-size: 9px; color: #7f8c8d;")
+            name_lay.addWidget(desc_lbl)
+            name_lay.addStretch()
+            models_grid.addWidget(name_w, row, _COL_NAME)
             chk = QCheckBox()
-            chk.setToolTip(tooltip_check)
-            row.addWidget(chk, alignment=Qt.AlignmentFlag.AlignHCenter)
+            chk.setToolTip(t("processing.tooltip.model_enable", model=label))
+            models_grid.addWidget(chk, row, _COL_GEN, alignment=Qt.AlignmentFlag.AlignCenter)
+            sovr = QCheckBox()
+            sovr.setToolTip(t("processing.tooltip.model_overwrite", model=label))
+            sovr.setEnabled(False)
+            models_grid.addWidget(sovr, row, _COL_OVR, alignment=Qt.AlignmentFlag.AlignCenter)
+            # Col Max vuota per embedding
+            pb = QProgressBar()
+            pb.setRange(0, 100)
+            pb.setValue(0)
+            pb.setTextVisible(False)
+            pb.setStyleSheet(_pb_style)
+            pb.setFixedHeight(8)
+            models_grid.addWidget(pb, row, _COL_BAR)
+            chk.stateChanged.connect(lambda state, s=sovr: s.setEnabled(state == 2))
+            return chk, sovr, pb
+
+        self.pt_clip_check, self.pt_clip_overwrite, self.pt_clip_bar = \
+            _add_emb_row(_cur_row, 'CLIP', t("processing.check.clip")); _cur_row += 1
+
+        self.pt_dinov2_check, self.pt_dinov2_overwrite, self.pt_dinov2_bar = \
+            _add_emb_row(_cur_row, 'DINOv2', t("processing.check.dinov2")); _cur_row += 1
+
+        self.pt_bioclip_check, self.pt_bioclip_overwrite, self.pt_bioclip_bar = \
+            _add_emb_row(_cur_row, 'BioCLIP', t("processing.check.bioclip")); _cur_row += 1
+
+        self.pt_aesthetic_check, self.pt_aesthetic_overwrite, self.pt_aesthetic_bar = \
+            _add_emb_row(_cur_row, 'Aesthetic', t("processing.check.aesthetic")); _cur_row += 1
+
+        self.pt_musiq_check, self.pt_musiq_overwrite, self.pt_musiq_bar = \
+            _add_emb_row(_cur_row, 'Technical', t("processing.check.technical")); _cur_row += 1
+
+        # Separatore embedding / LLM con label
+        _sep_w = QWidget()
+        _sep_lay = QHBoxLayout(_sep_w)
+        _sep_lay.setContentsMargins(0, 4, 0, 2)
+        _sep_lay.setSpacing(4)
+        _sep_line_l = QLabel("")
+        _sep_line_l.setFixedHeight(1)
+        _sep_line_l.setStyleSheet("background-color: #bdc3c7;")
+        _sep_lay.addWidget(_sep_line_l, stretch=1)
+        _sep_lbl = QLabel("LLM Vision")
+        _sep_lbl.setStyleSheet("font-size: 10px; font-weight: bold; color: #7f8c8d;")
+        _sep_lay.addWidget(_sep_lbl)
+        _sep_line_r = QLabel("")
+        _sep_line_r.setFixedHeight(1)
+        _sep_line_r.setStyleSheet("background-color: #bdc3c7;")
+        _sep_lay.addWidget(_sep_line_r, stretch=1)
+        models_grid.addWidget(_sep_w, _cur_row, 0, 1, 5); _cur_row += 1
+
+        # === Helper: aggiunge riga LLM (senza progress bar individuale) ===
+        def _add_llm_row(row, label, tooltip_chk, tooltip_sovr, spin_min, spin_max, spin_val):
+            lbl = QLabel(label)
+            lbl.setStyleSheet("font-size: 11px;")
+            models_grid.addWidget(lbl, row, _COL_NAME)
+            chk = QCheckBox()
+            chk.setToolTip(tooltip_chk)
+            models_grid.addWidget(chk, row, _COL_GEN, alignment=Qt.AlignmentFlag.AlignCenter)
             sovr = QCheckBox()
             sovr.setToolTip(tooltip_sovr)
             sovr.setEnabled(False)
-            row.addWidget(sovr, alignment=Qt.AlignmentFlag.AlignHCenter)
+            models_grid.addWidget(sovr, row, _COL_OVR, alignment=Qt.AlignmentFlag.AlignCenter)
             spin = QSpinBox()
+            spin.setRange(spin_min, spin_max)
+            spin.setValue(spin_val)
             spin.setEnabled(False)
-            spin.setFixedWidth(52)
-            row.addWidget(spin)
-            return row, chk, sovr, spin
+            spin.setFixedWidth(50)
+            models_grid.addWidget(spin, row, _COL_MAX)
+            chk.stateChanged.connect(lambda state, s=sovr, sp=spin: (
+                s.setEnabled(state == 2), sp.setEnabled(state == 2)))
+            return chk, sovr, spin
 
-        row_t, self.pt_gen_tags_check, self.pt_gen_tags_overwrite, self.pt_llm_max_tags = \
-            _gen_row(t("processing.label.row_tags_colon"), t("processing.tooltip.gen_tags"), t("processing.tooltip.overwrite_tags"))
-        self.pt_llm_max_tags.setRange(1, 20)
-        self.pt_llm_max_tags.setValue(10)
-        self.pt_gen_tags_check.stateChanged.connect(self._toggle_pt_tags)
-        gen_ai_layout.addLayout(row_t)
+        self.pt_gen_tags_check, self.pt_gen_tags_overwrite, self.pt_llm_max_tags = \
+            _add_llm_row(_cur_row, t("processing.label.row_tags_colon"),
+                         t("processing.tooltip.gen_tags"), t("processing.tooltip.overwrite_tags"),
+                         1, 20, 10); _cur_row += 1
 
-        row_d, self.pt_gen_desc_check, self.pt_gen_desc_overwrite, self.pt_llm_max_words = \
-            _gen_row(t("processing.label.row_desc_colon"), t("processing.tooltip.gen_desc"), t("processing.tooltip.overwrite_desc"))
-        self.pt_llm_max_words.setRange(20, 300)
-        self.pt_llm_max_words.setValue(100)
-        self.pt_gen_desc_check.stateChanged.connect(self._toggle_pt_desc)
-        gen_ai_layout.addLayout(row_d)
+        self.pt_gen_desc_check, self.pt_gen_desc_overwrite, self.pt_llm_max_words = \
+            _add_llm_row(_cur_row, t("processing.label.row_desc_colon"),
+                         t("processing.tooltip.gen_desc"), t("processing.tooltip.overwrite_desc"),
+                         20, 300, 100); _cur_row += 1
 
-        row_ti, self.pt_gen_title_check, self.pt_gen_title_overwrite, self.pt_llm_max_title = \
-            _gen_row(t("processing.label.row_title_colon"), t("processing.tooltip.gen_title"), t("processing.tooltip.overwrite_title"))
-        self.pt_llm_max_title.setRange(1, 10)
-        self.pt_llm_max_title.setValue(5)
-        self.pt_gen_title_check.stateChanged.connect(self._toggle_pt_title)
-        gen_ai_layout.addLayout(row_ti)
+        self.pt_gen_title_check, self.pt_gen_title_overwrite, self.pt_llm_max_title = \
+            _add_llm_row(_cur_row, t("processing.label.row_title_colon"),
+                         t("processing.tooltip.gen_title"), t("processing.tooltip.overwrite_title"),
+                         1, 10, 5)
 
+        # Progress bar unica LLM (span su tutte e 3 le righe LLM, colonna BAR+LED)
+        self.pt_llm_bar = QProgressBar()
+        self.pt_llm_bar.setRange(0, 100)
+        self.pt_llm_bar.setValue(0)
+        self.pt_llm_bar.setTextVisible(False)
+        self.pt_llm_bar.setStyleSheet(_pb_style)
+        self.pt_llm_bar.setFixedHeight(8)
+        _llm_first_row = _cur_row - 2  # prima riga LLM (Tags)
+        models_grid.addWidget(self.pt_llm_bar, _llm_first_row, _COL_BAR, 3, 1)
+        _cur_row += 1
+
+        # Info riga finale
         info_lbl = QLabel(t("processing.label.ai_overwrite_info"))
         info_lbl.setStyleSheet("color: #7f8c8d; font-size: 9px; font-style: italic;")
-        gen_ai_layout.addWidget(info_lbl)
-        gen_ai_layout.addStretch()
+        models_grid.addWidget(info_lbl, _cur_row, 0, 1, 5)
 
-        gen_ai_group.setLayout(gen_ai_layout)
-        mid_layout.addWidget(gen_ai_group, stretch=1)
+        # Larghezze colonne
+        models_grid.setColumnMinimumWidth(_COL_NAME, 75)
+        models_grid.setColumnMinimumWidth(_COL_GEN, 22)
+        models_grid.setColumnMinimumWidth(_COL_OVR, 22)
+        models_grid.setColumnMinimumWidth(_COL_MAX, 40)
+        models_grid.setColumnStretch(_COL_BAR, 1)  # progress bar si espande
+
+        models_group.setLayout(models_grid)
+        mid_layout.addWidget(models_group, stretch=2)
 
         layout.addLayout(mid_layout)
 
         # ===== CONTROLLI =====
         controls_group = QGroupBox(t("processing.group.controls"))
         controls_layout = QHBoxLayout()
-        controls_layout.setContentsMargins(8, 4, 8, 4)
+        controls_layout.setContentsMargins(6, 2, 6, 2)
 
         self.start_btn = QPushButton(t("processing.btn.start"))
         self.start_btn.clicked.connect(self.start_processing)
@@ -1154,38 +1357,9 @@ class ProcessingTab(QWidget):
         controls_group.setLayout(controls_layout)
         layout.addWidget(controls_group)
 
-        # ===== PROGRESSO =====
-        progress_group = QGroupBox(t("processing.group.progress_section"))
-        progress_layout = QVBoxLayout()
-        progress_layout.setContentsMargins(8, 4, 8, 4)
-        progress_layout.setSpacing(3)
-
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(0)
-        self.progress_bar.setFixedHeight(10)
-        self.progress_bar.setTextVisible(False)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar { border: 1px solid #3A3A3A; background-color: #1E1E1E; border-radius: 5px; }
-            QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-                stop:0 #C88B2E, stop:1 #E0A84A); border-radius: 4px; }
-        """)
-        progress_layout.addWidget(self.progress_bar)
-
-        self.progress_label = QLabel(t("processing.label.progress_waiting"))
-        self.progress_label.setStyleSheet("""
-            QLabel { font-size: 11px; color: white; padding: 6px 10px;
-                background-color: #616161; border-radius: 3px; border: 1px solid #424242;
-                font-family: 'Consolas', 'Courier New', monospace; font-weight: bold; }
-        """)
-        self.progress_label.setWordWrap(True)
-        progress_layout.addWidget(self.progress_label)
-
-        progress_group.setLayout(progress_layout)
-        layout.addWidget(progress_group)
-
         # ===== TERMINAL LOG (si espande per riempire lo spazio disponibile) =====
         terminal_group = QGroupBox(t("processing.group.terminal_log"))
+        self._terminal_group = terminal_group
         terminal_layout = QVBoxLayout()
         terminal_layout.setContentsMargins(5, 5, 5, 5)
 
@@ -1226,7 +1400,7 @@ class ProcessingTab(QWidget):
             scrollbar = self.log_display.verticalScrollBar()
             scrollbar.setValue(scrollbar.maximum())
         except Exception as e:
-            print(f"Errore auto-scroll: {e}")
+            logger.debug(f"Errore auto-scroll: {e}")
     
     def _init_terminal_welcome(self):
         """Inizializza il terminale con messaggio di benvenuto"""
@@ -1240,7 +1414,7 @@ class ProcessingTab(QWidget):
 """
             self.log_display.append(welcome_msg)
         except Exception as e:
-            print(f"Errore init terminale: {e}")
+            logger.debug(f"Errore init terminale: {e}")
     
     def select_input_directory(self):
         """Apre dialog per selezione directory input"""
@@ -1337,7 +1511,7 @@ class ProcessingTab(QWidget):
                 yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
                 
         except Exception as e:
-            print(f"Errore salvataggio directory in config: {e}")
+            logger.warning(f"Errore salvataggio directory in config: {e}")
     
     def load_saved_input_directory(self):
         """Carica directory input e impostazioni LLM dal config YAML"""
@@ -1363,6 +1537,18 @@ class ProcessingTab(QWidget):
                     self.input_dir_label.setText(t("processing.label.dir_not_available"))
                     self.input_dir_label.setStyleSheet("color: #cc3333;")
 
+            # Carica stato Active modelli embedding da config
+            models_cfg = config.get('embedding', {}).get('models', {})
+            emb_mapping = [
+                (self.pt_clip_check, 'clip'),
+                (self.pt_dinov2_check, 'dinov2'),
+                (self.pt_bioclip_check, 'bioclip'),
+                (self.pt_aesthetic_check, 'aesthetic'),
+                (self.pt_musiq_check, 'technical'),
+            ]
+            for chk, key in emb_mapping:
+                chk.setChecked(models_cfg.get(key, {}).get('enabled', False))
+
             # Carica impostazioni generazione AI (tags/desc/title)
             auto_import = (config.get('embedding', {})
                            .get('models', {})
@@ -1373,19 +1559,16 @@ class ProcessingTab(QWidget):
             self.pt_gen_tags_check.setChecked(tags_cfg.get('enabled', False))
             self.pt_gen_tags_overwrite.setChecked(tags_cfg.get('overwrite', False))
             self.pt_llm_max_tags.setValue(tags_cfg.get('max_tags', 10))
-            self._toggle_pt_tags(self.pt_gen_tags_check.isChecked())
 
             desc_cfg = auto_import.get('description', {})
             self.pt_gen_desc_check.setChecked(desc_cfg.get('enabled', False))
             self.pt_gen_desc_overwrite.setChecked(desc_cfg.get('overwrite', False))
             self.pt_llm_max_words.setValue(desc_cfg.get('max_words', 100))
-            self._toggle_pt_desc(self.pt_gen_desc_check.isChecked())
 
             title_cfg = auto_import.get('title', {})
             self.pt_gen_title_check.setChecked(title_cfg.get('enabled', False))
             self.pt_gen_title_overwrite.setChecked(title_cfg.get('overwrite', False))
             self.pt_llm_max_title.setValue(title_cfg.get('max_words', 5))
-            self._toggle_pt_title(self.pt_gen_title_check.isChecked())
 
         except Exception as e:
             import logging
@@ -1409,23 +1592,31 @@ class ProcessingTab(QWidget):
         # Aggiorna stato pulsante avvia
         self.update_start_button_state()
 
-    def _toggle_pt_tags(self, state):
-        """Abilita/disabilita controlli tag in processing tab"""
-        enabled = self.pt_gen_tags_check.isChecked()
-        self.pt_gen_tags_overwrite.setEnabled(enabled)
-        self.pt_llm_max_tags.setEnabled(enabled)
+    def _save_models_config_to_yaml(self):
+        """Salva stato Active dei modelli embedding nel YAML per la prossima sessione."""
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
 
-    def _toggle_pt_desc(self, state):
-        """Abilita/disabilita controlli descrizione in processing tab"""
-        enabled = self.pt_gen_desc_check.isChecked()
-        self.pt_gen_desc_overwrite.setEnabled(enabled)
-        self.pt_llm_max_words.setEnabled(enabled)
+            models = config.setdefault('embedding', {}).setdefault('models', {})
 
-    def _toggle_pt_title(self, state):
-        """Abilita/disabilita controlli titolo in processing tab"""
-        enabled = self.pt_gen_title_check.isChecked()
-        self.pt_gen_title_overwrite.setEnabled(enabled)
-        self.pt_llm_max_title.setEnabled(enabled)
+            # Mappa checkbox → config key
+            mapping = [
+                (self.pt_clip_check, 'clip'),
+                (self.pt_dinov2_check, 'dinov2'),
+                (self.pt_bioclip_check, 'bioclip'),
+                (self.pt_aesthetic_check, 'aesthetic'),
+                (self.pt_musiq_check, 'technical'),
+            ]
+            for chk, key in mapping:
+                models.setdefault(key, {})['enabled'] = chk.isChecked()
+
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Errore salvataggio config modelli: {e}")
 
     def _on_reprocess_toggled(self, checked: bool):
         """Abilita/disabilita checkbox Solo Gen. AI in base alla modalità selezionata."""
@@ -1493,10 +1684,10 @@ class ProcessingTab(QWidget):
             # Esegui scansione
             self.scan_directory()
 
-            print("🔄 Refresh completato")
+            logger.debug("Refresh completato")
 
         except Exception as e:
-            print(f"Errore refresh: {e}")
+            logger.error(f"Errore refresh: {e}")
             self.scan_label.setText(f"❌ Errore refresh: {e}")
 
     def scan_directory(self):
@@ -1618,7 +1809,7 @@ class ProcessingTab(QWidget):
                     self.start_btn.setToolTip(t("processing.tooltip.start_reprocess"))
                     
         except Exception as e:
-            print(f"Errore update_start_button_state: {e}")
+            logger.debug(f"Errore update_start_button_state: {e}")
             # Fallback: abilita sempre
             self.start_btn.setEnabled(True)
     
@@ -1677,11 +1868,20 @@ class ProcessingTab(QWidget):
                 },
             }
 
-            # Salva valori LLM nel YAML per la prossima sessione
+            # Salva valori nel YAML per la prossima sessione
             self._save_llm_config_to_yaml(llm_gen_config)
+            self._save_models_config_to_yaml()
 
-            # Reset progress bar
-            self.progress_bar.setValue(0)
+            # Configurazione per-modello embedding: Active + Overwrite
+            embedding_model_flags = {
+                'clip': {'active': self.pt_clip_check.isChecked(), 'overwrite': self.pt_clip_overwrite.isChecked()},
+                'dinov2': {'active': self.pt_dinov2_check.isChecked(), 'overwrite': self.pt_dinov2_overwrite.isChecked()},
+                'bioclip': {'active': self.pt_bioclip_check.isChecked(), 'overwrite': self.pt_bioclip_overwrite.isChecked()},
+                'aesthetic': {'active': self.pt_aesthetic_check.isChecked(), 'overwrite': self.pt_aesthetic_overwrite.isChecked()},
+                'technical': {'active': self.pt_musiq_check.isChecked(), 'overwrite': self.pt_musiq_overwrite.isChecked()},
+            }
+
+            # Reset terminale
             self.log_display.clear()
 
             # Apri file log se richiesto
@@ -1729,6 +1929,7 @@ class ProcessingTab(QWidget):
                 {
                     'processing_mode': processing_mode,
                     'solo_gen_ai': self.solo_gen_ai_check.isChecked(),
+                    'embedding_model_flags': embedding_model_flags,
                 },
                 include_subdirs=self.include_subdirs_cb.isChecked(),
                 image_list=image_list
@@ -1736,9 +1937,16 @@ class ProcessingTab(QWidget):
 
             # Connetti segnali
             self.worker.progress.connect(self.update_progress)
+            self.worker.model_progress.connect(self._update_model_progress)
             self.worker.log_message.connect(self.add_log_message)
             self.worker.stats_update.connect(self.update_stats)
             self.worker.finished.connect(self.processing_finished)
+
+            # Reset progress bar per-modello
+            for _bar in (self.pt_clip_bar, self.pt_dinov2_bar, self.pt_bioclip_bar,
+                         self.pt_aesthetic_bar, self.pt_musiq_bar, self.pt_llm_bar):
+                _bar.setValue(0)
+                _bar.setRange(0, 100)
 
             self.worker.start()
 
@@ -1811,33 +2019,26 @@ class ProcessingTab(QWidget):
             self.worker.stop()
             self.add_log_message(t("processing.log.stopping"), "info")
     
+    def _update_model_progress(self, model_key, current, total):
+        """Aggiorna progress bar del singolo modello"""
+        _bar_map = {
+            'clip': self.pt_clip_bar,
+            'dinov2': self.pt_dinov2_bar,
+            'bioclip': self.pt_bioclip_bar,
+            'aesthetic': self.pt_aesthetic_bar,
+            'technical': self.pt_musiq_bar,
+            'llm': self.pt_llm_bar,
+        }
+        bar = _bar_map.get(model_key)
+        if bar and total > 0:
+            bar.setRange(0, total)
+            bar.setValue(current)
+
     def update_progress(self, current, total):
-        """Aggiorna progresso con barra grafica e testuale"""
-        if total > 0:
-            percentage = int((current / total) * 100)
-
-            # Aggiorna progress bar grafica
-            self.progress_bar.setValue(percentage)
-
-            # Testo semplice (la barra grafica mostra già il progresso)
-            progress_text = f"📊 {current}/{total} ({percentage}%)"
-
-            self.progress_label.setText(progress_text)
-            
-            # Stile sobrio uniforme senza colori dinamici
-            self.progress_label.setStyleSheet("""
-                QLabel {
-                    font-size: 12px;
-                    color: #2c3e50;
-                    padding: 10px;
-                    background-color: #ecf0f1;
-                    border-radius: 4px;
-                    border: 1px solid #bdc3c7;
-                    font-family: 'Consolas', 'Courier New', monospace;
-                    font-weight: bold;
-                    min-height: 20px;
-                }
-            """)
+        """Aggiorna progresso generale (le barre per-modello sono già visibili)"""
+        # Il conteggio nel titolo terminale è stato rimosso:
+        # le progress bar per-modello mostrano già lo stato di ogni componente
+        pass
     
     def add_log_message(self, message, level):
         """Aggiunge messaggio al log terminale"""
@@ -1894,44 +2095,27 @@ class ProcessingTab(QWidget):
         self.start_btn.setEnabled(True)
         self.pause_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
-        
-        # Calcola statistiche per il completamento
+
+        # Ripristina titolo terminale
+        self._terminal_group.setTitle(t("processing.group.terminal_log"))
+
+        # Statistiche di completamento nel terminale
         total = stats.get('total', 0)
         success = stats.get('success', 0)
         errors = stats.get('errors', 0)
-        processed = stats.get('processed', 0)  # foto effettivamente elaborate (non skip)
+        processed = stats.get('processed', 0)
         processing_time = stats.get('processing_time', 0)
 
         if total > 0:
             success_rate = round((success / total) * 100, 1)
-            # Divide per le foto elaborate, non per il totale della sessione
             time_per_image = round(processing_time / processed, 1) if processed > 0 else 0
-            
-            # Mostra statistiche di completamento
-            completion_text = f"✅ Completato! {success}/{total} ({success_rate}%) - ⏱️ {time_per_image}s/img"
+            completion_text = f"✅ Completato! {success}/{total} ({success_rate}%) — ⏱️ {time_per_image}s/img"
             if errors > 0:
-                completion_text += f" - ⚠️ {errors} errori"
-                
-            self.progress_label.setText(completion_text)
-            self.progress_bar.setValue(100)
-
-            # Stile sobrio uniforme per completamento
-            self.progress_label.setStyleSheet("""
-                QLabel {
-                    font-size: 12px;
-                    color: #2c3e50;
-                    padding: 10px;
-                    background-color: #ecf0f1;
-                    border-radius: 4px;
-                    border: 1px solid #bdc3c7;
-                    font-family: 'Consolas', 'Courier New', monospace;
-                    font-weight: bold;
-                    min-height: 20px;
-                }
-            """)
+                completion_text += f" — ⚠️ {errors} errori"
+            self.add_log_message(completion_text, "success")
         else:
-            self.progress_label.setText("✅ Completato!")
-        
+            self.add_log_message("✅ Completato!", "success")
+
         # Aggiorna scan per refresh statistiche
         self.scan_directory()
     
