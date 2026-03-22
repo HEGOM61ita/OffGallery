@@ -250,7 +250,6 @@ class ProcessingWorker(QThread):
             for i, image_path in enumerate(images_to_process, 1):
                 if not self._wait_if_paused():
                     break
-                self.progress.emit(i, total_to_process)
 
                 prep = self._prep_image(
                     image_path, raw_processor, config, db_manager,
@@ -264,6 +263,7 @@ class ProcessingWorker(QThread):
                 else:
                     with self._stats_lock:
                         stats['errors'] += 1
+                self.model_progress.emit('exiftool', i, total_to_process)
 
             if not self.is_running:
                 stats['processing_time'] = time.time() - start_time
@@ -1167,8 +1167,8 @@ class ProcessingTab(QWidget):
         models_group = QGroupBox(t("processing.group.gen_ai"))
         models_grid = QGridLayout()
         models_grid.setHorizontalSpacing(4)
-        models_grid.setVerticalSpacing(2)
-        models_grid.setContentsMargins(6, 4, 6, 4)
+        models_grid.setVerticalSpacing(1)
+        models_grid.setContentsMargins(6, 3, 6, 3)
 
         # Stile progress bar compatta per singolo modello
         _pb_style = """
@@ -1194,6 +1194,64 @@ class ProcessingTab(QWidget):
             models_grid.addWidget(_h, 0, ci)
 
         _cur_row = 1  # riga corrente nella griglia
+
+        # === Separatore Preparazione + riga ExifTool ===
+        _sep_prep = QWidget()
+        _sep_prep_lay = QHBoxLayout(_sep_prep)
+        _sep_prep_lay.setContentsMargins(0, 2, 0, 1)
+        _sep_prep_lay.setSpacing(4)
+        _sep_prep_l = QLabel("")
+        _sep_prep_l.setFixedHeight(1)
+        _sep_prep_l.setStyleSheet("background-color: #bdc3c7;")
+        _sep_prep_lay.addWidget(_sep_prep_l, stretch=1)
+        _sep_prep_lbl = QLabel(t("processing.label.preparation"))
+        _sep_prep_lbl.setStyleSheet("font-size: 10px; font-weight: bold; color: #7f8c8d;")
+        _sep_prep_lay.addWidget(_sep_prep_lbl)
+        _sep_prep_r = QLabel("")
+        _sep_prep_r.setFixedHeight(1)
+        _sep_prep_r.setStyleSheet("background-color: #bdc3c7;")
+        _sep_prep_lay.addWidget(_sep_prep_r, stretch=1)
+        models_grid.addWidget(_sep_prep, _cur_row, 0, 1, 5); _cur_row += 1
+
+        # Riga ExifTool (estrazione metadati + thumbnail)
+        _exif_name_w = QWidget()
+        _exif_name_lay = QHBoxLayout(_exif_name_w)
+        _exif_name_lay.setContentsMargins(0, 0, 0, 0)
+        _exif_name_lay.setSpacing(4)
+        _exif_lbl = QLabel("ExifTool")
+        _exif_lbl.setStyleSheet("font-size: 11px; font-weight: bold;")
+        _exif_name_lay.addWidget(_exif_lbl)
+        _exif_desc = QLabel(t("processing.check.exiftool"))
+        _exif_desc.setStyleSheet("font-size: 9px; color: #7f8c8d;")
+        _exif_name_lay.addWidget(_exif_desc)
+        _exif_name_lay.addStretch()
+        models_grid.addWidget(_exif_name_w, _cur_row, _COL_NAME)
+        self.pt_exif_bar = QProgressBar()
+        self.pt_exif_bar.setRange(0, 100)
+        self.pt_exif_bar.setValue(0)
+        self.pt_exif_bar.setTextVisible(False)
+        self.pt_exif_bar.setStyleSheet(_pb_style)
+        self.pt_exif_bar.setFixedHeight(8)
+        models_grid.addWidget(self.pt_exif_bar, _cur_row, _COL_BAR)
+        _cur_row += 1
+
+        # === Separatore Modelli Embedding ===
+        _sep_emb = QWidget()
+        _sep_emb_lay = QHBoxLayout(_sep_emb)
+        _sep_emb_lay.setContentsMargins(0, 2, 0, 1)
+        _sep_emb_lay.setSpacing(4)
+        _sep_emb_l = QLabel("")
+        _sep_emb_l.setFixedHeight(1)
+        _sep_emb_l.setStyleSheet("background-color: #bdc3c7;")
+        _sep_emb_lay.addWidget(_sep_emb_l, stretch=1)
+        _sep_emb_lbl = QLabel(t("processing.label.embedding_models"))
+        _sep_emb_lbl.setStyleSheet("font-size: 10px; font-weight: bold; color: #7f8c8d;")
+        _sep_emb_lay.addWidget(_sep_emb_lbl)
+        _sep_emb_r = QLabel("")
+        _sep_emb_r.setFixedHeight(1)
+        _sep_emb_r.setStyleSheet("background-color: #bdc3c7;")
+        _sep_emb_lay.addWidget(_sep_emb_r, stretch=1)
+        models_grid.addWidget(_sep_emb, _cur_row, 0, 1, 5); _cur_row += 1
 
         # === Helper: aggiunge riga modello embedding ===
         def _add_emb_row(row, label, description):
@@ -1246,7 +1304,7 @@ class ProcessingTab(QWidget):
         # Separatore embedding / LLM con label
         _sep_w = QWidget()
         _sep_lay = QHBoxLayout(_sep_w)
-        _sep_lay.setContentsMargins(0, 4, 0, 2)
+        _sep_lay.setContentsMargins(0, 2, 0, 1)
         _sep_lay.setSpacing(4)
         _sep_line_l = QLabel("")
         _sep_line_l.setFixedHeight(1)
@@ -1309,10 +1367,7 @@ class ProcessingTab(QWidget):
         models_grid.addWidget(self.pt_llm_bar, _llm_first_row, _COL_BAR, 3, 1)
         _cur_row += 1
 
-        # Info riga finale
-        info_lbl = QLabel(t("processing.label.ai_overwrite_info"))
-        info_lbl.setStyleSheet("color: #7f8c8d; font-size: 9px; font-style: italic;")
-        models_grid.addWidget(info_lbl, _cur_row, 0, 1, 5)
+        # (riga info rimossa — lo spazio è recuperato per ExifTool)
 
         # Larghezze colonne
         models_grid.setColumnMinimumWidth(_COL_NAME, 75)
@@ -1943,8 +1998,9 @@ class ProcessingTab(QWidget):
             self.worker.finished.connect(self.processing_finished)
 
             # Reset progress bar per-modello
-            for _bar in (self.pt_clip_bar, self.pt_dinov2_bar, self.pt_bioclip_bar,
-                         self.pt_aesthetic_bar, self.pt_musiq_bar, self.pt_llm_bar):
+            for _bar in (self.pt_exif_bar, self.pt_clip_bar, self.pt_dinov2_bar,
+                         self.pt_bioclip_bar, self.pt_aesthetic_bar, self.pt_musiq_bar,
+                         self.pt_llm_bar):
                 _bar.setValue(0)
                 _bar.setRange(0, 100)
 
@@ -2022,6 +2078,7 @@ class ProcessingTab(QWidget):
     def _update_model_progress(self, model_key, current, total):
         """Aggiorna progress bar del singolo modello"""
         _bar_map = {
+            'exiftool': self.pt_exif_bar,
             'clip': self.pt_clip_bar,
             'dinov2': self.pt_dinov2_bar,
             'bioclip': self.pt_bioclip_bar,
