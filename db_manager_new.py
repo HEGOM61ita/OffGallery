@@ -5,6 +5,7 @@ UNIFIED: Campo tags per user/ai tags, bioclip_taxonomy separato per tassonomia B
 """
 
 import sqlite3
+import threading
 import logging
 import json
 import pickle
@@ -21,20 +22,31 @@ class DatabaseManager:
     def __init__(self, db_path: str):
         self.db_path = db_path
         self.conn = None
-        self.cursor = None
+        self._local = threading.local()  # cursore per-thread: ogni thread ottiene il suo
         self.init_database()
     
     def init_database(self):
         """Inizializza database con schema completo"""
         try:
-            self.conn = sqlite3.connect(self.db_path)
-            self.cursor = self.conn.cursor()
+            # check_same_thread=False: la connessione è condivisa tra thread.
+            # Il cursore è thread-local (property 'cursor'): ogni thread che accede
+            # a self.cursor ottiene il proprio cursore, evitando ProgrammingError.
+            self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self.create_tables()
             
         except Exception as e:
             logger.error(f"Errore inizializzazione database: {e}")
             raise
-    
+
+    @property
+    def cursor(self):
+        """Cursore SQLite thread-local: ogni thread ottiene il proprio cursore
+        sulla connessione condivisa. Evita ProgrammingError 'object created in
+        thread X used in thread Y' senza richiedere una connessione per thread."""
+        if not hasattr(self._local, '_cursor') or self._local._cursor is None:
+            self._local._cursor = self.conn.cursor()
+        return self._local._cursor
+
     def create_tables(self):
         """Crea schema tabelle con supporto completo XMP Lightroom"""
         
@@ -371,6 +383,31 @@ class DatabaseManager:
             logger.error(f"Errore image_exists: {e}")
             return False
     
+    def get_ai_fields_status(self, filename):
+        """Ritorna dict con True/False per ogni campo AI già popolato.
+        Usato dai thread modello per decidere se sovrascrivere."""
+        try:
+            self.cursor.execute(
+                "SELECT clip_embedding, dinov2_embedding, bioclip_taxonomy, "
+                "aesthetic_score, technical_score, tags, description, title "
+                "FROM images WHERE filename = ?", (filename,))
+            row = self.cursor.fetchone()
+            if not row:
+                return {}
+            return {
+                'clip_embedding': row[0] is not None,
+                'dinov2_embedding': row[1] is not None,
+                'bioclip_taxonomy': row[2] is not None and row[2] != '',
+                'aesthetic_score': row[3] is not None,
+                'technical_score': row[4] is not None,
+                'tags': row[5] is not None and row[5] not in ('', '[]'),
+                'description': row[6] is not None and row[6] != '',
+                'title': row[7] is not None and row[7] != '',
+            }
+        except Exception as e:
+            logger.error(f"Errore get_ai_fields_status: {e}")
+            return {}
+
     def hash_exists(self, file_hash):
         """Verifica se hash file già presente (deduplicazione)"""
         if not file_hash:
@@ -729,7 +766,7 @@ class DatabaseManager:
                 'gps_city', 'gps_state', 'gps_country', 'gps_location',
                 'exif_json',
                 'clip_embedding', 'dinov2_embedding', 'aesthetic_score', 'technical_score', 'is_monochrome',
-                'tags',
+                'tags', 'bioclip_taxonomy', 'geo_hierarchy',
                 'ai_description_hash', 'model_used',
                 'processing_time', 'embedding_generated', 'llm_generated', 'success', 'error_message', 'app_version',
                 'sync_state', 'last_xmp_mtime', 'last_sync_at', 'last_sync_check_at', 'last_import_mtime', 'processed_date'
