@@ -25,6 +25,9 @@ for %%P in (
     "%USERPROFILE%\miniconda3\condabin\conda.bat"
     "%USERPROFILE%\Miniconda3\condabin\conda.bat"
     "%LOCALAPPDATA%\miniconda3\condabin\conda.bat"
+    "C:\miniconda3\condabin\conda.bat"
+    "C:\ProgramData\miniconda3\condabin\conda.bat"
+    "%~d0\miniconda3\condabin\conda.bat"
 ) do (
     if exist %%P (
         set "CONDA_CMD=%%~P"
@@ -37,6 +40,9 @@ for %%P in (
     "%USERPROFILE%\anaconda3\condabin\conda.bat"
     "%USERPROFILE%\Anaconda3\condabin\conda.bat"
     "%LOCALAPPDATA%\anaconda3\condabin\conda.bat"
+    "C:\anaconda3\condabin\conda.bat"
+    "C:\ProgramData\anaconda3\condabin\conda.bat"
+    "%~d0\anaconda3\condabin\conda.bat"
 ) do (
     if exist %%P (
         set "CONDA_CMD=%%~P"

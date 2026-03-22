@@ -16,6 +16,8 @@ for %%P in (
     "C:\anaconda3\envs\OffGallery\python.exe"
     "C:\ProgramData\miniconda3\envs\OffGallery\python.exe"
     "C:\ProgramData\anaconda3\envs\OffGallery\python.exe"
+    "%~d0\miniconda3\envs\OffGallery\python.exe"
+    "%~d0\anaconda3\envs\OffGallery\python.exe"
 ) do (
     if exist %%P (
         set PYTHON_EXE=%%P
