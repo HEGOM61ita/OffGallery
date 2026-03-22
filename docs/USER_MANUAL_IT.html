@@ -377,6 +377,7 @@
     <li class="sub"><a href="#export-xmp">Export XMP</a></li>
     <li class="sub"><a href="#export-copia">Copia con Struttura</a></li>
     <li><a href="#configurazione">Tab Configurazione</a></li>
+    <li class="sub"><a href="#config-device">Allocazione Device</a></li>
     <li><a href="#plugin-llm">Plugin LLM</a></li>
     <li><a href="#log">Tab Log</a></li>
 
@@ -477,15 +478,15 @@
   <thead><tr><th>Colore</th><th>Significato</th></tr></thead>
   <tbody>
     <tr><td><span style="color:#4CAF50;font-weight:bold;">● Verde</span></td><td>Componente caricato in <strong>VRAM</strong> (GPU) — prestazioni ottimali</td></tr>
-    <tr><td><span style="color:#C88B2E;font-weight:bold;">● Ambra</span></td><td>Componente caricato su <strong>CPU</strong> — funzionante ma più lento (es. BioCLIP con VRAM insufficiente, BRISQUE, Technical/MUSIQ)</td></tr>
+    <tr><td><span style="color:#C88B2E;font-weight:bold;">● Ambra</span></td><td>Componente caricato su <strong>CPU</strong> — funzionante, ottimale per modelli leggeri (DINOv2, MUSIQ) o come fallback per modelli pesanti se la VRAM è insufficiente</td></tr>
     <tr><td><span style="color:#E74C3C;font-weight:bold;">● Rosso</span></td><td>Componente <strong>abilitato ma non caricato</strong> — errore di caricamento (es. modello non trovato, VRAM esaurita senza fallback)</td></tr>
     <tr><td><span style="color:#606060;font-weight:bold;">● Grigio</span></td><td>Componente <strong>disabilitato</strong> nella configurazione</td></tr>
   </tbody>
 </table>
 
-<p>I componenti monitorati sono: <strong>CLIP</strong>, <strong>DINOv2</strong>, <strong>BioCLIP</strong>, <strong>Aesthetic</strong>, <strong>Technical</strong> (MUSIQ/BRISQUE), <strong>LLM Vision</strong>, <strong>ExifTool</strong> e <strong>Database</strong>.</p>
+<p>I componenti monitorati sono: <strong>CLIP</strong>, <strong>DINOv2</strong>, <strong>BioCLIP</strong>, <strong>Aesthetic</strong>, <strong>Technical</strong> (MUSIQ), <strong>LLM Vision</strong>, <strong>ExifTool</strong> e <strong>Database</strong>.</p>
 
-<p><strong>Nota:</strong> BioCLIP tenta il caricamento in VRAM; se la memoria è insufficiente, viene caricato automaticamente su CPU (indicatore ambra). I modelli BRISQUE e Technical/MUSIQ funzionano sempre su CPU per design, quindi il loro stato normale è ambra.</p>
+<p><strong>Nota:</strong> Il colore dell'indicatore riflette il device configurato per ogni modello. Con l'allocazione per-modello (vedi <a href="#config-device">sezione Device</a>), alcuni modelli possono essere intenzionalmente su CPU (ambra) per sfruttare il parallelismo dei thread. BioCLIP ha un fallback automatico su CPU se la VRAM è insufficiente.</p>
 
 <p>L'indicatore <strong>LLM</strong> mostra il nome del backend rilevato (Ollama o LM Studio) e si aggiorna automaticamente ogni 30 secondi. Con il backend impostato su <code>auto</code> (default), OffGallery rileva automaticamente quale server è attivo senza configurazione manuale.</p>
 
@@ -924,6 +925,36 @@ Destinazione (es. E:\Backup):
 
 <h3>Sezione: Editor esterno</h3>
 <p>Configura il percorso dell'editor fotografico esterno (Lightroom, Capture One, ecc.) per aprire i file originali direttamente dalla Galleria.</p>
+
+<h3 id="config-device">Sezione: Allocazione Device per Modello</h3>
+
+<p>Questa sezione permette di assegnare ogni modello AI a <strong>GPU</strong> o <strong>CPU</strong> individualmente. Una tabella mostra tutti i modelli con la stima VRAM e un selettore GPU/CPU per ciascuno.</p>
+
+<table>
+  <thead><tr><th>Elemento</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Tabella modelli</strong></td><td>Ogni riga mostra modello, stima VRAM (~GB) e selettore GPU/CPU</td></tr>
+    <tr><td><strong>Barra budget VRAM</strong></td><td>Mostra in tempo reale la VRAM totale utilizzata (modelli + LLM) rispetto alla VRAM disponibile. Colore: verde (&le;80%), ambra (&le;95%), rosso (&gt;95%)</td></tr>
+    <tr><td><strong>Riga LLM</strong></td><td>Mostra la VRAM occupata dal modello LLM (Ollama/LM Studio), rilevata automaticamente o stimata dal nome del modello</td></tr>
+    <tr><td><strong>Auto-ottimizza</strong></td><td>Calcola la distribuzione ottimale GPU/CPU in base all'hardware rilevato, al budget VRAM e alla VRAM del LLM</td></tr>
+  </tbody>
+</table>
+
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>GPU vs CPU: quando conviene la CPU?</strong>
+    <p>I modelli pesanti e lenti (CLIP, BioCLIP) beneficiano della GPU. I modelli leggeri e veloci (DINOv2, MUSIQ) funzionano meglio su CPU perché i thread paralleli non si serializzano come sulla GPU. L'auto-ottimizzazione tiene conto di questo bilanciamento.</p>
+  </div>
+</div>
+
+<div class="callout warning">
+  <span class="icon">⚠️</span>
+  <div class="body">
+    <strong>Riavvio necessario</strong>
+    <p>Le modifiche al device dei modelli richiedono il riavvio dell'applicazione per avere effetto. Un messaggio accanto al pulsante Auto-ottimizza lo ricorda.</p>
+  </div>
+</div>
 
 <h3>Sezione: Modelli AI</h3>
 <p>Percorso della directory dei modelli AI (<code>Models/</code>). Può essere relativo alla root di OffGallery o un percorso assoluto (es. su un disco esterno capiente).</p>
