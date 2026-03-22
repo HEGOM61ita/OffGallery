@@ -767,11 +767,16 @@ class EmbeddingGenerator:
             try:
                 self.musiq_model = _create_and_load(musiq_device)
                 self.musiq_device = musiq_device
-            except RuntimeError as vram_err:
-                # Fallback CPU se VRAM insufficiente (come BioCLIP)
-                if 'out of memory' in str(vram_err).lower() or 'not enough' in str(vram_err).lower():
-                    logger.warning(f"MUSIQ: VRAM insufficiente su {musiq_device}, fallback CPU...")
-                    musiq_device = 'cpu'
+            except Exception as vram_err:
+                # Fallback CPU per qualsiasi errore su GPU: OOM, CUDA error, VRAM satura.
+                # Il catch precedente (solo RuntimeError + "out of memory") non intercettava
+                # errori CUDA diversi (es. allocazione fallita con VRAM piena ma messaggio
+                # diverso), lasciando MUSIQ rosso senza tentare CPU.
+                if musiq_device != 'cpu':
+                    logger.warning(
+                        f"MUSIQ: errore su {musiq_device} "
+                        f"({type(vram_err).__name__}: {str(vram_err)[:120]}), "
+                        f"fallback CPU...")
                     self.musiq_model = _create_and_load('cpu')
                     self.musiq_device = 'cpu'
                 else:
@@ -783,7 +788,8 @@ class EmbeddingGenerator:
             logger.warning("MUSIQ: pyiqa non installato (pip install pyiqa)")
             self.musiq_available = False
         except Exception as e:
-            logger.error(f"MUSIQ: errore inizializzazione: {e}")
+            import traceback
+            logger.error(f"MUSIQ: errore inizializzazione: {e}\n{traceback.format_exc()}")
             self.musiq_available = False
 
     def _init_bioclip(self):
