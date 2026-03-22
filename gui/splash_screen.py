@@ -2,6 +2,7 @@
 Splash Screen - Mostra log di caricamento durante l'avvio
 """
 
+import re
 import sys
 import logging
 from datetime import datetime
@@ -37,25 +38,54 @@ class LogCapture:
         self.buffer = []
 
     def write(self, text):
-        # Aggiungi alla splash se esiste e testo non vuoto
-        if text.strip() and _splash_instance:
+        # Forza aggiornamento UI ad ogni write — inclusi i \r di tqdm durante i download.
+        # Senza questo, il main thread rimane bloccato per minuti e Windows mostra
+        # "Non risponde" perché processEvents() viene chiamato solo da add_log().
+        if _splash_instance and not _splash_instance._processing_events:
+            _splash_instance._processing_events = True
             try:
-                _splash_instance.add_log(text.rstrip())
-            except:
-                # Fallback: scrivi su terminale se splash fallisce
-                if self.original:
-                    self.original.write(text)
-                    self.original.flush()
+                QApplication.processEvents(
+                    QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents
+                )
+            except Exception:
+                pass
+            finally:
+                _splash_instance._processing_events = False
+
+        if not text:
+            return
+
+        if text.startswith('\r'):
+            # Aggiornamento progress bar tqdm (es. download HuggingFace):
+            # non aggiungere al log principale, ma aggiorna il sottotitolo
+            # così l'utente vede qualcosa che "si muove" durante i download lunghi.
+            if _splash_instance:
+                clean = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', text).strip('\r\n')
+                if len(clean) > 5:
+                    short = f"⬇️ {clean[:65]}…" if len(clean) > 65 else f"⬇️ {clean}"
+                    try:
+                        _splash_instance.subtitle.setText(short)
+                    except Exception:
+                        pass
+        else:
+            if text.strip() and _splash_instance:
+                try:
+                    _splash_instance.add_log(text.rstrip())
+                except Exception:
+                    if self.original:
+                        self.original.write(text)
+                        self.original.flush()
 
     def flush(self):
         if self.original:
             self.original.flush()
 
     def isatty(self):
-        # tqdm, safetensors e huggingface_hub chiamano isatty() per decidere
-        # se usare la modalità interattiva del terminale. LogCapture non è un
-        # terminale, quindi ritorna sempre False.
-        return False
+        # Ritorna True per permettere a tqdm/huggingface_hub di scrivere aggiornamenti
+        # continui con \r durante i download. Questi aggiornamenti triggerano processEvents()
+        # in write() e mantengono la splash animata — senza questo Windows mostra
+        # "Non risponde" durante download da 1-2 GB.
+        return True
 
     def fileno(self):
         # Necessario per compatibilità con io.IOBase; ritorniamo quello
