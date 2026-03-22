@@ -238,43 +238,19 @@ class ProcessingWorker(QThread):
             }
             start_time = time.time()
 
-            # ─── FASE 0: PREPARAZIONE (sequenziale) ───
-            # Estrae EXIF, thumbnail, geo, hash — inserisce record base nel DB
-            self.log_message.emit("═" * 50, "info")
-            self.log_message.emit("FASE 0: Preparazione (EXIF + thumbnail)", "info")
-            self.log_message.emit("═" * 50, "info")
-
-            prep_cache = {}  # filename → dict con thumbnail, image_data, geo, ecc.
             emb_flags = self.options.get('embedding_model_flags', {})
 
-            for i, image_path in enumerate(images_to_process, 1):
-                if not self._wait_if_paused():
-                    break
+            # Dizionario condiviso: filename → dict con metadata (NO PIL, work thumb su disco)
+            prep_cache = {}
 
-                prep = self._prep_image(
-                    image_path, raw_processor, config, db_manager,
-                    processing_mode, solo_gen_ai, emb_flags, llm_gen_config
-                )
-                if prep:
-                    prep_cache[image_path.name] = prep
-                    with self._stats_lock:
-                        stats['success'] += 1
-                        stats['processed'] += 1
-                else:
-                    with self._stats_lock:
-                        stats['errors'] += 1
-                self.model_progress.emit('exiftool', i, total_to_process)
+            # Directory cache temporanea work thumbnail
+            temp_dir = self._resolve_temp_dir(config)
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            self._cleanup_temp_cache(temp_dir)  # pulizia run precedente
 
-            if not self.is_running:
-                stats['processing_time'] = time.time() - start_time
-                self.finished.emit(stats)
-                return
-
-            self.log_message.emit(f"✅ Fase 0 completata: {len(prep_cache)}/{total_to_process} immagini preparate", "info")
-
-            # ─── FASE 1: THREAD MODELLI PARALLELI ───
+            # ─── AVVIO THREAD PARALLELI (ExifTool produttore + modelli consumatori) ───
             self.log_message.emit("═" * 50, "info")
-            self.log_message.emit("FASE 1: Modelli AI (thread paralleli)", "info")
+            self.log_message.emit("Avvio thread paralleli (ExifTool + modelli AI)", "info")
             self.log_message.emit("═" * 50, "info")
 
             # Strutture condivise per dipendenza BioCLIP→LLM
@@ -299,9 +275,8 @@ class ProcessingWorker(QThread):
                           llm_gen_config.get('description', {}).get('enabled') or
                           llm_gen_config.get('title', {}).get('enabled'))
 
-            # Immagini con thumbnail valido per i modelli AI
-            model_images = [ip for ip in images_to_process
-                            if ip.name in prep_cache and prep_cache[ip.name]['thumbnail'] is not None]
+            # Tutti le immagini — ogni thread attende ExifTool tramite polling
+            model_images = images_to_process
             model_total = len(model_images)
 
             model_threads = []
@@ -351,12 +326,8 @@ class ProcessingWorker(QThread):
 
             # Thread LLM Vision
             if llm_active and embedding_generator is not None:
-                if not bioclip_active:
-                    # Nessuna dipendenza BioCLIP: accoda tutte le immagini subito
-                    for img_path in model_images:
-                        llm_queue.put(img_path)
-                    llm_queue.put(None)  # sentinella fine coda
-
+                # Nota: la coda llm_queue viene alimentata da _thread_exiftool (se bioclip_active=False)
+                # oppure da _thread_bioclip (se bioclip_active=True) — NON pre-riempita qui
                 t = threading.Thread(
                     target=self._thread_llm,
                     args=(prep_cache, embedding_generator, db_manager,
@@ -366,6 +337,18 @@ class ProcessingWorker(QThread):
                 )
                 model_threads.append(t)
                 self.log_message.emit(f"🚀 Thread LLM pronto ({model_total} immagini)", "info")
+
+            # Thread ExifTool (produttore — avvia insieme ai modelli)
+            exif_thread = threading.Thread(
+                target=self._thread_exiftool,
+                args=(images_to_process, prep_cache, temp_dir,
+                      raw_processor, config, db_manager,
+                      processing_mode, solo_gen_ai, emb_flags, llm_gen_config,
+                      stats, total_to_process, llm_queue, llm_active, bioclip_active),
+                name="model-exiftool", daemon=True
+            )
+            model_threads.append(exif_thread)
+            self.log_message.emit(f"🚀 Thread ExifTool pronto ({total_to_process} immagini)", "info")
 
             self._model_threads = model_threads
 
@@ -380,6 +363,7 @@ class ProcessingWorker(QThread):
                     if not self.is_running:
                         # Stop richiesto: i thread controllano is_running e si fermeranno
                         # Svuota llm_queue per sbloccare il thread LLM se in attesa
+                        # (incluso se ExifTool sta ancora accodando)
                         try:
                             while not llm_queue.empty():
                                 llm_queue.get_nowait()
@@ -391,12 +375,20 @@ class ProcessingWorker(QThread):
             # Attendi termine effettivo di tutti i thread
             # LLM può avere una chiamata HTTP in corso (fino a ~30s), timeout generoso
             for t in model_threads:
-                _timeout = 60 if 'llm' in t.name else 15
+                if 'llm' in t.name:
+                    _timeout = 60
+                elif 'exiftool' in t.name:
+                    _timeout = 30
+                else:
+                    _timeout = 15
                 t.join(timeout=_timeout)
                 if t.is_alive():
                     self.log_message.emit(f"⚠️ Thread {t.name} non terminato in tempo", "warning")
 
             self._model_threads = []
+
+            # Pulizia work thumbnail temporanei
+            self._cleanup_temp_cache(temp_dir)
 
             # Libera VRAM al termine di tutti i modelli
             self._cleanup_gpu_memory()
@@ -428,8 +420,10 @@ class ProcessingWorker(QThread):
     # FASE 0 — Preparazione singola immagine
     # ─────────────────────────────────────────────────────────────
     def _prep_image(self, image_path, raw_processor, config, db_manager,
-                    processing_mode, solo_gen_ai, emb_flags, llm_gen_config):
+                    processing_mode, solo_gen_ai, emb_flags, llm_gen_config,
+                    temp_dir=None):
         """Estrae EXIF + thumbnail + geo + hash, inserisce/aggiorna record DB base.
+        Salva work thumbnail su disco (temp_dir) invece di tenerlo in RAM.
         Ritorna dict con dati prep oppure None in caso di errore fatale."""
         try:
             fname = image_path.name
@@ -442,9 +436,16 @@ class ProcessingWorker(QThread):
                     image_path, raw_processor, is_raw, target_size=512)
                 if thumbnail is None:
                     self.log_message.emit(f"⚠️ {fname}: thumbnail non estraibile", "warning")
+                # Salva work thumbnail su disco (rilascia PIL dalla RAM)
+                work_thumb_path = None
+                if thumbnail and hasattr(thumbnail, 'size') and temp_dir:
+                    wtp = self._get_work_thumb_path(image_path, temp_dir)
+                    if self._save_work_thumb(thumbnail, wtp):
+                        work_thumb_path = wtp
+                    thumbnail = None  # libera dalla RAM
                 return {
                     'image_path': image_path,
-                    'thumbnail': thumbnail,
+                    'work_thumb_path': work_thumb_path,
                     'image_data': {},
                     'geo_hierarchy': None,
                     'location_hint': None,
@@ -576,14 +577,27 @@ class ProcessingWorker(QThread):
                             save_gallery_thumb(image_path, thumbnail)
                     except Exception as _e:
                         logger.warning(f"Errore thumbnail cache gallery: {_e}")
-                elif is_raw:
-                    self.log_message.emit(
-                        f"⚠️ {fname}: nessuna immagine estraibile dal RAW — "
-                        f"embedding e LLM saltati", "warning")
+
+                    # Salva work thumbnail su disco (rilascia PIL dalla RAM)
+                    work_thumb_path = None
+                    if temp_dir:
+                        wtp = self._get_work_thumb_path(image_path, temp_dir)
+                        if self._save_work_thumb(thumbnail, wtp):
+                            work_thumb_path = wtp
+                    thumbnail = None  # libera dalla RAM
+                else:
+                    work_thumb_path = None
+                    if is_raw:
+                        self.log_message.emit(
+                            f"⚠️ {fname}: nessuna immagine estraibile dal RAW — "
+                            f"embedding e LLM saltati", "warning")
+
+            else:
+                work_thumb_path = None
 
             return {
                 'image_path': image_path,
-                'thumbnail': thumbnail,
+                'work_thumb_path': work_thumb_path,
                 'image_data': image_data,
                 'geo_hierarchy': geo_hierarchy,
                 'location_hint': location_hint,
@@ -609,13 +623,25 @@ class ProcessingWorker(QThread):
             if not self._wait_if_paused():
                 break
             fname = image_path.name
+            # Attendi che ExifTool abbia preparato questa foto
+            while fname not in prep_cache:
+                if not self.is_running:
+                    return
+                time.sleep(0.05)
             prep = prep_cache[fname]
-            thumb = prep['thumbnail']
             # Skip se overwrite OFF e campo già popolato nel DB
             if not overwrite and not prep.get('is_new', True):
                 if prep.get('ai_fields', {}).get('clip_embedding', False):
                     self.model_progress.emit('clip', i, total)
                     continue
+            work_thumb_path = prep.get('work_thumb_path')
+            if work_thumb_path is None:
+                self.model_progress.emit('clip', i, total)
+                continue
+            thumb = self._load_work_thumb(work_thumb_path)
+            if thumb is None:
+                self.model_progress.emit('clip', i, total)
+                continue
             try:
                 clip_emb = emb_gen._generate_clip_embedding(thumb, 'pil')
                 if clip_emb is not None and isinstance(clip_emb, np.ndarray):
@@ -640,12 +666,24 @@ class ProcessingWorker(QThread):
             if not self._wait_if_paused():
                 break
             fname = image_path.name
+            # Attendi che ExifTool abbia preparato questa foto
+            while fname not in prep_cache:
+                if not self.is_running:
+                    return
+                time.sleep(0.05)
             prep = prep_cache[fname]
-            thumb = prep['thumbnail']
             if not overwrite and not prep.get('is_new', True):
                 if prep.get('ai_fields', {}).get('dinov2_embedding', False):
                     self.model_progress.emit('dinov2', i, total)
                     continue
+            work_thumb_path = prep.get('work_thumb_path')
+            if work_thumb_path is None:
+                self.model_progress.emit('dinov2', i, total)
+                continue
+            thumb = self._load_work_thumb(work_thumb_path)
+            if thumb is None:
+                self.model_progress.emit('dinov2', i, total)
+                continue
             try:
                 dinov2_emb = emb_gen._generate_dinov2_embedding(thumb, 'pil')
                 if dinov2_emb is not None and isinstance(dinov2_emb, np.ndarray):
@@ -669,12 +707,24 @@ class ProcessingWorker(QThread):
             if not self._wait_if_paused():
                 break
             fname = image_path.name
+            # Attendi che ExifTool abbia preparato questa foto
+            while fname not in prep_cache:
+                if not self.is_running:
+                    return
+                time.sleep(0.05)
             prep = prep_cache[fname]
-            thumb = prep['thumbnail']
             if not overwrite and not prep.get('is_new', True):
                 if prep.get('ai_fields', {}).get('aesthetic_score', False):
                     self.model_progress.emit('aesthetic', i, total)
                     continue
+            work_thumb_path = prep.get('work_thumb_path')
+            if work_thumb_path is None:
+                self.model_progress.emit('aesthetic', i, total)
+                continue
+            thumb = self._load_work_thumb(work_thumb_path)
+            if thumb is None:
+                self.model_progress.emit('aesthetic', i, total)
+                continue
             try:
                 score = emb_gen._generate_aesthetic_score(thumb, 'pil')
                 if score is not None:
@@ -692,12 +742,24 @@ class ProcessingWorker(QThread):
             if not self._wait_if_paused():
                 break
             fname = image_path.name
+            # Attendi che ExifTool abbia preparato questa foto
+            while fname not in prep_cache:
+                if not self.is_running:
+                    return
+                time.sleep(0.05)
             prep = prep_cache[fname]
-            thumb = prep['thumbnail']
             if not overwrite and not prep.get('is_new', True):
                 if prep.get('ai_fields', {}).get('technical_score', False):
                     self.model_progress.emit('technical', i, total)
                     continue
+            work_thumb_path = prep.get('work_thumb_path')
+            if work_thumb_path is None:
+                self.model_progress.emit('technical', i, total)
+                continue
+            thumb = self._load_work_thumb(work_thumb_path)
+            if thumb is None:
+                self.model_progress.emit('technical', i, total)
+                continue
             try:
                 score = emb_gen._generate_musiq_score(thumb)
                 if score is not None:
@@ -724,7 +786,13 @@ class ProcessingWorker(QThread):
                     llm_queue.put(None)
                 break
             fname = image_path.name
-            thumb = prep_cache[fname]['thumbnail']
+            # Attendi che ExifTool abbia preparato questa foto
+            while fname not in prep_cache:
+                if not self.is_running:
+                    if llm_active:
+                        llm_queue.put(None)
+                    return
+                time.sleep(0.05)
             prep = prep_cache[fname]
             is_new = prep.get('is_new', True)
 
@@ -732,6 +800,19 @@ class ProcessingWorker(QThread):
                             and prep.get('ai_fields', {}).get('bioclip_taxonomy', False))
 
             if not skip_bioclip:
+                work_thumb_path = prep.get('work_thumb_path')
+                if work_thumb_path is None:
+                    # Nessuna immagine disponibile: accoda per LLM e passa al prossimo
+                    if llm_active:
+                        llm_queue.put(image_path)
+                    self.model_progress.emit('bioclip', i, total)
+                    continue
+                thumb = self._load_work_thumb(work_thumb_path)
+                if thumb is None:
+                    if llm_active:
+                        llm_queue.put(image_path)
+                    self.model_progress.emit('bioclip', i, total)
+                    continue
                 try:
                     bioclip_tags, bioclip_taxonomy = emb_gen.generate_bioclip_tags(thumb)
 
@@ -787,13 +868,24 @@ class ProcessingWorker(QThread):
                 break
 
             fname = image_path.name
+            # Attendi che ExifTool abbia preparato questa foto
+            while fname not in prep_cache:
+                if not self.is_running:
+                    return
+                time.sleep(0.05)
+
             prep = prep_cache.get(fname)
-            if not prep or prep['thumbnail'] is None:
+            work_thumb_path = prep.get('work_thumb_path') if prep else None
+            if not prep or work_thumb_path is None:
                 processed += 1
                 self.model_progress.emit('llm', processed, total)
                 continue
 
-            thumb = prep['thumbnail']
+            thumb = self._load_work_thumb(work_thumb_path)
+            if thumb is None:
+                processed += 1
+                self.model_progress.emit('llm', processed, total)
+                continue
 
             # Contesto BioCLIP (potrebbe non esserci se BioCLIP disabilitato)
             with bioclip_lock:
@@ -922,6 +1014,44 @@ class ProcessingWorker(QThread):
             self.model_progress.emit('llm', processed, total)
 
     # ─────────────────────────────────────────────────────────────
+    # THREAD EXIFTOOL (produttore — estrae EXIF + salva work thumb)
+    # ─────────────────────────────────────────────────────────────
+    def _thread_exiftool(self, images_to_process, prep_cache, temp_dir,
+                         raw_processor, config, db_manager,
+                         processing_mode, solo_gen_ai, emb_flags, llm_gen_config,
+                         stats, total_to_process, llm_queue, llm_active, bioclip_active):
+        """Thread ExifTool: estrae EXIF + salva work thumbnail su disco per ogni immagine."""
+        for i, image_path in enumerate(images_to_process, 1):
+            if not self._wait_if_paused():
+                break
+            prep = self._prep_image(
+                image_path, raw_processor, config, db_manager,
+                processing_mode, solo_gen_ai, emb_flags, llm_gen_config,
+                temp_dir=temp_dir
+            )
+            if prep:
+                prep_cache[image_path.name] = prep
+                with self._stats_lock:
+                    stats['success'] += 1
+                    stats['processed'] += 1
+                # Se LLM attivo e BioCLIP non attivo: accoda subito per LLM
+                if llm_active and not bioclip_active:
+                    llm_queue.put(image_path)
+            else:
+                with self._stats_lock:
+                    stats['errors'] += 1
+            self.model_progress.emit('exiftool', i, total_to_process)
+
+        # Fine: se LLM senza BioCLIP, manda sentinella
+        if llm_active and not bioclip_active:
+            llm_queue.put(None)
+
+        self.log_message.emit(
+            f"✅ ExifTool completato: {stats.get('success', 0)}/{total_to_process} immagini preparate",
+            "info"
+        )
+
+    # ─────────────────────────────────────────────────────────────
     # UTILITY
     # ─────────────────────────────────────────────────────────────
     def _cleanup_gpu_memory(self):
@@ -965,6 +1095,56 @@ class ProcessingWorker(QThread):
         except Exception as e:
             self.log_message.emit(f"❌ Errore prepare_image {image_path.name}: {e}", "error")
             return None
+
+    # ─────────────────────────────────────────────────────────────
+    # UTILITY — Disk cache work thumbnail
+    # ─────────────────────────────────────────────────────────────
+    def _resolve_temp_dir(self, config) -> 'Path':
+        """Risolve la directory cache temporanea per i work thumbnail."""
+        from utils.paths import get_app_dir
+        temp_rel = config.get('paths', {}).get('temp_cache_dir', 'temp_cache')
+        p = Path(temp_rel)
+        if not p.is_absolute():
+            p = get_app_dir() / p
+        return p
+
+    def _get_work_thumb_path(self, image_path: 'Path', temp_dir: 'Path') -> 'Path':
+        """Genera il percorso del work thumbnail su disco."""
+        import hashlib
+        stem = image_path.stem[:40]
+        suffix_hash = hashlib.md5(str(image_path).encode()).hexdigest()[:8]
+        return temp_dir / f"{stem}_{suffix_hash}.jpg"
+
+    def _save_work_thumb(self, thumbnail, work_thumb_path: 'Path') -> bool:
+        """Salva work thumbnail su disco come JPEG qualità 85."""
+        try:
+            thumbnail.save(work_thumb_path, 'JPEG', quality=85)
+            return True
+        except Exception as e:
+            logger.warning(f"Errore salvataggio work thumb: {e}")
+            return False
+
+    def _load_work_thumb(self, work_thumb_path: 'Path'):
+        """Carica work thumbnail da disco come PIL Image."""
+        try:
+            from PIL import Image
+            return Image.open(work_thumb_path).convert('RGB')
+        except Exception as e:
+            logger.warning(f"Errore caricamento work thumb {work_thumb_path}: {e}")
+            return None
+
+    def _cleanup_temp_cache(self, temp_dir: 'Path'):
+        """Cancella tutti i work thumbnail dalla directory temp."""
+        try:
+            if temp_dir.exists():
+                for f in temp_dir.glob('*.jpg'):
+                    try:
+                        f.unlink()
+                    except Exception:
+                        pass
+                logger.info(f"Cache temporanea svuotata: {temp_dir}")
+        except Exception as e:
+            logger.warning(f"Errore cleanup cache temp: {e}")
 
     def stop(self):
         """Ferma processing — tutti i thread controllano is_running e si fermano."""
