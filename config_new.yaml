@@ -1,31 +1,33 @@
 embedding:
-  brisque_enabled: true
-  device: auto
   enabled: true
   models:
     aesthetic:
       description: Punteggio estetico (qualità artistica)
+      device: cpu
       enabled: true
       model_name: aesthetic-predictor
       returns_score: true
     bioclip:
       description: Classificazione flora/fauna TreeOfLife (~450k specie)
+      device: gpu
       enabled: true
       max_tags: 3
       threshold: 0.2
     clip:
       description: Ricerca semantica (query naturali)
+      device: gpu
       enabled: true
       model_name: openai/clip-vit-large-patch14
     dinov2:
       description: Similarità visiva (composizione, texture, forma)
+      device: cpu
       enabled: true
       model_name: facebook/dinov2-base
       similarity_threshold: 0.2
     llm_vision:
       auto_import:
         description:
-          enabled: true
+          enabled: false
           max_words: 50
           overwrite: true
         tags:
@@ -33,7 +35,7 @@ embedding:
           max_tags: 10
           overwrite: true
         title:
-          enabled: true
+          enabled: false
           max_words: 10
           overwrite: true
       backend: ollama
@@ -51,6 +53,7 @@ embedding:
       timeout: 240
     technical:
       description: Punteggio tecnico qualità MUSIQ (pyiqa)
+      device: cpu
       enabled: true
       model_name: musiq
 export:
