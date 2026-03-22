@@ -352,9 +352,20 @@ class ProcessingWorker(QThread):
 
             self._model_threads = model_threads
 
-            # Avvia tutti i thread contemporaneamente
+            # Avvia ExifTool per primo con head start di 50 foto (o meno se batch piccolo)
+            exif_thread.start()
+            head_start = min(50, total_to_process)
+            if head_start > 0:
+                self.log_message.emit(f"⏳ Head start ExifTool: attendo {head_start} foto prima di avviare i modelli...", "info")
+                while self.is_running and len(prep_cache) < head_start:
+                    time.sleep(0.1)
+                if self.is_running:
+                    self.log_message.emit(f"🚀 Buffer pronto ({len(prep_cache)} foto) — avvio modelli AI", "info")
+
+            # Avvia i thread modello (ExifTool è già in esecuzione)
             for t in model_threads:
-                t.start()
+                if t.name != "model-exiftool":
+                    t.start()
 
             # Attendi completamento con check is_running (permette stop reattivo)
             for t in model_threads:
