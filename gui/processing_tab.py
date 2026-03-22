@@ -1547,6 +1547,14 @@ class ProcessingTab(QWidget):
                          t("processing.tooltip.gen_title"), t("processing.tooltip.overwrite_title"),
                          1, 10, 5)
 
+        # Auto-salvataggio impostazioni LLM: ogni modifica è persista nel YAML
+        for _chk in (self.pt_gen_tags_check, self.pt_gen_tags_overwrite,
+                     self.pt_gen_desc_check, self.pt_gen_desc_overwrite,
+                     self.pt_gen_title_check, self.pt_gen_title_overwrite):
+            _chk.toggled.connect(self._autosave_llm_config)
+        for _spin in (self.pt_llm_max_tags, self.pt_llm_max_words, self.pt_llm_max_title):
+            _spin.editingFinished.connect(self._autosave_llm_config)
+
         # Progress bar unica LLM (span su tutte e 3 le righe LLM, colonna BAR+LED)
         self.pt_llm_bar = QProgressBar()
         self.pt_llm_bar.setRange(0, 100)
@@ -1737,6 +1745,31 @@ class ProcessingTab(QWidget):
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning(f"Errore salvataggio config LLM: {e}")
+
+    def _autosave_llm_config(self):
+        """Salva le impostazioni LLM nel YAML ogni volta che l'utente cambia
+        un valore — così le preferenze sono persistite anche senza cliccare Avvia."""
+        try:
+            llm_gen_config = {
+                'tags': {
+                    'enabled': self.pt_gen_tags_check.isChecked(),
+                    'overwrite': self.pt_gen_tags_overwrite.isChecked(),
+                    'max': self.pt_llm_max_tags.value(),
+                },
+                'description': {
+                    'enabled': self.pt_gen_desc_check.isChecked(),
+                    'overwrite': self.pt_gen_desc_overwrite.isChecked(),
+                    'max': self.pt_llm_max_words.value(),
+                },
+                'title': {
+                    'enabled': self.pt_gen_title_check.isChecked(),
+                    'overwrite': self.pt_gen_title_overwrite.isChecked(),
+                    'max': self.pt_llm_max_title.value(),
+                },
+            }
+            self._save_llm_config_to_yaml(llm_gen_config)
+        except Exception:
+            pass
 
     def save_input_directory_to_config(self, directory_path):
         """Salva directory input nel config YAML"""
@@ -2126,6 +2159,20 @@ class ProcessingTab(QWidget):
                 'aesthetic': {'active': self.pt_aesthetic_check.isChecked(), 'overwrite': self.pt_aesthetic_overwrite.isChecked()},
                 'technical': {'active': self.pt_musiq_check.isChecked(), 'overwrite': self.pt_musiq_overwrite.isChecked()},
             }
+
+            # Cross-check con il config attuale: se un modello è disabilitato in Config Tab
+            # forza active=False anche se il checkbox di processing è rimasto checked
+            # (accade quando si disabilita un modello in Config Tab senza riavviare)
+            try:
+                with open(self.config_path, 'r', encoding='utf-8') as _cf:
+                    _cur_cfg = yaml.safe_load(_cf)
+                _mcfg = _cur_cfg.get('embedding', {}).get('models', {})
+                for _fk, _ck in [('clip', 'clip'), ('dinov2', 'dinov2'), ('aesthetic', 'aesthetic'),
+                                  ('technical', 'technical'), ('bioclip', 'bioclip')]:
+                    if not _mcfg.get(_ck, {}).get('enabled', True):
+                        embedding_model_flags[_fk]['active'] = False
+            except Exception:
+                pass
 
             # Reset terminale
             self.log_display.clear()
