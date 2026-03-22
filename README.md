@@ -50,6 +50,7 @@
 
 | Data | Cosa | Note |
 |------|------|------|
+| 22 mar 2026 | **Allocazione device per-modello con auto-ottimizzazione** | Ogni modello AI (CLIP, DINOv2, BioCLIP, Aesthetic, MUSIQ) può essere assegnato individualmente a GPU o CPU. L'algoritmo di auto-ottimizzazione rileva hardware (CUDA/MPS/DirectML), calcola il budget VRAM (incluso LLM), e distribuisce i modelli bilanciando velocità GPU e parallelismo CPU. Barra budget VRAM in tempo reale nel tab Configurazione |
 | 21 mar 2026 | **Sistema Plugin LLM** | Plugin per backend LLM alternativi: **Ollama** (default) e **LM Studio**. Auto-discovery all'avvio, backend selezionabile dal tab Configurazione. Il backend viene rilevato automaticamente (`auto`) senza configurazione manuale |
 | 21 mar 2026 | **Indicatori stato modelli migliorati** | Nuovo schema semafori a 4 stati: verde (VRAM), ambra (CPU), rosso (errore), grigio (disabilitato). BioCLIP con fallback automatico su CPU se VRAM insufficiente |
 | 21 mar 2026 | **Gallery più veloce** | Lettura cache disco spostata su thread worker: la gallery non blocca più la GUI anche con centinaia di risultati |
@@ -125,6 +126,7 @@ OffGallery offre ricerca semantica, analisi immagini con più modelli AI, workfl
 | **Ricerca per Tag** | Fuzzy matching case-insensitive, ricerche salvate |
 | **Filtri Avanzati** | Camera, obiettivo, ISO, diaframma, tempo, data, rating, score, colore |
 | **Analisi AI** | CLIP · DINOv2 · BioCLIP2 · LLM Vision · Score Estetico · Score Tecnico · Geotag |
+| **Device per-modello** | Ogni modello AI assegnabile a GPU o CPU individualmente; auto-ottimizzazione con budget VRAM e rilevamento LLM |
 | **Workflow Lightroom** | Import `.lrcat` · Import XMP · Export XMP gerarchico · Copia con struttura |
 | **Solo Gen. AI** | Rigenera solo tag/descrizione/titolo LLM su foto già nel DB, salta EXIF ed embedding |
 | **Plugin LLM** | Seleziona backend LLM (Ollama o LM Studio) dal tab Configurazione; plugin rilevati automaticamente |
@@ -313,7 +315,7 @@ offgallery/
 │   ├── paths.py              # Path resolver (script/EXE/WSL)
 │   └── copy_helpers.py       # Copia con struttura multi-disco
 ├── aesthetic/                # Modelli valutazione estetica
-├── brisque_models/           # Modelli qualità tecnica
+├── device_allocator.py       # Rilevamento hardware e allocazione device per-modello
 ├── exiftool_files/           # ExifTool per metadati EXIF
 ├── database/                 # Database SQLite
 ├── INPUT/                    # Cartella import immagini
@@ -511,6 +513,7 @@ OffGallery provides semantic search, multi-model AI image analysis, full Lightro
 | **Tag Search** | Case-insensitive fuzzy matching, saved searches |
 | **Advanced Filters** | Camera, lens, ISO, aperture, shutter, date, rating, score, colour |
 | **AI Analysis** | CLIP · DINOv2 · BioCLIP2 · LLM Vision · Aesthetic Score · Technical Score · Geotag |
+| **Per-model device** | Each AI model individually assignable to GPU or CPU; auto-optimization with VRAM budget and LLM detection |
 | **Lightroom Workflow** | `.lrcat` import · XMP import · Hierarchical XMP export · Structured copy |
 | **AI Gen. Only** | Regenerate tags/description/title (LLM) on existing DB photos, skip EXIF and embeddings |
 | **LLM Plugins** | Select LLM backend (Ollama or LM Studio) from the Configuration tab; plugins auto-detected |
@@ -598,6 +601,7 @@ For a full step-by-step guide see **[installer/INSTALL_GUIDE.md](installer/INSTA
 
 | Date | What | Notes |
 |------|------|-------|
+| 22 Mar 2026 | **Per-model device allocation with auto-optimization** | Each AI model (CLIP, DINOv2, BioCLIP, Aesthetic, MUSIQ) can be individually assigned to GPU or CPU. Auto-optimization detects hardware (CUDA/MPS/DirectML), calculates VRAM budget (including LLM), and balances GPU speed vs CPU parallelism. Real-time VRAM budget bar in Configuration tab |
 | 21 Mar 2026 | **LLM Plugin System** | Plugins for alternative LLM backends: **Ollama** (default) and **LM Studio**. Auto-discovery at startup, backend selectable from the Configuration tab. Backend auto-detected (`auto`) with no manual setup needed |
 | 21 Mar 2026 | **Improved model status indicators** | New 4-state semaphore scheme: green (VRAM), amber (CPU), red (error), grey (disabled). BioCLIP with automatic CPU fallback if VRAM is insufficient |
 | 21 Mar 2026 | **Faster Gallery** | Disk cache reads moved to worker threads: gallery no longer blocks the GUI even with hundreds of results |

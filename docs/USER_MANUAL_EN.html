@@ -204,6 +204,7 @@
     <li class="sub"><a href="#export-xmp">XMP Export</a></li>
     <li class="sub"><a href="#export-copy">Structured Copy</a></li>
     <li><a href="#configuration">Configuration Tab</a></li>
+    <li class="sub"><a href="#config-device">Device Allocation</a></li>
     <li><a href="#llm-plugins">LLM Plugins</a></li>
     <li><a href="#log">Log Tab</a></li>
 
@@ -304,15 +305,15 @@
   <thead><tr><th>Colour</th><th>Meaning</th></tr></thead>
   <tbody>
     <tr><td><span style="color:#4CAF50;font-weight:bold;">● Green</span></td><td>Component loaded in <strong>VRAM</strong> (GPU) — optimal performance</td></tr>
-    <tr><td><span style="color:#C88B2E;font-weight:bold;">● Amber</span></td><td>Component loaded on <strong>CPU</strong> — working but slower (e.g. BioCLIP with insufficient VRAM, BRISQUE, Technical/MUSIQ)</td></tr>
+    <tr><td><span style="color:#C88B2E;font-weight:bold;">● Amber</span></td><td>Component loaded on <strong>CPU</strong> — working, optimal for lightweight models (DINOv2, MUSIQ) or as fallback for heavy models when VRAM is insufficient</td></tr>
     <tr><td><span style="color:#E74C3C;font-weight:bold;">● Red</span></td><td>Component <strong>enabled but not loaded</strong> — loading error (e.g. model not found, VRAM exhausted without fallback)</td></tr>
     <tr><td><span style="color:#606060;font-weight:bold;">● Grey</span></td><td>Component <strong>disabled</strong> in configuration</td></tr>
   </tbody>
 </table>
 
-<p>Monitored components: <strong>CLIP</strong>, <strong>DINOv2</strong>, <strong>BioCLIP</strong>, <strong>Aesthetic</strong>, <strong>Technical</strong> (MUSIQ/BRISQUE), <strong>LLM Vision</strong>, <strong>ExifTool</strong> and <strong>Database</strong>.</p>
+<p>Monitored components: <strong>CLIP</strong>, <strong>DINOv2</strong>, <strong>BioCLIP</strong>, <strong>Aesthetic</strong>, <strong>Technical</strong> (MUSIQ), <strong>LLM Vision</strong>, <strong>ExifTool</strong> and <strong>Database</strong>.</p>
 
-<p><strong>Note:</strong> BioCLIP attempts to load into VRAM; if memory is insufficient, it automatically falls back to CPU (amber indicator). BRISQUE and Technical/MUSIQ models always run on CPU by design, so their normal status is amber.</p>
+<p><strong>Note:</strong> The indicator colour reflects the configured device for each model. With per-model allocation (see <a href="#config-device">Device section</a>), some models may intentionally run on CPU (amber) to leverage thread parallelism. BioCLIP has an automatic CPU fallback if VRAM is insufficient.</p>
 
 <p>The <strong>LLM</strong> indicator shows the name of the detected backend (Ollama or LM Studio) and refreshes automatically every 30 seconds. With the backend set to <code>auto</code> (default), OffGallery automatically detects which server is running with no manual configuration needed.</p>
 
@@ -750,6 +751,36 @@ Destination (e.g. E:\Backup):
 
 <h3>Section: External editor</h3>
 <p>Configure the path to your external photo editor (Lightroom, Capture One, etc.) to open original files directly from the Gallery.</p>
+
+<h3 id="config-device">Section: Per-Model Device Allocation</h3>
+
+<p>This section lets you assign each AI model to <strong>GPU</strong> or <strong>CPU</strong> individually. A table shows all models with their estimated VRAM usage and a GPU/CPU selector for each.</p>
+
+<table>
+  <thead><tr><th>Element</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Model table</strong></td><td>Each row shows the model, estimated VRAM (~GB), and GPU/CPU selector</td></tr>
+    <tr><td><strong>VRAM budget bar</strong></td><td>Shows real-time total VRAM usage (models + LLM) vs available VRAM. Colour: green (&le;80%), amber (&le;95%), red (&gt;95%)</td></tr>
+    <tr><td><strong>LLM row</strong></td><td>Shows VRAM used by the LLM model (Ollama/LM Studio), auto-detected or estimated from model name</td></tr>
+    <tr><td><strong>Auto-optimize</strong></td><td>Calculates optimal GPU/CPU distribution based on detected hardware, VRAM budget and LLM VRAM</td></tr>
+  </tbody>
+</table>
+
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>GPU vs CPU: when is CPU better?</strong>
+    <p>Heavy, slow models (CLIP, BioCLIP) benefit from GPU acceleration. Lightweight, fast models (DINOv2, MUSIQ) perform better on CPU because parallel threads don't serialize as they do on GPU. Auto-optimization accounts for this trade-off.</p>
+  </div>
+</div>
+
+<div class="callout warning">
+  <span class="icon">⚠️</span>
+  <div class="body">
+    <strong>Restart required</strong>
+    <p>Changes to model device assignments require an application restart to take effect. A message next to the Auto-optimize button will remind you.</p>
+  </div>
+</div>
 
 <h3>Section: AI Models</h3>
 <p>Path of the AI models directory (<code>Models/</code>). Can be relative to the OffGallery root or an absolute path (e.g. on a large external drive).</p>

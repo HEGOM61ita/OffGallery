@@ -13,13 +13,11 @@ Il file principale di configurazione è `config_new.yaml` nella root del progett
 ```yaml
 embedding:
   enabled: true
-  device: auto              # auto | cpu | cuda
-  brisque_enabled: true
   models:
     clip:
       enabled: true
-      model_name: "laion/CLIP-ViT-B-32-laion2B-s34B-b79K"
-      dimension: 512
+      device: gpu              # gpu | cpu (per-modello)
+      model_name: "openai/clip-vit-large-patch14"
     dinov2:
       enabled: true
       model_name: "facebook/dinov2-base"
@@ -144,10 +142,9 @@ Configura i modelli AI per l'analisi delle immagini. Tutti i modelli girano loca
 
 | Parametro | Tipo | Descrizione |
 |-----------|------|-------------|
-| `embedding.device` | string | Dispositivo di calcolo: `auto` (rileva GPU), `cpu`, `cuda` |
+| `<model>.device` | string | Device per-modello: `gpu` (usa backend rilevato) o `cpu`. Configurabile individualmente per ogni modello |
 | `clip.enabled` | bool | Abilita embedding CLIP per ricerca semantica |
-| `clip.model_name` | string | Modello CLIP (default: `laion/CLIP-ViT-B-32-laion2B-s34B-b79K`) |
-| `clip.dimension` | int | Dimensione embedding CLIP (512) |
+| `clip.model_name` | string | Modello CLIP (default: `openai/clip-vit-large-patch14`) |
 | `dinov2.enabled` | bool | Abilita embedding DINOv2 per similarità visiva |
 | `dinov2.model_name` | string | Modello DINOv2 (default: `facebook/dinov2-base`) |
 | `dinov2.dimension` | int | Dimensione embedding DINOv2 (768) |
