@@ -225,7 +225,10 @@ class ProcessingWorker(QThread):
             stats = {
                 'total': len(all_images), 'processed': 0, 'success': 0,
                 'errors': 0, 'with_embedding': 0, 'with_tags': 0,
-                'skipped_existing': skipped_count
+                'skipped_existing': skipped_count,
+                # Contatori per-modello
+                'clip': 0, 'dinov2': 0, 'aesthetic': 0, 'technical': 0,
+                'bioclip': 0, 'llm_tags': 0, 'llm_desc': 0, 'llm_title': 0,
             }
             start_time = time.time()
 
@@ -1279,6 +1282,7 @@ class ProcessingTab(QWidget):
         _sep_s.setStyleSheet("color: #bdc3c7; margin: 0 4px;")
         status_row.addWidget(_sep_s)
         self.scan_label = QLabel(t("processing.label.select_source"))
+        self.scan_label.setWordWrap(True)
         self.scan_label.setStyleSheet("font-size: 10px; color: #7f8c8d;")
         status_row.addWidget(self.scan_label)
         status_row.addStretch()
@@ -2013,24 +2017,46 @@ class ProcessingTab(QWidget):
                         images_to_process = [img for img in all_images
                                            if img.name.lower() not in processed_names]
                     already_processed = len(all_images) - len(images_to_process)
-                    
+
+                    # Copertura per-modello — query aggregata, veloce anche su 100k foto
+                    coverage = db_manager.get_model_coverage()
+
                 except Exception as e:
                     self.scan_label.setText(t("processing.msg.db_error", error=e))
                     return
-            
+            else:
+                coverage = {}
+
             total_found = len(all_images)
             to_process = len(images_to_process)
-            
+
+            # Riga copertura modelli (mostrata solo se ci sono file già indicizzati)
+            coverage_line = ""
+            if coverage and already_processed > 0:
+                parts = []
+                if coverage.get('clip'):       parts.append(f"CLIP: {coverage['clip']}")
+                if coverage.get('dinov2'):     parts.append(f"DINOv2: {coverage['dinov2']}")
+                if coverage.get('aesthetic'):  parts.append(f"Aesth: {coverage['aesthetic']}")
+                if coverage.get('technical'):  parts.append(f"MUSIQ: {coverage['technical']}")
+                if coverage.get('bioclip'):    parts.append(f"BioCLIP: {coverage['bioclip']}")
+                if coverage.get('tags'):       parts.append(f"Tags: {coverage['tags']}")
+                if coverage.get('description'):parts.append(f"Desc: {coverage['description']}")
+                if coverage.get('title'):      parts.append(f"Titolo: {coverage['title']}")
+                if parts:
+                    coverage_line = "\n" + " | ".join(parts)
+
             # Salva il numero di immagini da processare per la logica del pulsante
             self.images_to_process_count = to_process
-            
+
             if to_process == 0:
-                self.scan_label.setText(t("processing.msg.all_processed", total=total_found))
+                self.scan_label.setText(
+                    t("processing.msg.all_processed", total=total_found) + coverage_line)
                 # Aggiorna stato pulsante in base alle modalità
                 self.update_start_button_state()
             else:
                 self.scan_label.setText(
                     t("processing.msg.scan_result", total=total_found, to_process=to_process, already=already_processed)
+                    + coverage_line
                 )
                 # Abilita pulsante se ci sono immagini da processare
                 self.start_btn.setEnabled(True)
@@ -2362,8 +2388,7 @@ class ProcessingTab(QWidget):
 
         if total > 0:
             success_rate = round((success / total) * 100, 1)
-            time_per_image = round(processing_time / processed, 1) if processed > 0 else 0
-            completion_text = f"✅ Completato! {success}/{total} ({success_rate}%) — ⏱️ {time_per_image}s/img"
+            completion_text = f"✅ Completato! {success}/{total} ({success_rate}%)"
             if errors > 0:
                 completion_text += f" — ⚠️ {errors} errori"
             self.add_log_message(completion_text, "success")

@@ -459,6 +459,31 @@ class DatabaseManager:
             return {}
     
     
+    def get_model_coverage(self) -> dict:
+        """Conteggio per-modello in una sola query — veloce anche su 100k foto."""
+        try:
+            self.cursor.execute("""
+                SELECT
+                    COUNT(*)                                                    AS total,
+                    COUNT(clip_embedding)                                       AS clip,
+                    COUNT(dinov2_embedding)                                     AS dinov2,
+                    COUNT(aesthetic_score)                                      AS aesthetic,
+                    COUNT(technical_score)                                      AS technical,
+                    COUNT(bioclip_taxonomy)                                     AS bioclip,
+                    COUNT(CASE WHEN tags IS NOT NULL AND tags != '[]' THEN 1 END) AS tags,
+                    COUNT(description)                                          AS description,
+                    COUNT(title)                                                AS title
+                FROM images
+            """)
+            row = self.cursor.fetchone()
+            if row:
+                cols = [d[0] for d in self.cursor.description]
+                return dict(zip(cols, row))
+            return {}
+        except Exception as e:
+            logger.error(f"Errore get_model_coverage: {e}")
+            return {}
+
     def update_image_tags(self, image_id: int, tags: List[str]) -> bool:
         """Aggiorna tags per un'immagine specifica"""
         try:
