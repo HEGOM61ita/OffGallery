@@ -206,7 +206,6 @@ class ConfigTab(QWidget):
             }}
         """)
         ai_layout = QVBoxLayout()
-        ai_layout.addWidget(self.create_quality_scores_section())
         ai_layout.addWidget(self.create_bioclip_section())
         ai_layout.addWidget(self.create_llm_vision_section())
         ai_group.setLayout(ai_layout)
@@ -533,15 +532,18 @@ class ConfigTab(QWidget):
             vram_lbl.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px;")
             grid.addWidget(vram_lbl, row_idx, 1)
 
-            # ComboBox GPU/CPU
+            # ComboBox GPU/CPU/OFF
             combo = NoWheelComboBox()
             combo.addItem(t("config.combo.model_device_gpu"), "gpu")
             combo.addItem(t("config.combo.model_device_cpu"), "cpu")
+            combo.addItem(t("config.combo.model_device_off"), "off")
             combo.setFixedWidth(90)
             if not gpu_available:
                 combo.setCurrentIndex(1)  # CPU
                 combo.setEnabled(False)
             combo.currentIndexChanged.connect(self._update_vram_budget)
+            combo.currentIndexChanged.connect(
+                lambda _, mk=model_key: self._on_device_combo_changed(mk))
             self.model_device_combos[model_key] = combo
             grid.addWidget(combo, row_idx, 2)
 
@@ -642,15 +644,25 @@ class ConfigTab(QWidget):
             self.gpu_info_label.setStyleSheet(
                 f"color: {COLORS['ambra']}; font-size: 10px; padding: 5px;")
 
+    def _on_device_combo_changed(self, model_key: str):
+        """Aggiorna lo stato dei widget dipendenti dal combo device.
+        I combo sono la fonte di verità — OFF = non caricato, GPU/CPU = caricato."""
+        combo = self.model_device_combos.get(model_key)
+        if combo is None:
+            return
+        is_enabled = combo.currentData() != 'off'
+        if model_key == 'bioclip':
+            self.toggle_bioclip_params(is_enabled)
+
     def _on_auto_optimize(self):
-        """Esegue auto-allocazione GPU/CPU in base alla VRAM e popola i combo"""
+        """Esegue auto-allocazione GPU/CPU in base alla VRAM e popola i combo.
+        Non tocca mai modelli impostati su OFF — l'utente li ha esclusi esplicitamente."""
         from device_allocator import auto_allocate
-        # Considera solo modelli abilitati nella config corrente
-        enabled = []
-        models_cfg = self.config.get('embedding', {}).get('models', {})
-        for model_key in self.model_device_combos:
-            if models_cfg.get(model_key, {}).get('enabled', True):
-                enabled.append(model_key)
+        # Considera solo modelli NON impostati su OFF
+        enabled = [
+            mk for mk, combo in self.model_device_combos.items()
+            if combo.currentData() != 'off'
+        ]
         llm_vram = getattr(self, '_llm_vram_info', {}).get('vram_gb', 0.0)
         allocation = auto_allocate(self._hw_info, enabled, llm_vram_gb=llm_vram)
         for model_key, device in allocation.items():
@@ -766,30 +778,6 @@ class ConfigTab(QWidget):
         group_box.setLayout(layout)
         return group_box
 
-    def create_quality_scores_section(self):
-        """Crea sezione configurazione Quality Scores (Aesthetic + Technical)"""
-        group_box = QGroupBox(t("config.group.quality_scores"))
-        group_box.setObjectName("QualityScoresSection")
-
-        group_box.setStyleSheet(f"""
-            QGroupBox#QualityScoresSection {{
-                border: 2px solid {COLORS['ambra']};
-            }}
-        """)
-
-        layout = QGridLayout()
-
-        # Abilita Aesthetic Score
-        self.aesthetic_enabled = QCheckBox(t("config.check.aesthetic_enabled"))
-        layout.addWidget(self.aesthetic_enabled, 0, 0, 1, 2)
-
-        # Abilita Technical Score (MUSIQ)
-        self.technical_enabled = QCheckBox(t("config.check.technical_enabled"))
-        layout.addWidget(self.technical_enabled, 1, 0, 1, 2)
-
-        group_box.setLayout(layout)
-        return group_box
-
     def create_bioclip_section(self):
         """Crea sezione configurazione BioCLIP (MODIFICATO - testo checkbox)"""
         group_box = QGroupBox(t("config.group.bioclip"))
@@ -803,24 +791,19 @@ class ConfigTab(QWidget):
         
         layout = QGridLayout()
 
-        # Abilita BioCLIP (MODIFICATO)
-        self.bioclip_enabled = QCheckBox(t("config.check.bioclip_enabled"))
-        self.bioclip_enabled.stateChanged.connect(self.toggle_bioclip_params)
-        layout.addWidget(self.bioclip_enabled, 0, 0, 1, 2)
-
         # Soglia
-        layout.addWidget(QLabel(t("config.label.relevance_threshold")), 1, 0)
+        layout.addWidget(QLabel(t("config.label.relevance_threshold")), 0, 0)
         self.bioclip_threshold = NoWheelDoubleSpinBox()
         self.bioclip_threshold.setRange(0.01, 1.0)
         self.bioclip_threshold.setSingleStep(0.01)
         self.bioclip_threshold.setDecimals(3)
-        layout.addWidget(self.bioclip_threshold, 1, 1)
+        layout.addWidget(self.bioclip_threshold, 0, 1)
 
         # Max Tag
-        layout.addWidget(QLabel(t("config.label.max_tags_per_image")), 2, 0)
+        layout.addWidget(QLabel(t("config.label.max_tags_per_image")), 1, 0)
         self.bioclip_max_tags = NoWheelSpinBox()
         self.bioclip_max_tags.setRange(1, 20)
-        layout.addWidget(self.bioclip_max_tags, 2, 1)
+        layout.addWidget(self.bioclip_max_tags, 1, 1)
         
         # Inizializza stato
         self.toggle_bioclip_params(False)  # FIXED: inizializza come disabilitato
@@ -1215,9 +1198,11 @@ class ConfigTab(QWidget):
         if dir_name:
             line_edit.setText(dir_name)
 
-    def toggle_bioclip_params(self, state):
-        """Abilita/disabilita parametri BioCLIP"""
-        enabled = state == Qt.CheckState.Checked.value
+    def toggle_bioclip_params(self, enabled):
+        """Abilita/disabilita parametri BioCLIP in base allo stato del combo device."""
+        if isinstance(enabled, int):
+            # Compatibilità con stateChanged (Qt checkbox) — non più usato ma per sicurezza
+            enabled = bool(enabled)
         self.bioclip_threshold.setEnabled(enabled)
         self.bioclip_max_tags.setEnabled(enabled)
     
@@ -1254,8 +1239,11 @@ class ConfigTab(QWidget):
             embedding = self.config['embedding']
             models_cfg = embedding.get('models', {})
             for model_key, combo in self.model_device_combos.items():
-                model_device = models_cfg.get(model_key, {}).get('device', 'gpu')
-                idx = combo.findData(model_device)
+                model_cfg_entry = models_cfg.get(model_key, {})
+                if not model_cfg_entry.get('enabled', True):
+                    idx = combo.findData('off')
+                else:
+                    idx = combo.findData(model_cfg_entry.get('device', 'gpu'))
                 if idx >= 0:
                     combo.setCurrentIndex(idx)
             # Rileva VRAM LLM (ora la config è caricata)
@@ -1283,21 +1271,13 @@ class ConfigTab(QWidget):
             clip = models['clip']
             self.clip_model_name.setText(clip['model_name'])
 
-            # Aesthetic Score
-            aesthetic = models.get('aesthetic', {})
-            self.aesthetic_enabled.setChecked(aesthetic.get('enabled', True))
-
-            # Technical Score (MUSIQ)
-            # Non c'è sezione dedicata, usa flag generale
-            self.technical_enabled.setChecked(
-                self.config.get('embedding', {}).get('models', {}).get('technical', {}).get('enabled', True))
-
             # BioCLIP
             bioclip = models['bioclip']
-            self.bioclip_enabled.setChecked(bioclip['enabled'])
             self.bioclip_threshold.setValue(bioclip['threshold'])
             self.bioclip_max_tags.setValue(bioclip['max_tags'])
-            self.toggle_bioclip_params(bioclip['enabled'])
+            bioclip_combo = self.model_device_combos.get('bioclip')
+            bioclip_on = bioclip_combo.currentData() != 'off' if bioclip_combo else bioclip.get('enabled', True)
+            self.toggle_bioclip_params(bioclip_on)
 
             # LLM Vision
             llm = models['llm_vision']
@@ -1440,15 +1420,12 @@ class ConfigTab(QWidget):
             # CLIP
             self.clip_model_name.setText('laion/CLIP-ViT-B-32-laion2B-s34B-b79K')
 
-            # Quality Scores
-            self.aesthetic_enabled.setChecked(True)
-            self.technical_enabled.setChecked(True)
-
             # BioCLIP
-            self.bioclip_enabled.setChecked(True)
             self.bioclip_threshold.setValue(0.12)
             self.bioclip_max_tags.setValue(5)
-            self.toggle_bioclip_params(True)
+            bioclip_combo = self.model_device_combos.get('bioclip')
+            bioclip_on = bioclip_combo.currentData() != 'off' if bioclip_combo else True
+            self.toggle_bioclip_params(bioclip_on)
             
             # LLM Vision
             self.llm_vision_endpoint.setText('http://localhost:11434')
@@ -1538,9 +1515,15 @@ class ConfigTab(QWidget):
                 self.config['embedding'] = {}
             
             self.config['embedding']['enabled'] = True
-            # Salva device per-modello
+            # Salva device + enabled per-modello (combo è fonte di verità: OFF = non caricato)
             for model_key, combo in self.model_device_combos.items():
-                self.config['embedding'].setdefault('models', {}).setdefault(model_key, {})['device'] = combo.currentData()
+                device_val = combo.currentData()
+                node = self.config['embedding'].setdefault('models', {}).setdefault(model_key, {})
+                if device_val == 'off':
+                    node['enabled'] = False
+                else:
+                    node['enabled'] = True
+                    node['device'] = device_val
             
             if 'models' not in self.config['embedding']:
                 self.config['embedding']['models'] = {}
@@ -1550,31 +1533,27 @@ class ConfigTab(QWidget):
 
             _models.setdefault('dinov2', {}).update({
                 'description': 'Similarità visiva (composizione, texture, forma)',
-                'enabled': True,
                 'model_name': self.dinov2_model_name.text(),
                 'similarity_threshold': self.dinov2_similarity_threshold.value(),
             })
 
             _models.setdefault('clip', {}).update({
                 'description': 'Ricerca semantica (query naturali)',
-                'enabled': True,
                 'model_name': self.clip_model_name.text(),
             })
 
             # Quality Scores
             _models.setdefault('aesthetic', {}).update({
                 'description': 'Punteggio estetico (qualità artistica)',
-                'enabled': self.aesthetic_enabled.isChecked(),
                 'model_name': 'aesthetic-predictor',
                 'returns_score': True,
             })
 
-            # Technical score (MUSIQ) - salva in models.technical.enabled
-            _models.setdefault('technical', {})['enabled'] = self.technical_enabled.isChecked()
+            # Technical score (MUSIQ) - enabled gestito dal combo device
+            _models.setdefault('technical', {})
 
             _models.setdefault('bioclip', {}).update({
                 'description': 'Classificazione flora/fauna TreeOfLife (~450k specie)',
-                'enabled': self.bioclip_enabled.isChecked(),
                 'threshold': self.bioclip_threshold.value(),
                 'max_tags': self.bioclip_max_tags.value(),
             })
