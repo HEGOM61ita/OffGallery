@@ -7,9 +7,51 @@ Modulo standalone senza dipendenze PyQt. Usato da:
 """
 
 import logging
+import threading
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+# ── Prefetch DxDiag (Windows AMD/Intel) ─────────────────────────────────────
+# Avviato in background subito dopo la splash screen; il risultato è pronto
+# quando EmbeddingGenerator chiama detect_hardware() → _detect_directml_vram().
+_dxdiag_result: Optional[float] = None
+_dxdiag_event = threading.Event()
+_dxdiag_started = False
+
+
+def prefetch_dxdiag_vram() -> None:
+    """Avvia il rilevamento VRAM via DxDiag in un thread background.
+
+    Da chiamare subito dopo splash.show() — solo su Windows senza NVIDIA.
+    Su altri sistemi (macOS, Linux, NVIDIA/CUDA) è un no-op immediato.
+    """
+    global _dxdiag_started
+    import platform
+    import shutil
+
+    # Non serve su macOS/Linux
+    if platform.system() != 'Windows':
+        _dxdiag_event.set()
+        return
+
+    # Non serve se c'è una GPU NVIDIA (userà CUDA, non DirectML)
+    if shutil.which('nvidia-smi') is not None:
+        _dxdiag_event.set()
+        return
+
+    if _dxdiag_started:
+        return
+    _dxdiag_started = True
+
+    def _worker():
+        global _dxdiag_result
+        _dxdiag_result = _run_dxdiag()
+        _dxdiag_event.set()
+
+    t = threading.Thread(target=_worker, name='dxdiag-prefetch', daemon=True)
+    t.start()
+    logger.debug("DxDiag VRAM prefetch avviato in background")
 
 # Stima VRAM per modello in inference (fp32, GB)
 MODEL_VRAM_ESTIMATES: Dict[str, float] = {
@@ -430,23 +472,110 @@ def _detect_directml_gpu_name() -> Optional[str]:
     return "DirectML GPU"
 
 
-def _detect_directml_vram() -> Optional[float]:
-    """Rileva VRAM per GPU DirectML (AMD/Intel su Windows)."""
+def _run_dxdiag() -> Optional[float]:
+    """Esegue DxDiag e legge la VRAM dal report testuale.
+
+    DxDiag riporta 'Dedicated Memory: X MB' tramite DirectX, bypassando il
+    limite 32-bit di wmic/Get-CimInstance che cappano sempre a 4 GB su Windows.
+    """
     try:
         import subprocess
-        result = subprocess.run(
+        import tempfile
+        import time
+        import re
+        import os
+
+        tmp = os.path.join(tempfile.gettempdir(), 'offgallery_dxdiag.txt')
+
+        # Rimuovi eventuale file residuo da run precedenti
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+        subprocess.run(
+            ['dxdiag', '/t', tmp],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=30
+        )
+
+        # dxdiag /t è sincrono ma su alcuni sistemi scrive in modo asincrono:
+        # aspetta max 20s che il file raggiunga una dimensione minima plausibile
+        deadline = time.time() + 20
+        while time.time() < deadline:
+            if os.path.exists(tmp) and os.path.getsize(tmp) > 1000:
+                break
+            time.sleep(0.2)
+        else:
+            logger.warning("DxDiag: timeout attesa file report")
+            return None
+
+        with open(tmp, 'r', errors='ignore') as f:
+            text = f.read()
+
+        # Pulizia file temporaneo
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+        # "Dedicated Memory: 8192 MB" — prende il valore massimo tra più GPU
+        matches = re.findall(r'Dedicated Memory:\s*(\d+)\s*MB', text)
+        if matches:
+            vram_mb = max(int(m) for m in matches)
+            if vram_mb > 0:
+                return round(vram_mb / 1024, 1)
+
+    except Exception as e:
+        logger.debug(f"DxDiag VRAM: {e}")
+
+    return None
+
+
+def _detect_directml_vram() -> Optional[float]:
+    """Rileva VRAM per GPU DirectML (AMD/Intel su Windows).
+
+    Usa il risultato del prefetch DxDiag se disponibile (avviato in background
+    dalla splash screen). Fallback a wmic se DxDiag non funziona — wmic cappa
+    a 4 GB per overflow 32-bit, ma è meglio del default conservativo.
+    """
+    # Risultato prefetch già pronto → ritorna subito
+    if _dxdiag_event.is_set() and _dxdiag_result is not None:
+        logger.debug(f"DxDiag VRAM (cache): {_dxdiag_result} GB")
+        return _dxdiag_result
+
+    # Prefetch in corso → aspetta (max 25s — avviene solo se detect_hardware
+    # viene chiamato prima che il background thread finisca)
+    if _dxdiag_started:
+        logger.debug("DxDiag VRAM: attendo prefetch background...")
+        _dxdiag_event.wait(timeout=25)
+        if _dxdiag_result is not None:
+            logger.debug(f"DxDiag VRAM (wait): {_dxdiag_result} GB")
+            return _dxdiag_result
+
+    # Prefetch non avviato (es. detect_hardware() chiamato direttamente
+    # senza passare per la splash): esegui dxdiag inline
+    if not _dxdiag_started:
+        result = _run_dxdiag()
+        if result is not None:
+            return result
+
+    # Fallback wmic (cappa a 4 GB, ma almeno non restituisce un default arbitrario)
+    try:
+        import subprocess
+        r = subprocess.run(
             ['wmic', 'path', 'win32_VideoController', 'get', 'AdapterRAM', '/value'],
             capture_output=True, text=True, timeout=10
         )
-        if result.returncode == 0:
-            for line in result.stdout.strip().split('\n'):
+        if r.returncode == 0:
+            for line in r.stdout.strip().split('\n'):
                 if line.startswith('AdapterRAM='):
                     ram_str = line.split('=', 1)[1].strip()
                     if ram_str and ram_str.isdigit():
                         vram_bytes = int(ram_str)
                         if vram_bytes > 0:
-                            return round(vram_bytes / (1024**3), 1)
+                            return round(vram_bytes / (1024 ** 3), 1)
     except Exception:
         pass
-    # Fallback conservativo
+
     return 4.0

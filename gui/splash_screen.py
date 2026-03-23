@@ -439,6 +439,13 @@ def run_with_splash():
     splash = SplashScreen()
     splash.show()
 
+    # Avvia DxDiag VRAM in background (solo Windows AMD/Intel, no-op altrove)
+    try:
+        from device_allocator import prefetch_dxdiag_vram
+        prefetch_dxdiag_vram()
+    except Exception:
+        pass
+
     # Carica config per EmbeddingGenerator
     import yaml
     try:
