@@ -1860,6 +1860,214 @@ class EmbeddingGenerator:
             logger.error(f"Errore LLM title: {e}")
             return None
 
+    def generate_llm_combined(self, image_input, modes: list,
+                              max_tags: int = 10, max_description_words: int = 100,
+                              max_title_words: int = 5,
+                              bioclip_context: Optional[str] = None,
+                              category_hint: Optional[str] = None,
+                              location_hint: Optional[str] = None) -> dict:
+        """Genera tags/descrizione/titolo con UNA SOLA chiamata LLM.
+
+        Risparmia ~2/3 del tempo rispetto a 3 chiamate separate: l'immagine viene
+        encodata e processata dal vision encoder una volta sola.
+        Usare quando 2 o più modi sono richiesti contemporaneamente.
+
+        Args:
+            modes: lista con qualsiasi combinazione di 'tags', 'description', 'title'
+
+        Returns:
+            dict con le chiavi richieste (es. {'tags': [...], 'description': '...', 'title': '...'})
+        """
+        if not modes:
+            return {}
+        try:
+            image_b64 = self._prepare_llm_image(image_input)
+            if not image_b64:
+                return {}
+
+            result = self._call_llm_vision_combined(
+                image_b64, modes, max_tags, max_description_words, max_title_words,
+                category_hint=category_hint, location_hint=location_hint
+            )
+            if not result:
+                return {}
+
+            # Post-processing BioCLIP: stesso comportamento dei metodi singoli
+            if bioclip_context:
+                latin_name = bioclip_context.split('(')[0].split(',')[0].strip()
+                if latin_name:
+                    if 'tags' in result:
+                        tags = result['tags']
+                        tags = [latin_name] + [t for t in tags if t.lower() != latin_name.lower()]
+                        result['tags'] = tags[:max_tags]
+                    if 'description' in result and result['description']:
+                        result['description'] = f"{latin_name}: {result['description']}"
+                    if 'title' in result and result['title']:
+                        result['title'] = f"{latin_name} - {result['title']}"
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Errore generate_llm_combined: {e}")
+            return {}
+
+    def _call_llm_vision_combined(self, image_data_b64: str, modes: list,
+                                   max_tags: int, max_description_words: int,
+                                   max_title_words: int,
+                                   category_hint: Optional[str] = None,
+                                   location_hint: Optional[str] = None) -> dict:
+        """Prompt combinato → una sola chiamata Ollama per tutti i modi richiesti."""
+        try:
+            llm_config = self.embedding_config.get('models', {}).get('llm_vision', {})
+            model   = llm_config.get('model', 'qwen3.5:4b-q4_K_M')
+            timeout = llm_config.get('timeout', 180)
+            generation = llm_config.get('generation', {})
+            temperature = generation.get('temperature', 0.7)
+            top_p    = generation.get('top_p',    0.8)
+            top_k    = generation.get('top_k',    20)
+            min_p    = generation.get('min_p',    0.0)
+            num_ctx  = generation.get('num_ctx',  2048)
+            num_batch = generation.get('num_batch', 1024)
+
+            lang_code = self.config.get('ui', {}).get('llm_output_language', 'it')
+            lang_name = EmbeddingGenerator.LLM_OUTPUT_LANGUAGES.get(lang_code, 'ITALIAN')
+
+            # Regole lingua e contesto (versione generica: no species, non varia per mode)
+            category_line = ""
+            if category_hint:
+                category_line = (
+                    f"- The main subject is a {category_hint}. The species is already identified externally.\n"
+                    "- DO NOT name the species. NEVER use species or scientific names.\n"
+                    "- Focus ONLY on: visual attributes, behavior, environment, colors, composition.\n"
+                )
+
+            location_line = ""
+            if location_hint:
+                if lang_code == 'en':
+                    location_line = f"- LOCATION: {location_hint}. Use standard English place names.\n"
+                else:
+                    location_line = f"- LOCATION: {location_hint}. Translate ALL place names to {lang_name}.\n"
+            else:
+                location_line = "- LOCATION: No GPS data. Do NOT mention, guess or infer any location.\n"
+
+            language_rules = (
+                f"LANGUAGE: ALL output MUST be in {lang_name}. NEVER mix languages.\n"
+                f"{category_line}"
+                f"{location_line}"
+                f"- If no species hint and you recognize an animal/plant, use a generic {lang_name} term.\n"
+                "- NEVER guess a species name. NEVER use scientific/Latin names.\n"
+            )
+
+            # Specifica del formato output in base ai modi richiesti
+            format_lines = []
+            if 'tags' in modes:
+                format_lines.append(f"TAGS: tag1,tag2,...  (max {max_tags}, {lang_name}, singular, comma-separated)")
+            if 'description' in modes:
+                format_lines.append(f"DESCRIPTION: ...  (max {max_description_words} words, {lang_name})")
+            if 'title' in modes:
+                format_lines.append(f"TITLE: ...  (max {max_title_words} words, {lang_name}, no quotes, no ending punctuation)")
+            format_spec = '\n'.join(format_lines)
+
+            # max_tokens: somma di tutti i modi + overhead formato
+            max_tokens = 15  # overhead label+newline
+            if 'tags' in modes:
+                max_tokens += max_tags * 3 + 10
+            if 'description' in modes:
+                max_tokens += int(max_description_words * 1.5) + 20
+            if 'title' in modes:
+                max_tokens += int(max_title_words * 2) + 10
+
+            prompt = (
+                "/no_think\n"
+                "You are a professional photography cataloging system.\n"
+                "Analyze this image and generate EXACTLY the requested sections.\n\n"
+                f"{language_rules}\n"
+                "OUTPUT FORMAT — use EXACTLY these labels, one per line:\n"
+                f"{format_spec}\n\n"
+                "STRICT RULES:\n"
+                "- Output ONLY the labeled sections, nothing else\n"
+                "- TAGS: comma-separated list only, only what you clearly see\n"
+                "- DESCRIPTION: single paragraph, subject/environment/colors/composition/atmosphere\n"
+                "- TITLE: single line, factual and descriptive\n"
+            )
+
+            params = {
+                'model': model, 'timeout': timeout,
+                'keep_alive': generation.get('keep_alive', -1),
+                'temperature': temperature, 'top_p': top_p, 'top_k': top_k,
+                'min_p': min_p, 'num_ctx': num_ctx, 'num_batch': num_batch,
+            }
+
+            if not self.llm_plugin:
+                return {}
+
+            response = self.llm_plugin.generate(image_data_b64, prompt, max_tokens, params)
+            if not response:
+                return {}
+
+            return self._parse_combined_response(response, modes, max_tags)
+
+        except Exception as e:
+            logger.error(f"Errore _call_llm_vision_combined: {e}")
+            return {}
+
+    def _parse_combined_response(self, text: str, modes: list, max_tags: int) -> dict:
+        """Parsa la risposta strutturata TAGS/DESCRIPTION/TITLE dal modello."""
+        result: dict = {}
+        current_key: Optional[str] = None
+        current_lines: list = []
+
+        def _flush(key, lines):
+            content = ' '.join(lines).strip()
+            if not content:
+                return
+            if key == 'tags':
+                raw = [t.strip().strip('"').strip("'").strip()
+                       for t in content.replace(';', ',').split(',')]
+                seen: set = set()
+                tags = []
+                for t in raw:
+                    if (t and 2 < len(t) < 50
+                            and not t.startswith(('http', 'www'))
+                            and t.lower() not in seen):
+                        seen.add(t.lower())
+                        tags.append(t)
+                result['tags'] = tags[:max_tags]
+            elif key == 'description':
+                result['description'] = content
+            elif key == 'title':
+                result['title'] = content.strip('"').strip("'").rstrip('.').rstrip(',').strip()
+
+        for line in text.strip().split('\n'):
+            s = line.strip()
+            upper = s.upper()
+            matched_key = None
+
+            if 'tags' in modes and upper.startswith('TAGS:'):
+                matched_key = 'tags'
+                content = s[5:].strip()
+            elif 'description' in modes and (upper.startswith('DESCRIPTION:') or upper.startswith('DESCRIZIONE:')):
+                matched_key = 'description'
+                content = s.split(':', 1)[1].strip()
+            elif 'title' in modes and (upper.startswith('TITLE:') or upper.startswith('TITOLO:')):
+                matched_key = 'title'
+                content = s.split(':', 1)[1].strip()
+            else:
+                content = None
+
+            if matched_key:
+                if current_key:
+                    _flush(current_key, current_lines)
+                current_key = matched_key
+                current_lines = [content] if content else []
+            elif current_key and s:
+                current_lines.append(s)
+
+        if current_key:
+            _flush(current_key, current_lines)
+
+        return result
+
     def generate_llm_content(self, image_input, mode='description', max_tags: int = 10, max_description_words: int = 100, max_title_words: int = 5, bioclip_context: Optional[str] = None, category_hint: Optional[str] = None, location_hint: Optional[str] = None):
         """Metodo unificato per contenuti LLM con parametri completi.
 

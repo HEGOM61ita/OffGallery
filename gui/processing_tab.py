@@ -21,7 +21,6 @@ import time
 import json
 import threading
 import queue
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import logging
 
@@ -107,12 +106,6 @@ class ProcessingWorker(QThread):
             # === EMBEDDING GENERATOR ===
             embedding_enabled = config.get('embedding', {}).get('enabled', False)
             embedding_generator = None
-            solo_gen_ai = self.options.get('solo_gen_ai', False)
-
-            if solo_gen_ai:
-                embedding_enabled = False
-                embedding_generator = self.embedding_gen or EmbeddingGenerator(config, initialization_mode='llm_only')
-                self.log_message.emit("🤖 Modalità Solo Gen. AI: embedding saltato, solo LLM attivo", "info")
 
             # Configurazione LLM dal YAML
             llm_auto_import = config.get('embedding', {}).get('models', {}).get('llm_vision', {}).get('auto_import', {})
@@ -207,9 +200,7 @@ class ProcessingWorker(QThread):
             images_to_process = []
             for image_path in all_images:
                 should = False
-                if solo_gen_ai:
-                    should = db_manager.image_exists(image_path.name)
-                elif processing_mode == 'new_only':
+                if processing_mode == 'new_only':
                     should = not db_manager.image_exists(image_path.name)
                 elif processing_mode == 'reprocess_all':
                     should = True
@@ -275,6 +266,16 @@ class ProcessingWorker(QThread):
                           llm_gen_config.get('description', {}).get('enabled') or
                           llm_gen_config.get('title', {}).get('enabled'))
 
+            # Generatore per LLM: indipendente dai modelli embedding.
+            # embedding_generator può essere None se tutti i modelli sono disabilitati,
+            # ma LLM usa solo Ollama e non richiede modelli locali.
+            llm_generator = None
+            if llm_active:
+                llm_generator = embedding_generator or self.embedding_gen
+                if llm_generator is None:
+                    self.log_message.emit("🧠 Inizializzazione EmbeddingGenerator per LLM...", "info")
+                    llm_generator = EmbeddingGenerator(config, initialization_mode='llm_only')
+
             # Tutti le immagini — ogni thread attende ExifTool tramite polling
             model_images = images_to_process
             model_total = len(model_images)
@@ -325,12 +326,12 @@ class ProcessingWorker(QThread):
                 self.log_message.emit(f"🚀 Thread BIOCLIP pronto ({model_total} immagini)", "info")
 
             # Thread LLM Vision
-            if llm_active and embedding_generator is not None:
+            if llm_active and llm_generator is not None:
                 # Nota: la coda llm_queue viene alimentata da _thread_exiftool (se bioclip_active=False)
                 # oppure da _thread_bioclip (se bioclip_active=True) — NON pre-riempita qui
                 t = threading.Thread(
                     target=self._thread_llm,
-                    args=(prep_cache, embedding_generator, db_manager,
+                    args=(prep_cache, llm_generator, db_manager,
                           llm_gen_config, stats, model_total,
                           bioclip_results, bioclip_lock, llm_queue),
                     name="model-llm", daemon=True
@@ -343,7 +344,7 @@ class ProcessingWorker(QThread):
                 target=self._thread_exiftool,
                 args=(images_to_process, prep_cache, temp_dir,
                       raw_processor, config, db_manager,
-                      processing_mode, solo_gen_ai, emb_flags, llm_gen_config,
+                      processing_mode, emb_flags, llm_gen_config,
                       stats, total_to_process, llm_queue, llm_active, bioclip_active),
                 name="model-exiftool", daemon=True
             )
@@ -431,7 +432,7 @@ class ProcessingWorker(QThread):
     # FASE 0 — Preparazione singola immagine
     # ─────────────────────────────────────────────────────────────
     def _prep_image(self, image_path, raw_processor, config, db_manager,
-                    processing_mode, solo_gen_ai, emb_flags, llm_gen_config,
+                    processing_mode, emb_flags, llm_gen_config,
                     temp_dir=None):
         """Estrae EXIF + thumbnail + geo + hash, inserisce/aggiorna record DB base.
         Salva work thumbnail su disco (temp_dir) invece di tenerlo in RAM.
@@ -440,28 +441,6 @@ class ProcessingWorker(QThread):
             fname = image_path.name
             self.log_message.emit(f"📂 Prep: {fname}", "info")
             is_raw = raw_processor.is_raw_file(image_path)
-
-            # --- Modalità Solo Gen. AI: solo thumbnail, niente EXIF ---
-            if solo_gen_ai:
-                thumbnail = self._prepare_image_for_ai_corrected(
-                    image_path, raw_processor, is_raw, target_size=512)
-                if thumbnail is None:
-                    self.log_message.emit(f"⚠️ {fname}: thumbnail non estraibile", "warning")
-                # Salva work thumbnail su disco (rilascia PIL dalla RAM)
-                work_thumb_path = None
-                if thumbnail and hasattr(thumbnail, 'size') and temp_dir:
-                    wtp = self._get_work_thumb_path(image_path, temp_dir)
-                    if self._save_work_thumb(thumbnail, wtp):
-                        work_thumb_path = wtp
-                    thumbnail = None  # libera dalla RAM
-                return {
-                    'image_path': image_path,
-                    'work_thumb_path': work_thumb_path,
-                    'image_data': {},
-                    'geo_hierarchy': None,
-                    'location_hint': None,
-                    'is_new': False,
-                }
 
             # --- Estrazione EXIF metadata ---
             try:
@@ -944,32 +923,26 @@ class ProcessingWorker(QThread):
 
                 self.log_message.emit(f"🤖 LLM: {fname}", "info")
 
-                # Esegui chiamate LLM in parallelo (I/O bound — chiamate HTTP a Ollama)
-                llm_futures = {}
+                # Chiamata combinata unica — tutti i modi in un solo round-trip Ollama.
+                modes = []
+                if should_gen_tags:    modes.append('tags')
+                if should_gen_desc:    modes.append('description')
+                if should_gen_title:   modes.append('title')
+
                 llm_results = {'tags': None, 'description': None, 'title': None}
-
-                with ThreadPoolExecutor(max_workers=3) as executor:
-                    if should_gen_tags:
-                        llm_futures['tags'] = executor.submit(
-                            emb_gen.generate_llm_tags, thumb,
-                            gen_tags_cfg.get('max', 10),
-                            bioclip_context, category_hint, location_hint)
-                    if should_gen_desc:
-                        llm_futures['description'] = executor.submit(
-                            emb_gen.generate_llm_description, thumb,
-                            gen_desc_cfg.get('max', 100),
-                            bioclip_context, category_hint, location_hint)
-                    if should_gen_title:
-                        llm_futures['title'] = executor.submit(
-                            emb_gen.generate_llm_title, thumb,
-                            gen_title_cfg.get('max', 5),
-                            bioclip_context, category_hint, location_hint)
-
-                    for key, future in llm_futures.items():
-                        try:
-                            llm_results[key] = future.result(timeout=200)
-                        except Exception as e:
-                            self.log_message.emit(f"⚠️ LLM {key} {fname}: {e}", "warning")
+                try:
+                    combined = emb_gen.generate_llm_combined(
+                        thumb, modes,
+                        max_tags=gen_tags_cfg.get('max', 10),
+                        max_description_words=gen_desc_cfg.get('max', 100),
+                        max_title_words=gen_title_cfg.get('max', 5),
+                        bioclip_context=bioclip_context,
+                        category_hint=category_hint,
+                        location_hint=location_hint,
+                    )
+                    llm_results.update(combined)
+                except Exception as e:
+                    self.log_message.emit(f"⚠️ LLM {fname}: {e}", "warning")
 
                 # Pulisci cache immagine LLM
                 emb_gen._cleanup_llm_image_cache()
@@ -1029,7 +1002,7 @@ class ProcessingWorker(QThread):
     # ─────────────────────────────────────────────────────────────
     def _thread_exiftool(self, images_to_process, prep_cache, temp_dir,
                          raw_processor, config, db_manager,
-                         processing_mode, solo_gen_ai, emb_flags, llm_gen_config,
+                         processing_mode, emb_flags, llm_gen_config,
                          stats, total_to_process, llm_queue, llm_active, bioclip_active):
         """Thread ExifTool: estrae EXIF + salva work thumbnail su disco per ogni immagine."""
         for i, image_path in enumerate(images_to_process, 1):
@@ -1037,7 +1010,7 @@ class ProcessingWorker(QThread):
                 break
             prep = self._prep_image(
                 image_path, raw_processor, config, db_manager,
-                processing_mode, solo_gen_ai, emb_flags, llm_gen_config,
+                processing_mode, emb_flags, llm_gen_config,
                 temp_dir=temp_dir
             )
             if prep:
@@ -1329,21 +1302,9 @@ class ProcessingTab(QWidget):
         self.mode_reprocess_all.setStyleSheet("color: #f57500; font-weight: bold;")
         self.processing_mode_group.addButton(self.mode_reprocess_all, 2)
 
-        self.solo_gen_ai_check = QCheckBox(t("processing.checkbox.solo_gen_ai"))
-        self.solo_gen_ai_check.setToolTip(t("processing.tooltip.solo_gen_ai"))
-        self.solo_gen_ai_check.setEnabled(False)
-        self.solo_gen_ai_check.setStyleSheet("color: #f57500;")
-
-        reprocess_row = QHBoxLayout()
-        reprocess_row.setContentsMargins(0, 0, 0, 0)
-        reprocess_row.setSpacing(6)
-        reprocess_row.addWidget(self.mode_reprocess_all)
-        reprocess_row.addWidget(self.solo_gen_ai_check)
-        reprocess_row.addStretch()
-        options_layout.addLayout(reprocess_row)
+        options_layout.addWidget(self.mode_reprocess_all)
 
         self.processing_mode_group.idClicked.connect(self.update_start_button_state)
-        self.mode_reprocess_all.toggled.connect(self._on_reprocess_toggled)
 
         self.enable_file_log_cb = QCheckBox(t("processing.check.file_log"))
         self.enable_file_log_cb.setToolTip(t("processing.tooltip.file_log"))
@@ -1826,7 +1787,16 @@ class ProcessingTab(QWidget):
                 (self.pt_musiq_check, 'technical'),
             ]
             for chk, key in emb_mapping:
-                chk.setChecked(models_cfg.get(key, {}).get('enabled', False))
+                model_enabled = models_cfg.get(key, {}).get('enabled', False)
+                if not model_enabled:
+                    # Modello impostato su OFF in Config Tab: non selezionabile
+                    chk.setChecked(False)
+                    chk.setEnabled(False)
+                    chk.setToolTip(t("processing.tooltip.model_disabled_config"))
+                else:
+                    chk.setChecked(True)
+                    chk.setEnabled(True)
+                    chk.setToolTip(t("processing.tooltip.model_enable", model=key.upper()))
 
             # Carica impostazioni generazione AI (tags/desc/title)
             auto_import = (config.get('embedding', {})
@@ -1879,16 +1849,9 @@ class ProcessingTab(QWidget):
 
             models = config.setdefault('embedding', {}).setdefault('models', {})
 
-            # Mappa checkbox → config key
-            mapping = [
-                (self.pt_clip_check, 'clip'),
-                (self.pt_dinov2_check, 'dinov2'),
-                (self.pt_bioclip_check, 'bioclip'),
-                (self.pt_aesthetic_check, 'aesthetic'),
-                (self.pt_musiq_check, 'technical'),
-            ]
-            for chk, key in mapping:
-                models.setdefault(key, {})['enabled'] = chk.isChecked()
+            # Non scriviamo 'enabled' qui: il caricamento dei modelli è controllato
+            # esclusivamente dalla Config Tab (combo GPU/CPU/OFF). Il processing tab
+            # gestisce solo la scelta di QUALI modelli usare in questa esecuzione.
 
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
@@ -1897,11 +1860,6 @@ class ProcessingTab(QWidget):
             import logging
             logging.getLogger(__name__).warning(f"Errore salvataggio config modelli: {e}")
 
-    def _on_reprocess_toggled(self, checked: bool):
-        """Abilita/disabilita checkbox Solo Gen. AI in base alla modalità selezionata."""
-        self.solo_gen_ai_check.setEnabled(checked)
-        if not checked:
-            self.solo_gen_ai_check.setChecked(False)
 
     def select_catalog(self):
         """Apre dialog per selezione catalogo Lightroom"""
@@ -2115,17 +2073,6 @@ class ProcessingTab(QWidget):
                 QMessageBox.warning(self, t("processing.msg.error_title"), t("processing.msg.dir_not_exist", path=input_dir_text))
                 return
 
-        # Validazione Solo Gen. AI: almeno un campo LLM deve essere abilitato
-        if self.solo_gen_ai_check.isChecked():
-            if not (self.pt_gen_tags_check.isChecked() or
-                    self.pt_gen_desc_check.isChecked() or
-                    self.pt_gen_title_check.isChecked()):
-                QMessageBox.warning(
-                    self,
-                    t("processing.solo_gen_ai.warn_title"),
-                    t("processing.solo_gen_ai.warn_text")
-                )
-                return
 
         try:
             # Costruisce llm_gen_config dai widget locali
@@ -2195,10 +2142,7 @@ class ProcessingTab(QWidget):
                 mode_text = t("processing.log.mode_new_errors")
             else:  # mode_id == 2
                 processing_mode = 'reprocess_all'
-                if self.solo_gen_ai_check.isChecked():
-                    mode_text = t("processing.log.mode_solo_gen_ai")
-                else:
-                    mode_text = t("processing.log.mode_reprocess_all")
+                mode_text = t("processing.log.mode_reprocess_all")
 
             self.log_display.append(t("processing.log.mode", mode=mode_text))
 
@@ -2221,7 +2165,6 @@ class ProcessingTab(QWidget):
                 self.embedding_gen,
                 {
                     'processing_mode': processing_mode,
-                    'solo_gen_ai': self.solo_gen_ai_check.isChecked(),
                     'embedding_model_flags': embedding_model_flags,
                 },
                 include_subdirs=self.include_subdirs_cb.isChecked(),
