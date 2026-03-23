@@ -414,13 +414,22 @@ class ProcessingWorker(QThread):
 
             self.log_message.emit("═" * 50, "info")
             self.log_message.emit("PROCESSING COMPLETATO", "info")
-            self.log_message.emit(f"Totali: {stats['total']}", "info")
-            self.log_message.emit(f"Preparate: {stats['processed']}", "info")
-            self.log_message.emit(f"Già esistenti: {stats['skipped_existing']}", "info")
-            self.log_message.emit(f"Errori: {stats['errors']}", "info")
-            self.log_message.emit(f"Con embedding: {stats['with_embedding']}", "info")
-            self.log_message.emit(f"Con tag: {stats['with_tags']}", "info")
+            self.log_message.emit(f"Totali: {stats['total']}  |  Nuove: {stats['processed']}  |  Già indicizzate: {stats['skipped_existing']}  |  Errori: {stats['errors']}", "info")
             self.log_message.emit(f"Tempo totale: {total_time // 60:02.0f}:{total_time % 60:02.0f}", "info")
+
+            # Conteggi per-modello (solo modelli che hanno lavorato)
+            model_parts = []
+            if stats['clip']:       model_parts.append(f"CLIP: {stats['clip']}")
+            if stats['dinov2']:     model_parts.append(f"DINOv2: {stats['dinov2']}")
+            if stats['aesthetic']:  model_parts.append(f"Aesthetic: {stats['aesthetic']}")
+            if stats['technical']:  model_parts.append(f"MUSIQ: {stats['technical']}")
+            if stats['bioclip']:    model_parts.append(f"BioCLIP: {stats['bioclip']}")
+            if stats['llm_tags']:   model_parts.append(f"Tags: {stats['llm_tags']}")
+            if stats['llm_desc']:   model_parts.append(f"Descrizioni: {stats['llm_desc']}")
+            if stats['llm_title']:  model_parts.append(f"Titoli: {stats['llm_title']}")
+            if model_parts:
+                self.log_message.emit("  ".join(model_parts), "info")
+
             self.log_message.emit("═" * 50, "info")
 
             self.finished.emit(stats)
@@ -646,6 +655,7 @@ class ProcessingWorker(QThread):
                                 'clip_embedding': clip_emb, 'embedding_generated': True})
                         with self._stats_lock:
                             stats['with_embedding'] += 1
+                            stats['clip'] += 1
             except Exception as e:
                 self.log_message.emit(f"❌ CLIP {fname}: {e}", "error")
             self.model_progress.emit('clip', i, total)
@@ -688,6 +698,7 @@ class ProcessingWorker(QThread):
                                 'dinov2_embedding': dinov2_emb, 'embedding_generated': True})
                         with self._stats_lock:
                             stats['with_embedding'] += 1
+                            stats['dinov2'] += 1
             except Exception as e:
                 self.log_message.emit(f"❌ DINOv2 {fname}: {e}", "error")
             self.model_progress.emit('dinov2', i, total)
@@ -723,6 +734,8 @@ class ProcessingWorker(QThread):
                 if score is not None:
                     with self._db_lock:
                         db_manager.update_image(fname, {'aesthetic_score': score})
+                    with self._stats_lock:
+                        stats['aesthetic'] += 1
             except Exception as e:
                 self.log_message.emit(f"❌ Aesthetic {fname}: {e}", "error")
             self.model_progress.emit('aesthetic', i, total)
@@ -758,6 +771,8 @@ class ProcessingWorker(QThread):
                 if score is not None:
                     with self._db_lock:
                         db_manager.update_image(fname, {'technical_score': score})
+                    with self._stats_lock:
+                        stats['technical'] += 1
             except Exception as e:
                 self.log_message.emit(f"❌ Technical {fname}: {e}", "error")
             self.model_progress.emit('technical', i, total)
@@ -814,6 +829,8 @@ class ProcessingWorker(QThread):
                             db_manager.update_image(fname, {
                                 'bioclip_taxonomy': json.dumps(bioclip_taxonomy, ensure_ascii=False)
                             })
+                        with self._stats_lock:
+                            stats['bioclip'] += 1
                         self.log_message.emit(
                             f"🌿 BioCLIP {fname}: {len([l for l in bioclip_taxonomy if l])} livelli", "info")
 
@@ -993,16 +1010,21 @@ class ProcessingWorker(QThread):
                     self.log_message.emit(f"🏷️ LLM tags {fname}: {len(final_tags)} tag", "info")
                     with self._stats_lock:
                         stats['with_tags'] += 1
+                        stats['llm_tags'] += 1
 
                 # Descrizione
                 if llm_results['description']:
                     update_data['description'] = llm_results['description']
                     self.log_message.emit(f"📝 LLM desc {fname}: {len(llm_results['description'])} car", "info")
+                    with self._stats_lock:
+                        stats['llm_desc'] += 1
 
                 # Titolo
                 if llm_results['title']:
                     update_data['title'] = llm_results['title']
                     self.log_message.emit(f"📌 LLM title {fname}: {llm_results['title']}", "info")
+                    with self._stats_lock:
+                        stats['llm_title'] += 1
 
                 # Aggiorna DB
                 with self._db_lock:
@@ -1275,14 +1297,7 @@ class ProcessingTab(QWidget):
         # Riga status integrata nel gruppo sorgente (risparmia un QGroupBox)
         status_row = QHBoxLayout()
         status_row.setContentsMargins(0, 0, 0, 0)
-        self.db_label = QLabel(t("processing.label.db_init"))
-        self.db_label.setStyleSheet("font-size: 10px; color: #7f8c8d;")
-        status_row.addWidget(self.db_label)
-        _sep_s = QLabel("|")
-        _sep_s.setStyleSheet("color: #bdc3c7; margin: 0 4px;")
-        status_row.addWidget(_sep_s)
         self.scan_label = QLabel(t("processing.label.select_source"))
-        self.scan_label.setWordWrap(True)
         self.scan_label.setStyleSheet("font-size: 10px; color: #7f8c8d;")
         status_row.addWidget(self.scan_label)
         status_row.addStretch()
@@ -1972,8 +1987,6 @@ class ProcessingTab(QWidget):
                 self.scan_label.setText(t("processing.msg.no_formats"))
                 return
 
-            self.db_label.setText(t("processing.msg.db_label", path=db_path))
-            
             # Conta immagini (CORRETTO: evita duplicati case-sensitive)
             all_images = []
             seen_files = set()
@@ -2018,45 +2031,23 @@ class ProcessingTab(QWidget):
                                            if img.name.lower() not in processed_names]
                     already_processed = len(all_images) - len(images_to_process)
 
-                    # Copertura per-modello — query aggregata, veloce anche su 100k foto
-                    coverage = db_manager.get_model_coverage()
-
                 except Exception as e:
                     self.scan_label.setText(t("processing.msg.db_error", error=e))
                     return
-            else:
-                coverage = {}
 
             total_found = len(all_images)
             to_process = len(images_to_process)
-
-            # Riga copertura modelli (mostrata solo se ci sono file già indicizzati)
-            coverage_line = ""
-            if coverage and already_processed > 0:
-                parts = []
-                if coverage.get('clip'):       parts.append(f"CLIP: {coverage['clip']}")
-                if coverage.get('dinov2'):     parts.append(f"DINOv2: {coverage['dinov2']}")
-                if coverage.get('aesthetic'):  parts.append(f"Aesth: {coverage['aesthetic']}")
-                if coverage.get('technical'):  parts.append(f"MUSIQ: {coverage['technical']}")
-                if coverage.get('bioclip'):    parts.append(f"BioCLIP: {coverage['bioclip']}")
-                if coverage.get('tags'):       parts.append(f"Tags: {coverage['tags']}")
-                if coverage.get('description'):parts.append(f"Desc: {coverage['description']}")
-                if coverage.get('title'):      parts.append(f"Titolo: {coverage['title']}")
-                if parts:
-                    coverage_line = "\n" + " | ".join(parts)
 
             # Salva il numero di immagini da processare per la logica del pulsante
             self.images_to_process_count = to_process
 
             if to_process == 0:
-                self.scan_label.setText(
-                    t("processing.msg.all_processed", total=total_found) + coverage_line)
+                self.scan_label.setText(t("processing.msg.all_processed", total=total_found))
                 # Aggiorna stato pulsante in base alle modalità
                 self.update_start_button_state()
             else:
                 self.scan_label.setText(
                     t("processing.msg.scan_result", total=total_found, to_process=to_process, already=already_processed)
-                    + coverage_line
                 )
                 # Abilita pulsante se ci sono immagini da processare
                 self.start_btn.setEnabled(True)
