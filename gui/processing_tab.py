@@ -931,16 +931,32 @@ class ProcessingWorker(QThread):
 
                 llm_results = {'tags': None, 'description': None, 'title': None}
                 try:
-                    combined = emb_gen.generate_llm_combined(
-                        thumb, modes,
-                        max_tags=gen_tags_cfg.get('max', 10),
-                        max_description_words=gen_desc_cfg.get('max', 100),
-                        max_title_words=gen_title_cfg.get('max', 5),
-                        bioclip_context=bioclip_context,
-                        category_hint=category_hint,
-                        location_hint=location_hint,
-                    )
-                    llm_results.update(combined)
+                    if len(modes) == 1:
+                        # Prompt singolo specializzato — più affidabile per un solo campo
+                        if should_gen_tags:
+                            llm_results['tags'] = emb_gen.generate_llm_tags(
+                                thumb, gen_tags_cfg.get('max', 10),
+                                bioclip_context, category_hint, location_hint)
+                        elif should_gen_desc:
+                            llm_results['description'] = emb_gen.generate_llm_description(
+                                thumb, gen_desc_cfg.get('max', 100),
+                                bioclip_context, category_hint, location_hint)
+                        else:
+                            llm_results['title'] = emb_gen.generate_llm_title(
+                                thumb, gen_title_cfg.get('max', 5),
+                                bioclip_context, category_hint, location_hint)
+                    else:
+                        # Prompt combinato — un solo round-trip per 2+ campi
+                        combined = emb_gen.generate_llm_combined(
+                            thumb, modes,
+                            max_tags=gen_tags_cfg.get('max', 10),
+                            max_description_words=gen_desc_cfg.get('max', 100),
+                            max_title_words=gen_title_cfg.get('max', 5),
+                            bioclip_context=bioclip_context,
+                            category_hint=category_hint,
+                            location_hint=location_hint,
+                        )
+                        llm_results.update(combined)
                 except Exception as e:
                     self.log_message.emit(f"⚠️ LLM {fname}: {e}", "warning")
 
