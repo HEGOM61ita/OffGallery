@@ -2031,23 +2031,48 @@ class ProcessingTab(QWidget):
                                            if img.name.lower() not in processed_names]
                     already_processed = len(all_images) - len(images_to_process)
 
+                    # Copertura per-modello — query aggregata veloce anche su 100k foto
+                    coverage = db_manager.get_model_coverage()
+
                 except Exception as e:
                     self.scan_label.setText(t("processing.msg.db_error", error=e))
                     return
+            else:
+                coverage = {}
 
             total_found = len(all_images)
             to_process = len(images_to_process)
+
+            # Riga copertura modelli in ambra (solo se ci sono file già indicizzati)
+            coverage_html = ""
+            if coverage and already_processed > 0:
+                parts = []
+                if coverage.get('clip'):        parts.append(f"CLIP: {coverage['clip']}")
+                if coverage.get('dinov2'):      parts.append(f"DINOv2: {coverage['dinov2']}")
+                if coverage.get('aesthetic'):   parts.append(f"Aesthetic: {coverage['aesthetic']}")
+                if coverage.get('technical'):   parts.append(f"MUSIQ: {coverage['technical']}")
+                if coverage.get('bioclip'):     parts.append(f"BioCLIP: {coverage['bioclip']}")
+                if coverage.get('tags'):        parts.append(f"Tags: {coverage['tags']}")
+                if coverage.get('description'): parts.append(f"Desc: {coverage['description']}")
+                if coverage.get('title'):       parts.append(f"Titoli: {coverage['title']}")
+                if parts:
+                    coverage_html = (
+                        '<br><span style="color: #C88B2E;">'
+                        + ' &nbsp;|&nbsp; '.join(parts)
+                        + '</span>'
+                    )
 
             # Salva il numero di immagini da processare per la logica del pulsante
             self.images_to_process_count = to_process
 
             if to_process == 0:
-                self.scan_label.setText(t("processing.msg.all_processed", total=total_found))
+                self.scan_label.setText(t("processing.msg.all_processed", total=total_found) + coverage_html)
                 # Aggiorna stato pulsante in base alle modalità
                 self.update_start_button_state()
             else:
                 self.scan_label.setText(
                     t("processing.msg.scan_result", total=total_found, to_process=to_process, already=already_processed)
+                    + coverage_html
                 )
                 # Abilita pulsante se ci sono immagini da processare
                 self.start_btn.setEnabled(True)
