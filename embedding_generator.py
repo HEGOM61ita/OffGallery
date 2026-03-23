@@ -2036,7 +2036,9 @@ class EmbeddingGenerator:
             elif key == 'description':
                 result['description'] = content
             elif key == 'title':
-                result['title'] = content.strip('"').strip("'").rstrip('.').rstrip(',').strip()
+                # Solo la prima riga: il modello può aggiungere testo extra su righe successive
+                first = lines[0].strip() if lines else content
+                result['title'] = first.strip('"').strip("'").rstrip('.').rstrip(',').strip()
 
         for line in text.strip().split('\n'):
             s = line.strip()
