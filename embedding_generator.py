@@ -1708,9 +1708,14 @@ class EmbeddingGenerator:
     # ===== LLM VISION METHODS =====
 
     def _prepare_llm_image(self, image_input) -> Optional[str]:
-        """Prepara immagine per LLM: estrae thumbnail, converte in base64.
-        Usa cache interna per evitare elaborazioni ripetute sulla stessa immagine."""
+        """Prepara immagine per LLM: ridimensiona al profilo llm_vision e codifica in base64.
+
+        Input PIL (batch pipeline): resize in memoria + encode diretto (no file temporaneo).
+        Input path (gallery on-demand): estrae thumbnail via RAWProcessor.
+        Usa cache interna per evitare elaborazioni ripetute sulla stessa immagine.
+        """
         import base64
+        import io
 
         input_type = self._detect_input_type(image_input)
 
@@ -1730,54 +1735,54 @@ class EmbeddingGenerator:
         # Pulisci cache precedente
         self._cleanup_llm_image_cache()
 
-        temp_path = None
+        # Parametri dal profilo llm_vision
+        llm_profile = self.optimization_profiles.get('llm_vision', {})
+        llm_target_size = llm_profile.get('target_size', 512)
+        llm_quality = llm_profile.get('quality', 85)
+        llm_resampling = llm_profile.get('resampling', Image.Resampling.LANCZOS)
+
         try:
             if input_type == 'path':
                 from raw_processor import RAWProcessor
                 raw_processor = RAWProcessor(self.config)
-                # Leggi target_size dal profilo llm_vision
-                llm_profile = self.optimization_profiles.get('llm_vision', {})
-                llm_target_size = llm_profile.get('target_size', 512)
-                thumbnail = raw_processor.extract_thumbnail(Path(image_input), target_size=llm_target_size)
-                if thumbnail:
-                    import tempfile
-                    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                        thumbnail.save(tmp.name, format='JPEG', quality=90)
-                        temp_path = tmp.name
-                else:
-                    temp_path = str(image_input)
-            elif input_type == 'pil':
-                import tempfile
-                with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                    image_input.save(tmp.name, format='JPEG', quality=85)
-                    temp_path = tmp.name
+                thumbnail = raw_processor.extract_thumbnail(
+                    Path(image_input), target_size=llm_target_size)
+                if thumbnail is None:
+                    # Fallback: leggi file grezzo come bytes per base64
+                    with open(str(image_input), 'rb') as f:
+                        image_b64 = base64.b64encode(f.read()).decode('utf-8')
+                    self._llm_image_cache = {
+                        'source': cache_key, 'base64': image_b64, 'temp_path': None}
+                    return image_b64
+                img = thumbnail
+            else:
+                img = image_input
 
-            # Leggi e converti in base64
-            with open(temp_path, 'rb') as f:
-                image_b64 = base64.b64encode(f.read()).decode('utf-8')
+            # Ridimensiona al target_size del profilo (il work thumb può essere più grande)
+            if max(img.size) > llm_target_size:
+                img = img.copy()
+                img.thumbnail((llm_target_size, llm_target_size), llm_resampling)
 
-            # Salva in cache
+            # Codifica JPEG direttamente in memoria (no file temporaneo su disco)
+            buf = io.BytesIO()
+            img.save(buf, format='JPEG', quality=llm_quality)
+            image_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+
             self._llm_image_cache = {
-                'source': cache_key,
-                'base64': image_b64,
-                'temp_path': temp_path if temp_path != str(image_input) else None
-            }
+                'source': cache_key, 'base64': image_b64, 'temp_path': None}
             return image_b64
 
         except Exception as e:
             logger.error(f"Errore preparazione immagine LLM: {e}")
-            if temp_path and temp_path != str(image_input):
-                try:
-                    os.unlink(temp_path)
-                except OSError:
-                    pass
             return None
 
     def _cleanup_llm_image_cache(self):
-        """Pulisce il file temporaneo della cache immagine LLM."""
-        if self._llm_image_cache['temp_path']:
+        """Pulisce la cache immagine LLM."""
+        # temp_path mantenuto per compatibilità, ma non più usato dal flusso in-memory
+        tp = self._llm_image_cache.get('temp_path')
+        if tp:
             try:
-                os.unlink(self._llm_image_cache['temp_path'])
+                os.unlink(tp)
             except OSError:
                 pass
         self._llm_image_cache = {'source': None, 'base64': None, 'temp_path': None}
