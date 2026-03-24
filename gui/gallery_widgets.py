@@ -1828,6 +1828,9 @@ class ImageCard(QFrame):
     def _delete_from_database(self, items):
         """Elimina immagini selezionate dal database (non il file fisico)"""
         try:
+            # Copia difensiva: items può essere gallery.selected_items (stessa lista)
+            # — modificarla durante l'iterazione causerebbe skip di elementi
+            items = list(items)
             if not items:
                 return
 
