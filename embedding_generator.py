@@ -1743,6 +1743,9 @@ class EmbeddingGenerator:
         llm_resampling = llm_profile.get('resampling', Image.Resampling.LANCZOS)
 
         try:
+            import time as _t
+            _t0 = _t.time()
+
             if input_type == 'path':
                 from raw_processor import RAWProcessor
                 raw_processor = RAWProcessor(self.config)
@@ -1759,15 +1762,26 @@ class EmbeddingGenerator:
             else:
                 img = image_input
 
+            _t1 = _t.time()
             # Ridimensiona al target_size del profilo (il work thumb può essere più grande)
+            resized = False
             if max(img.size) > llm_target_size:
                 img = img.copy()
                 img.thumbnail((llm_target_size, llm_target_size), llm_resampling)
+                resized = True
 
+            _t2 = _t.time()
             # Codifica JPEG direttamente in memoria (no file temporaneo su disco)
             buf = io.BytesIO()
             img.save(buf, format='JPEG', quality=llm_quality)
-            image_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+            b64_bytes = buf.getvalue()
+            image_b64 = base64.b64encode(b64_bytes).decode('utf-8')
+
+            _t3 = _t.time()
+            logger.debug(
+                f"⏱ _prepare_llm_image: input={_t1-_t0:.3f}s resize={_t2-_t1:.3f}s "
+                f"encode={_t3-_t2:.3f}s total={_t3-_t0:.3f}s "
+                f"(size={img.size}, jpeg={len(b64_bytes)//1024}KB, resized={resized})")
 
             self._llm_image_cache = {
                 'source': cache_key, 'base64': image_b64, 'temp_path': None}
