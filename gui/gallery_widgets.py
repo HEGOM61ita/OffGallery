@@ -1873,13 +1873,20 @@ class ImageCard(QFrame):
             deleted = 0
             failed = 0
 
+            gallery = getattr(self, '_gallery', None)
+
             for item in items:
                 image_id = item.image_data.get('id')
                 if image_id:
                     try:
                         if db_manager.delete_image(image_id):
                             deleted += 1
-                            # Rimuovi la card dalla gallery
+                            # Rimuovi dai riferimenti della gallery prima di distruggere il widget
+                            if gallery is not None:
+                                if item in gallery.selected_items:
+                                    gallery.selected_items.remove(item)
+                                if item in gallery.cards:
+                                    gallery.cards.remove(item)
                             item.setParent(None)
                             item.deleteLater()
                         else:
@@ -1889,6 +1896,21 @@ class ImageCard(QFrame):
                         failed += 1
                 else:
                     failed += 1
+
+            # Aggiorna stato bottoni e contatore gallery dopo le cancellazioni
+            if gallery is not None and deleted > 0:
+                has_results = len(gallery.cards) > 0
+                gallery.select_all_btn.setEnabled(has_results)
+                has_selection = len(gallery.selected_items) > 0
+                gallery.deselect_all_btn.setEnabled(has_selection)
+                count_left = len(gallery.cards)
+                from i18n import t as _t
+                gallery.count_label.setText(
+                    _t("gallery.label.count", count=count_left) if count_left > 0
+                    else _t("gallery.label.no_results_count")
+                )
+                if not has_selection:
+                    gallery.selection_label.setText("")
 
             # Messaggio risultato
             if deleted > 0:
