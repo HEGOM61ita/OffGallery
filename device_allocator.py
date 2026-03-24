@@ -62,27 +62,29 @@ MODEL_VRAM_ESTIMATES: Dict[str, float] = {
     'technical': 0.3,   # MUSIQ (pyiqa)
 }
 
-# Modelli che beneficiano davvero della GPU (pesanti, lenti su CPU).
-# Gli altri sono veloci su CPU e parallelizzano meglio lì.
-MODELS_PREFER_GPU: List[str] = [
-    'bioclip',    # Il più pesante (~2 GB), lentissimo su CPU
-    'clip',       # Core per ricerca semantica, pesante (~1.7 GB)
-]
+# Fattore di accelerazione GPU stimato per ogni modello (rispetto a CPU).
+# Usato per calcolare il ROI dell'allocazione GPU: speedup / vram_cost.
+# Nessun modello è hardcoded su CPU — il greedy decide in base allo spazio.
+MODEL_GPU_SPEEDUP: Dict[str, float] = {
+    'bioclip':   8.0,   # ~8x più veloce su GPU (inferenza su ~450k specie)
+    'clip':      4.0,   # ~4x più veloce su GPU (embedding per ricerca semantica)
+    'aesthetic': 3.0,   # ~3x più veloce su GPU (backbone CLIP)
+    'technical': 3.5,   # ~3.5x più veloce su GPU (ma già rapido in assoluto)
+    'dinov2':    2.5,   # ~2.5x più veloce su GPU (leggero, parallelizza bene su CPU)
+}
 
-# Modelli veloci su CPU che parallelizzano bene — meglio lasciarli su CPU
-# così la GPU non serializza thread inutilmente
-MODELS_PREFER_CPU: List[str] = [
-    'dinov2',     # Leggero (~0.7 GB), veloce su CPU
-    'technical',  # MUSIQ — già veloce su CPU (0.28s/foto)
-]
-
-# Aesthetic: via di mezzo — su GPU se c'è VRAM, altrimenti CPU va bene
-MODELS_GPU_IF_ROOM: List[str] = [
-    'aesthetic',  # Pesante (~1.7 GB), ma accettabile su CPU
-]
-
-# Ordine allocazione GPU: prima i must-have, poi i nice-to-have
-MODEL_GPU_PRIORITY: List[str] = MODELS_PREFER_GPU + MODELS_GPU_IF_ROOM
+# Ordine allocazione GPU calcolato per ROI decrescente (speedup / vram_cost):
+#   technical: 3.5/0.3 = 11.7  ← miglior ROI per VRAM spesa
+#   dinov2:    2.5/0.7 =  3.6
+#   bioclip:   8.0/2.0 =  4.0
+#   clip:      4.0/1.7 =  2.4
+#   aesthetic: 3.0/1.7 =  1.8  ← peggior ROI
+# (calcolato dinamicamente in auto_allocate — questa lista è solo documentazione)
+MODEL_GPU_PRIORITY: List[str] = sorted(
+    MODEL_GPU_SPEEDUP.keys(),
+    key=lambda m: MODEL_GPU_SPEEDUP[m] / MODEL_VRAM_ESTIMATES.get(m, 1.0),
+    reverse=True
+)
 
 # Tutti i modelli gestiti da questo allocatore
 ALL_MODELS: List[str] = list(MODEL_VRAM_ESTIMATES.keys())
@@ -153,28 +155,32 @@ def detect_hardware() -> dict:
 def auto_allocate(
     hardware: dict,
     enabled_models: Optional[List[str]] = None,
-    headroom: float = 0.80,
+    headroom: float = 0.90,
     llm_vram_gb: float = 0.0
 ) -> Dict[str, str]:
-    """Calcola allocazione ottimale GPU/CPU per ogni modello.
+    """Calcola allocazione ottimale GPU/CPU per ogni modello abilitato.
 
-    Strategia: i modelli pesanti e lenti vanno su GPU, quelli leggeri e veloci
-    restano su CPU dove parallelizzano meglio (i thread GPU si serializzano).
-    La VRAM già occupata dal LLM (Ollama/LM Studio) viene sottratta dal budget.
+    Strategia greedy per ROI: ordina i modelli per (speedup_GPU / VRAM_costo)
+    decrescente, poi li alloca su GPU finché c'è spazio. Nessun modello è
+    hardcoded su CPU — se c'è VRAM, anche i modelli leggeri ci vanno.
+
+    Il LLM (Ollama/LM Studio) occupa VRAM propria già dedotta dal budget.
+    L'headroom è 90% perché il LLM è già contabilizzato separatamente.
 
     Args:
         hardware: output di detect_hardware()
-        enabled_models: lista modelli abilitati (None = tutti)
-        headroom: percentuale VRAM utilizzabile (0.80 = 80%)
+        enabled_models: modelli da considerare (None = tutti). Modelli non
+                        presenti restano su CPU (non vengono caricati).
+        headroom: frazione VRAM utilizzabile (default 0.90)
         llm_vram_gb: VRAM già occupata dal LLM
 
     Returns:
-        dict model_key -> 'gpu' | 'cpu'
+        dict model_key -> 'gpu' | 'cpu'  (solo per i modelli in ALL_MODELS)
     """
     if enabled_models is None:
         enabled_models = ALL_MODELS
 
-    allocation = {}
+    allocation: Dict[str, str] = {}
     backend = hardware.get('backend', 'cpu')
 
     # Caso 1: nessuna GPU → tutto su CPU
@@ -183,38 +189,26 @@ def auto_allocate(
             allocation[model] = 'cpu'
         return allocation
 
-    # Caso 2: Apple Silicon (MPS) — memoria unificata, no costo copia GPU↔CPU.
-    # Modelli pesanti su GPU (accelerazione Metal), leggeri su CPU (parallelismo)
+    # Caso 2: Apple Silicon MPS — memoria unificata, no limite VRAM discreto.
+    # Alloca su GPU tutti i modelli abilitati (Metal acceleration).
     if backend == 'mps':
         for model in ALL_MODELS:
-            if model not in enabled_models:
-                allocation[model] = 'cpu'
-            elif model in MODELS_PREFER_CPU:
-                allocation[model] = 'cpu'
-            else:
-                allocation[model] = 'gpu'
+            allocation[model] = 'gpu' if model in enabled_models else 'cpu'
         return allocation
 
-    # Caso 3: CUDA o DirectML — budget VRAM limitato
-    vram_total = hardware.get('vram_total_gb')
-    if vram_total is None:
-        vram_total = 4.0
+    # Caso 3: CUDA o DirectML — budget VRAM limitato.
+    vram_total = hardware.get('vram_total_gb') or 4.0
+    remaining = vram_total * headroom - llm_vram_gb
 
-    budget = vram_total * headroom
-    # Sottrae VRAM già occupata dal LLM (Ollama/LM Studio)
-    remaining = budget - llm_vram_gb
+    # Ordina i modelli abilitati per ROI GPU decrescente:
+    # ROI = speedup_GPU / vram_cost → chi guadagna di più per GB speso va prima.
+    candidates = sorted(
+        [m for m in enabled_models if m in ALL_MODELS],
+        key=lambda m: MODEL_GPU_SPEEDUP.get(m, 1.0) / MODEL_VRAM_ESTIMATES.get(m, 1.0),
+        reverse=True
+    )
 
-    # Modelli che preferiscono CPU → sempre CPU (parallelismo)
-    for model in MODELS_PREFER_CPU:
-        allocation[model] = 'cpu'
-
-    # Modelli che devono stare su GPU → allocali se c'è spazio
-    for model in MODEL_GPU_PRIORITY:
-        if model not in enabled_models:
-            allocation[model] = 'cpu'
-            continue
-        if model in allocation:
-            continue  # già assegnato
+    for model in candidates:
         vram_needed = MODEL_VRAM_ESTIMATES.get(model, 0)
         if remaining >= vram_needed:
             allocation[model] = 'gpu'
@@ -222,7 +216,7 @@ def auto_allocate(
         else:
             allocation[model] = 'cpu'
 
-    # Modelli non ancora assegnati (safety)
+    # Modelli non abilitati → CPU (non vengono caricati, ma il dict li include)
     for model in ALL_MODELS:
         if model not in allocation:
             allocation[model] = 'cpu'
