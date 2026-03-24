@@ -1716,6 +1716,7 @@ class EmbeddingGenerator:
         """
         import base64
         import io
+        from PIL import Image
 
         input_type = self._detect_input_type(image_input)
 
