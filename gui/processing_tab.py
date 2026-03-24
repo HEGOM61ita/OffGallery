@@ -878,11 +878,14 @@ class ProcessingWorker(QThread):
                 break
 
             fname = image_path.name
+            t_start = time.time()
+
             # Attendi che ExifTool abbia preparato questa foto
             while fname not in prep_cache:
                 if not self.is_running:
                     return
                 time.sleep(0.05)
+            t_prep_wait = time.time()
 
             prep = prep_cache.get(fname)
             work_thumb_path = prep.get('work_thumb_path') if prep else None
@@ -892,6 +895,7 @@ class ProcessingWorker(QThread):
                 continue
 
             thumb = self._load_work_thumb(work_thumb_path)
+            t_thumb_load = time.time()
             if thumb is None:
                 processed += 1
                 self.model_progress.emit('llm', processed, total)
@@ -950,6 +954,7 @@ class ProcessingWorker(QThread):
                 if should_gen_title:   modes.append('title')
 
                 llm_results = {'tags': None, 'description': None, 'title': None}
+                t_llm_start = time.time()
                 try:
                     if len(modes) == 1:
                         # Prompt singolo specializzato — più affidabile per un solo campo
@@ -979,9 +984,23 @@ class ProcessingWorker(QThread):
                         llm_results.update(combined)
                 except Exception as e:
                     self.log_message.emit(f"⚠️ LLM {fname}: {e}", "warning")
+                t_llm_end = time.time()
 
                 # Pulisci cache immagine LLM
                 emb_gen._cleanup_llm_image_cache()
+
+                # ⏱ Timer diagnostico per-fase LLM
+                queue_wait_ms = (t_prep_wait - t_start) * 1000
+                thumb_load_ms = (t_thumb_load - t_prep_wait) * 1000
+                llm_call_ms = (t_llm_end - t_llm_start) * 1000
+                total_ms = (t_llm_end - t_start) * 1000
+                overhead_ms = total_ms - llm_call_ms
+                self.log_message.emit(
+                    f"⏱ LLM {fname}: totale {total_ms:.0f}ms "
+                    f"(coda {queue_wait_ms:.0f}ms + thumb {thumb_load_ms:.0f}ms + "
+                    f"LLM {llm_call_ms:.0f}ms + overhead {overhead_ms - queue_wait_ms - thumb_load_ms:.0f}ms)",
+                    "debug"
+                )
 
                 # Costruisci update dict per DB
                 update_data = {'llm_generated': True}
