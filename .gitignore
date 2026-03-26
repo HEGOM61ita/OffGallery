@@ -32,6 +32,9 @@
 !plugins/llm_lmstudio/
 !plugins/llm_lmstudio/*.py
 !plugins/llm_lmstudio/*.json
+!plugins/bionomen/
+!plugins/bionomen/*.py
+!plugins/bionomen/*.json
 
 # Configurazione
 !*.yaml

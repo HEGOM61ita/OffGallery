@@ -22,6 +22,7 @@ from gui.gallery_tab import GalleryTab
 from gui.stats_tab import StatsTab
 from gui.export_tab import ExportTab
 from gui.log_tab import LogTab
+from gui.plugins_tab import PluginsTab
 from xmp_badge_manager import refresh_xmp_badges
 from xmp_badge_manager import shutdown_badge_manager
 from i18n import t
@@ -514,6 +515,7 @@ class MainWindow(QMainWindow):
         self.stats_tab = StatsTab(self)
         self.export_tab = ExportTab(self)
         self.log_tab = LogTab(self)
+        self.plugins_tab = PluginsTab(self)
 
         # === PROPAGA DATABASE MANAGER ALLE TAB ===
         if self.db_manager:
@@ -528,6 +530,8 @@ class MainWindow(QMainWindow):
                 self.processing_tab.set_database_manager(self.db_manager)
             if hasattr(self.export_tab, 'set_database_manager'):
                 self.export_tab.set_database_manager(self.db_manager)
+            if hasattr(self.plugins_tab, 'set_database_manager'):
+                self.plugins_tab.set_database_manager(self.db_manager)
         else:
             print("⚠️ Database manager non disponibile - tab funzioneranno in modalità limitata")
 
@@ -540,6 +544,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.export_tab, t("main.tab.export"))
         self.tabs.addTab(self.stats_tab, t("main.tab.stats"))
         self.tabs.addTab(self.log_tab, t("main.tab.log"))
+        self.tabs.addTab(self.plugins_tab, t("main.tab.plugins"))
                 
         # Connetti segnali
         self.search_tab.search_executed.connect(self.on_search_completed)
