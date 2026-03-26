@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QProgressBar, QDialog, QComboBox,
+    QLabel, QPushButton, QProgressBar, QDialog,
     QRadioButton, QButtonGroup, QFrame, QDialogButtonBox,
-    QMessageBox, QCheckBox, QLineEdit, QFileDialog, QScrollArea,
+    QMessageBox, QCheckBox, QLineEdit, QFileDialog,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QFont
@@ -381,30 +381,30 @@ class ConfigDialog(QDialog):
 
 
 class BioNomenWindow(QMainWindow):
-    """Finestra principale del plugin BioNomen."""
+    """
+    Finestra di elaborazione BioNomen — aperta come subprocess da OffGallery.
+    Mostra solo: progress bar, counter foto, label stato, bottone Interrompi.
+    Configura/DB/Avvia sono nella PluginCard di OffGallery.
+    """
 
     def __init__(self, db_path: str, config_path: Optional[str] = None):
         super().__init__()
         self.db_path = db_path
         self.config_path = config_path
 
-        # Configurazione corrente
         self._language = self._load_language_from_config()
         self._mode = "unprocessed"
-        self._ids_file = None              # Path file JSON con lista ID (modalità ids)
-        self._directory_filter = None      # Path directory da filtrare (modalità directory)
+        self._ids_file = None         # Path file JSON con lista ID (modalità ids)
+        self._directory_filter = None # Path directory da filtrare (modalità directory)
         self._worker = None
-        self._download_worker = None
         self._total = 0
-        self._download_start_time = None   # Timestamp avvio download per calcolo ETA
 
-        self.setWindowTitle("BioNomen")
-        self.setMinimumSize(640, 280)
-        self.resize(700, 300)
+        self.setWindowTitle("BioNomen — elaborazione")
+        self.setMinimumSize(520, 160)
+        self.resize(580, 180)
         self.setStyleSheet(_DARK_STYLE)
 
         self._build_ui()
-        self._refresh_db_status()
 
     def _load_language_from_config(self) -> str:
         """Legge la lingua default da config_new.yaml di OffGallery se disponibile."""
@@ -435,50 +435,20 @@ class BioNomenWindow(QMainWindow):
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(10)
 
-        # === Intestazione plugin ===
+        # === Intestazione minimale ===
         header_layout = QHBoxLayout()
-        title_label = QLabel("🔤 BioNomen  v1.0")
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #E0A84A;")
-        desc_label = QLabel("Arricchisce tag con nomi comuni biologici da GBIF")
-        desc_label.setStyleSheet("font-size: 11px; color: #B0B0B0;")
+        title_label = QLabel("🔤 BioNomen — elaborazione in corso")
+        title_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #E0A84A;")
         header_layout.addWidget(title_label)
-        header_layout.addWidget(desc_label)
-        header_layout.addStretch()
 
-        # Bottoni Configura / Avvia in alto a destra
-        self.btn_configure = QPushButton("⚙ Configura")
-        self.btn_configure.setFixedWidth(110)
-        self.btn_configure.clicked.connect(self._on_configure)
-        header_layout.addWidget(self.btn_configure)
-
-        self.btn_start = QPushButton("▶ Avvia")
+        self.btn_start = QPushButton("⏹ Interrompi")
         self.btn_start.setFixedWidth(110)
         self.btn_start.clicked.connect(self._on_start_stop)
         header_layout.addWidget(self.btn_start)
 
         main_layout.addLayout(header_layout)
 
-        # === Separatore ===
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setFrameShadow(QFrame.Shadow.Sunken)
-        main_layout.addWidget(sep)
-
-        # === Stato database ===
-        db_row = QHBoxLayout()
-        self.lbl_db_status = QLabel("Database: verifica in corso...")
-        self.lbl_db_status.setStyleSheet("font-size: 12px;")
-        db_row.addWidget(self.lbl_db_status)
-        db_row.addStretch()
-
-        self.btn_db_action = QPushButton("Scarica database")
-        self.btn_db_action.setFixedWidth(160)
-        self.btn_db_action.clicked.connect(self._on_db_action)
-        db_row.addWidget(self.btn_db_action)
-
-        main_layout.addLayout(db_row)
-
-        # === Progress bar + counter (nascosti a riposo) ===
+        # === Progress bar + counter ===
         self.progress_bar = QProgressBar()
         self.progress_bar.setStyleSheet(_PB_STYLE)
         self.progress_bar.setTextVisible(False)
@@ -505,137 +475,15 @@ class BioNomenWindow(QMainWindow):
 
         main_layout.addStretch()
 
-    def _refresh_db_status(self):
-        """Aggiorna la label stato database e il testo del bottone azione."""
-        sys.path.insert(0, str(Path(__file__).parent))
-        import bionomen
-
-        info = bionomen.get_database_info()
-        if info:
-            # Mostra taxa presenti e data aggiornamento
-            taxa_labels = [bionomen.TAXA[t]["label"].split(" (")[0] for t in info]
-            date_str = bionomen.get_database_date() or "data sconosciuta"
-            total_records = sum(v["count"] for v in info.values())
-            self.lbl_db_status.setText(
-                f"Database: ✓ {', '.join(taxa_labels)} — {total_records:,} record — {date_str}".replace(",", ".")
-            )
-            self.lbl_db_status.setStyleSheet("font-size: 12px; color: #4CAF50;")
-            self.btn_db_action.setText("Verifica aggiornamenti")
-            self.btn_start.setEnabled(True)
-        else:
-            cfg = bionomen.load_config()
-            taxa_enabled = cfg.get("taxa_enabled", ["aves"])
-            taxa_labels = [bionomen.TAXA[t]["label"].split(" (")[0] for t in taxa_enabled if t in bionomen.TAXA]
-            self.lbl_db_status.setText(
-                f"Database non presente — taxa selezionati: {', '.join(taxa_labels) or 'nessuno'}"
-            )
-            self.lbl_db_status.setStyleSheet("font-size: 12px; color: #E74C3C;")
-            self.btn_db_action.setText("Scarica database")
-            self.btn_start.setEnabled(False)
-
-    def _on_configure(self):
-        """Apre il dialog di configurazione."""
-        dialog = ConfigDialog(self._mode, parent=self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self._mode = dialog.get_mode()
-            self._refresh_db_status()
-
-    def _on_db_action(self):
-        """Gestisce click su 'Scarica database' o 'Verifica aggiornamenti'."""
-        sys.path.insert(0, str(Path(__file__).parent))
-        import bionomen
-
-        if bionomen.is_database_present():
-            # Verifica aggiornamenti: per ora re-inizializza il DB
-            reply = QMessageBox.question(
-                self,
-                "Aggiorna database",
-                "Vuoi aggiornare il database BioNomen?\n"
-                "Il database verrà re-inizializzato. I dati in cache verranno mantenuti.",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            )
-            if reply != QMessageBox.StandardButton.Yes:
-                return
-
-        self._start_download()
-
-    def _start_download(self):
-        """Avvia il download/inizializzazione del database in background."""
-        self.btn_db_action.setEnabled(False)
-        self.btn_start.setEnabled(False)
-        self.btn_configure.setEnabled(False)
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(0)
-        self.progress_bar.show()
-        self.lbl_counter.show()
-        self.lbl_status.setText("Connessione a GBIF...")
-        self._download_start_time = None
-
-        self._download_worker = DownloadWorker(language=self._language, parent=self)
-        self._download_worker.signals.progress.connect(self._on_download_progress)
-        self._download_worker.signals.status.connect(self._on_download_status)
-        self._download_worker.signals.finished.connect(self._on_download_finished)
-        self._download_worker.signals.error.connect(self._on_worker_error)
-        self._download_worker.start()
-
-    def _on_download_status(self, text: str):
-        """Aggiorna il testo descrittivo durante il download."""
-        self.lbl_status.setText(text)
-
-    def _on_download_progress(self, current: int, total: int):
-        """Aggiorna la progress bar durante il download con ETA."""
-        import time as _time
-        if self._download_start_time is None and current > 0:
-            self._download_start_time = _time.monotonic()
-
-        if total > 0:
-            pct = int(current * 100 / total)
-            self.progress_bar.setValue(pct)
-
-        cur_fmt = f"{current:,}".replace(",", ".")
-        tot_fmt = f"{total:,}".replace(",", ".")
-
-        # Calcola ETA se abbiamo abbastanza dati
-        eta_str = ""
-        if self._download_start_time and current > 0 and total > current:
-            elapsed  = _time.monotonic() - self._download_start_time
-            rate     = current / elapsed if elapsed > 0 else None
-            if rate:
-                remaining = (total - current) / rate
-                if remaining < 60:
-                    eta_str = f"  (~{int(remaining)}s)"
-                elif remaining < 3600:
-                    eta_str = f"  (~{int(remaining / 60)}min)"
-                else:
-                    eta_str = f"  (~{remaining / 3600:.1f}h)"
-
-        self.lbl_counter.setText(f"{cur_fmt} / {tot_fmt} specie{eta_str}")
-
-    def _on_download_finished(self):
-        """Chiamato al completamento del download."""
-        self.progress_bar.hide()
-        self.lbl_counter.hide()
-        self.btn_db_action.setEnabled(True)
-        self.btn_configure.setEnabled(True)
-        self._refresh_db_status()
-        self.lbl_status.setText("Database inizializzato.")
-
     def _on_start_stop(self):
-        """Avvia o interrompe l'elaborazione."""
+        """Interrompe l'elaborazione se in corso."""
         if self._worker and self._worker.isRunning():
-            # Interrompi
             self._worker.stop()
-            self.btn_start.setText("▶ Avvia")
+            self.btn_start.setEnabled(False)
             self.lbl_status.setText("Interruzione in corso...")
-        else:
-            # Avvia
-            self._start_processing()
 
     def _start_processing(self):
         """Avvia l'elaborazione delle immagini in background."""
-        self.btn_start.setText("⏹ Interrompi")
-        self.btn_configure.setEnabled(False)
-        self.btn_db_action.setEnabled(False)
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.show()
@@ -648,8 +496,8 @@ class BioNomenWindow(QMainWindow):
             db_path=self.db_path,
             mode=self._mode,
             language=self._language,
-            ids_file=getattr(self, "_ids_file", None),
-            directory_filter=getattr(self, "_directory_filter", None),
+            ids_file=self._ids_file,
+            directory_filter=self._directory_filter,
             parent=self,
         )
         self._worker.signals.progress.connect(self._on_process_progress)
@@ -661,42 +509,32 @@ class BioNomenWindow(QMainWindow):
     def _on_process_progress(self, current: int, total: int):
         """Aggiorna progress bar e counter durante l'elaborazione."""
         if total > 0:
-            pct = int(current * 100 / total)
-            self.progress_bar.setValue(pct)
-        # Formato con punto come separatore migliaia (stile italiano)
+            self.progress_bar.setValue(int(current * 100 / total))
         cur_fmt = f"{current:,}".replace(",", ".")
         tot_fmt = f"{total:,}".replace(",", ".")
         self.lbl_counter.setText(f"{cur_fmt} / {tot_fmt}")
         self._total = total
 
     def _on_summary(self, total: int, matched: int, not_matched: int):
-        """Riceve il riepilogo finale e aggiorna il label stato."""
+        """Riceve il riepilogo finale."""
         self.lbl_status.setText(
             f"Completate {total}  ✓ {matched} con nome  ✗ {not_matched} senza"
         )
 
     def _on_process_finished(self):
         """Chiamato al completamento dell'elaborazione."""
-        self.btn_start.setText("▶ Avvia")
-        self.btn_configure.setEnabled(True)
-        self.btn_db_action.setEnabled(True)
-        self.progress_bar.hide()
-        self.lbl_counter.hide()
-        # Se _on_summary non ha aggiornato il testo, mostra messaggio generico
+        self.btn_start.setEnabled(False)  # non serve più — la finestra può essere chiusa
+        self.progress_bar.setValue(100)
         if self.lbl_status.text() == "Elaborazione in corso...":
             self.lbl_status.setText("Elaborazione completata.")
         self._worker = None
 
     def _on_worker_error(self, error_msg: str):
         """Gestisce errori dal worker."""
-        self.btn_start.setText("▶ Avvia")
-        self.btn_configure.setEnabled(True)
-        self.btn_db_action.setEnabled(True)
         self.progress_bar.hide()
         self.lbl_counter.hide()
         self.lbl_status.setText(f"Errore: {error_msg}")
         self._worker = None
-        self._download_worker = None
         logger.error(f"Worker error: {error_msg}")
 
     def closeEvent(self, event):
@@ -704,8 +542,6 @@ class BioNomenWindow(QMainWindow):
         if self._worker and self._worker.isRunning():
             self._worker.stop()
             self._worker.wait(3000)
-        if self._download_worker and self._download_worker.isRunning():
-            self._download_worker.wait(3000)
         event.accept()
 
 
