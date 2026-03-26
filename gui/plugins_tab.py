@@ -24,7 +24,7 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QProgressBar, QFrame, QScrollArea, QSizePolicy,
+    QFrame, QScrollArea, QSizePolicy,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
@@ -33,14 +33,6 @@ from i18n import t
 
 logger = logging.getLogger(__name__)
 
-
-# Stile progress bar dark-gold coerente con processing_tab.py
-_PB_STYLE = """
-    QProgressBar { border: 1px solid #555; background: #2a2a2a;
-                   border-radius: 3px; max-height: 8px; }
-    QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-        stop:0 #C88B2E, stop:1 #E0A84A); border-radius: 2px; }
-"""
 
 # Palette colori (coerente con main_window.py)
 _COLORS = {
@@ -60,10 +52,14 @@ _COLORS = {
 
 class StdoutReaderThread(QThread):
     """
-    Thread che legge stdout di un sottoprocesso e parsa le righe PROGRESS:n:total.
-    Emette progress(current, total) e finished() quando il processo termina.
+    Thread che legge stdout di un sottoprocesso e parsa:
+      PROGRESS:n:total         → aggiorna progress bar
+      SUMMARY:tot:match:nomatch → riepilogo finale
+      SOURCE:fonte:specie      → log info fonte consultata
+      LOG:level:messaggio      → log warning/error
     """
     progress = pyqtSignal(int, int)
+    summary  = pyqtSignal(int, int, int)
     finished = pyqtSignal()
 
     def __init__(self, process: subprocess.Popen, parent=None):
@@ -71,25 +67,81 @@ class StdoutReaderThread(QThread):
         self._process = process
 
     def run(self):
-        """Legge stdout riga per riga finche' il processo non termina."""
         try:
             for line in self._process.stdout:
                 line = line.strip()
                 if line.startswith("PROGRESS:"):
-                    # Formato: PROGRESS:current:total
                     parts = line.split(":")
                     if len(parts) == 3:
                         try:
-                            current = int(parts[1])
-                            total = int(parts[2])
-                            self.progress.emit(current, total)
+                            self.progress.emit(int(parts[1]), int(parts[2]))
                         except ValueError:
                             pass
+                elif line.startswith("SUMMARY:"):
+                    parts = line.split(":")
+                    if len(parts) == 4:
+                        try:
+                            self.summary.emit(int(parts[1]), int(parts[2]), int(parts[3]))
+                        except ValueError:
+                            pass
+                elif line.startswith("SOURCE:"):
+                    # Formato: SOURCE:fonte:nome_scientifico
+                    rest = line[len("SOURCE:"):]
+                    sep = rest.find(":")
+                    if sep != -1:
+                        fonte = rest[:sep]
+                        specie = rest[sep+1:]
+                        logger.debug(f"BioNomen [{fonte}] → {specie}")
+                elif line.startswith("LOG:"):
+                    # Formato: LOG:level:messaggio
+                    rest = line[len("LOG:"):]
+                    sep = rest.find(":")
+                    if sep != -1:
+                        level = rest[:sep].lower()
+                        msg = rest[sep+1:]
+                        if level == "warning":
+                            logger.warning(f"BioNomen: {msg}")
+                        elif level == "error":
+                            logger.error(f"BioNomen: {msg}")
+                        else:
+                            logger.info(f"BioNomen: {msg}")
             self._process.wait()
         except Exception as e:
             logger.debug(f"StdoutReaderThread: errore lettura stdout: {e}")
         finally:
             self.finished.emit()
+
+
+class DownloadWorker(QThread):
+    """
+    Thread in-process per il download/inizializzazione del database del plugin.
+    Importa bionomen.py direttamente senza sottoprocesso.
+    """
+    progress = pyqtSignal(int, int)
+    finished = pyqtSignal()
+    error = pyqtSignal(str)
+
+    def __init__(self, plugin_dir: Path, parent=None):
+        super().__init__(parent)
+        self._plugin_dir = plugin_dir
+
+    def run(self):
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "bionomen_core_dl", str(self._plugin_dir / "bionomen.py")
+            )
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+
+            def _cb(current, total):
+                self.progress.emit(current, total)
+
+            mod.download_and_build_database(progress_callback=_cb)
+            self.finished.emit()
+        except Exception as e:
+            logger.error(f"DownloadWorker errore: {e}")
+            self.error.emit(str(e))
 
 
 class PluginCard(QFrame):
@@ -109,8 +161,13 @@ class PluginCard(QFrame):
         self._db_path = db_path
         self._config_path = config_path
 
-        self._process = None          # subprocess.Popen attivo
-        self._reader_thread = None    # StdoutReaderThread attivo
+        # Modalità elaborazione corrente (lingua gestita da config.json del plugin)
+        self._mode = "unprocessed"
+        self._directory_filter = ""    # path directory selezionate (modalità directory)
+
+        self._process = None           # subprocess.Popen attivo (elaborazione)
+        self._reader_thread = None     # StdoutReaderThread attivo
+        self._download_worker = None   # DownloadWorker in-process
 
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
@@ -194,35 +251,19 @@ class PluginCard(QFrame):
             f"padding: 3px 8px; font-size: 11px; }}"
             f"QPushButton:hover {{ background-color: {_COLORS['blu_petrolio']}; }}"
         )
-        self.btn_db.clicked.connect(self._on_launch_plugin)
+        self.btn_db.clicked.connect(self._on_db_action)
         db_row.addWidget(self.btn_db)
 
         layout.addLayout(db_row)
 
-        # === Progress row (nascosta a riposo) ===
-        self._progress_row = QWidget()
-        progress_layout = QHBoxLayout(self._progress_row)
-        progress_layout.setContentsMargins(0, 0, 0, 0)
-        progress_layout.setSpacing(8)
-
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setStyleSheet(_PB_STYLE)
-        self.progress_bar.setTextVisible(False)
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(0)
-        progress_layout.addWidget(self.progress_bar)
-
-        self.lbl_counter = QLabel("0 / 0")
-        self.lbl_counter.setStyleSheet(
-            f"font-size: 11px; color: {_COLORS['grigio_medio']}; min-width: 90px;"
+        # === Riga modalità: mostra modo corrente e directory selezionate ===
+        self.lbl_mode = QLabel()
+        self.lbl_mode.setStyleSheet(
+            f"font-size: 10px; color: {_COLORS['grigio_medio']}; font-style: italic;"
         )
-        self.lbl_counter.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        progress_layout.addWidget(self.lbl_counter)
+        self.lbl_mode.hide()
+        layout.addWidget(self.lbl_mode)
 
-        self._progress_row.hide()
-        layout.addWidget(self._progress_row)
 
     def _refresh_db_status(self):
         """
@@ -278,70 +319,186 @@ class PluginCard(QFrame):
         entry = self._manifest.get("entry_point", "")
         return str(self._plugin_dir / entry)
 
-    def _on_configure(self):
-        """Lancia il plugin in modalita' configurazione (senza argomenti extra)."""
-        self._on_launch_plugin()
-
-    def _on_launch_plugin(self):
-        """
-        Lancia il plugin come sottoprocesso con gli argomenti --db e --config.
-        Se il processo e' gia' attivo, non fa nulla.
-        """
-        if self._process and self._process.poll() is None:
-            # Il processo e' gia' in esecuzione
+    def _on_db_action(self):
+        """Scarica o aggiorna il database del plugin direttamente in-process."""
+        from PyQt6.QtWidgets import QMessageBox
+        bionomen_module = self._plugin_dir / "bionomen.py"
+        if not bionomen_module.exists():
+            logger.warning("bionomen.py non trovato")
             return
 
-        entry = self._get_entry_point_path()
-        if not Path(entry).exists():
-            logger.warning(f"Entry point non trovato: {entry}")
-            return
-
-        cmd = [sys.executable, entry, "--db", self._db_path]
-        if self._config_path:
-            cmd += ["--config", self._config_path]
-
+        # Se già presente chiede conferma aggiornamento
         try:
-            self._process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-                bufsize=1,
-            )
-            logger.info(f"Plugin avviato: {' '.join(cmd)}")
-
-            # Avvia reader thread per lo stdout
-            self._reader_thread = StdoutReaderThread(self._process, parent=self)
-            self._reader_thread.progress.connect(self._on_progress)
-            self._reader_thread.finished.connect(self._on_process_finished)
-            self._reader_thread.start()
-
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("bionomen_core_check", str(bionomen_module))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            if mod.is_database_present():
+                reply = QMessageBox.question(
+                    self, "Aggiorna database",
+                    "Il database BioNomen è già presente.\nVuoi verificare e aggiornare?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
         except Exception as e:
-            logger.error(f"Errore avvio plugin: {e}")
+            logger.warning(f"Impossibile verificare DB: {e}")
+
+        self._start_download()
+
+    def _start_download(self):
+        """Avvia il DownloadWorker in-process."""
+        self.btn_db.setEnabled(False)
+        self.btn_start.setEnabled(False)
+        self.btn_configure.setEnabled(False)
+
+        self._download_worker = DownloadWorker(self._plugin_dir, parent=self)
+        self._download_worker.finished.connect(self._on_download_finished)
+        self._download_worker.error.connect(self._on_download_error)
+        self._download_worker.start()
+
+    def _on_download_finished(self):
+        """Chiamato al termine del download."""
+        self.btn_db.setEnabled(True)
+        self.btn_configure.setEnabled(True)
+        self._download_worker = None
+        self._refresh_db_status()
+
+    def _on_download_error(self, msg: str):
+        """Chiamato in caso di errore nel download."""
+        self.btn_db.setEnabled(True)
+        self.btn_configure.setEnabled(True)
+        self._download_worker = None
+        logger.error(f"Errore download DB plugin: {msg}")
+
+    def _on_configure(self):
+        """Apre il ConfigDialog di BioNomen direttamente, senza lanciare il sottoprocesso."""
+        try:
+            import importlib.util
+            ui_path = self._plugin_dir / self._manifest.get("entry_point", "bionomen_ui.py")
+            spec = importlib.util.spec_from_file_location("bionomen_ui", str(ui_path))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+
+            # Calcola conteggi candidati per il dialog
+            count_unprocessed, count_total, count_gallery = -1, -1, -1
+            if self._db_path:
+                try:
+                    import sqlite3
+                    conn = sqlite3.connect(self._db_path)
+                    count_total = conn.execute(
+                        "SELECT COUNT(*) FROM images WHERE bioclip_taxonomy IS NOT NULL"
+                    ).fetchone()[0]
+                    count_unprocessed = conn.execute(
+                        "SELECT COUNT(*) FROM images WHERE bioclip_taxonomy IS NOT NULL AND vernacular_name IS NULL"
+                    ).fetchone()[0]
+                    conn.close()
+                except Exception:
+                    pass
+
+            # Conta foto selezionate in gallery
+            main_window = self._get_main_window()
+            if main_window and hasattr(main_window, "get_selected_gallery_items"):
+                selected = main_window.get_selected_gallery_items()
+                count_gallery = len(selected) if selected else 0
+
+            dialog = mod.ConfigDialog(
+                self._mode,
+                count_unprocessed=count_unprocessed,
+                count_total=count_total,
+                count_gallery=count_gallery,
+                parent=self,
+            )
+            if dialog.exec():
+                self._mode = dialog.get_mode()
+                if self._mode == "directory":
+                    dir_filter = self._pick_directory()
+                    if not dir_filter:
+                        # Utente ha annullato il tree → ricade su unprocessed
+                        self._mode = "unprocessed"
+                        self._directory_filter = ""
+                        self.lbl_mode.hide()
+                    else:
+                        self._directory_filter = dir_filter
+                        # Mostra le directory selezionate come etichetta
+                        n = len(dir_filter.split("|"))
+                        dirs_short = ", ".join(
+                            Path(d).name for d in dir_filter.split("|")[:3]
+                        )
+                        if n > 3:
+                            dirs_short += f" (+{n - 3})"
+                        self.lbl_mode.setText(f"Directory: {dirs_short}")
+                        self.lbl_mode.show()
+                else:
+                    self._directory_filter = ""
+                    self.lbl_mode.hide()
+        except Exception as e:
+            logger.error(f"Impossibile aprire ConfigDialog: {e}")
+
+    def _get_main_window(self):
+        """Risale la gerarchia dei parent per trovare la QMainWindow."""
+        widget = self.parent()
+        while widget:
+            from PyQt6.QtWidgets import QMainWindow
+            if isinstance(widget, QMainWindow):
+                return widget
+            widget = widget.parent()
+        return None
 
     def _on_start_stop(self):
-        """Avvia o interrompe l'elaborazione lanciando/terminando il sottoprocesso."""
+        """Avvia l'elaborazione aprendo la finestra BioNomen."""
         if self._process and self._process.poll() is None:
-            # Processo attivo → interrompi
-            self._process.terminate()
-            self.btn_start.setText(t("plugins.button.start"))
-            self._progress_row.hide()
-            logger.info("Plugin interrotto dall'utente")
-        else:
-            # Avvia elaborazione
-            self._start_processing()
+            return  # Processo già attivo — non fare nulla (btn_start è disabilitato)
+        self._start_processing()
 
     def _start_processing(self):
         """Avvia il sottoprocesso per l'elaborazione."""
+        from PyQt6.QtWidgets import QMessageBox
         entry = self._get_entry_point_path()
         if not Path(entry).exists():
             logger.warning(f"Entry point non trovato: {entry}")
             return
 
-        cmd = [sys.executable, entry, "--db", self._db_path]
+        cmd = [sys.executable, entry, "--db", self._db_path,
+               "--mode", self._mode]
         if self._config_path:
             cmd += ["--config", self._config_path]
+
+        # Gestione modalità ids: scrivi IDs in file temp e passa il path
+        if self._mode == "ids":
+            main_window = self._get_main_window()
+            selected = []
+            if main_window and hasattr(main_window, "get_selected_gallery_items"):
+                items = main_window.get_selected_gallery_items()
+                selected = [
+                    item.image_data.get("id")
+                    for item in (items or [])
+                    if hasattr(item, "image_data") and item.image_data.get("id") is not None
+                ]
+            if not selected:
+                QMessageBox.warning(
+                    self, "BioNomen",
+                    "Nessuna foto selezionata in Gallery.\n"
+                    "Seleziona almeno una foto prima di avviare.",
+                )
+                return
+            import tempfile
+            ids_file = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".json", delete=False, encoding="utf-8"
+            )
+            json.dump(selected, ids_file)
+            ids_file.close()
+            cmd += ["--ids-file", ids_file.name]
+
+        # Gestione modalità directory: usa directory già scelte in configurazione
+        elif self._mode == "directory":
+            if not self._directory_filter:
+                # Sicurezza: nessuna directory configurata, apri dialog ora
+                dir_filter = self._pick_directory()
+                if not dir_filter:
+                    return  # Utente ha annullato
+                self._directory_filter = dir_filter
+            cmd += ["--directory", self._directory_filter]
 
         try:
             self._process = subprocess.Popen(
@@ -354,38 +511,61 @@ class PluginCard(QFrame):
             )
             logger.info(f"Plugin (elaborazione) avviato: {' '.join(cmd)}")
 
-            self.btn_start.setText(t("plugins.button.stop"))
+            # Tasto Avvia rimane disabilitato finché il processo gira
+            self.btn_start.setEnabled(False)
             self.btn_configure.setEnabled(False)
             self.btn_db.setEnabled(False)
-            self.progress_bar.setValue(0)
-            self._progress_row.show()
 
             self._reader_thread = StdoutReaderThread(self._process, parent=self)
-            self._reader_thread.progress.connect(self._on_progress)
             self._reader_thread.finished.connect(self._on_process_finished)
             self._reader_thread.start()
 
         except Exception as e:
             logger.error(f"Errore avvio elaborazione plugin: {e}")
 
-    def _on_progress(self, current: int, total: int):
-        """Aggiorna progress bar e counter."""
-        if total > 0:
-            pct = int(current * 100 / total)
-            self.progress_bar.setValue(pct)
-        cur_fmt = f"{current:,}".replace(",", ".")
-        tot_fmt = f"{total:,}".replace(",", ".")
-        self.lbl_counter.setText(f"{cur_fmt} / {tot_fmt}")
+    def _pick_directory(self) -> str:
+        """Apre il dialog albero directory del DB OffGallery. Ritorna il path scelto o ''."""
+        if not self._db_path:
+            return ""
+        try:
+            import sqlite3
+            from gui.directory_dialog import DirectoryTreeDialog
+            from PyQt6.QtWidgets import QMessageBox
+
+            # Legge filepath e calcola directory parent (come db_manager.get_directory_image_counts)
+            conn = sqlite3.connect(self._db_path)
+            rows = conn.execute(
+                "SELECT filepath FROM images WHERE bioclip_taxonomy IS NOT NULL"
+            ).fetchall()
+            conn.close()
+
+            dir_counts = {}
+            for (fp,) in rows:
+                if fp:
+                    parent = str(Path(fp).parent)
+                    dir_counts[parent] = dir_counts.get(parent, 0) + 1
+
+            if not dir_counts:
+                QMessageBox.information(self, "BioNomen", "Nessuna directory nel database.")
+                return ""
+
+            dlg = DirectoryTreeDialog(dir_counts, parent=self)
+            if dlg.exec() and dlg.selected_directories:
+                # Passa tutte le directory selezionate come stringa separata da '|'
+                # process_images gestirà il filtro multiplo
+                return "|".join(dlg.selected_directories)
+            return ""
+        except Exception as e:
+            logger.error(f"Errore apertura dialog directory: {e}")
+            return ""
 
     def _on_process_finished(self):
         """Chiamato quando il sottoprocesso termina."""
-        self.btn_start.setText(t("plugins.button.start"))
+        self.btn_start.setEnabled(True)
         self.btn_configure.setEnabled(True)
         self.btn_db.setEnabled(True)
-        self._progress_row.hide()
         self._process = None
         self._reader_thread = None
-        # Aggiorna stato DB (potrebbe essere cambiato)
         self._refresh_db_status()
 
 

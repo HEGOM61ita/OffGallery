@@ -13,6 +13,7 @@ import argparse
 import json
 import logging
 from pathlib import Path
+from typing import Optional
 
 # Configura logging base (senza accedere a OffGallery)
 logging.basicConfig(
@@ -25,7 +26,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QProgressBar, QDialog, QComboBox,
     QRadioButton, QButtonGroup, QFrame, QDialogButtonBox,
-    QMessageBox,
+    QMessageBox, QCheckBox, QLineEdit, QFileDialog, QScrollArea,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QFont
@@ -85,6 +86,21 @@ _DARK_STYLE = """
     }
     QRadioButton {
         color: #E3E3E3;
+        spacing: 8px;
+    }
+    QRadioButton::indicator {
+        width: 14px;
+        height: 14px;
+        border-radius: 7px;
+        border: 2px solid #B0B0B0;
+        background-color: #2A2A2A;
+    }
+    QRadioButton::indicator:checked {
+        border: 2px solid #E0A84A;
+        background-color: #E0A84A;
+    }
+    QRadioButton::indicator:hover {
+        border: 2px solid #E0A84A;
     }
     QFrame[frameShape="4"], QFrame[frameShape="5"] {
         color: #3A3A3A;
@@ -105,6 +121,8 @@ _LANGUAGES = [
 class WorkerSignals(QObject):
     """Segnali emessi dal thread worker."""
     progress = pyqtSignal(int, int)      # (current, total)
+    summary  = pyqtSignal(int, int, int) # (total, matched, not_matched)
+    status   = pyqtSignal(str)           # testo descrittivo per lbl_status
     finished = pyqtSignal()
     error = pyqtSignal(str)
 
@@ -112,66 +130,90 @@ class WorkerSignals(QObject):
 class ProcessWorker(QThread):
     """Thread worker per l'elaborazione delle immagini."""
 
-    def __init__(self, db_path: str, mode: str, language: str, parent=None):
+    def __init__(self, db_path: str, mode: str, language: str,
+                 ids_file: str = None, directory_filter: str = None, parent=None):
         super().__init__(parent)
         self.db_path = db_path
         self.mode = mode
         self.language = language
+        self.ids_file = ids_file
+        self.directory_filter = directory_filter
         self.signals = WorkerSignals()
-        self._stop_flag = False
+        import threading
+        self._stop_event = threading.Event()
 
     def stop(self):
-        """Richiede l'interruzione del worker."""
-        self._stop_flag = True
+        """Richiede l'interruzione del worker — il loop si ferma alla prossima specie."""
+        self._stop_event.set()
 
     def run(self):
         """Esegue l'elaborazione in background."""
         try:
-            # Import locale: bionomen.py e' nella stessa directory
-            import os
             sys.path.insert(0, str(Path(__file__).parent))
             import bionomen
 
             def _progress_cb(current: int, total: int):
-                if self._stop_flag:
-                    raise InterruptedError("Elaborazione interrotta dall'utente")
                 self.signals.progress.emit(current, total)
-                # Stampa su stdout per OffGallery
                 print(f"PROGRESS:{current}:{total}", flush=True)
 
-            bionomen.process_images(
+            # Risolve lista ID se modalità ids
+            image_ids = None
+            if self.mode == "ids" and self.ids_file:
+                try:
+                    with open(self.ids_file, "r", encoding="utf-8") as f:
+                        image_ids = json.load(f)
+                    Path(self.ids_file).unlink(missing_ok=True)  # Cancella file temp
+                except Exception as e:
+                    logger.warning(f"Impossibile leggere ids_file: {e}")
+
+            total, matched, not_matched = bionomen.process_images(
                 offgallery_db_path=self.db_path,
                 mode=self.mode,
                 language=self.language,
                 progress_callback=_progress_cb,
+                stop_event=self._stop_event,
+                image_ids=image_ids,
+                directory_filter=self.directory_filter,
             )
+            self.signals.summary.emit(total, matched, not_matched)
             self.signals.finished.emit()
 
-        except InterruptedError:
-            self.signals.finished.emit()
         except Exception as e:
             logger.error(f"Errore elaborazione: {e}", exc_info=True)
             self.signals.error.emit(str(e))
 
 
 class DownloadWorker(QThread):
-    """Thread worker per il download/inizializzazione del database locale."""
+    """Thread worker per il download bulk GBIF dei taxa configurati."""
 
-    def __init__(self, parent=None):
+    def __init__(self, language: str = None, parent=None):
         super().__init__(parent)
+        self.language = language
         self.signals = WorkerSignals()
+        import threading
+        self._stop_event = threading.Event()
+
+    def stop(self):
+        self._stop_event.set()
 
     def run(self):
-        """Esegue l'inizializzazione del DB in background."""
+        """Esegue il download bulk in background."""
         try:
             sys.path.insert(0, str(Path(__file__).parent))
             import bionomen
 
             def _progress_cb(current: int, total: int):
                 self.signals.progress.emit(current, total)
-                print(f"PROGRESS:{current}:{total}", flush=True)
 
-            bionomen.download_and_build_database(progress_callback=_progress_cb)
+            def _status_cb(text: str):
+                self.signals.status.emit(text)
+
+            bionomen.download_and_build_database(
+                language=getattr(self, "language", None),
+                progress_callback=_progress_cb,
+                status_callback=_status_cb,
+                stop_event=self._stop_event,
+            )
             self.signals.finished.emit()
 
         except Exception as e:
@@ -180,77 +222,162 @@ class DownloadWorker(QThread):
 
 
 class ConfigDialog(QDialog):
-    """Dialog modale per la configurazione del plugin."""
+    """
+    Dialog configurazione BioNomen.
 
-    def __init__(self, current_language: str, current_mode: str, parent=None):
+    Sezioni:
+    - Taxa da scaricare (checkbox per Aves, Mammalia, ...)
+    - Directory dati (dove salvare i DB per taxon)
+    - Modalità elaborazione (4 opzioni)
+    """
+
+    def __init__(self, current_mode: str,
+                 count_unprocessed: int = -1, count_total: int = -1,
+                 count_gallery: int = -1,
+                 parent=None):
         super().__init__(parent)
         self.setWindowTitle("BioNomen — Configurazione")
         self.setModal(True)
-        self.setFixedSize(320, 220)
+        self.setMinimumWidth(420)
         self.setStyleSheet(_DARK_STYLE)
 
-        self._language = current_language
         self._mode = current_mode
+        self._count_unprocessed = count_unprocessed
+        self._count_total = count_total
+        self._count_gallery = count_gallery
+
+        # Carica config corrente
+        sys.path.insert(0, str(Path(__file__).parent))
+        import bionomen
+        self._cfg = bionomen.load_config()
 
         self._build_ui()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
 
-        # Lingua
-        lang_label = QLabel("Lingua output")
-        lang_label.setStyleSheet("font-weight: bold;")
-        layout.addWidget(lang_label)
+        _sep = lambda: self._make_sep()
 
-        self.lang_combo = QComboBox()
-        for code, name in _LANGUAGES:
-            self.lang_combo.addItem(name, userData=code)
-            if code == self._language:
-                self.lang_combo.setCurrentIndex(self.lang_combo.count() - 1)
-        layout.addWidget(self.lang_combo)
+        # --- Sezione Taxa ---
+        taxa_label = QLabel("Taxa da scaricare")
+        taxa_label.setStyleSheet("font-weight: bold; font-size: 12px;")
+        layout.addWidget(taxa_label)
 
-        # Separatore
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(sep)
+        import bionomen
+        self._taxa_checks = {}
+        enabled = set(self._cfg.get("taxa_enabled", ["aves"]))
+        for taxon_id, info in bionomen.TAXA.items():
+            cb = QCheckBox(info["label"])
+            cb.setChecked(taxon_id in enabled)
+            self._taxa_checks[taxon_id] = cb
+            layout.addWidget(cb)
 
-        # Modalita'
-        mode_label = QLabel("Modalità")
-        mode_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(_sep())
+
+        # --- Sezione Directory dati ---
+        dir_label = QLabel("Directory database")
+        dir_label.setStyleSheet("font-weight: bold; font-size: 12px;")
+        layout.addWidget(dir_label)
+
+        dir_row = QHBoxLayout()
+        self._dir_edit = QLineEdit(self._cfg.get("data_dir", ""))
+        self._dir_edit.setStyleSheet(
+            "background: #1E1E1E; color: #E3E3E3; border: 1px solid #3A3A3A; "
+            "border-radius: 3px; padding: 3px 6px;"
+        )
+        dir_row.addWidget(self._dir_edit)
+
+        btn_browse = QPushButton("Sfoglia…")
+        btn_browse.setFixedWidth(80)
+        btn_browse.clicked.connect(self._browse_dir)
+        dir_row.addWidget(btn_browse)
+        layout.addLayout(dir_row)
+
+        layout.addWidget(_sep())
+
+        # --- Sezione Modalità elaborazione ---
+        mode_label = QLabel("Modalità elaborazione")
+        mode_label.setStyleSheet("font-weight: bold; font-size: 12px;")
         layout.addWidget(mode_label)
 
         self._mode_group = QButtonGroup(self)
-        self.radio_unprocessed = QRadioButton("Solo foto non processate")
-        self.radio_all = QRadioButton("Tutto il database")
-        self._mode_group.addButton(self.radio_unprocessed)
-        self._mode_group.addButton(self.radio_all)
 
-        if self._mode == "all":
-            self.radio_all.setChecked(True)
-        else:
-            self.radio_unprocessed.setChecked(True)
+        lbl_unprocessed = "Solo foto non ancora processate"
+        lbl_all = "Tutto il database"
+        lbl_gallery = "Foto selezionate in Gallery"
+        lbl_directory = "Scegli directory…"
 
-        layout.addWidget(self.radio_unprocessed)
-        layout.addWidget(self.radio_all)
+        if self._count_unprocessed >= 0:
+            lbl_unprocessed += f"  ({self._count_unprocessed:,} foto)".replace(",", ".")
+        if self._count_total >= 0:
+            lbl_all += f"  ({self._count_total:,} foto)".replace(",", ".")
+        if self._count_gallery >= 0:
+            lbl_gallery += f"  ({self._count_gallery:,} selezionate)".replace(",", ".")
 
-        # Bottoni
+        self.radio_unprocessed = QRadioButton(lbl_unprocessed)
+        self.radio_all        = QRadioButton(lbl_all)
+        self.radio_gallery    = QRadioButton(lbl_gallery)
+        self.radio_directory  = QRadioButton(lbl_directory)
+
+        self._mode_group.addButton(self.radio_unprocessed, 0)
+        self._mode_group.addButton(self.radio_all,         1)
+        self._mode_group.addButton(self.radio_gallery,     2)
+        self._mode_group.addButton(self.radio_directory,   3)
+
+        for rb in (self.radio_unprocessed, self.radio_all, self.radio_gallery, self.radio_directory):
+            layout.addWidget(rb)
+
+        # Seleziona modalità corrente
+        _map = {"unprocessed": self.radio_unprocessed, "all": self.radio_all,
+                "ids": self.radio_gallery, "directory": self.radio_directory}
+        _map.get(self._mode, self.radio_unprocessed).setChecked(True)
+
+        layout.addWidget(_sep())
+
+        # --- Bottoni OK/Annulla ---
         btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Save
         )
         btn_box.button(QDialogButtonBox.StandardButton.Save).setText("Salva")
         btn_box.button(QDialogButtonBox.StandardButton.Cancel).setText("Annulla")
-        btn_box.accepted.connect(self.accept)
+        btn_box.accepted.connect(self._on_accept)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
 
-    def get_language(self) -> str:
-        return self.lang_combo.currentData()
+    def _make_sep(self) -> QFrame:
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        return sep
+
+    def _browse_dir(self):
+        current = self._dir_edit.text() or str(Path(__file__).parent / "data")
+        chosen = QFileDialog.getExistingDirectory(self, "Seleziona directory database", current)
+        if chosen:
+            self._dir_edit.setText(chosen)
+
+    def _on_accept(self):
+        # Salva config
+        import bionomen
+        taxa_enabled = [tid for tid, cb in self._taxa_checks.items() if cb.isChecked()]
+        if not taxa_enabled:
+            QMessageBox.warning(self, "BioNomen", "Seleziona almeno un taxon.")
+            return
+        self._cfg["taxa_enabled"] = taxa_enabled
+        self._cfg["data_dir"] = self._dir_edit.text().strip()
+        bionomen.save_config(self._cfg)
+        self.accept()
 
     def get_mode(self) -> str:
-        return "all" if self.radio_all.isChecked() else "unprocessed"
+        if self.radio_all.isChecked():
+            return "all"
+        if self.radio_gallery.isChecked():
+            return "ids"
+        if self.radio_directory.isChecked():
+            return "directory"
+        return "unprocessed"
 
 
 class BioNomenWindow(QMainWindow):
@@ -264,12 +391,16 @@ class BioNomenWindow(QMainWindow):
         # Configurazione corrente
         self._language = self._load_language_from_config()
         self._mode = "unprocessed"
+        self._ids_file = None              # Path file JSON con lista ID (modalità ids)
+        self._directory_filter = None      # Path directory da filtrare (modalità directory)
         self._worker = None
         self._download_worker = None
         self._total = 0
+        self._download_start_time = None   # Timestamp avvio download per calcolo ETA
 
         self.setWindowTitle("BioNomen")
-        self.setFixedSize(600, 300)
+        self.setMinimumSize(640, 280)
+        self.resize(700, 300)
         self.setStyleSheet(_DARK_STYLE)
 
         self._build_ui()
@@ -359,7 +490,7 @@ class BioNomenWindow(QMainWindow):
         progress_row.addWidget(self.progress_bar)
 
         self.lbl_counter = QLabel("0 / 0")
-        self.lbl_counter.setStyleSheet("font-size: 11px; color: #B0B0B0; min-width: 90px;")
+        self.lbl_counter.setStyleSheet("font-size: 11px; color: #B0B0B0; min-width: 200px;")
         self.lbl_counter.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lbl_counter.hide()
         progress_row.addWidget(self.lbl_counter)
@@ -379,24 +510,35 @@ class BioNomenWindow(QMainWindow):
         sys.path.insert(0, str(Path(__file__).parent))
         import bionomen
 
-        if bionomen.is_database_present():
+        info = bionomen.get_database_info()
+        if info:
+            # Mostra taxa presenti e data aggiornamento
+            taxa_labels = [bionomen.TAXA[t]["label"].split(" (")[0] for t in info]
             date_str = bionomen.get_database_date() or "data sconosciuta"
-            self.lbl_db_status.setText(f"Database: ✓ {date_str}")
+            total_records = sum(v["count"] for v in info.values())
+            self.lbl_db_status.setText(
+                f"Database: ✓ {', '.join(taxa_labels)} — {total_records:,} record — {date_str}".replace(",", ".")
+            )
             self.lbl_db_status.setStyleSheet("font-size: 12px; color: #4CAF50;")
             self.btn_db_action.setText("Verifica aggiornamenti")
             self.btn_start.setEnabled(True)
         else:
-            self.lbl_db_status.setText("Database non presente")
+            cfg = bionomen.load_config()
+            taxa_enabled = cfg.get("taxa_enabled", ["aves"])
+            taxa_labels = [bionomen.TAXA[t]["label"].split(" (")[0] for t in taxa_enabled if t in bionomen.TAXA]
+            self.lbl_db_status.setText(
+                f"Database non presente — taxa selezionati: {', '.join(taxa_labels) or 'nessuno'}"
+            )
             self.lbl_db_status.setStyleSheet("font-size: 12px; color: #E74C3C;")
-            self.btn_db_action.setText("Scarica database ~10MB")
+            self.btn_db_action.setText("Scarica database")
             self.btn_start.setEnabled(False)
 
     def _on_configure(self):
         """Apre il dialog di configurazione."""
-        dialog = ConfigDialog(self._language, self._mode, parent=self)
+        dialog = ConfigDialog(self._mode, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            self._language = dialog.get_language()
             self._mode = dialog.get_mode()
+            self._refresh_db_status()
 
     def _on_db_action(self):
         """Gestisce click su 'Scarica database' o 'Verifica aggiornamenti'."""
@@ -426,20 +568,47 @@ class BioNomenWindow(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_bar.show()
         self.lbl_counter.show()
-        self.lbl_status.setText("Inizializzazione database...")
+        self.lbl_status.setText("Connessione a GBIF...")
+        self._download_start_time = None
 
-        self._download_worker = DownloadWorker(parent=self)
+        self._download_worker = DownloadWorker(language=self._language, parent=self)
         self._download_worker.signals.progress.connect(self._on_download_progress)
+        self._download_worker.signals.status.connect(self._on_download_status)
         self._download_worker.signals.finished.connect(self._on_download_finished)
         self._download_worker.signals.error.connect(self._on_worker_error)
         self._download_worker.start()
 
+    def _on_download_status(self, text: str):
+        """Aggiorna il testo descrittivo durante il download."""
+        self.lbl_status.setText(text)
+
     def _on_download_progress(self, current: int, total: int):
-        """Aggiorna la progress bar durante il download."""
+        """Aggiorna la progress bar durante il download con ETA."""
+        import time as _time
+        if self._download_start_time is None and current > 0:
+            self._download_start_time = _time.monotonic()
+
         if total > 0:
             pct = int(current * 100 / total)
             self.progress_bar.setValue(pct)
-        self.lbl_counter.setText(f"{current:,} / {total:,}".replace(",", "."))
+
+        cur_fmt = f"{current:,}".replace(",", ".")
+        tot_fmt = f"{total:,}".replace(",", ".")
+
+        # Calcola ETA se abbiamo abbastanza dati
+        eta_str = ""
+        if self._download_start_time and current > 0 and total > current:
+            elapsed  = _time.monotonic() - self._download_start_time
+            rate     = current / elapsed          # specie/secondo
+            remaining = (total - current) / rate  # secondi rimanenti
+            if remaining < 60:
+                eta_str = f"  (~{int(remaining)}s)"
+            elif remaining < 3600:
+                eta_str = f"  (~{int(remaining / 60)}min)"
+            else:
+                eta_str = f"  (~{remaining / 3600:.1f}h)"
+
+        self.lbl_counter.setText(f"{cur_fmt} / {tot_fmt} specie{eta_str}")
 
     def _on_download_finished(self):
         """Chiamato al completamento del download."""
@@ -478,9 +647,12 @@ class BioNomenWindow(QMainWindow):
             db_path=self.db_path,
             mode=self._mode,
             language=self._language,
+            ids_file=getattr(self, "_ids_file", None),
+            directory_filter=getattr(self, "_directory_filter", None),
             parent=self,
         )
         self._worker.signals.progress.connect(self._on_process_progress)
+        self._worker.signals.summary.connect(self._on_summary)
         self._worker.signals.finished.connect(self._on_process_finished)
         self._worker.signals.error.connect(self._on_worker_error)
         self._worker.start()
@@ -496,6 +668,12 @@ class BioNomenWindow(QMainWindow):
         self.lbl_counter.setText(f"{cur_fmt} / {tot_fmt}")
         self._total = total
 
+    def _on_summary(self, total: int, matched: int, not_matched: int):
+        """Riceve il riepilogo finale e aggiorna il label stato."""
+        self.lbl_status.setText(
+            f"Completate {total}  ✓ {matched} con nome  ✗ {not_matched} senza"
+        )
+
     def _on_process_finished(self):
         """Chiamato al completamento dell'elaborazione."""
         self.btn_start.setText("▶ Avvia")
@@ -503,7 +681,9 @@ class BioNomenWindow(QMainWindow):
         self.btn_db_action.setEnabled(True)
         self.progress_bar.hide()
         self.lbl_counter.hide()
-        self.lbl_status.setText("Elaborazione completata.")
+        # Se _on_summary non ha aggiornato il testo, mostra messaggio generico
+        if self.lbl_status.text() == "Elaborazione in corso...":
+            self.lbl_status.setText("Elaborazione completata.")
         self._worker = None
 
     def _on_worker_error(self, error_msg: str):
@@ -528,35 +708,42 @@ class BioNomenWindow(QMainWindow):
         event.accept()
 
 
-# Aggiungi Optional al tipo hint (Python 3.9 compat)
-from typing import Optional  # noqa: E402
-
-
 def main():
     parser = argparse.ArgumentParser(description="BioNomen — Nomi comuni biologici GBIF")
-    parser.add_argument(
-        "--db", required=True,
-        help="Path al database OffGallery (offgallery.db)"
-    )
-    parser.add_argument(
-        "--config", default=None,
-        help="Path al file config_new.yaml di OffGallery (opzionale)"
-    )
+    parser.add_argument("--db", required=True,
+                        help="Path al database OffGallery")
+    parser.add_argument("--config", default=None,
+                        help="Path al file config_new.yaml di OffGallery (opzionale)")
+    parser.add_argument("--mode", default=None,
+                        choices=["unprocessed", "all", "ids", "directory"],
+                        help="Modalita' elaborazione. Se fornito, avvia automaticamente.")
+    parser.add_argument("--ids-file", default=None,
+                        help="Path a file JSON con lista ID immagini (modalita' ids)")
+    parser.add_argument("--directory", default=None,
+                        help="Path directory da filtrare nel DB (modalita' directory)")
     args = parser.parse_args()
 
-    db_path = args.db
-    config_path = args.config
-
-    # Verifica che il DB esista
-    if not Path(db_path).exists():
-        print(f"ERRORE: Database non trovato: {db_path}", file=sys.stderr)
+    if not Path(args.db).exists():
+        print(f"ERRORE: Database non trovato: {args.db}", file=sys.stderr)
         sys.exit(1)
 
     app = QApplication(sys.argv)
     app.setApplicationName("BioNomen")
 
-    window = BioNomenWindow(db_path=db_path, config_path=config_path)
-    window.show()
+    window = BioNomenWindow(db_path=args.db, config_path=args.config)
+
+    # Se modalita' e' passata da OffGallery, avvia elaborazione automaticamente
+    if args.mode:
+        window._mode = args.mode
+        if args.ids_file:
+            window._ids_file = args.ids_file
+        if args.directory:
+            window._directory_filter = args.directory
+        window.show()
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(100, window._start_processing)
+    else:
+        window.show()
 
     sys.exit(app.exec())
 
