@@ -839,6 +839,7 @@ def _fetch_gbif_vernacular_bulk(
     language: str,
     conn: sqlite3.Connection,
     progress_callback: Optional[Callable[[int, int], None]] = None,
+    count_callback: Optional[Callable[[int], None]] = None,
     stop_event=None,
 ) -> int:
     """
@@ -928,6 +929,8 @@ def _fetch_gbif_vernacular_bulk(
 
         if total_estimate == 0:
             total_estimate = data.get("count", 0)
+            if total_estimate > 0 and count_callback:
+                count_callback(total_estimate)  # comunica il count reale al chiamante
 
         # --- Prepara tasks: solo specie non già in cache ---
         tasks = []
@@ -1018,6 +1021,7 @@ def download_taxon_database(
     language: str,
     progress_callback: Optional[Callable[[int, int], None]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
+    count_callback: Optional[Callable[[int], None]] = None,
     stop_event=None,
 ) -> int:
     """
@@ -1050,6 +1054,7 @@ def download_taxon_database(
         language=language,
         conn=conn,
         progress_callback=progress_callback,
+        count_callback=count_callback,
         stop_event=stop_event,
     )
 
@@ -1099,31 +1104,42 @@ def download_and_build_database(
         "plantae":  50000,   # idem
     }
 
-    total_taxa   = len(taxa_enabled)
-    # Calcola totale stimato aggregato per la progress bar
-    total_global = sum(_SPECIES_ESTIMATE.get(t, 5000) for t in taxa_enabled)
-    global_done  = 0
+    total_taxa = len(taxa_enabled)
+
+    # Dizionario count reali per taxon: si aggiorna appena arriva la prima pagina GBIF
+    # Inizializzato con le stime, poi sostituito con il count reale
+    real_counts = {t: _SPECIES_ESTIMATE.get(t, 5000) for t in taxa_enabled}
+
+    def _total_global():
+        return sum(real_counts.values())
+
+    global_done = 0
 
     for idx, taxon in enumerate(taxa_enabled):
         if stop_event and stop_event.is_set():
             break
 
         taxon_label    = TAXA.get(taxon, {}).get("label", taxon)
-        taxon_estimate = _SPECIES_ESTIMATE.get(taxon, 5000)
+        taxon_estimate = real_counts[taxon]
         logger.info(f"BioNomen: download [{idx+1}/{total_taxa}] {taxon}")
 
         taxon_start = global_done
 
-        def _cb(current, total, _taxon_start=taxon_start, _taxon_est=taxon_estimate):
-            # Scala il progress del taxon nell'intervallo globale
-            g_current = _taxon_start + min(current, _taxon_est)
-            if progress_callback:
-                progress_callback(g_current, total_global)
-            print(f"PROGRESS:{g_current}:{total_global}", flush=True)
+        def _count_cb(real_count, _taxon=taxon):
+            # Sostituisce la stima con il count reale appena arriva dalla prima pagina GBIF
+            real_counts[_taxon] = real_count
+            logger.info(f"BioNomen: {_taxon} count reale GBIF = {real_count}")
 
-        def _scb(text):
+        def _cb(current, total, _taxon_start=taxon_start):
+            g_current = _taxon_start + current
+            g_total   = _total_global()
+            if progress_callback:
+                progress_callback(g_current, g_total)
+            print(f"PROGRESS:{g_current}:{g_total}", flush=True)
+
+        def _scb(text, _idx=idx):
             if status_callback:
-                status_callback(f"[{idx+1}/{total_taxa}] {text}")
+                status_callback(f"[{_idx+1}/{total_taxa}] {text}")
             print(f"STATUS:{text}", flush=True)
 
         download_taxon_database(
@@ -1131,6 +1147,7 @@ def download_and_build_database(
             language=language,
             progress_callback=_cb,
             status_callback=_scb,
+            count_callback=_count_cb,
             stop_event=stop_event,
         )
-        global_done += taxon_estimate
+        global_done += real_counts[taxon]  # usa il count reale aggiornato
