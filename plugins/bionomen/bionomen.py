@@ -65,6 +65,21 @@ _LANG_MAP = {
     "pt": "por",
 }
 
+# Mappa codici lingua → lexicon iNaturalist (campo "lexicon" in taxon_names)
+_INAT_LEXICON = {
+    "it": "italian",
+    "en": "english",
+    "fr": "french",
+    "de": "german",
+    "es": "spanish",
+    "pt": "portuguese",
+    "nl": "dutch",
+    "pl": "polish",
+    "sv": "swedish",
+    "ja": "japanese",
+    "zh": "chinese (simplified)",
+}
+
 # Etichette lingua per Wikidata SPARQL
 _WIKIDATA_LANG = {
     "it": "it",
@@ -378,8 +393,9 @@ def _lookup_inaturalist(scientific_name: str, language: str) -> Optional[str]:
         elif common and _contains_geo_term(common):
             print(f"LOG:warning:iNaturalist '{scientific_name}': nome geografico filtrato ('{common}')", flush=True)
 
+        lexicon_key = _INAT_LEXICON.get(language, language)
         for entry in taxon.get("taxon_names", []):
-            if entry.get("lexicon", "").lower() == language and entry.get("name"):
+            if entry.get("lexicon", "").lower() == lexicon_key and entry.get("name"):
                 candidate = entry["name"]
                 if not _contains_geo_term(candidate):
                     print(f"SOURCE:iNaturalist (online):{scientific_name}", flush=True)
