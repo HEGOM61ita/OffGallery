@@ -101,14 +101,14 @@ image_optimization:
   profiles:
     aesthetic_score:
       method: preview_optimized
-      quality: 75
+      quality: 85
       resampling: BILINEAR
-      target_size: 224
+      target_size: 336
       upscale: false
     ai_processing:
       method: preview_optimized
-      quality: 75
-      resampling: BILINEAR
+      quality: 85
+      resampling: LANCZOS
       target_size: 512
       upscale: false
     bioclip_classification:
@@ -118,10 +118,10 @@ image_optimization:
       target_size: 384
       upscale: false
     clip_embedding:
-      method: preview_optimized
-      quality: 75
-      resampling: BILINEAR
-      target_size: 224
+      method: high_quality
+      quality: 90
+      resampling: LANCZOS
+      target_size: 512
       upscale: false
     default:
       description: Default fallback
@@ -131,9 +131,9 @@ image_optimization:
       target_size: 512
       upscale: false
     dinov2_embedding:
-      method: preview_optimized
-      quality: 75
-      resampling: BILINEAR
+      method: high_quality
+      quality: 90
+      resampling: LANCZOS
       target_size: 518
       upscale: false
     gallery_display:
@@ -144,10 +144,10 @@ image_optimization:
       target_size: 256
       upscale: false
     llm_vision:
-      method: preview_optimized
-      quality: 85
+      method: rawpy_full
+      quality: 95
       resampling: LANCZOS
-      target_size: 512
+      target_size: 1024
       upscale: false
     metadata_extraction:
       description: Metadata - Estrazione metadati veloce
@@ -159,9 +159,9 @@ image_optimization:
     technical_score:
       description: MUSIQ - Analisi qualità tecnica (JPG e RAW)
       method: preview_optimized
-      quality: 75
+      quality: 90
       resampling: LANCZOS
-      target_size: 1024
+      target_size: 512
       upscale: false
   resampling_methods:
     BICUBIC: Qualità media
