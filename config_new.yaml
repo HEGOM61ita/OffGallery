@@ -147,7 +147,7 @@ image_optimization:
       method: rawpy_full
       quality: 95
       resampling: LANCZOS
-      target_size: 1024
+      target_size: 512
       upscale: false
     metadata_extraction:
       description: Metadata - Estrazione metadati veloce

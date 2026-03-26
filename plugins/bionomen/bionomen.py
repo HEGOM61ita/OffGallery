@@ -511,13 +511,14 @@ def lookup_vernacular_name(
         # 1. Cache locale (sincrona — nessuna rete)
         if conn:
             cached = _lookup_in_cache(conn, scientific_name, language)
-            if cached is not None:
-                if cached != "":
-                    print(f"SOURCE:cache locale (offline):{scientific_name}", flush=True)
-                    return cached
-                return None  # Stringa vuota = già cercato, non trovato
+            if cached is not None and cached != "":
+                print(f"SOURCE:cache locale (offline):{scientific_name}", flush=True)
+                logger.debug(f"BioNomen [{scientific_name}] → trovato in cache locale: '{cached}'")
+                return cached
+            # Stringa vuota in cache = cercato in precedenza ma non trovato → si riprova online
 
         # 2. GBIF — interrompibile tramite stop_event
+        logger.debug(f"BioNomen [{scientific_name}] → ricerca GBIF...")
         result = _run_with_stop(
             lambda: _lookup_gbif(scientific_name, language),
             stop_event, timeout=6.0,
@@ -525,11 +526,14 @@ def lookup_vernacular_name(
         if stop_event and stop_event.is_set():
             return None
         if result:
+            logger.debug(f"BioNomen [{scientific_name}] → trovato su GBIF: '{result}'")
             if conn:
                 _save_to_cache(conn, scientific_name, result, language, "gbif", 1)
             return result
+        logger.debug(f"BioNomen [{scientific_name}] → GBIF: non trovato")
 
         # 3. iNaturalist — interrompibile
+        logger.debug(f"BioNomen [{scientific_name}] → ricerca iNaturalist...")
         result = _run_with_stop(
             lambda: _lookup_inaturalist(scientific_name, language),
             stop_event, timeout=6.0,
@@ -537,11 +541,14 @@ def lookup_vernacular_name(
         if stop_event and stop_event.is_set():
             return None
         if result:
+            logger.debug(f"BioNomen [{scientific_name}] → trovato su iNaturalist: '{result}'")
             if conn:
                 _save_to_cache(conn, scientific_name, result, language, "inaturalist", 2)
             return result
+        logger.debug(f"BioNomen [{scientific_name}] → iNaturalist: non trovato")
 
         # 4. Wikidata — interrompibile
+        logger.debug(f"BioNomen [{scientific_name}] → ricerca Wikidata...")
         result = _run_with_stop(
             lambda: _lookup_wikidata(scientific_name, language),
             stop_event, timeout=8.0,
@@ -549,11 +556,14 @@ def lookup_vernacular_name(
         if stop_event and stop_event.is_set():
             return None
         if result:
+            logger.debug(f"BioNomen [{scientific_name}] → trovato su Wikidata: '{result}'")
             if conn:
                 _save_to_cache(conn, scientific_name, result, language, "wikidata", 3)
             return result
+        logger.debug(f"BioNomen [{scientific_name}] → Wikidata: non trovato — nessuna fonte ha il nome comune")
 
-        # Nessun risultato: salva stringa vuota per evitare lookup ripetuti
+        # Nessun risultato: aggiorna/inserisce stringa vuota in cache per evitare
+        # lookup ripetuti nella stessa sessione, ma verrà ritentato nelle sessioni future
         if conn:
             _save_to_cache(conn, scientific_name, "", language, "none", 9)
         return None
