@@ -875,13 +875,20 @@ def _fetch_gbif_vernacular_bulk(
             break
 
         # --- Recupera pagina elenco specie ---
+        # Usa species/search (non species) perché:
+        # - supporta il campo "count" nel JSON di risposta
+        # - filtra solo specie ACCEPTED del backbone (esclude sinonimi e duplicati)
+        # - Aves: ~14.600 ACCEPTED vs ~90.500 totali con sinonimi
+        # Nota: alcuni taxa (es. Reptilia classKey=358) sono PROPARTE_SYNONYM nel backbone
+        # → per loro il fallback è classKey senza filtro status
         url = (
-            "https://api.gbif.org/v1/species?"
+            "https://api.gbif.org/v1/species/search?"
             + urllib.parse.urlencode({
-                "classKey": class_key,
-                "rank":     "SPECIES",
-                "limit":    _PAGE_SIZE,
-                "offset":   offset,
+                "highertaxonKey": class_key,
+                "rank":           "SPECIES",
+                "status":         "ACCEPTED",
+                "limit":          _PAGE_SIZE,
+                "offset":         offset,
             })
         )
         try:
@@ -893,6 +900,29 @@ def _fetch_gbif_vernacular_bulk(
             break
 
         results = data.get("results", [])
+
+        # Fallback per taxa problematici nel backbone (es. Reptilia = PROPARTE_SYNONYM):
+        # se count=0 e offset=0 riprova con classKey senza filtro status
+        if not results and offset == 0 and data.get("count", -1) == 0:
+            logger.info(f"GBIF bulk: highertaxonKey={class_key} restituisce 0 → fallback classKey")
+            url_fb = (
+                "https://api.gbif.org/v1/species/search?"
+                + urllib.parse.urlencode({
+                    "classKey": class_key,
+                    "rank":     "SPECIES",
+                    "status":   "ACCEPTED",
+                    "limit":    _PAGE_SIZE,
+                    "offset":   0,
+                })
+            )
+            try:
+                req_fb = urllib.request.Request(url_fb, headers={"User-Agent": "BioNomen/2.0"})
+                with urllib.request.urlopen(req_fb, timeout=15) as resp_fb:
+                    data = json.loads(resp_fb.read().decode())
+                results = data.get("results", [])
+            except Exception as e:
+                logger.warning(f"GBIF bulk: fallback classKey errore: {e}")
+
         if not results:
             break
 
@@ -1058,15 +1088,15 @@ def download_and_build_database(
         language = cfg.get("language", "it")
     taxa_enabled = cfg.get("taxa_enabled", ["aves"])
 
-    # Stima totale specie per progress aggregato (Aves ~10k, Mammalia ~5k, ecc.)
-    # Usato come denominatore per la progress bar; si aggiorna alla prima pagina GBIF
+    # Stime specie ACCEPTED nel backbone GBIF (aggiornate 2025)
+    # Usato come denominatore per la progress bar prima che arrivi il count reale
     _SPECIES_ESTIMATE = {
-        "aves":     10500,
-        "mammalia": 5500,
-        "reptilia": 8000,
-        "amphibia": 7500,
-        "insecta":  60000,
-        "plantae":  80000,
+        "aves":     15000,
+        "mammalia": 21000,
+        "reptilia": 10000,   # backbone problematico, stima conservativa
+        "amphibia": 10000,
+        "insecta":  120000,  # solo quelle con nomi vernacolari (totale ~1.1M ma 99% senza)
+        "plantae":  50000,   # idem
     }
 
     total_taxa   = len(taxa_enabled)
