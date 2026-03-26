@@ -307,6 +307,19 @@ class PluginCard(QFrame):
         self.lbl_dl_counter.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lbl_dl_counter.hide()
         progress_row.addWidget(self.lbl_dl_counter)
+
+        self.btn_dl_stop = QPushButton("✕ Interrompi")
+        self.btn_dl_stop.setFixedWidth(100)
+        self.btn_dl_stop.setStyleSheet(
+            f"QPushButton {{ background-color: {_COLORS['grafite_light']}; "
+            f"color: {_COLORS['grigio_chiaro']}; border: none; border-radius: 4px; "
+            f"padding: 3px 8px; font-size: 10px; }}"
+            f"QPushButton:hover {{ background-color: {_COLORS['rosso']}; }}"
+        )
+        self.btn_dl_stop.clicked.connect(self._on_dl_stop)
+        self.btn_dl_stop.hide()
+        progress_row.addWidget(self.btn_dl_stop)
+
         layout.addLayout(progress_row)
 
         self.lbl_dl_status = QLabel("")
@@ -414,6 +427,7 @@ class PluginCard(QFrame):
         self.lbl_dl_counter.show()
         self.lbl_dl_status.setText("Connessione a GBIF...")
         self.lbl_dl_status.show()
+        self.btn_dl_stop.show()
         self._dl_start_time = None
 
         self._download_worker = DownloadWorker(self._plugin_dir, language=language, parent=self)
@@ -443,6 +457,13 @@ class PluginCard(QFrame):
             return lang_map.get(lang.lower(), lang[:2].lower() if len(lang) >= 2 else "it")
         except Exception:
             return "it"
+
+    def _on_dl_stop(self):
+        """Interrompe il download in corso."""
+        if self._download_worker and self._download_worker.isRunning():
+            self._download_worker.stop()
+            self.lbl_dl_status.setText("Interruzione in corso...")
+            self.btn_dl_stop.setEnabled(False)
 
     def _on_download_status(self, text: str):
         """Aggiorna label descrittiva durante il download."""
@@ -483,6 +504,8 @@ class PluginCard(QFrame):
         self.progress_bar.hide()
         self.lbl_dl_counter.hide()
         self.lbl_dl_status.hide()
+        self.btn_dl_stop.hide()
+        self.btn_dl_stop.setEnabled(True)
         self.btn_db.setEnabled(True)
         self.btn_configure.setEnabled(True)
         self._download_worker = None
@@ -493,6 +516,8 @@ class PluginCard(QFrame):
         self.progress_bar.hide()
         self.lbl_dl_counter.hide()
         self.lbl_dl_status.setText(f"Errore: {msg}")
+        self.btn_dl_stop.hide()
+        self.btn_dl_stop.setEnabled(True)
         self.btn_db.setEnabled(True)
         self.btn_configure.setEnabled(True)
         self._download_worker = None

@@ -1135,12 +1135,10 @@ def download_and_build_database(
             g_total   = _total_global()
             if progress_callback:
                 progress_callback(g_current, g_total)
-            print(f"PROGRESS:{g_current}:{g_total}", flush=True)
 
         def _scb(text, _idx=idx):
             if status_callback:
                 status_callback(f"[{_idx+1}/{total_taxa}] {text}")
-            print(f"STATUS:{text}", flush=True)
 
         download_taxon_database(
             taxon=taxon,
