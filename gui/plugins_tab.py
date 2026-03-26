@@ -466,14 +466,15 @@ class PluginCard(QFrame):
         eta_str = ""
         if self._dl_start_time and current > 0 and total > current:
             elapsed   = _time.monotonic() - self._dl_start_time
-            rate      = current / elapsed
-            remaining = (total - current) / rate
-            if remaining < 60:
-                eta_str = f"  (~{int(remaining)}s)"
-            elif remaining < 3600:
-                eta_str = f"  (~{int(remaining / 60)}min)"
-            else:
-                eta_str = f"  (~{remaining / 3600:.1f}h)"
+            rate      = current / elapsed if elapsed > 0 else None
+            if rate:
+                remaining = (total - current) / rate
+                if remaining < 60:
+                    eta_str = f"  (~{int(remaining)}s)"
+                elif remaining < 3600:
+                    eta_str = f"  (~{int(remaining / 60)}min)"
+                else:
+                    eta_str = f"  (~{remaining / 3600:.1f}h)"
 
         self.lbl_dl_counter.setText(f"{cur_fmt} / {tot_fmt} specie{eta_str}")
 
