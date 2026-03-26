@@ -24,7 +24,7 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QScrollArea, QSizePolicy,
+    QFrame, QScrollArea, QSizePolicy, QProgressBar,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
@@ -48,6 +48,22 @@ _COLORS = {
     'verde': '#4CAF50',
     'rosso': '#E74C3C',
 }
+
+_PB_STYLE = """
+    QProgressBar {
+        border: 1px solid #555;
+        background: #2a2a2a;
+        border-radius: 3px;
+        max-height: 8px;
+    }
+    QProgressBar::chunk {
+        background: qlineargradient(
+            x1:0, y1:0, x2:1, y2:0,
+            stop:0 #C88B2E, stop:1 #E0A84A
+        );
+        border-radius: 2px;
+    }
+"""
 
 
 class StdoutReaderThread(QThread):
@@ -118,12 +134,14 @@ class DownloadWorker(QThread):
     Importa bionomen.py direttamente senza sottoprocesso.
     """
     progress = pyqtSignal(int, int)
+    status   = pyqtSignal(str)
     finished = pyqtSignal()
-    error = pyqtSignal(str)
+    error    = pyqtSignal(str)
 
-    def __init__(self, plugin_dir: Path, parent=None):
+    def __init__(self, plugin_dir: Path, language: str = "it", parent=None):
         super().__init__(parent)
         self._plugin_dir = plugin_dir
+        self._language   = language
 
     def run(self):
         try:
@@ -134,10 +152,17 @@ class DownloadWorker(QThread):
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
 
-            def _cb(current, total):
+            def _progress_cb(current, total):
                 self.progress.emit(current, total)
 
-            mod.download_and_build_database(progress_callback=_cb)
+            def _status_cb(text):
+                self.status.emit(text)
+
+            mod.download_and_build_database(
+                language=self._language,
+                progress_callback=_progress_cb,
+                status_callback=_status_cb,
+            )
             self.finished.emit()
         except Exception as e:
             logger.error(f"DownloadWorker errore: {e}")
@@ -264,6 +289,33 @@ class PluginCard(QFrame):
         self.lbl_mode.hide()
         layout.addWidget(self.lbl_mode)
 
+        # === Progress bar download (nascosta a riposo) ===
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setStyleSheet(_PB_STYLE)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.hide()
+
+        progress_row = QHBoxLayout()
+        progress_row.addWidget(self.progress_bar)
+
+        self.lbl_dl_counter = QLabel("")
+        self.lbl_dl_counter.setStyleSheet(
+            f"font-size: 10px; color: {_COLORS['grigio_medio']}; min-width: 220px;"
+        )
+        self.lbl_dl_counter.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.lbl_dl_counter.hide()
+        progress_row.addWidget(self.lbl_dl_counter)
+        layout.addLayout(progress_row)
+
+        self.lbl_dl_status = QLabel("")
+        self.lbl_dl_status.setStyleSheet(
+            f"font-size: 10px; color: {_COLORS['ambra_light']};"
+        )
+        self.lbl_dl_status.hide()
+        layout.addWidget(self.lbl_dl_status)
+
 
     def _refresh_db_status(self):
         """
@@ -352,13 +404,84 @@ class PluginCard(QFrame):
         self.btn_start.setEnabled(False)
         self.btn_configure.setEnabled(False)
 
-        self._download_worker = DownloadWorker(self._plugin_dir, parent=self)
+        # Legge lingua da config_new.yaml se disponibile
+        language = self._read_language_from_config()
+
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.show()
+        self.lbl_dl_counter.setText("")
+        self.lbl_dl_counter.show()
+        self.lbl_dl_status.setText("Connessione a GBIF...")
+        self.lbl_dl_status.show()
+        self._dl_start_time = None
+
+        self._download_worker = DownloadWorker(self._plugin_dir, language=language, parent=self)
+        self._download_worker.progress.connect(self._on_download_progress)
+        self._download_worker.status.connect(self._on_download_status)
         self._download_worker.finished.connect(self._on_download_finished)
         self._download_worker.error.connect(self._on_download_error)
         self._download_worker.start()
 
+    def _read_language_from_config(self) -> str:
+        """Legge la lingua di output da config_new.yaml di OffGallery."""
+        if not self._config_path:
+            return "it"
+        try:
+            import yaml
+            with open(self._config_path, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f)
+            lang = cfg.get("ui", {}).get("llm_output_language", "it")
+            lang_map = {
+                "italiano": "it", "italian": "it",
+                "english": "en", "inglese": "en",
+                "deutsch": "de", "tedesco": "de",
+                "francese": "fr", "french": "fr",
+                "spagnolo": "es", "spanish": "es",
+                "portoghese": "pt", "portuguese": "pt",
+            }
+            return lang_map.get(lang.lower(), lang[:2].lower() if len(lang) >= 2 else "it")
+        except Exception:
+            return "it"
+
+    def _on_download_status(self, text: str):
+        """Aggiorna label descrittiva durante il download."""
+        self.lbl_dl_status.setText(text)
+
+    def _on_download_progress(self, current: int, total: int):
+        """Aggiorna progress bar e counter con ETA durante il download."""
+        import time as _time
+        if not hasattr(self, "_dl_start_time"):
+            self._dl_start_time = None
+        if self._dl_start_time is None and current > 0:
+            self._dl_start_time = _time.monotonic()
+
+        if total > 0:
+            pct = int(current * 100 / total)
+            self.progress_bar.setValue(pct)
+
+        cur_fmt = f"{current:,}".replace(",", ".")
+        tot_fmt = f"{total:,}".replace(",", ".")
+
+        eta_str = ""
+        if self._dl_start_time and current > 0 and total > current:
+            elapsed   = _time.monotonic() - self._dl_start_time
+            rate      = current / elapsed
+            remaining = (total - current) / rate
+            if remaining < 60:
+                eta_str = f"  (~{int(remaining)}s)"
+            elif remaining < 3600:
+                eta_str = f"  (~{int(remaining / 60)}min)"
+            else:
+                eta_str = f"  (~{remaining / 3600:.1f}h)"
+
+        self.lbl_dl_counter.setText(f"{cur_fmt} / {tot_fmt} specie{eta_str}")
+
     def _on_download_finished(self):
         """Chiamato al termine del download."""
+        self.progress_bar.hide()
+        self.lbl_dl_counter.hide()
+        self.lbl_dl_status.hide()
         self.btn_db.setEnabled(True)
         self.btn_configure.setEnabled(True)
         self._download_worker = None
@@ -366,6 +489,9 @@ class PluginCard(QFrame):
 
     def _on_download_error(self, msg: str):
         """Chiamato in caso di errore nel download."""
+        self.progress_bar.hide()
+        self.lbl_dl_counter.hide()
+        self.lbl_dl_status.setText(f"Errore: {msg}")
         self.btn_db.setEnabled(True)
         self.btn_configure.setEnabled(True)
         self._download_worker = None
