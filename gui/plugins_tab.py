@@ -410,7 +410,12 @@ class PluginsTab(QWidget):
         """Riceve il db_manager da main_window e aggiorna il db_path."""
         self._db_manager = db_manager
         if db_manager and hasattr(db_manager, "db_path"):
-            self._db_path = db_manager.db_path
+            # Risolve il path assoluto: db_path potrebbe essere relativo alla app_dir
+            raw = db_manager.db_path
+            p = Path(raw)
+            if not p.is_absolute():
+                p = get_app_dir() / p
+            self._db_path = str(p.resolve())
             # Ricrea le card con il db_path aggiornato
             self._populate_plugins()
 
