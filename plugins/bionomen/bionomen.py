@@ -1130,9 +1130,15 @@ def download_and_build_database(
             real_counts[_taxon] = real_count
             logger.info(f"BioNomen: {_taxon} count reale GBIF = {real_count}")
 
-        def _cb(current, total, _taxon_start=taxon_start):
-            g_current = _taxon_start + current
+        def _cb(current, total, _taxon_start=taxon_start, _taxon=taxon):
+            # Aggiorna real_counts con il total che arriva da _fetch_gbif_vernacular_bulk
+            if total > 0:
+                real_counts[_taxon] = total
             g_total   = _total_global()
+            # Lascia sempre 1 unità di margine: il 100% viene raggiunto solo
+            # quando download_taxon_database chiama status_callback("completato")
+            # Evita che la barra sembri finita mentre le ultime chiamate HTTP sono in corso
+            g_current = _taxon_start + min(current, real_counts[_taxon] - 1)
             if progress_callback:
                 progress_callback(g_current, g_total)
 
@@ -1148,4 +1154,7 @@ def download_and_build_database(
             count_callback=_count_cb,
             stop_event=stop_event,
         )
-        global_done += real_counts[taxon]  # usa il count reale aggiornato
+        global_done += real_counts[taxon]  # count reale aggiornato da _count_cb/_cb
+        # Emette progress al 100% per questo taxon dopo che è realmente completato
+        if progress_callback:
+            progress_callback(global_done, _total_global())
