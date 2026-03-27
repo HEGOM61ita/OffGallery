@@ -966,14 +966,50 @@ Destinazione (es. E:\Backup):
 
 <p>OffGallery utilizza un sistema di plugin per la generazione di tag, descrizioni e titoli tramite modelli LLM Vision. I plugin vengono rilevati automaticamente dalla cartella <code>plugins/</code> all'avvio.</p>
 
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>La generazione LLM è opzionale</strong>
+    <p>Senza plugin installati, OffGallery funziona normalmente per tutte le altre funzioni: ricerca semantica CLIP, classificazione BioCLIP, score estetico e tecnico, geolocalizzazione, filtri EXIF. I tag vengono semplicemente lasciati vuoti finché non si installa un plugin.</p>
+  </div>
+</div>
+
 <h3>Plugin disponibili</h3>
+
+<p>I plugin LLM sono distribuiti separatamente dal codice sorgente di OffGallery.</p>
+
 <table>
   <thead><tr><th>Plugin</th><th>Backend</th><th>Endpoint default</th><th>Note</th></tr></thead>
   <tbody>
-    <tr><td><strong>Ollama</strong></td><td>Ollama locale</td><td><code>http://localhost:11434</code></td><td>Default. Supporta qwen3.5, llava, gemma3 e altri modelli vision</td></tr>
-    <tr><td><strong>LM Studio</strong></td><td>LM Studio server</td><td><code>http://localhost:1234</code></td><td>Alternativa con supporto AMD/DirectML. Compatibile con modelli VL (qwen3-VL consigliato)</td></tr>
+    <tr>
+      <td><strong>OffGallery Ollama Plugin</strong></td>
+      <td>Ollama locale</td>
+      <td><code>http://localhost:11434</code></td>
+      <td>Ottimizzato per qwen3-VL, llava, gemma3. Supporto <code>think=false</code>, diagnostica timing, warmup/unload VRAM automatici</td>
+    </tr>
+    <tr>
+      <td><strong>OffGallery LM Studio Plugin</strong></td>
+      <td>LM Studio server</td>
+      <td><code>http://localhost:1234</code></td>
+      <td>Ottimizzato per API OpenAI-compatible. Supporto AMD/DirectML, unload via CLI <code>lms</code>. Modelli VL consigliati: qwen3-VL</td>
+    </tr>
   </tbody>
 </table>
+
+<p>Per ricevere i plugin, scrivere a: <strong>[inserire email]</strong></p>
+
+<h3>Installazione plugin (da zip)</h3>
+<ol>
+  <li>Estrarre il contenuto dello zip ricevuto nella cartella <code>plugins/</code> della propria installazione OffGallery</li>
+  <li>La struttura risultante deve essere:
+    <pre>plugins/
+└── llm_ollama/
+    ├── __init__.py
+    ├── plugin.py
+    └── manifest.json</pre>
+  </li>
+  <li>Riavviare OffGallery — il plugin viene rilevato automaticamente all'avvio, nessuna configurazione aggiuntiva necessaria</li>
+</ol>
 
 <h3>Come cambiare backend</h3>
 <ol>

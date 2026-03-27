@@ -274,14 +274,33 @@ Per la documentazione completa delle opzioni di configurazione, consulta **[CONF
 
 OffGallery utilizza un sistema di plugin per la generazione di tag, descrizioni e titoli tramite modelli LLM Vision. I plugin vengono rilevati automaticamente dalla cartella `plugins/` all'avvio dell'applicazione.
 
-### Plugin inclusi
+**La generazione LLM è opzionale.** Senza plugin, OffGallery funziona normalmente per tutte le altre funzioni: CLIP, DINOv2, BioCLIP, score estetico/tecnico, ricerca semantica, geo, EXIF. I tag vengono semplicemente lasciati vuoti finché non si installa un plugin.
+
+### Plugin disponibili
+
+I plugin LLM sono distribuiti separatamente dal codice sorgente.
 
 | Plugin | Backend | Endpoint default | Note |
 |--------|---------|------------------|------|
-| **Ollama** | Ollama locale | `http://localhost:11434` | Default. Supporta qwen3.5, llava, gemma3 e altri modelli vision |
-| **LM Studio** | LM Studio server | `http://localhost:1234` | Alternativa con supporto AMD/DirectML. Compatibile con modelli VL (qwen3-VL consigliato) |
+| **OffGallery Ollama Plugin** | Ollama locale | `http://localhost:11434` | Ottimizzato per qwen3-VL, llava, gemma3. Supporto `think=false`, diagnostica timing, warmup/unload VRAM |
+| **OffGallery LM Studio Plugin** | LM Studio server | `http://localhost:1234` | Ottimizzato per API OpenAI-compatible. Supporto AMD/DirectML, unload via CLI `lms`, modelli VL (qwen3-VL consigliato) |
 
-### Come usare un plugin diverso
+Per ricevere i plugin, scrivere a: **[inserire email]**
+
+### Installazione plugin (zip ricevuto)
+
+1. Estrarre il contenuto dello zip nella cartella `plugins/` della propria installazione OffGallery
+2. La struttura risultante deve essere:
+   ```
+   plugins/
+   └── llm_ollama/          ← cartella estratta dallo zip
+       ├── __init__.py
+       ├── plugin.py
+       └── manifest.json
+   ```
+3. Riavviare OffGallery — il plugin viene rilevato automaticamente, nessuna configurazione aggiuntiva
+
+### Configurare il backend attivo
 
 1. Vai nel tab **Configurazione**
 2. Nella sezione **Connessione LLM**, seleziona il backend desiderato dal menu a tendina
@@ -308,9 +327,9 @@ offgallery/
 ├── geo_enricher.py           # Geolocalizzazione offline GPS → GeOFF
 ├── catalog_readers/          # Lettori cataloghi esterni
 │   └── lightroom_reader.py   # Legge .lrcat (SQLite) → lista file
-├── plugins/                  # Plugin LLM (auto-discovery)
-│   ├── llm_ollama/           # Backend Ollama (default)
-│   └── llm_lmstudio/         # Backend LM Studio
+├── plugins/                  # Plugin LLM (auto-discovery, distribuzione separata)
+│   ├── base.py               # Interfaccia pubblica LLMVisionPlugin
+│   └── loader.py             # Auto-detection backend
 ├── utils/                    # Utility cross-platform
 │   ├── paths.py              # Path resolver (script/EXE/WSL)
 │   └── copy_helpers.py       # Copia con struttura multi-disco
@@ -647,12 +666,31 @@ Typical workflow: import a folder or `.lrcat` catalog → process with AI → se
 
 OffGallery uses a plugin system for generating tags, descriptions and titles via LLM Vision models. Plugins are auto-detected from the `plugins/` folder at startup.
 
-### Included plugins
+**LLM generation is optional.** Without a plugin, OffGallery works normally for all other features: CLIP, DINOv2, BioCLIP, aesthetic/technical scores, semantic search, geo, EXIF. Tags are simply left empty until a plugin is installed.
+
+### Available plugins
+
+LLM plugins are distributed separately from the source code.
 
 | Plugin | Backend | Default endpoint | Notes |
 |--------|---------|-----------------|-------|
-| **Ollama** | Local Ollama | `http://localhost:11434` | Default. Supports qwen3.5, llava, gemma3 and other vision models |
-| **LM Studio** | LM Studio server | `http://localhost:1234` | Alternative with AMD/DirectML support. Compatible with VL models (qwen3-VL recommended) |
+| **OffGallery Ollama Plugin** | Local Ollama | `http://localhost:11434` | Optimized for qwen3-VL, llava, gemma3. `think=false` support, timing diagnostics, VRAM warmup/unload |
+| **OffGallery LM Studio Plugin** | LM Studio server | `http://localhost:1234` | Optimized for OpenAI-compatible API. AMD/DirectML support, `lms` CLI unload, VL models (qwen3-VL recommended) |
+
+To receive the plugins, write to: **[insert email]**
+
+### Installing a plugin (from zip)
+
+1. Extract the zip contents into the `plugins/` folder of your OffGallery installation
+2. The resulting structure should be:
+   ```
+   plugins/
+   └── llm_ollama/          ← folder extracted from zip
+       ├── __init__.py
+       ├── plugin.py
+       └── manifest.json
+   ```
+3. Restart OffGallery — the plugin is detected automatically, no additional configuration needed
 
 ### Switching backends
 
