@@ -460,6 +460,60 @@ SELECT ?label WHERE {{
         return None
 
 
+def _lookup_wikipedia(scientific_name: str, language: str) -> Optional[str]:
+    """Cerca il nome comune su Wikipedia nella lingua selezionata.
+
+    Strategia:
+      1. Search API → primo risultato che contiene il nome scientifico nello snippet
+      2. Il titolo della pagina è il nome comune nella lingua target
+      3. Rimuove articoli iniziali (es. "Il camaleonte velato" → "camaleonte velato")
+    """
+    try:
+        import urllib.request
+        import urllib.parse
+        import re
+
+        lang = language if language else "en"
+        params = urllib.parse.urlencode({
+            "action": "query",
+            "list": "search",
+            "srsearch": scientific_name,
+            "format": "json",
+            "srlimit": 5,
+        })
+        url = f"https://{lang}.wikipedia.org/w/api.php?{params}"
+        req = urllib.request.Request(url, headers={"User-Agent": "BioNomen/1.0 (OffGallery plugin)"})
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            data = json.loads(resp.read().decode())
+
+        results = data.get("query", {}).get("search", [])
+        sci_lower = scientific_name.strip().lower()
+
+        for entry in results:
+            title = entry.get("title", "")
+            snippet = entry.get("snippet", "")
+            # Verifica che lo snippet citi il nome scientifico (conferma specie corretta)
+            if sci_lower not in snippet.lower() and sci_lower not in title.lower():
+                continue
+            # Scarta se il titolo è il nome scientifico stesso
+            if title.strip().lower() == sci_lower:
+                continue
+            # Rimuove articoli iniziali italiani/francesi/spagnoli/portoghesi
+            clean = re.sub(r"^(Il |La |Lo |L'|I |Le |Gli |Der |Die |Das |Le |Les |El |La |Los |Las |O |A )", "", title, flags=re.IGNORECASE).strip()
+            if not clean or clean.lower() == sci_lower:
+                continue
+            if _contains_geo_term(clean):
+                continue
+            return clean
+
+        return None
+
+    except Exception as e:
+        logger.debug(f"Wikipedia lookup fallito per '{scientific_name}': {e}")
+        print(f"LOG:warning:Wikipedia non raggiungibile per '{scientific_name}': {e}", flush=True)
+        return None
+
+
 def _run_with_stop(fn, stop_event, timeout: float = 6.0):
     """
     Esegue fn() in un thread daemon e ne aspetta il risultato.
@@ -574,6 +628,21 @@ def lookup_vernacular_name(
             print(f"SOURCE:Wikidata (online):{scientific_name}", flush=True)
             if conn:
                 _save_to_cache(conn, scientific_name, result, language, "wikidata", 3)
+            return result
+        print(f"LOG:debug:BioNomen [{scientific_name}] → Wikidata: non trovato", flush=True)
+
+        # 5. Wikipedia nella lingua selezionata — interrompibile
+        print(f"LOG:debug:BioNomen [{scientific_name}] → ricerca Wikipedia ({language})...", flush=True)
+        result = _run_with_stop(
+            lambda: _lookup_wikipedia(scientific_name, language),
+            stop_event, timeout=8.0,
+        )
+        if stop_event and stop_event.is_set():
+            return None
+        if result:
+            print(f"SOURCE:Wikipedia (online):{scientific_name}", flush=True)
+            if conn:
+                _save_to_cache(conn, scientific_name, result, language, "wikipedia", 4)
             return result
         print(f"LOG:debug:BioNomen [{scientific_name}] → nessuna fonte ha il nome comune", flush=True)
 
