@@ -18,7 +18,6 @@ Sistema di catalogazione automatica e retrieval di immagini fotografiche (RAW, J
 ```
 /aesthetic           - Modelli e logica per valutazione estetica
 /assets              - Risorse grafiche, icone, file statici UI
-/brisque_models      - DEPRECATO (era BRISQUE, sostituito da MUSIQ via pyiqa — directory mantenuta per compatibilità)
 /catalog_readers     - Lettori cataloghi fotografici esterni
                        lightroom_reader.py: legge .lrcat (SQLite) → lista Path + stats
                        dxo_reader.py: futuro
