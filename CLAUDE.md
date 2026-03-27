@@ -49,7 +49,7 @@ Sistema di catalogazione automatica e retrieval di immagini fotografiche (RAW, J
 - Non committare file di modelli, database o binari (vedi `.gitignore`)
 
 ### Workflow Modifiche
-- **PRIMA DI CODIFICARE**: Spiegare sempre il piano e chiedere approvazione. Non fare modifiche a raffica senza consenso esplicito.
+- **PRIMA DI CODIFICARE — REGOLA ASSOLUTA**: Prima di toccare qualsiasi file, spiegare in modo semplice e sintetico cosa si intende fare e attendere esplicita approvazione dell'utente. Niente eccezioni, nemmeno per fix banali o bug ovvi.
 - **Commit frequenti**: Fare sempre commit dopo ogni modifica significativa
 - **Verifica importazioni**: Prima di modificare un file, verificare che le modifiche non rompano le importazioni degli altri moduli nelle sottocartelle
 - **Test sintassi**: Usare `python -m py_compile <file>` per verificare la sintassi prima del commit
