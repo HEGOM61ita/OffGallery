@@ -894,5 +894,8 @@
   "plugins.button.start": "▶ Avvia",
   "plugins.button.stop": "⏹ Interrompi",
   "plugins.label.no_plugins": "Nessun plugin installato",
-  "config.overlay.llm_plugin_missing": "Plugin LLM Vision non installato"
+  "config.overlay.llm_plugin_missing": "Plugin LLM Vision non installato",
+  "config.overlay.llm_plugin_desc": "Questa sezione richiede un plugin LLM Vision opzionale (Ollama o LM Studio). Il plugin ottimizza la generazione di tag, titoli e descrizioni per le tue fotografie usando modelli vision locali.",
+  "config.overlay.llm_plugin_request": "Per ricevere il plugin scrivi a:",
+  "config.overlay.llm_plugin_note": "Le email non saranno usate per scopi diversi da aggiornamenti e notifiche relative al plugin."
 }

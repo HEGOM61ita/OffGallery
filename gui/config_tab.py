@@ -1032,14 +1032,36 @@ class ConfigTab(QWidget):
         lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         overlay_layout.addWidget(lbl_title)
 
+        lbl_desc = QLabel(t("config.overlay.llm_plugin_desc"))
+        lbl_desc.setStyleSheet(
+            f"font-size: 11px; color: {COLORS['grigio_medio']}; background: transparent;"
+        )
+        lbl_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_desc.setWordWrap(True)
+        overlay_layout.addWidget(lbl_desc)
+
+        lbl_request = QLabel(t("config.overlay.llm_plugin_request"))
+        lbl_request.setStyleSheet(
+            f"font-size: 11px; color: {COLORS['grigio_chiaro']}; background: transparent;"
+        )
+        lbl_request.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        overlay_layout.addWidget(lbl_request)
+
         lbl_contact = QLabel(
             f'<a href="mailto:offgallery.ai.info@gmail.com" style="color: {COLORS["ambra_light"]};">'
             f'offgallery.ai.info@gmail.com</a>'
         )
-        lbl_contact.setStyleSheet("background: transparent; font-size: 11px;")
+        lbl_contact.setStyleSheet("background: transparent; font-size: 12px; font-weight: bold;")
         lbl_contact.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_contact.setOpenExternalLinks(True)
         overlay_layout.addWidget(lbl_contact)
+
+        lbl_note = QLabel(t("config.overlay.llm_plugin_note"))
+        lbl_note.setStyleSheet(
+            f"font-size: 10px; color: {COLORS['grigio_medio']}; background: transparent; font-style: italic;"
+        )
+        lbl_note.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        overlay_layout.addWidget(lbl_note)
 
         stacked.addWidget(overlay)
         stacked.setCurrentIndex(1)  # Mostra overlay sopra
@@ -1130,60 +1152,67 @@ class ConfigTab(QWidget):
         
         # Profili configurabili (principali)
         self.profile_widgets = {}
+        _llm_installed = self._llm_plugin_installed()
         profiles = [
             ("llm_vision", "LLM Vision"),
-            ("clip_embedding", "CLIP"), 
+            ("clip_embedding", "CLIP"),
             ("dinov2_embedding", "DINOv2"),
             ("bioclip_classification", "BioCLIP"),
             ("aesthetic_score", "Aesthetic"),
             ("ai_processing", "AI Generic"),
         ]
-        
+
         for row, (profile_key, profile_name) in enumerate(profiles, 1):
-            # Nome profilo
-            profiles_layout.addWidget(QLabel(profile_name), row, 0)
-            
+            # Nasconde la riga LLM Vision se il plugin non è installato
+            visible = not (profile_key == "llm_vision" and not _llm_installed)
+
+            lbl_name = QLabel(profile_name)
+            if not visible:
+                lbl_name.hide()
+            profiles_layout.addWidget(lbl_name, row, 0)
+
             # Target size
             size_spin = NoWheelSpinBox()
             size_spin.setRange(128, 2048)
             size_spin.setSingleStep(64)
             size_spin.setSuffix("px")
+            if not visible:
+                size_spin.hide()
             profiles_layout.addWidget(size_spin, row, 1)
-            
+
             # Quality
             quality_spin = NoWheelSpinBox()
             quality_spin.setRange(50, 100)
             quality_spin.setSuffix("%")
+            if not visible:
+                quality_spin.hide()
             profiles_layout.addWidget(quality_spin, row, 2)
-            
+
             # Method
             method_combo = NoWheelComboBox()
             method_combo.addItems(["rawpy_full", "high_quality", "preview_optimized", "fast_thumbnail"])
+            if not visible:
+                method_combo.hide()
             profiles_layout.addWidget(method_combo, row, 3)
-            
+
             # Resampling
             resampling_combo = NoWheelComboBox()
             resampling_combo.addItems(["LANCZOS", "BILINEAR", "BICUBIC", "NEAREST"])
+            if not visible:
+                resampling_combo.hide()
             profiles_layout.addWidget(resampling_combo, row, 4)
-            
+
             # Store widgets
             self.profile_widgets[profile_key] = {
                 'size': size_spin,
-                'quality': quality_spin, 
+                'quality': quality_spin,
                 'method': method_combo,
                 'resampling': resampling_combo
             }
-        
+
         profiles_widget.setLayout(profiles_layout)
         scroll_profiles.setWidget(profiles_widget)
         layout.addWidget(scroll_profiles)
-
-        # Disabilita la riga llm_vision se nessun plugin LLM è installato
-        if not self._llm_plugin_installed() and "llm_vision" in self.profile_widgets:
-            for w in self.profile_widgets["llm_vision"].values():
-                w.setEnabled(False)
-            # Aggiunge nota visiva nella stessa riga del nome profilo
-            # (la disabilitazione dei widget è sufficiente come feedback)
 
         group_box.setLayout(layout)
         return group_box
