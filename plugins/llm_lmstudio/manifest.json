@@ -1,0 +1,11 @@
+{
+  "id": "llm_lmstudio",
+  "name": "LM Studio LLM Server",
+  "version": "1.0.0",
+  "description": "Plugin per backend LM Studio. Supporta modelli VL (Vision>Language) come qwen3-VL (raccomandato per OffGallery).",
+  "default_endpoint": "http://localhost:1234",
+  "health_check_path": "/v1/models",
+  "generate_path": "/v1/chat/completions",
+  "author": "TheBlackbird",
+  "type": "llm_backend"
+}

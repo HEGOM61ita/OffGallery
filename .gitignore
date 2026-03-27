@@ -30,6 +30,10 @@
 !plugins/bionomen/
 !plugins/bionomen/*.py
 !plugins/bionomen/*.json
+!plugins/llm_ollama/
+!plugins/llm_ollama/manifest.json
+!plugins/llm_lmstudio/
+!plugins/llm_lmstudio/manifest.json
 
 # Configurazione
 !*.yaml
