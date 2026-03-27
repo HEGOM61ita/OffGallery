@@ -45,6 +45,7 @@ requests
 tqdm
 ftfy
 regex
+psutil
 
 # === NOTA ===
 # Questo file contiene SOLO le dipendenze realmente utilizzate.

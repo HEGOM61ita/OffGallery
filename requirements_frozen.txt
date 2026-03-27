@@ -44,6 +44,7 @@ requests==2.32.5
 tqdm==4.67.1
 ftfy==6.3.1
 regex==2025.11.3
+psutil==6.1.1
 pandas==2.3.3
 scipy==1.16.3
 scikit-learn==1.7.2
