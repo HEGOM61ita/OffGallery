@@ -26,6 +26,7 @@
 !catalog_readers/*.py
 !plugins/
 !plugins/*.py
+!plugins/*.md
 !plugins/llm_ollama/
 !plugins/llm_ollama/*.py
 !plugins/llm_ollama/*.json

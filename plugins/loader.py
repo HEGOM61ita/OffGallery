@@ -4,6 +4,11 @@ Loader e auto-detection dei plugin LLM Vision.
 Usato da embedding_generator all'inizializzazione per caricare
 il plugin corretto in base a config['embedding']['models']['llm_vision']['backend'].
 Usato da main_window all'avvio per il check di disponibilità.
+
+Questo file è coperto dalla Plugin Interface Exception dichiarata in base.py:
+i plugin caricati tramite questo loader possono avere licenze diverse dall'AGPLv3,
+a condizione che interagiscano con OffGallery esclusivamente tramite l'interfaccia
+LLMVisionPlugin definita in base.py. Vedere plugins/PLUGIN_LICENSE_EXCEPTION.md.
 """
 
 import logging

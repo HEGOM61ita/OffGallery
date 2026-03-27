@@ -385,6 +385,14 @@ Segnalazioni che descrivono chiaramente errori riproducibili saranno esaminate a
 
 Distribuito sotto licenza **AGPL-3.0**. Vedi `LICENSE` per maggiori informazioni.
 
+### Plugin Interface Exception
+
+I file `plugins/base.py` e `plugins/loader.py` sono distribuiti con un'eccezione esplicita
+che permette di sviluppare plugin con licenze diverse dall'AGPLv3 (inclusi plugin proprietari),
+purché comunichino con OffGallery esclusivamente tramite l'interfaccia `LLMVisionPlugin`.
+
+Vedi **[plugins/PLUGIN_LICENSE_EXCEPTION.md](plugins/PLUGIN_LICENSE_EXCEPTION.md)** per i dettagli e le condizioni.
+
 - **[TRADEMARK.md](TRADEMARK.md)** - Informazioni sui marchi registrati
 - **[THIRD_PARTY.md](THIRD_PARTY.md)** - Licenze e attribuzioni software di terze parti
 
@@ -691,6 +699,14 @@ OffGallery is built with privacy as a core principle:
 ## License
 
 Distributed under the **AGPL-3.0** license. See `LICENSE` for details.
+
+### Plugin Interface Exception
+
+`plugins/base.py` and `plugins/loader.py` carry an explicit exception that allows
+developing plugins under licenses other than AGPLv3 (including proprietary ones),
+provided they communicate with OffGallery exclusively through the `LLMVisionPlugin` interface.
+
+See **[plugins/PLUGIN_LICENSE_EXCEPTION.md](plugins/PLUGIN_LICENSE_EXCEPTION.md)** for full terms and conditions.
 
 - **[TRADEMARK.md](TRADEMARK.md)** — Trademark information
 - **[THIRD_PARTY.md](THIRD_PARTY.md)** — Third-party software licenses and attributions
