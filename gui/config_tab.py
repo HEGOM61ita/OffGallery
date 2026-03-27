@@ -82,20 +82,41 @@ COLORS = {
 
 class ConfigTab(QWidget):
     """Tab configurazione"""
-    
+
     config_saved = pyqtSignal(dict)
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_window = parent
         self.config = {}
         self.config_path = Path('config_new.yaml')
-        
+
         # Inizializzazione sicura per editor controls
         self.editor_controls = []
-        
+
         self.init_ui()
         self.load_config()
+
+    @staticmethod
+    def _llm_plugin_installed() -> bool:
+        """Ritorna True se almeno un plugin LLM backend è installato in APP_DIR/plugins/."""
+        try:
+            from utils.paths import get_app_dir
+            plugins_dir = get_app_dir() / "plugins"
+            if not plugins_dir.exists():
+                return False
+            for manifest_path in plugins_dir.rglob("manifest.json"):
+                try:
+                    with open(manifest_path, "r", encoding="utf-8") as f:
+                        import json as _json
+                        m = _json.load(f)
+                    if m.get("type") == "llm_backend":
+                        return True
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return False
     
     def init_ui(self):
         """Inizializza interfaccia"""
@@ -207,7 +228,7 @@ class ConfigTab(QWidget):
         """)
         ai_layout = QVBoxLayout()
         ai_layout.addWidget(self.create_bioclip_section())
-        ai_layout.addWidget(self.create_llm_vision_section())
+        ai_layout.addWidget(self._build_llm_vision_with_overlay())
         ai_group.setLayout(ai_layout)
         scroll_layout.addWidget(ai_group)
         
@@ -563,6 +584,12 @@ class ConfigTab(QWidget):
 
         # VRAM LLM: aggiornata in _load_config quando la config è disponibile
         self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
+
+        # Nasconde la riga LLM VRAM se nessun plugin LLM è installato
+        if not self._llm_plugin_installed():
+            llm_name.hide()
+            self._llm_vram_label.hide()
+            llm_device_lbl.hide()
 
         layout.addLayout(grid)
 
@@ -959,6 +986,68 @@ class ConfigTab(QWidget):
             if current == _OLLAMA_DEFAULT:
                 self.llm_vision_endpoint.setText(_LMSTUDIO_DEFAULT)
 
+    def _build_llm_vision_with_overlay(self) -> QWidget:
+        """
+        Ritorna il widget della sezione LLM Vision.
+        Se nessun plugin LLM backend è installato, il widget è disabilitato
+        e sovrapposto da un overlay con call-to-action.
+        """
+        from PyQt6.QtWidgets import QStackedLayout
+
+        llm_section = self.create_llm_vision_section()
+
+        if self._llm_plugin_installed():
+            # Plugin presente: sezione abilitata, nessun overlay
+            return llm_section
+
+        # Plugin assente: disabilita la sezione
+        llm_section.setEnabled(False)
+
+        # Contenitore con layout sovrapposto
+        container = QWidget()
+        stacked = QStackedLayout(container)
+        stacked.setStackingMode(QStackedLayout.StackingMode.StackAll)
+
+        stacked.addWidget(llm_section)
+
+        # Overlay semi-trasparente con call-to-action
+        overlay = QFrame(container)
+        overlay.setStyleSheet(f"""
+            QFrame {{
+                background-color: rgba(30, 30, 30, 200);
+                border-radius: 6px;
+            }}
+        """)
+        overlay_layout = QVBoxLayout(overlay)
+        overlay_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        overlay_layout.setSpacing(6)
+
+        lbl_icon = QLabel("🔌")
+        lbl_icon.setStyleSheet("font-size: 28px; background: transparent;")
+        lbl_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        overlay_layout.addWidget(lbl_icon)
+
+        lbl_title = QLabel(t("config.overlay.llm_plugin_missing"))
+        lbl_title.setStyleSheet(
+            f"font-size: 13px; font-weight: bold; color: {COLORS['grigio_chiaro']}; background: transparent;"
+        )
+        lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        overlay_layout.addWidget(lbl_title)
+
+        lbl_contact = QLabel(
+            f'<a href="mailto:offgallery.ai.info@gmail.com" style="color: {COLORS["ambra_light"]};">'
+            f'offgallery.ai.info@gmail.com</a>'
+        )
+        lbl_contact.setStyleSheet("background: transparent; font-size: 11px;")
+        lbl_contact.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_contact.setOpenExternalLinks(True)
+        overlay_layout.addWidget(lbl_contact)
+
+        stacked.addWidget(overlay)
+        stacked.setCurrentIndex(1)  # Mostra overlay sopra
+
+        return container
+
     def create_image_processing_section(self):
         """Crea sezione configurazione formati file supportati"""
         formats_group = QGroupBox(t("config.group.file_formats"))
@@ -1090,6 +1179,13 @@ class ConfigTab(QWidget):
         profiles_widget.setLayout(profiles_layout)
         scroll_profiles.setWidget(profiles_widget)
         layout.addWidget(scroll_profiles)
+
+        # Disabilita la riga llm_vision se nessun plugin LLM è installato
+        if not self._llm_plugin_installed() and "llm_vision" in self.profile_widgets:
+            for w in self.profile_widgets["llm_vision"].values():
+                w.setEnabled(False)
+            # Aggiunge nota visiva nella stessa riga del nome profilo
+            # (la disabilitazione dei widget è sufficiente come feedback)
 
         group_box.setLayout(layout)
         return group_box

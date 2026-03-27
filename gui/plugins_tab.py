@@ -1,19 +1,23 @@
 """
-PluginsTab — Tab per la gestione dei plugin standalone di OffGallery.
+PluginsTab — Tab per la gestione dei plugin di OffGallery.
 
-Auto-discovery: scansiona APP_DIR/plugins cercando manifest.json con "type": "standalone".
-I plugin LLM interni (llm_ollama, llm_lmstudio) vengono ignorati (type assente o diverso).
+Auto-discovery: scansiona APP_DIR/plugins cercando manifest.json.
+Tipi supportati:
+  - "standalone": plugin autonomo (es. BioNomen) → PluginCard completa
+  - "llm_backend": plugin LLM Vision (es. Ollama, LM Studio) → LLMPluginCard
 
-Ogni plugin trovato viene rappresentato da una card QFrame con:
+PluginCard (standalone):
 - Nome, versione, descrizione
 - Stato database + bottone azione DB
 - Progress bar stile OffGallery
 - Counter label
 - Bottoni Configura / Avvia (o Interrompi)
+- Lanciato come sottoprocesso separato (subprocess.Popen)
 
-Il plugin viene lanciato come sottoprocesso separato (subprocess.Popen).
-Lo stdout del sottoprocesso viene letto in un QThread dedicato:
-le righe "PROGRESS:n:total" aggiornano progress bar e counter.
+LLMPluginCard (llm_backend):
+- Nome, versione, descrizione
+- Stato connessione (check HTTP health endpoint)
+- Bottone Configura → porta l'utente alla Config Tab
 """
 
 import sys
@@ -26,7 +30,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QScrollArea, QSizePolicy, QProgressBar,
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 
 from utils.paths import get_app_dir
 from i18n import t
@@ -733,13 +737,153 @@ class PluginCard(QFrame):
         self._refresh_db_status()
 
 
+class LLMPluginCard(QFrame):
+    """
+    Card grafica per un plugin LLM backend (type: "llm_backend").
+
+    Mostra nome, versione, descrizione, stato connessione e un bottone
+    Configura che porta l'utente alla Config Tab (sezione LLM Vision).
+    Nessun DB, nessun Avvia: il backend è gestito esternamente (Ollama / LM Studio).
+    """
+
+    # Segnale emesso quando l'utente clicca Configura (il ricevente apre la Config Tab)
+    configure_requested = pyqtSignal()
+
+    def __init__(self, manifest: dict, parent=None):
+        super().__init__(parent)
+        self._manifest = manifest
+
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setFrameShadow(QFrame.Shadow.Raised)
+        self.setStyleSheet(f"""
+            LLMPluginCard {{
+                background-color: {_COLORS['grafite_dark']};
+                border: 1px solid {_COLORS['grafite_light']};
+                border-radius: 6px;
+            }}
+        """)
+
+        self._build_ui()
+
+        # Timer per refresh periodico stato connessione (ogni 10 secondi)
+        self._timer = QTimer(self)
+        self._timer.setInterval(10_000)
+        self._timer.timeout.connect(self._check_connection)
+        self._timer.start()
+        # Check immediato
+        self._check_connection()
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+
+        # === Riga header: nome + versione + descrizione + [Configura] ===
+        header_row = QHBoxLayout()
+        header_row.setSpacing(8)
+
+        name = self._manifest.get("name", "Plugin LLM")
+        version = self._manifest.get("version", "")
+        description = self._manifest.get("description", "")
+
+        lbl_name = QLabel(f"🔌 {name}  v{version}")
+        lbl_name.setStyleSheet(
+            f"font-size: 14px; font-weight: bold; color: {_COLORS['ambra_light']};"
+        )
+        header_row.addWidget(lbl_name)
+
+        lbl_desc = QLabel(description)
+        lbl_desc.setStyleSheet(
+            f"font-size: 11px; color: {_COLORS['grigio_medio']};"
+        )
+        header_row.addWidget(lbl_desc)
+        header_row.addStretch()
+
+        self.btn_configure = QPushButton(t("plugins.button.configure"))
+        self.btn_configure.setFixedWidth(100)
+        self.btn_configure.setStyleSheet(
+            f"QPushButton {{ background-color: {_COLORS['grafite_light']}; "
+            f"color: {_COLORS['grigio_chiaro']}; border: none; border-radius: 4px; "
+            f"padding: 4px 10px; font-size: 11px; }}"
+            f"QPushButton:hover {{ background-color: {_COLORS['blu_petrolio']}; }}"
+        )
+        self.btn_configure.clicked.connect(self.configure_requested.emit)
+        header_row.addWidget(self.btn_configure)
+
+        layout.addLayout(header_row)
+
+        # === Riga stato connessione ===
+        status_row = QHBoxLayout()
+        status_row.setSpacing(6)
+
+        self.lbl_status = QLabel("⏳ Verifica connessione...")
+        self.lbl_status.setStyleSheet(
+            f"font-size: 11px; color: {_COLORS['grigio_medio']};"
+        )
+        status_row.addWidget(self.lbl_status)
+
+        endpoint = self._manifest.get("default_endpoint", "")
+        if endpoint:
+            lbl_endpoint = QLabel(endpoint)
+            lbl_endpoint.setStyleSheet(
+                f"font-size: 10px; color: {_COLORS['grigio_medio']}; font-style: italic;"
+            )
+            status_row.addWidget(lbl_endpoint)
+
+        status_row.addStretch()
+        layout.addLayout(status_row)
+
+    def _check_connection(self):
+        """Verifica in background se l'endpoint del plugin è raggiungibile."""
+        endpoint = self._manifest.get("default_endpoint", "")
+        health_path = self._manifest.get("health_check_path", "")
+        if not endpoint or not health_path:
+            self.lbl_status.setText("⚠️ Endpoint non configurato")
+            return
+
+        url = endpoint.rstrip("/") + health_path
+
+        def _do_check():
+            try:
+                import urllib.request
+                req = urllib.request.Request(url, method="GET")
+                with urllib.request.urlopen(req, timeout=2) as resp:
+                    return resp.status == 200
+            except Exception:
+                return False
+
+        # Esecuzione in thread per non bloccare la UI
+        import threading
+        def _worker():
+            ok = _do_check()
+            # Aggiornamento UI deve avvenire nel thread principale: usiamo invokeMethod via segnale
+            # (più semplice: scriviamo direttamente, PyQt6 gestisce cross-thread per setText)
+            if ok:
+                self.lbl_status.setText("✅ Backend attivo e raggiungibile")
+                self.lbl_status.setStyleSheet(
+                    f"font-size: 11px; color: {_COLORS['verde']};"
+                )
+            else:
+                self.lbl_status.setText("❌ Backend non raggiungibile")
+                self.lbl_status.setStyleSheet(
+                    f"font-size: 11px; color: {_COLORS['rosso']};"
+                )
+
+        t_check = threading.Thread(target=_worker, daemon=True)
+        t_check.start()
+
+
 class PluginsTab(QWidget):
     """
     Tab 'Plugin' per OffGallery.
 
-    Auto-discovery: scansiona APP_DIR/plugins cercando manifest.json
-    con "type": "standalone". Ogni plugin trovato genera una PluginCard.
+    Auto-discovery: scansiona APP_DIR/plugins cercando manifest.json.
+    - "standalone" → PluginCard
+    - "llm_backend" → LLMPluginCard
     """
+
+    # Segnale emesso quando si vuole navigare alla Config Tab
+    navigate_to_config = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -801,7 +945,7 @@ class PluginsTab(QWidget):
         self._populate_plugins()
 
     def _populate_plugins(self):
-        """Scansiona la directory plugins e crea le card per i plugin standalone."""
+        """Scansiona la directory plugins e crea le card per tutti i plugin riconosciuti."""
         # Rimuovi card esistenti
         for card in self._cards:
             card.setParent(None)
@@ -813,7 +957,7 @@ class PluginsTab(QWidget):
             self._no_plugins_label.show()
             return
 
-        standalone_found = False
+        any_found = False
         for manifest_path in sorted(plugins_dir.rglob("manifest.json")):
             try:
                 with open(manifest_path, "r", encoding="utf-8") as f:
@@ -822,24 +966,36 @@ class PluginsTab(QWidget):
                 logger.warning(f"Impossibile leggere manifest {manifest_path}: {e}")
                 continue
 
-            # Ignora plugin non standalone (es. llm_ollama, llm_lmstudio)
-            if manifest.get("type") != "standalone":
-                continue
-
+            plugin_type = manifest.get("type", "")
             plugin_dir = manifest_path.parent
 
-            card = PluginCard(
-                manifest=manifest,
-                plugin_dir=plugin_dir,
-                db_path=self._db_path,
-                config_path=self._config_path,
-                parent=self._cards_container,
-            )
-            self._cards_layout.addWidget(card)
-            self._cards.append(card)
-            standalone_found = True
+            if plugin_type == "standalone":
+                card = PluginCard(
+                    manifest=manifest,
+                    plugin_dir=plugin_dir,
+                    db_path=self._db_path,
+                    config_path=self._config_path,
+                    parent=self._cards_container,
+                )
+                self._cards_layout.addWidget(card)
+                self._cards.append(card)
+                any_found = True
 
-        if standalone_found:
+            elif plugin_type == "llm_backend":
+                card = LLMPluginCard(
+                    manifest=manifest,
+                    parent=self._cards_container,
+                )
+                card.configure_requested.connect(self.navigate_to_config.emit)
+                self._cards_layout.addWidget(card)
+                self._cards.append(card)
+                any_found = True
+
+            else:
+                # Tipo sconosciuto o assente: ignora silenziosamente
+                logger.debug(f"Plugin ignorato (tipo non supportato): {manifest_path}")
+
+        if any_found:
             self._no_plugins_label.hide()
         else:
             self._no_plugins_label.show()

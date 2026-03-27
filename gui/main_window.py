@@ -551,6 +551,7 @@ class MainWindow(QMainWindow):
         self.tabs.currentChanged.connect(self.on_tab_changed)
         self.export_tab.export_completed.connect(self.on_export_completed)
         self.config_tab.config_saved.connect(self._on_config_saved)
+        self.plugins_tab.navigate_to_config.connect(self._navigate_to_config_tab)
         
         layout.addWidget(self.tabs)
 
@@ -732,6 +733,10 @@ class MainWindow(QMainWindow):
                     self.header.update_model_status('database', 'error')
             except Exception:
                 self.header.update_model_status('database', 'error')
+
+    def _navigate_to_config_tab(self):
+        """Naviga alla Config Tab (indice 0)."""
+        self.tabs.setCurrentWidget(self.config_tab)
 
     def _on_config_saved(self, new_config):
         """
