@@ -782,7 +782,7 @@ class ImageCard(QFrame):
             unified_tags = self.get_unified_tags()
             if unified_tags and len(unified_tags) > 0:
                 lines.append("🏷️ TAGS")
-                tag_text = ", ".join(sorted(unified_tags))
+                tag_text = ", ".join(unified_tags)
                 # Wrappa tag a 45 caratteri
                 if tag_text and len(tag_text) <= 45:
                     lines.append(tag_text)
