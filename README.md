@@ -285,7 +285,9 @@ I plugin LLM sono distribuiti separatamente dal codice sorgente.
 | **OffGallery Ollama Plugin** | Ollama locale | `http://localhost:11434` | Ottimizzato per qwen3-VL, llava, gemma3. Supporto `think=false`, diagnostica timing, warmup/unload VRAM |
 | **OffGallery LM Studio Plugin** | LM Studio server | `http://localhost:1234` | Ottimizzato per API OpenAI-compatible. Supporto AMD/DirectML, unload via CLI `lms`, modelli VL (qwen3-VL consigliato) |
 
-Per ricevere i plugin, scrivere a: **[inserire email]**
+Per ricevere i plugin, scrivere a: **offgallery.ai.info@gmail.com**
+
+> L'indirizzo email fornito sarà utilizzato esclusivamente per l'invio del plugin richiesto e per eventuali notifiche di aggiornamento. Non verrà usato per altri scopi né condiviso con terze parti.
 
 ### Installazione plugin (zip ricevuto)
 
@@ -677,7 +679,9 @@ LLM plugins are distributed separately from the source code.
 | **OffGallery Ollama Plugin** | Local Ollama | `http://localhost:11434` | Optimized for qwen3-VL, llava, gemma3. `think=false` support, timing diagnostics, VRAM warmup/unload |
 | **OffGallery LM Studio Plugin** | LM Studio server | `http://localhost:1234` | Optimized for OpenAI-compatible API. AMD/DirectML support, `lms` CLI unload, VL models (qwen3-VL recommended) |
 
-To receive the plugins, write to: **[insert email]**
+To receive the plugins, write to: **offgallery.ai.info@gmail.com**
+
+> The email address provided will be used exclusively to send the requested plugin and for any necessary update notifications. It will not be used for any other purpose or shared with third parties.
 
 ### Installing a plugin (from zip)
 
