@@ -1023,6 +1023,16 @@ class GalleryTab(QWidget):
                 title_cfg = auto_import.get('title', {})
                 max_title_words = title_cfg.get('max_words', title_cfg.get('max', 5))
 
+                # Estrai location_hint dalla gerarchia geografica nel DB
+                location_hint = None
+                geo_hierarchy = item.image_data.get('geo_hierarchy')
+                if geo_hierarchy:
+                    try:
+                        from geo_enricher import get_location_hint
+                        location_hint = get_location_hint(geo_hierarchy)
+                    except Exception:
+                        pass
+
                 # Estrai contesto BioCLIP dal campo dedicato bioclip_taxonomy
                 bioclip_context = None
                 category_hint = None
@@ -1062,17 +1072,17 @@ class GalleryTab(QWidget):
                 result = {}
 
                 if gen_options.get('title'):
-                    title = embedding_gen.generate_llm_title(llm_input, max_title_words, bioclip_context=bioclip_context, category_hint=category_hint)
+                    title = embedding_gen.generate_llm_title(llm_input, max_title_words, bioclip_context=bioclip_context, category_hint=category_hint, location_hint=location_hint)
                     if title:
                         result['title'] = title
 
                 if gen_options.get('tags'):
-                    tags = embedding_gen.generate_llm_tags(llm_input, max_tags, bioclip_context=bioclip_context, category_hint=category_hint)
+                    tags = embedding_gen.generate_llm_tags(llm_input, max_tags, bioclip_context=bioclip_context, category_hint=category_hint, location_hint=location_hint)
                     if tags:
                         result['tags'] = tags
 
                 if gen_options.get('description'):
-                    description = embedding_gen.generate_llm_description(llm_input, max_words, bioclip_context=bioclip_context, category_hint=category_hint)
+                    description = embedding_gen.generate_llm_description(llm_input, max_words, bioclip_context=bioclip_context, category_hint=category_hint, location_hint=location_hint)
                     if description:
                         result['description'] = description
                 #-------------------------------------------
