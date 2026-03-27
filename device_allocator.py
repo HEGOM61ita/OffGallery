@@ -344,6 +344,60 @@ def _estimate_llm_vram_from_name(model_name: str) -> float:
     return round(vram_gb, 1)
 
 
+def detect_external_llm_vram() -> dict:
+    """Rileva VRAM occupata da LLM esterni (Ollama o LM Studio) interrogando
+    gli endpoint di default, indipendentemente dalla configurazione OffGallery.
+
+    Utile quando il plugin LLM non è installato ma un backend è comunque attivo
+    e sta occupando VRAM che deve essere contabilizzata nel budget.
+
+    Returns:
+        dict con: vram_gb (float), source ('ollama_api'/'lmstudio_estimate'/'none'),
+                  model_name (str)
+    """
+    result = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
+
+    # Ollama default: interroga /api/ps per modelli attualmente in VRAM
+    try:
+        import requests
+        r = requests.get("http://localhost:11434/api/ps", timeout=2)
+        if r.status_code == 200:
+            total_vram = 0
+            names = []
+            for m in r.json().get('models', []):
+                vram_bytes = m.get('size_vram', 0)
+                if vram_bytes > 0:
+                    total_vram += vram_bytes
+                    names.append(m.get('name', ''))
+            if total_vram > 0:
+                result['vram_gb'] = round(total_vram / (1024 ** 3), 1)
+                result['source'] = 'ollama_api'
+                result['model_name'] = ', '.join(names)
+                return result
+    except Exception:
+        pass
+
+    # LM Studio default: /v1/models restituisce i modelli caricati
+    try:
+        import requests
+        r = requests.get("http://localhost:1234/v1/models", timeout=2)
+        if r.status_code == 200:
+            models = r.json().get('data', [])
+            if models:
+                # Stima VRAM dal primo modello caricato
+                mid = models[0].get('id', '')
+                est = _estimate_llm_vram_from_name(mid)
+                if est > 0:
+                    result['vram_gb'] = est
+                    result['source'] = 'lmstudio_estimate'
+                    result['model_name'] = mid
+                    return result
+    except Exception:
+        pass
+
+    return result
+
+
 def get_vram_budget_info(
     allocation: Dict[str, str],
     vram_total_gb: Optional[float],

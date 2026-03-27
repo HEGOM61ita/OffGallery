@@ -1369,8 +1369,10 @@ class ConfigTab(QWidget):
                     idx = combo.findData(model_cfg_entry.get('device', 'gpu'))
                 if idx >= 0:
                     combo.setCurrentIndex(idx)
-            # Rileva VRAM LLM solo se il plugin è installato
-            # (senza plugin la riga è nascosta e il valore deve restare 0.0)
+            # Rileva VRAM LLM:
+            # - con plugin installato: usa config (endpoint + modello configurati)
+            # - senza plugin: interroga comunque gli endpoint default per rilevare
+            #   qualsiasi LLM esterno attivo che stia occupando VRAM reale
             if self._llm_plugin_installed():
                 from device_allocator import detect_llm_vram
                 self._llm_vram_info = detect_llm_vram(self.config)
@@ -1380,7 +1382,8 @@ class ConfigTab(QWidget):
                 else:
                     self._llm_vram_label.setText("— (non attivo)")
             else:
-                self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
+                from device_allocator import detect_external_llm_vram
+                self._llm_vram_info = detect_external_llm_vram()
 
             self._update_vram_budget()
             # Nasconde messaggio restart dopo load (non è un cambio utente)
