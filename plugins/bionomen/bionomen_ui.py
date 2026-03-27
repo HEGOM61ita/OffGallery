@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QProgressBar, QDialog,
-    QRadioButton, QButtonGroup, QFrame, QDialogButtonBox,
+    QButtonGroup, QFrame, QDialogButtonBox,
     QMessageBox, QCheckBox, QLineEdit, QFileDialog,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
@@ -83,10 +83,6 @@ _DARK_STYLE = """
         background-color: #1E1E1E;
         color: #E3E3E3;
         selection-background-color: #1C4F63;
-    }
-    QRadioButton {
-        color: #E3E3E3;
-        spacing: 8px;
     }
     QFrame[frameShape="4"], QFrame[frameShape="5"] {
         color: #3A3A3A;
@@ -296,7 +292,9 @@ class ConfigDialog(QDialog):
         mode_label.setStyleSheet("font-weight: bold; font-size: 12px;")
         layout.addWidget(mode_label)
 
+        # Gruppo esclusivo di checkbox (mutua esclusione come radiobutton, stile nativo)
         self._mode_group = QButtonGroup(self)
+        self._mode_group.setExclusive(True)
 
         lbl_unprocessed = "Solo foto non ancora processate"
         lbl_all = "Tutto il database"
@@ -310,23 +308,23 @@ class ConfigDialog(QDialog):
         if self._count_gallery >= 0:
             lbl_gallery += f"  ({self._count_gallery:,} selezionate)".replace(",", ".")
 
-        self.radio_unprocessed = QRadioButton(lbl_unprocessed)
-        self.radio_all        = QRadioButton(lbl_all)
-        self.radio_gallery    = QRadioButton(lbl_gallery)
-        self.radio_directory  = QRadioButton(lbl_directory)
+        self.cb_unprocessed = QCheckBox(lbl_unprocessed)
+        self.cb_all         = QCheckBox(lbl_all)
+        self.cb_gallery     = QCheckBox(lbl_gallery)
+        self.cb_directory   = QCheckBox(lbl_directory)
 
-        self._mode_group.addButton(self.radio_unprocessed, 0)
-        self._mode_group.addButton(self.radio_all,         1)
-        self._mode_group.addButton(self.radio_gallery,     2)
-        self._mode_group.addButton(self.radio_directory,   3)
+        self._mode_group.addButton(self.cb_unprocessed, 0)
+        self._mode_group.addButton(self.cb_all,         1)
+        self._mode_group.addButton(self.cb_gallery,     2)
+        self._mode_group.addButton(self.cb_directory,   3)
 
-        for rb in (self.radio_unprocessed, self.radio_all, self.radio_gallery, self.radio_directory):
-            layout.addWidget(rb)
+        for cb in (self.cb_unprocessed, self.cb_all, self.cb_gallery, self.cb_directory):
+            layout.addWidget(cb)
 
         # Seleziona modalità corrente
-        _map = {"unprocessed": self.radio_unprocessed, "all": self.radio_all,
-                "ids": self.radio_gallery, "directory": self.radio_directory}
-        _map.get(self._mode, self.radio_unprocessed).setChecked(True)
+        _map = {"unprocessed": self.cb_unprocessed, "all": self.cb_all,
+                "ids": self.cb_gallery, "directory": self.cb_directory}
+        _map.get(self._mode, self.cb_unprocessed).setChecked(True)
 
         layout.addWidget(_sep())
 
@@ -366,11 +364,11 @@ class ConfigDialog(QDialog):
         self.accept()
 
     def get_mode(self) -> str:
-        if self.radio_all.isChecked():
+        if self.cb_all.isChecked():
             return "all"
-        if self.radio_gallery.isChecked():
+        if self.cb_gallery.isChecked():
             return "ids"
-        if self.radio_directory.isChecked():
+        if self.cb_directory.isChecked():
             return "directory"
         return "unprocessed"
 
