@@ -27,9 +27,6 @@
 !plugins/
 !plugins/*.py
 !plugins/*.md
-!plugins/bionomen/
-!plugins/bionomen/*.py
-!plugins/bionomen/*.json
 !plugins/llm_ollama/
 !plugins/llm_ollama/manifest.json
 !plugins/llm_lmstudio/
