@@ -554,6 +554,18 @@ class PluginCard(QFrame):
                 selected = main_window.get_selected_gallery_items()
                 count_gallery = len(selected) if selected else 0
 
+            # Legge modalità salvata in config (persistenza tra sessioni)
+            try:
+                bionomen_mod_path = ui_path.parent / "bionomen.py"
+                bionomen_spec = importlib.util.spec_from_file_location("bionomen_core", str(bionomen_mod_path))
+                bionomen_mod = importlib.util.module_from_spec(bionomen_spec)
+                bionomen_spec.loader.exec_module(bionomen_mod)
+                saved_mode = bionomen_mod.load_config().get("mode", self._mode)
+                if saved_mode != "directory":  # directory richiede scelta interattiva
+                    self._mode = saved_mode
+            except Exception:
+                pass
+
             dialog = mod.ConfigDialog(
                 self._mode,
                 count_unprocessed=count_unprocessed,

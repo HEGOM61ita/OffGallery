@@ -100,6 +100,7 @@ def load_config() -> dict:
     defaults = {
         "data_dir": str(_PLUGIN_DIR / "data"),
         "taxa_enabled": ["aves"],
+        "mode": "unprocessed",
     }
     if not _CONFIG_PATH.exists():
         return defaults

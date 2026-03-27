@@ -102,6 +102,24 @@ _DARK_STYLE = """
     QRadioButton::indicator:hover {
         border: 2px solid #E0A84A;
     }
+    QCheckBox {
+        color: #E3E3E3;
+        spacing: 8px;
+    }
+    QCheckBox::indicator {
+        width: 14px;
+        height: 14px;
+        border-radius: 2px;
+        border: 2px solid #B0B0B0;
+        background-color: #2A2A2A;
+    }
+    QCheckBox::indicator:checked {
+        border: 2px solid #E0A84A;
+        background-color: #E0A84A;
+    }
+    QCheckBox::indicator:hover {
+        border: 2px solid #E0A84A;
+    }
     QFrame[frameShape="4"], QFrame[frameShape="5"] {
         color: #3A3A3A;
     }
@@ -268,11 +286,19 @@ class ConfigDialog(QDialog):
         import bionomen
         self._taxa_checks = {}
         enabled = set(self._cfg.get("taxa_enabled", ["aves"]))
-        for taxon_id, info in bionomen.TAXA.items():
+        taxa_items = list(bionomen.TAXA.items())
+        grid = QHBoxLayout()
+        col_left  = QVBoxLayout()
+        col_right = QVBoxLayout()
+        mid = (len(taxa_items) + 1) // 2
+        for i, (taxon_id, info) in enumerate(taxa_items):
             cb = QCheckBox(info["label"])
             cb.setChecked(taxon_id in enabled)
             self._taxa_checks[taxon_id] = cb
-            layout.addWidget(cb)
+            (col_left if i < mid else col_right).addWidget(cb)
+        grid.addLayout(col_left)
+        grid.addLayout(col_right)
+        layout.addLayout(grid)
 
         layout.addWidget(_sep())
 
@@ -367,6 +393,7 @@ class ConfigDialog(QDialog):
             return
         self._cfg["taxa_enabled"] = taxa_enabled
         self._cfg["data_dir"] = self._dir_edit.text().strip()
+        self._cfg["mode"] = self.get_mode()
         bionomen.save_config(self._cfg)
         self.accept()
 
