@@ -1369,14 +1369,18 @@ class ConfigTab(QWidget):
                     idx = combo.findData(model_cfg_entry.get('device', 'gpu'))
                 if idx >= 0:
                     combo.setCurrentIndex(idx)
-            # Rileva VRAM LLM (ora la config è caricata)
-            from device_allocator import detect_llm_vram
-            self._llm_vram_info = detect_llm_vram(self.config)
-            if self._llm_vram_info['vram_gb'] > 0:
-                src = "API" if self._llm_vram_info['source'] == 'ollama_api' else "stima"
-                self._llm_vram_label.setText(f"~{self._llm_vram_info['vram_gb']:.1f} GB ({src})")
+            # Rileva VRAM LLM solo se il plugin è installato
+            # (senza plugin la riga è nascosta e il valore deve restare 0.0)
+            if self._llm_plugin_installed():
+                from device_allocator import detect_llm_vram
+                self._llm_vram_info = detect_llm_vram(self.config)
+                if self._llm_vram_info['vram_gb'] > 0:
+                    src = "API" if self._llm_vram_info['source'] == 'ollama_api' else "stima"
+                    self._llm_vram_label.setText(f"~{self._llm_vram_info['vram_gb']:.1f} GB ({src})")
+                else:
+                    self._llm_vram_label.setText("— (non attivo)")
             else:
-                self._llm_vram_label.setText("— (non attivo)")
+                self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
 
             self._update_vram_budget()
             # Nasconde messaggio restart dopo load (non è un cambio utente)
