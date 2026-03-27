@@ -29,6 +29,7 @@ import os
 from utils.subprocess_utils import subprocess_creation_kwargs
 import time
 from utils.paths import get_app_dir
+from utils.tag_utils import normalize_tags
 from i18n import t
 
 logger = logging.getLogger(__name__)
@@ -1578,22 +1579,36 @@ class ImageCard(QFrame):
                 for item in items:
                     if hasattr(item, 'image_id') and item.image_id:
                         try:
-                            # Prova diversi possibili nomi di metodi per tag
+                            # Estrai nome scientifico da bioclip_taxonomy per normalize_tags
+                            sci_name = None
+                            taxonomy_raw = item.image_data.get('bioclip_taxonomy')
+                            if taxonomy_raw:
+                                try:
+                                    import json as _json
+                                    tax = _json.loads(taxonomy_raw) if isinstance(taxonomy_raw, str) else taxonomy_raw
+                                    if isinstance(tax, list) and len(tax) >= 7:
+                                        genus = tax[5] or ''
+                                        sp_ep = tax[6] or ''
+                                        sci_name = f"{genus} {sp_ep}".strip() or None
+                                except Exception:
+                                    pass
+
+                            normalized = normalize_tags(new_tags, scientific_name=sci_name)
+
                             if hasattr(db_manager, 'update_tags'):
-                                db_manager.update_tags(item.image_id, new_tags)
+                                db_manager.update_tags(item.image_id, normalized)
                             elif hasattr(db_manager, 'update_image_tags'):
-                                db_manager.update_image_tags(item.image_id, new_tags)
+                                db_manager.update_image_tags(item.image_id, normalized)
                             elif hasattr(db_manager, 'set_tags'):
-                                db_manager.set_tags(item.image_id, new_tags)
+                                db_manager.set_tags(item.image_id, normalized)
                             elif hasattr(db_manager, 'update_metadata'):
-                                db_manager.update_metadata(item.image_id, tags=new_tags)
+                                db_manager.update_metadata(item.image_id, tags=normalized)
                             else:
                                 print(f"❌ ERRORE: Nessun metodo trovato per aggiornare tag!")
                                 db_failures += 1
                                 continue
-                                
-                            # Aggiorna image_data SOLO se DB scrittura è riuscita
-                            item.image_data['tags'] = json.dumps(new_tags)
+
+                            item.image_data['tags'] = json.dumps(normalized)
                             db_success += 1
                         except Exception as e:
                             print(f"Errore scrittura tag DB per {item.image_data.get('filename')}: {e}")
@@ -2393,17 +2408,33 @@ class ImageCard(QFrame):
 
                     if new_tags:
                         try:
+                            # Estrai nome scientifico da bioclip_taxonomy per normalize_tags
+                            sci_name = None
+                            taxonomy_raw = item.image_data.get('bioclip_taxonomy')
+                            if taxonomy_raw:
+                                try:
+                                    import json as _json
+                                    tax = _json.loads(taxonomy_raw) if isinstance(taxonomy_raw, str) else taxonomy_raw
+                                    if isinstance(tax, list) and len(tax) >= 7:
+                                        genus = tax[5] or ''
+                                        sp_ep = tax[6] or ''
+                                        sci_name = f"{genus} {sp_ep}".strip() or None
+                                except Exception:
+                                    pass
+
+                            normalized_tags = normalize_tags(new_tags, scientific_name=sci_name)
+
                             if hasattr(db_manager, 'update_tags'):
-                                result = db_manager.update_tags(item.image_id, new_tags)
+                                result = db_manager.update_tags(item.image_id, normalized_tags)
                             elif hasattr(db_manager, 'update_image_tags'):
-                                result = db_manager.update_image_tags(item.image_id, new_tags)
+                                result = db_manager.update_image_tags(item.image_id, normalized_tags)
                             elif hasattr(db_manager, 'set_tags'):
-                                result = db_manager.set_tags(item.image_id, new_tags)
+                                result = db_manager.set_tags(item.image_id, normalized_tags)
                             elif hasattr(db_manager, 'update_metadata'):
-                                result = db_manager.update_metadata(item.image_id, tags=new_tags)
+                                result = db_manager.update_metadata(item.image_id, tags=normalized_tags)
                             else:
                                 continue
-                            item.image_data['tags'] = json.dumps(new_tags)
+                            item.image_data['tags'] = json.dumps(normalized_tags)
                             db_updated = True
                         except Exception as e:
                             logger.error(f"Errore scrittura tag su DB: {e}", exc_info=True)

@@ -13,6 +13,7 @@ import warnings
 import os
 
 from utils.paths import get_app_dir
+from utils.tag_utils import normalize_tags
 
 warnings.filterwarnings('ignore')
 os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
@@ -1840,11 +1841,11 @@ class EmbeddingGenerator:
             if response:
                 tags = self._parse_llm_tags_response(response, max_tags)
 
-                # Aggiungi nome latino da BioCLIP come primo tag
+                # Estrai nome latino da BioCLIP e normalizza ordine tag
+                latin_name = None
                 if bioclip_context:
-                    latin_name = bioclip_context.split('(')[0].split(',')[0].strip()
-                    if latin_name:
-                        tags = [latin_name] + [t for t in tags if t.lower() != latin_name.lower()]
+                    latin_name = bioclip_context.split('(')[0].split(',')[0].strip() or None
+                tags = normalize_tags(tags, scientific_name=latin_name)
 
                 return tags[:max_tags]
             return []
@@ -1912,18 +1913,19 @@ class EmbeddingGenerator:
             if not result:
                 return {}
 
-            # Post-processing BioCLIP: stesso comportamento dei metodi singoli
+            # Post-processing BioCLIP: nome latino in pos. 0, normalize_tags per dedup/ordine
+            latin_name = None
             if bioclip_context:
-                latin_name = bioclip_context.split('(')[0].split(',')[0].strip()
-                if latin_name:
-                    if 'tags' in result:
-                        tags = result['tags']
-                        tags = [latin_name] + [t for t in tags if t.lower() != latin_name.lower()]
-                        result['tags'] = tags[:max_tags]
-                    if 'description' in result and result['description']:
-                        result['description'] = f"{latin_name}: {result['description']}"
-                    if 'title' in result and result['title']:
-                        result['title'] = f"{latin_name} - {result['title']}"
+                latin_name = bioclip_context.split('(')[0].split(',')[0].strip() or None
+            if latin_name:
+                if 'tags' in result:
+                    result['tags'] = normalize_tags(result['tags'], scientific_name=latin_name)[:max_tags]
+                if 'description' in result and result['description']:
+                    result['description'] = f"{latin_name}: {result['description']}"
+                if 'title' in result and result['title']:
+                    result['title'] = f"{latin_name} - {result['title']}"
+            elif 'tags' in result:
+                result['tags'] = normalize_tags(result['tags'])[:max_tags]
 
             return result
 

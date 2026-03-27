@@ -17,6 +17,7 @@ from queue import Queue
 
 from xmp_badge_manager import refresh_xmp_badges
 from i18n import t
+from utils.tag_utils import normalize_tags
 
 # Import componenti UI dal modulo widgets
 from gui.gallery_widgets import (
@@ -1089,24 +1090,20 @@ class GalleryTab(QWidget):
 
                 # Salva TAGS
                 if result.get('tags'):
-                    # Ottieni tag esistenti unificati
                     existing_tags = []
                     if 'tags' in item.image_data and item.image_data['tags']:
                         try:
                             existing_tags = json.loads(item.image_data['tags'])
-                        except:
+                        except Exception:
                             existing_tags = []
 
-                    # BioCLIP SEMPRE prima, poi LLM nuovi, poi altri esistenti
-                    bioclip_prefixes = ("Specie: ", "Genere: ", "Famiglia: ", "Confidenza: ", "Nome comune: ",
-                                        "Species: ", "Genus: ", "Family: ", "Confidence: ", "Common name: ")
-                    bioclip_existing = [t for t in existing_tags if any(t.startswith(p) for p in bioclip_prefixes)]
-                    non_bioclip_existing = [t for t in existing_tags if not any(t.startswith(p) for p in bioclip_prefixes)]
-
+                    # Merge: unione senza duplicati, poi normalize con nome scientifico
                     existing_lower = {t.lower() for t in existing_tags}
-                    new_llm = [t for t in result['tags'] if t.lower() not in existing_lower]
-                    merged = bioclip_existing + new_llm + non_bioclip_existing
-                    tags_json = json.dumps(merged, ensure_ascii=False)
+                    merged = list(existing_tags) + [
+                        tag for tag in result['tags'] if tag.lower() not in existing_lower
+                    ]
+                    final_tags = normalize_tags(merged, scientific_name=bioclip_context or None)
+                    tags_json = json.dumps(final_tags, ensure_ascii=False)
 
                     db_manager.cursor.execute(
                         "UPDATE images SET tags = ? WHERE id = ?",

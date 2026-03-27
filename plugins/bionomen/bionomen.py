@@ -2,10 +2,9 @@
 BioNomen — Logica core per lookup nomi comuni biologici.
 
 Strategie di lookup (priorità decrescente):
-  1. Cache locale SQLite per taxon (bionomen_<taxon>_<lang>.db)
-  2. GBIF vernacular names API
-  3. iNaturalist API (con filtro anti-geografico)
-  4. Wikidata SPARQL
+  1. Cache/DB locale SQLite per taxon (bionomen_<taxon>_<lang>.db) — offline
+  2. Ricerca online parallela (GBIF + Wikipedia + iNat + Wikidata) — primo risultato vince
+     Se il vincitore è GBIF, il risultato viene salvato nel DB locale.
 
 Questo modulo e' completamente standalone: non importa nulla da OffGallery.
 Comunicazione con OffGallery tramite stdout: righe PROGRESS:n:total
@@ -16,6 +15,8 @@ import json
 import time
 import logging
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Callable, List
@@ -101,6 +102,7 @@ def load_config() -> dict:
         "data_dir": str(_PLUGIN_DIR / "data"),
         "taxa_enabled": ["aves"],
         "mode": "unprocessed",
+        "online_lookup": True,
     }
     if not _CONFIG_PATH.exists():
         return defaults
@@ -339,13 +341,11 @@ def _lookup_gbif(scientific_name: str, language: str) -> Optional[str]:
         for entry in results:
             entry_lang = entry.get("language", "")
             if entry_lang == lang_code and entry.get("vernacularName"):
-                print(f"SOURCE:GBIF (online):{scientific_name}", flush=True)
                 return entry["vernacularName"]
 
         for entry in results:
             entry_lang = entry.get("language", "")
             if entry_lang == language and entry.get("vernacularName"):
-                print(f"SOURCE:GBIF (online):{scientific_name}", flush=True)
                 return entry["vernacularName"]
 
         return None
@@ -389,7 +389,6 @@ def _lookup_inaturalist(scientific_name: str, language: str) -> Optional[str]:
         taxon = results[0]
         common = taxon.get("preferred_common_name", "")
         if common and not _contains_geo_term(common):
-            print(f"SOURCE:iNaturalist (online):{scientific_name}", flush=True)
             return common
         elif common and _contains_geo_term(common):
             print(f"LOG:warning:iNaturalist '{scientific_name}': nome geografico filtrato ('{common}')", flush=True)
@@ -399,7 +398,6 @@ def _lookup_inaturalist(scientific_name: str, language: str) -> Optional[str]:
             if entry.get("lexicon", "").lower() == lexicon_key and entry.get("name"):
                 candidate = entry["name"]
                 if not _contains_geo_term(candidate):
-                    print(f"SOURCE:iNaturalist (online):{scientific_name}", flush=True)
                     return candidate
 
         return None
@@ -452,7 +450,6 @@ SELECT ?label WHERE {{
         if label.strip().lower() == scientific_name.strip().lower():
             return None
 
-        print(f"SOURCE:Wikidata (online):{scientific_name}", flush=True)
         return label
 
     except Exception as e:
@@ -535,38 +532,67 @@ def _lookup_wikipedia(scientific_name: str, language: str) -> Optional[str]:
         return None
 
 
-def _run_with_stop(fn, stop_event, timeout: float = 6.0):
-    """
-    Esegue fn() in un thread daemon e ne aspetta il risultato.
-    Se stop_event viene settato prima del completamento, ritorna None immediatamente
-    (il thread HTTP continua in background ma viene abbandonato — è daemon).
-    """
-    import threading
-    result_box = [None]
-    done = threading.Event()
 
-    def _worker():
+def _lookup_online_parallel(
+    scientific_name: str,
+    language: str,
+    stop_event=None,
+) -> tuple[Optional[str], str]:
+    """
+    Esegue in parallelo le 4 ricerche online (GBIF, Wikipedia, iNaturalist, Wikidata).
+    Ritorna (nome_trovato, fonte) non appena la prima risposta valida arriva.
+    Le restanti vengono abbandonate (thread daemon).
+
+    Returns:
+        Tupla (vernacular_name, source_key) dove source_key è uno tra
+        "gbif", "wikipedia", "inaturalist", "wikidata".
+        Se nessuna fonte trova nulla, ritorna (None, "").
+    """
+    # Mappa: fonte → funzione di lookup
+    sources = [
+        ("gbif",         lambda: _lookup_gbif(scientific_name, language)),
+        ("wikipedia",    lambda: _lookup_wikipedia(scientific_name, language)),
+        ("inaturalist",  lambda: _lookup_inaturalist(scientific_name, language)),
+        ("wikidata",     lambda: _lookup_wikidata(scientific_name, language)),
+    ]
+
+    cancel = threading.Event()
+    result_holder: list = [None, ""]  # [vernacular_name, source_key]
+    result_lock   = threading.Lock()
+    futures_done  = threading.Event()
+
+    def _run_source(name, fn):
         try:
-            result_box[0] = fn()
+            val = fn()
+            if val and not cancel.is_set():
+                with result_lock:
+                    # Solo il primo a scrivere vince
+                    if result_holder[0] is None:
+                        result_holder[0] = val
+                        result_holder[1] = name
+                        cancel.set()
         except Exception:
             pass
-        finally:
-            done.set()
 
-    t = threading.Thread(target=_worker, daemon=True)
-    t.start()
+    executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="bionomen_online")
+    futs: list[Future] = [executor.submit(_run_source, name, fn) for name, fn in sources]
+    executor.shutdown(wait=False)
 
-    # Aspetta il completamento o lo stop, poll ogni 100ms
-    deadline = timeout
-    interval = 0.1
+    # Aspetta: stop_event utente o cancel (primo risultato) o tutti completati
+    deadline = 12.0
+    interval = 0.05
     while deadline > 0:
-        if done.wait(interval):
-            return result_box[0]
         if stop_event and stop_event.is_set():
-            return None
+            cancel.set()
+            return None, ""
+        if cancel.is_set():
+            break
+        if all(f.done() for f in futs):
+            break
         deadline -= interval
+        time.sleep(interval)
 
-    return result_box[0]  # timeout scaduto: ritorna quel che c'è (probabilmente None)
+    return result_holder[0], result_holder[1]
 
 
 def lookup_vernacular_name(
@@ -579,11 +605,10 @@ def lookup_vernacular_name(
     Cerca il nome vernacolare per un nome scientifico.
 
     Strategia (priorita' decrescente):
-      1. DB locale per taxon+lingua (bulk download) — offline
-      2. Wikipedia nella lingua selezionata — nomi comuni locali
-      3. GBIF API — online, risultato salvato nel DB locale
-      4. iNaturalist API — online, con filtro anti-geografico
-      5. Wikidata SPARQL — online, scarta se == nome scientifico
+      1. DB locale per taxon+lingua (bulk download + cache lookup precedenti) — offline
+      2. Ricerca online parallela (GBIF + Wikipedia + iNaturalist + Wikidata) — primo vince
+         Se il vincitore è GBIF, il risultato viene salvato nel DB locale per riuso futuro.
+         Saltata se online_lookup=False in config.json.
 
     Args:
         scientific_name: Nome scientifico (es. "Columba palumbus")
@@ -595,81 +620,54 @@ def lookup_vernacular_name(
         return None
 
     scientific_name = scientific_name.strip()
+    cfg = load_config()
+    online_enabled = cfg.get("online_lookup", True)
 
     # Apre il DB per il taxon specificato (o None se taxon non disponibile)
     conn = _init_taxon_db(taxon, language) if taxon else None
 
     try:
-        # 1. Cache locale (sincrona — nessuna rete)
+        # 1. Cache/DB locale (bulk download + risultati online precedentemente salvati)
         if conn:
             cached = _lookup_in_cache(conn, scientific_name, language)
             if cached is not None and cached != "":
-                print(f"SOURCE:cache locale (offline):{scientific_name}", flush=True)
+                print(f"SOURCE:DB locale (offline):{scientific_name}", flush=True)
                 return cached
-            # Stringa vuota in cache = cercato in precedenza ma non trovato → si riprova online
+            # Stringa vuota = cercato prima ma non trovato → si riprova online se abilitato
 
-        # 2. Wikipedia nella lingua selezionata — ricca di nomi comuni locali
-        print(f"LOG:debug:BioNomen [{scientific_name}] → ricerca Wikipedia ({language})...", flush=True)
-        result = _run_with_stop(
-            lambda: _lookup_wikipedia(scientific_name, language),
-            stop_event, timeout=8.0,
-        )
+        # 2. Ricerca online disabilitata → uscita immediata
+        if not online_enabled:
+            print(f"LOG:debug:BioNomen [{scientific_name}] → ricerca online disabilitata", flush=True)
+            return None
+
         if stop_event and stop_event.is_set():
             return None
-        if result:
-            print(f"SOURCE:Wikipedia (online):{scientific_name}", flush=True)
-            if conn:
-                _save_to_cache(conn, scientific_name, result, language, "wikipedia", 1)
-            return result
-        print(f"LOG:debug:BioNomen [{scientific_name}] → Wikipedia: non trovato", flush=True)
 
-        # 3. GBIF — interrompibile tramite stop_event
-        print(f"LOG:debug:BioNomen [{scientific_name}] → ricerca GBIF...", flush=True)
-        result = _run_with_stop(
-            lambda: _lookup_gbif(scientific_name, language),
-            stop_event, timeout=6.0,
+        # 3. Ricerca online parallela — GBIF + Wikipedia + iNaturalist + Wikidata
+        print(
+            f"LOG:debug:BioNomen [{scientific_name}] → "
+            f"ricerca online parallela (GBIF + Wikipedia + iNat + Wikidata)...",
+            flush=True,
         )
+        result, source = _lookup_online_parallel(scientific_name, language, stop_event)
+
         if stop_event and stop_event.is_set():
             return None
+
         if result:
-            print(f"SOURCE:GBIF (online):{scientific_name}", flush=True)
-            if conn:
+            print(f"SOURCE:{source} (online):{scientific_name}", flush=True)
+            # Salva nel DB locale solo se il vincitore è GBIF (fonte più affidabile)
+            if conn and source == "gbif":
                 _save_to_cache(conn, scientific_name, result, language, "gbif", 2)
+            elif conn:
+                # Salva comunque con confidenza più bassa per evitare lookup futuri
+                _save_to_cache(conn, scientific_name, result, language, source, 3)
             return result
-        print(f"LOG:debug:BioNomen [{scientific_name}] → GBIF: non trovato", flush=True)
 
-        # 4. iNaturalist — interrompibile
-        print(f"LOG:debug:BioNomen [{scientific_name}] → ricerca iNaturalist...", flush=True)
-        result = _run_with_stop(
-            lambda: _lookup_inaturalist(scientific_name, language),
-            stop_event, timeout=6.0,
-        )
-        if stop_event and stop_event.is_set():
-            return None
-        if result:
-            print(f"SOURCE:iNaturalist (online):{scientific_name}", flush=True)
-            if conn:
-                _save_to_cache(conn, scientific_name, result, language, "inaturalist", 3)
-            return result
-        print(f"LOG:debug:BioNomen [{scientific_name}] → iNaturalist: non trovato", flush=True)
-
-        # 5. Wikidata — interrompibile
-        print(f"LOG:debug:BioNomen [{scientific_name}] → ricerca Wikidata...", flush=True)
-        result = _run_with_stop(
-            lambda: _lookup_wikidata(scientific_name, language),
-            stop_event, timeout=8.0,
-        )
-        if stop_event and stop_event.is_set():
-            return None
-        if result:
-            print(f"SOURCE:Wikidata (online):{scientific_name}", flush=True)
-            if conn:
-                _save_to_cache(conn, scientific_name, result, language, "wikidata", 4)
-            return result
         print(f"LOG:debug:BioNomen [{scientific_name}] → nessuna fonte ha il nome comune", flush=True)
 
-        # Nessun risultato: aggiorna/inserisce stringa vuota in cache per evitare
-        # lookup ripetuti nella stessa sessione, ma verrà ritentato nelle sessioni future
+        # Nessun risultato: salva stringa vuota per evitare lookup ripetuti
+        # nella stessa sessione; nelle sessioni future verrà ritentato
         if conn:
             _save_to_cache(conn, scientific_name, "", language, "none", 9)
         return None
@@ -731,19 +729,53 @@ def _extract_scientific_name(bioclip_taxonomy_json: Optional[str]) -> Optional[s
         return None
 
 
+def normalize_tags(
+    tags,
+    scientific_name=None,
+    vernacular_name=None,
+):
+    """
+    Normalizza e deduplica una lista di tag con ordine canonico.
+    NOTA: duplicata da utils.py di OffGallery — mantenere sincronizzate.
+
+    Ordine risultante: nome scientifico → nome vernacolare → resto (ordine originale).
+    Deduplicazione case-insensitive, rimuove vuoti.
+    """
+    seen_lower = set()
+    deduped = []
+    for tag in (tags or []):
+        if not isinstance(tag, str) or not tag.strip():
+            continue
+        tl = tag.strip().lower()
+        if tl not in seen_lower:
+            seen_lower.add(tl)
+            deduped.append(tag.strip())
+
+    sci_lower  = scientific_name.strip().lower()  if scientific_name  else None
+    vern_lower = vernacular_name.strip().lower()  if vernacular_name  else None
+
+    rest = [
+        t for t in deduped
+        if t.lower() != sci_lower and t.lower() != vern_lower
+    ]
+
+    result = []
+    if scientific_name and scientific_name.strip():
+        result.append(scientific_name.strip())
+    if vernacular_name and vernacular_name.strip():
+        if vern_lower != sci_lower:
+            result.append(vernacular_name.strip())
+    result.extend(rest)
+    return result
+
+
 def _update_tags_with_vernacular(
     existing_tags_json: Optional[str],
     scientific_name: Optional[str],
     vernacular_name: str,
 ) -> str:
     """
-    Inserisce il nome vernacolare in seconda posizione nei tags.
-
-    - Il nome scientifico (da BioCLIP) deve essere il primo tag.
-    - Il nome vernacolare va in seconda posizione.
-    - Deduplicazione case-insensitive.
-    - Se il nome vernacolare e' gia' presente, non viene aggiunto di nuovo.
-    - Se in posizione 2 c'e' un nome diverso, emette warning nel log e aggiunge comunque.
+    Aggiorna il JSON dei tag applicando normalize_tags con nome scientifico e vernacolare.
 
     Returns:
         JSON string dell'array tags aggiornato.
@@ -755,44 +787,8 @@ def _update_tags_with_vernacular(
     except Exception:
         tags = []
 
-    # Normalizzazione: deduplicazione case-insensitive mantenendo ordine
-    seen_lower = set()
-    deduped = []
-    for tag in tags:
-        if isinstance(tag, str) and tag.lower() not in seen_lower:
-            seen_lower.add(tag.lower())
-            deduped.append(tag)
-    tags = deduped
-
-    # Controlla se il nome vernacolare e' gia' presente (case-insensitive)
-    vern_lower = vernacular_name.lower()
-    if vern_lower in seen_lower:
-        # Gia' presente: non aggiungere
-        return json.dumps(tags, ensure_ascii=False)
-
-    # Determina la posizione di inserimento: seconda (dopo nome scientifico)
-    insert_pos = 1  # default: seconda posizione
-
-    # Verifica che il primo tag sia il nome scientifico
-    if tags and scientific_name:
-        if tags[0].lower() != scientific_name.lower():
-            # Il primo tag non e' il nome scientifico: inserisci all'inizio
-            insert_pos = 0
-
-    # Controlla se gia' c'e' qualcosa in posizione insert_pos
-    if len(tags) > insert_pos:
-        existing_at_pos = tags[insert_pos]
-        if existing_at_pos.lower() != vern_lower:
-            logger.warning(
-                f"Tag in posizione {insert_pos+1} ('{existing_at_pos}') "
-                f"diverso dal nome vernacolare ('{vernacular_name}'). "
-                f"Aggiunta comunque."
-            )
-
-    # Inserisci il nome vernacolare nella posizione corretta
-    tags.insert(insert_pos, vernacular_name)
-
-    return json.dumps(tags, ensure_ascii=False)
+    normalized = normalize_tags(tags, scientific_name, vernacular_name)
+    return json.dumps(normalized, ensure_ascii=False)
 
 
 def process_images(
@@ -896,7 +892,7 @@ def process_images(
             stop_event=stop_event,
         )
 
-        # Ricontrolla stop dopo il lookup (potrebbe essere arrivato durante _run_with_stop)
+        # Ricontrolla stop dopo il lookup (potrebbe essere arrivato durante la ricerca parallela)
         if stop_event and stop_event.is_set():
             break
 

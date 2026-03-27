@@ -328,6 +328,17 @@ class ConfigDialog(QDialog):
 
         layout.addWidget(_sep())
 
+        # --- Sezione Opzioni ---
+        opt_label = QLabel("Opzioni")
+        opt_label.setStyleSheet("font-weight: bold; font-size: 12px;")
+        layout.addWidget(opt_label)
+
+        self.cb_online = QCheckBox("Ricerca online (GBIF, Wikipedia, iNaturalist, Wikidata)")
+        self.cb_online.setChecked(self._cfg.get("online_lookup", True))
+        layout.addWidget(self.cb_online)
+
+        layout.addWidget(_sep())
+
         # --- Bottoni OK/Annulla ---
         btn_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Save
@@ -360,6 +371,7 @@ class ConfigDialog(QDialog):
         self._cfg["taxa_enabled"] = taxa_enabled
         self._cfg["data_dir"] = self._dir_edit.text().strip()
         self._cfg["mode"] = self.get_mode()
+        self._cfg["online_lookup"] = self.cb_online.isChecked()
         bionomen.save_config(self._cfg)
         self.accept()
 

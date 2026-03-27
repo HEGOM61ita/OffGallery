@@ -25,6 +25,7 @@ import queue
 import logging
 
 from utils.paths import get_app_dir
+from utils.tag_utils import normalize_tags
 from catalog_readers.lightroom_reader import LightroomCatalogReader
 from i18n import t
 
@@ -1008,12 +1009,21 @@ class ProcessingWorker(QThread):
                 # Tags
                 if llm_results['tags']:
                     llm_tags = llm_results['tags']
+                    # Estrai nome scientifico da bioclip_context per normalize_tags
+                    sci_name = None
+                    if bioclip_context:
+                        sci_name = bioclip_context.split('(')[0].split(',')[0].strip() or None
+
                     if gen_tags_cfg.get('overwrite'):
-                        final_tags = llm_tags
+                        final_tags = normalize_tags(llm_tags, scientific_name=sci_name)
                     else:
+                        # Merge: unione senza duplicati, poi normalize
+                        merged = list(existing_tags)
                         existing_lower = {t.lower() for t in existing_tags}
-                        new_tags = [t for t in llm_tags if t.lower() not in existing_lower]
-                        final_tags = existing_tags + new_tags
+                        for t in llm_tags:
+                            if t.lower() not in existing_lower:
+                                merged.append(t)
+                        final_tags = normalize_tags(merged, scientific_name=sci_name)
 
                     # Aggiungi città geo come tag
                     if geo_hierarchy:
