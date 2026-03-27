@@ -2268,7 +2268,17 @@ class EmbeddingGenerator:
                 'num_ctx':     num_ctx,
                 'num_batch':   num_batch,
             }
-            return self.llm_plugin.generate(image_data_b64, prompt, max_tokens, params)
+            # Log diagnostico: immagine, prompt e parametri inviati al LLM
+            logger.debug(
+                f"[LLM] mode={mode} | plugin={type(self.llm_plugin).__name__} | "
+                f"model={model} | max_tokens={max_tokens} | "
+                f"img_b64_len={len(image_data_b64)} (~{len(image_data_b64)*3//4//1024}KB) | "
+                f"num_ctx={num_ctx} | temperature={temperature} | top_k={top_k}\n"
+                f"[LLM] PROMPT:\n{prompt}"
+            )
+            raw_response = self.llm_plugin.generate(image_data_b64, prompt, max_tokens, params)
+            logger.debug(f"[LLM] RISPOSTA RAW:\n{raw_response}")
+            return raw_response
 
         except Exception as e:
             logger.error(f"Errore chiamata LLM Vision: {e}")
