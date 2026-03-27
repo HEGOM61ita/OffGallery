@@ -492,19 +492,39 @@ def _lookup_wikipedia(scientific_name: str, language: str) -> Optional[str]:
         for entry in results:
             title = entry.get("title", "")
             snippet = entry.get("snippet", "")
-            # Verifica che lo snippet citi il nome scientifico (conferma specie corretta)
+            # Verifica che lo snippet o il titolo citino il nome scientifico
             if sci_lower not in snippet.lower() and sci_lower not in title.lower():
                 continue
-            # Scarta se il titolo è il nome scientifico stesso
-            if title.strip().lower() == sci_lower:
-                continue
-            # Rimuove articoli iniziali italiani/francesi/spagnoli/portoghesi
-            clean = re.sub(r"^(Il |La |Lo |L'|I |Le |Gli |Der |Die |Das |Le |Les |El |La |Los |Las |O |A )", "", title, flags=re.IGNORECASE).strip()
-            if not clean or clean.lower() == sci_lower:
-                continue
-            if _contains_geo_term(clean):
-                continue
-            return clean
+
+            title_lower = title.strip().lower()
+
+            if title_lower != sci_lower:
+                # Titolo è già il nome comune — ripulisci articoli iniziali
+                clean = re.sub(
+                    r"^(Il |La |Lo |L'|I |Le |Gli |Der |Die |Das |Les |El |Los |Las |O |A )",
+                    "", title, flags=re.IGNORECASE
+                ).strip()
+                if clean and clean.lower() != sci_lower and not _contains_geo_term(clean):
+                    return clean
+            else:
+                # Titolo == nome scientifico: estrai nome comune dallo snippet
+                # Formato tipico: "Il nome comune (<span...>Genus</span> <span...>species</span>..."
+                # Rimuove tag HTML dallo snippet
+                plain = re.sub(r"<[^>]+>", "", snippet)
+                # Cerca pattern "Nome comune (Genus species" all'inizio
+                m = re.match(
+                    r"^(.+?)\s*\(\s*" + re.escape(scientific_name.split()[0]),
+                    plain, re.IGNORECASE
+                )
+                if m:
+                    candidate = m.group(1).strip()
+                    # Rimuove articoli iniziali
+                    candidate = re.sub(
+                        r"^(Il |La |Lo |L'|I |Le |Gli |Der |Die |Das |Les |El |Los |Las |O |A )",
+                        "", candidate, flags=re.IGNORECASE
+                    ).strip()
+                    if candidate and candidate.lower() != sci_lower and not _contains_geo_term(candidate):
+                        return candidate
 
         return None
 
@@ -559,9 +579,10 @@ def lookup_vernacular_name(
 
     Strategia (priorita' decrescente):
       1. DB locale per taxon+lingua (bulk download) — offline
-      2. GBIF API — online, risultato salvato nel DB locale
-      3. iNaturalist API — online, con filtro anti-geografico
-      4. Wikidata SPARQL — online, scarta se == nome scientifico
+      2. Wikipedia nella lingua selezionata — nomi comuni locali
+      3. GBIF API — online, risultato salvato nel DB locale
+      4. iNaturalist API — online, con filtro anti-geografico
+      5. Wikidata SPARQL — online, scarta se == nome scientifico
 
     Args:
         scientific_name: Nome scientifico (es. "Columba palumbus")
@@ -586,52 +607,7 @@ def lookup_vernacular_name(
                 return cached
             # Stringa vuota in cache = cercato in precedenza ma non trovato → si riprova online
 
-        # 2. GBIF — interrompibile tramite stop_event
-        print(f"LOG:debug:BioNomen [{scientific_name}] → ricerca GBIF...", flush=True)
-        result = _run_with_stop(
-            lambda: _lookup_gbif(scientific_name, language),
-            stop_event, timeout=6.0,
-        )
-        if stop_event and stop_event.is_set():
-            return None
-        if result:
-            print(f"SOURCE:GBIF (online):{scientific_name}", flush=True)
-            if conn:
-                _save_to_cache(conn, scientific_name, result, language, "gbif", 1)
-            return result
-        print(f"LOG:debug:BioNomen [{scientific_name}] → GBIF: non trovato", flush=True)
-
-        # 3. iNaturalist — interrompibile
-        print(f"LOG:debug:BioNomen [{scientific_name}] → ricerca iNaturalist...", flush=True)
-        result = _run_with_stop(
-            lambda: _lookup_inaturalist(scientific_name, language),
-            stop_event, timeout=6.0,
-        )
-        if stop_event and stop_event.is_set():
-            return None
-        if result:
-            print(f"SOURCE:iNaturalist (online):{scientific_name}", flush=True)
-            if conn:
-                _save_to_cache(conn, scientific_name, result, language, "inaturalist", 2)
-            return result
-        print(f"LOG:debug:BioNomen [{scientific_name}] → iNaturalist: non trovato", flush=True)
-
-        # 4. Wikidata — interrompibile
-        print(f"LOG:debug:BioNomen [{scientific_name}] → ricerca Wikidata...", flush=True)
-        result = _run_with_stop(
-            lambda: _lookup_wikidata(scientific_name, language),
-            stop_event, timeout=8.0,
-        )
-        if stop_event and stop_event.is_set():
-            return None
-        if result:
-            print(f"SOURCE:Wikidata (online):{scientific_name}", flush=True)
-            if conn:
-                _save_to_cache(conn, scientific_name, result, language, "wikidata", 3)
-            return result
-        print(f"LOG:debug:BioNomen [{scientific_name}] → Wikidata: non trovato", flush=True)
-
-        # 5. Wikipedia nella lingua selezionata — interrompibile
+        # 2. Wikipedia nella lingua selezionata — ricca di nomi comuni locali
         print(f"LOG:debug:BioNomen [{scientific_name}] → ricerca Wikipedia ({language})...", flush=True)
         result = _run_with_stop(
             lambda: _lookup_wikipedia(scientific_name, language),
@@ -642,7 +618,52 @@ def lookup_vernacular_name(
         if result:
             print(f"SOURCE:Wikipedia (online):{scientific_name}", flush=True)
             if conn:
-                _save_to_cache(conn, scientific_name, result, language, "wikipedia", 4)
+                _save_to_cache(conn, scientific_name, result, language, "wikipedia", 1)
+            return result
+        print(f"LOG:debug:BioNomen [{scientific_name}] → Wikipedia: non trovato", flush=True)
+
+        # 3. GBIF — interrompibile tramite stop_event
+        print(f"LOG:debug:BioNomen [{scientific_name}] → ricerca GBIF...", flush=True)
+        result = _run_with_stop(
+            lambda: _lookup_gbif(scientific_name, language),
+            stop_event, timeout=6.0,
+        )
+        if stop_event and stop_event.is_set():
+            return None
+        if result:
+            print(f"SOURCE:GBIF (online):{scientific_name}", flush=True)
+            if conn:
+                _save_to_cache(conn, scientific_name, result, language, "gbif", 2)
+            return result
+        print(f"LOG:debug:BioNomen [{scientific_name}] → GBIF: non trovato", flush=True)
+
+        # 4. iNaturalist — interrompibile
+        print(f"LOG:debug:BioNomen [{scientific_name}] → ricerca iNaturalist...", flush=True)
+        result = _run_with_stop(
+            lambda: _lookup_inaturalist(scientific_name, language),
+            stop_event, timeout=6.0,
+        )
+        if stop_event and stop_event.is_set():
+            return None
+        if result:
+            print(f"SOURCE:iNaturalist (online):{scientific_name}", flush=True)
+            if conn:
+                _save_to_cache(conn, scientific_name, result, language, "inaturalist", 3)
+            return result
+        print(f"LOG:debug:BioNomen [{scientific_name}] → iNaturalist: non trovato", flush=True)
+
+        # 5. Wikidata — interrompibile
+        print(f"LOG:debug:BioNomen [{scientific_name}] → ricerca Wikidata...", flush=True)
+        result = _run_with_stop(
+            lambda: _lookup_wikidata(scientific_name, language),
+            stop_event, timeout=8.0,
+        )
+        if stop_event and stop_event.is_set():
+            return None
+        if result:
+            print(f"SOURCE:Wikidata (online):{scientific_name}", flush=True)
+            if conn:
+                _save_to_cache(conn, scientific_name, result, language, "wikidata", 4)
             return result
         print(f"LOG:debug:BioNomen [{scientific_name}] → nessuna fonte ha il nome comune", flush=True)
 
