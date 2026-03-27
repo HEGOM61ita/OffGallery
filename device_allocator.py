@@ -431,6 +431,55 @@ def detect_external_llm_vram(config: Optional[dict] = None) -> dict:
     except Exception:
         pass
 
+    # Fallback: scansione porte alternative comuni (timeout aggressivo 0.5s)
+    # Copre installazioni con porta non-default mai configurata in OffGallery
+    _OLLAMA_ALT_PORTS   = [11435, 11436, 8080, 3000]
+    _LMSTUDIO_ALT_PORTS = [1235, 8080, 8000]
+    try:
+        import requests
+        for port in _OLLAMA_ALT_PORTS:
+            ep = f"http://localhost:{port}"
+            if ep in ollama_endpoints:
+                continue  # già provato
+            try:
+                r = requests.get(f"{ep}/api/ps", timeout=0.5)
+                if r.status_code == 200:
+                    total_vram = 0
+                    names = []
+                    for m in r.json().get('models', []):
+                        vram_bytes = m.get('size_vram', 0)
+                        if vram_bytes > 0:
+                            total_vram += vram_bytes
+                            names.append(m.get('name', ''))
+                    if total_vram > 0:
+                        result['vram_gb'] = round(total_vram / (1024 ** 3), 1)
+                        result['source'] = 'ollama_api'
+                        result['model_name'] = ', '.join(names)
+                        return result
+            except Exception:
+                pass
+
+        for port in _LMSTUDIO_ALT_PORTS:
+            ep = f"http://localhost:{port}"
+            if ep in lmstudio_endpoints:
+                continue  # già provato
+            try:
+                r = requests.get(f"{ep}/v1/models", timeout=0.5)
+                if r.status_code == 200:
+                    models = r.json().get('data', [])
+                    if models:
+                        mid = models[0].get('id', '')
+                        est = _estimate_llm_vram_from_name(mid)
+                        if est > 0:
+                            result['vram_gb'] = est
+                            result['source'] = 'lmstudio_estimate'
+                            result['model_name'] = mid
+                            return result
+            except Exception:
+                pass
+    except Exception:
+        pass
+
     return result
 
 
