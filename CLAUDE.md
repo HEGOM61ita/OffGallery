@@ -50,6 +50,12 @@ Sistema di catalogazione automatica e retrieval di immagini fotografiche (RAW, J
 ### Workflow Modifiche
 - **PRIMA DI CODIFICARE — REGOLA ASSOLUTA**: Prima di toccare qualsiasi file, spiegare in modo semplice e sintetico cosa si intende fare e attendere esplicita approvazione dell'utente. Niente eccezioni, nemmeno per fix banali o bug ovvi.
 - **Commit frequenti**: Fare sempre commit dopo ogni modifica significativa
+
+### Regole Push GitHub — CRITICHE
+- **Repo pubblica** (`origin/main`): NON deve contenere NESSUN file di plugin (nessun `manifest.json`, `plugin.py`, `__init__.py` o qualsiasi altro file nelle sottodirectory di `/plugins`). Il `.gitignore` deve sempre escludere tutto il contenuto delle subdirectory plugin.
+- **Repo privata beta** (`beta` → `OffGallery_BETA`): deve contenere SEMPRE l'intera directory `/plugins` con tutti i plugin completi (manifest + codice). Eccezione attuale: `/plugins/bionomen/` è escluso fino a nuovo ordine (distribuzione separata).
+- **Workflow beta**: `git add -f` dei file plugin → commit → `git push --force beta main` → `git reset HEAD~1`. I file plugin restano in locale ma NON sono mai committati sulla storia pubblica.
+- **Verifica prima di ogni push pubblico**: assicurarsi che nessun file `plugin.py` o `__init__.py` di plugin sia staged.
 - **Verifica importazioni**: Prima di modificare un file, verificare che le modifiche non rompano le importazioni degli altri moduli nelle sottocartelle
 - **Test sintassi**: Usare `python -m py_compile <file>` per verificare la sintassi prima del commit
 - **Thread safety**: Il progetto usa molti thread - prestare attenzione ai conflitti di esecuzione e usare guard/flag per prevenire chiamate multiple
