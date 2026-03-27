@@ -1383,7 +1383,7 @@ class ConfigTab(QWidget):
                     self._llm_vram_label.setText("— (non attivo)")
             else:
                 from device_allocator import detect_external_llm_vram
-                self._llm_vram_info = detect_external_llm_vram()
+                self._llm_vram_info = detect_external_llm_vram(self.config)
 
             self._update_vram_budget()
             # Nasconde messaggio restart dopo load (non è un cambio utente)

@@ -344,12 +344,19 @@ def _estimate_llm_vram_from_name(model_name: str) -> float:
     return round(vram_gb, 1)
 
 
-def detect_external_llm_vram() -> dict:
-    """Rileva VRAM occupata da LLM esterni (Ollama o LM Studio) interrogando
-    gli endpoint di default, indipendentemente dalla configurazione OffGallery.
+def detect_external_llm_vram(config: Optional[dict] = None) -> dict:
+    """Rileva VRAM occupata da LLM esterni (Ollama o LM Studio).
 
     Utile quando il plugin LLM non è installato ma un backend è comunque attivo
     e sta occupando VRAM che deve essere contabilizzata nel budget.
+
+    Strategia endpoint:
+    1. Legge endpoint da config YAML (potrebbe essere stato configurato in sessioni
+       precedenti con il plugin installato)
+    2. Aggiunge sempre i default standard come fallback
+
+    Args:
+        config: dizionario config OffGallery (può essere None)
 
     Returns:
         dict con: vram_gb (float), source ('ollama_api'/'lmstudio_estimate'/'none'),
@@ -357,41 +364,70 @@ def detect_external_llm_vram() -> dict:
     """
     result = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
 
-    # Ollama default: interroga /api/ps per modelli attualmente in VRAM
+    # Raccoglie endpoint da provare: prima quello in config, poi i default
+    llm_cfg = (config or {}).get('embedding', {}).get('models', {}).get('llm_vision', {})
+    config_endpoint = llm_cfg.get('endpoint', '').rstrip('/')
+    config_backend  = llm_cfg.get('backend', '')
+
+    _OLLAMA_DEFAULT   = 'http://localhost:11434'
+    _LMSTUDIO_DEFAULT = 'http://localhost:1234'
+
+    # Lista endpoint Ollama da provare (senza duplicati)
+    ollama_endpoints = []
+    if config_backend in ('ollama', '') and config_endpoint:
+        ollama_endpoints.append(config_endpoint)
+    if _OLLAMA_DEFAULT not in ollama_endpoints:
+        ollama_endpoints.append(_OLLAMA_DEFAULT)
+
+    # Lista endpoint LM Studio da provare (senza duplicati)
+    lmstudio_endpoints = []
+    if config_backend == 'lmstudio' and config_endpoint:
+        lmstudio_endpoints.append(config_endpoint)
+    if _LMSTUDIO_DEFAULT not in lmstudio_endpoints:
+        lmstudio_endpoints.append(_LMSTUDIO_DEFAULT)
+
+    # Prova Ollama: /api/ps restituisce VRAM reale per modello caricato
     try:
         import requests
-        r = requests.get("http://localhost:11434/api/ps", timeout=2)
-        if r.status_code == 200:
-            total_vram = 0
-            names = []
-            for m in r.json().get('models', []):
-                vram_bytes = m.get('size_vram', 0)
-                if vram_bytes > 0:
-                    total_vram += vram_bytes
-                    names.append(m.get('name', ''))
-            if total_vram > 0:
-                result['vram_gb'] = round(total_vram / (1024 ** 3), 1)
-                result['source'] = 'ollama_api'
-                result['model_name'] = ', '.join(names)
-                return result
+        for ep in ollama_endpoints:
+            try:
+                r = requests.get(f"{ep}/api/ps", timeout=2)
+                if r.status_code == 200:
+                    total_vram = 0
+                    names = []
+                    for m in r.json().get('models', []):
+                        vram_bytes = m.get('size_vram', 0)
+                        if vram_bytes > 0:
+                            total_vram += vram_bytes
+                            names.append(m.get('name', ''))
+                    if total_vram > 0:
+                        result['vram_gb'] = round(total_vram / (1024 ** 3), 1)
+                        result['source'] = 'ollama_api'
+                        result['model_name'] = ', '.join(names)
+                        return result
+            except Exception:
+                pass
     except Exception:
         pass
 
-    # LM Studio default: /v1/models restituisce i modelli caricati
+    # Prova LM Studio: /v1/models restituisce i modelli caricati
     try:
         import requests
-        r = requests.get("http://localhost:1234/v1/models", timeout=2)
-        if r.status_code == 200:
-            models = r.json().get('data', [])
-            if models:
-                # Stima VRAM dal primo modello caricato
-                mid = models[0].get('id', '')
-                est = _estimate_llm_vram_from_name(mid)
-                if est > 0:
-                    result['vram_gb'] = est
-                    result['source'] = 'lmstudio_estimate'
-                    result['model_name'] = mid
-                    return result
+        for ep in lmstudio_endpoints:
+            try:
+                r = requests.get(f"{ep}/v1/models", timeout=2)
+                if r.status_code == 200:
+                    models = r.json().get('data', [])
+                    if models:
+                        mid = models[0].get('id', '')
+                        est = _estimate_llm_vram_from_name(mid)
+                        if est > 0:
+                            result['vram_gb'] = est
+                            result['source'] = 'lmstudio_estimate'
+                            result['model_name'] = mid
+                            return result
+            except Exception:
+                pass
     except Exception:
         pass
 
