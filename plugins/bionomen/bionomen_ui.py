@@ -88,38 +88,6 @@ _DARK_STYLE = """
         color: #E3E3E3;
         spacing: 8px;
     }
-    QRadioButton::indicator {
-        width: 14px;
-        height: 14px;
-        border-radius: 7px;
-        border: 2px solid #B0B0B0;
-        background-color: #2A2A2A;
-    }
-    QRadioButton::indicator:checked {
-        border: 2px solid #E0A84A;
-        background-color: #E0A84A;
-    }
-    QRadioButton::indicator:hover {
-        border: 2px solid #E0A84A;
-    }
-    QCheckBox {
-        color: #E3E3E3;
-        spacing: 8px;
-    }
-    QCheckBox::indicator {
-        width: 14px;
-        height: 14px;
-        border-radius: 2px;
-        border: 2px solid #B0B0B0;
-        background-color: #2A2A2A;
-    }
-    QCheckBox::indicator:checked {
-        border: 2px solid #E0A84A;
-        background-color: #E0A84A;
-    }
-    QCheckBox::indicator:hover {
-        border: 2px solid #E0A84A;
-    }
     QFrame[frameShape="4"], QFrame[frameShape="5"] {
         color: #3A3A3A;
     }
