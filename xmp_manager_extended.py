@@ -8,6 +8,8 @@ UNIFICATO: Usa RAWProcessor per parsing standard in tutti i metodi
 import logging
 import subprocess
 import json
+import tempfile
+import os
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List
 from enum import Enum
@@ -342,15 +344,9 @@ class XMPManagerExtended:
             return False
             
         try:
-            # Prepara parametri ExifTool
-            cmd = [*XMPManagerExtended._exiftool_cmd, '-overwrite_original']
-
-            # Converti dict in parametri ExifTool (gestisce correttamente i campi lista)
-            cmd.extend(self._build_exiftool_args_from_dict(xmp_dict))
-            cmd.append(str(file_path))
-
-            result = subprocess.run(cmd, capture_output=True, timeout=30,
-                                    **subprocess_creation_kwargs())
+            # Prepara parametri ExifTool tramite argfile UTF-8 (evita perdita accentate su Windows)
+            write_args = ['-overwrite_original'] + self._build_exiftool_args_from_dict(xmp_dict)
+            result = self._run_exiftool_write(write_args, file_path, timeout=30)
 
             if result.returncode == 0:
                 logger.info(f"✓ XMP embedded scritto in {file_path.name}")
@@ -695,6 +691,37 @@ class XMPManagerExtended:
                 args.append(f'-{exif_key}={value}')
         return args
 
+    def _run_exiftool_write(self, write_args: List[str], target: Path, timeout: int = 30) -> subprocess.CompletedProcess:
+        """
+        Esegue ExifTool per scrittura usando un argfile UTF-8 temporaneo (-@).
+        Evita la perdita di caratteri accentati sulla command line di Windows
+        (la shell usa la codepage di sistema, non UTF-8).
+        Gli argomenti di scrittura e il path del file target vengono scritti
+        nel file temporaneo — ExifTool li legge direttamente in UTF-8.
+        """
+        tmp = None
+        try:
+            # Scrive tutti gli argomenti nel file temp (uno per riga, UTF-8)
+            tmp = tempfile.NamedTemporaryFile(
+                mode='w', encoding='utf-8', suffix='.args',
+                delete=False
+            )
+            for arg in write_args:
+                tmp.write(arg + '\n')
+            tmp.write(str(target) + '\n')
+            tmp.flush()
+            tmp.close()
+
+            cmd = [*XMPManagerExtended._exiftool_cmd, '-@', tmp.name]
+            return subprocess.run(cmd, capture_output=True, timeout=timeout,
+                                  **subprocess_creation_kwargs())
+        finally:
+            if tmp and os.path.exists(tmp.name):
+                try:
+                    os.unlink(tmp.name)
+                except Exception:
+                    pass
+
     def _extract_keywords_from_dict(self, xmp_dict: Dict[str, Any]) -> List[str]:
         """UNIFICATO: Estrae keywords dai dati RAWProcessor (formato JSON) e XMP tradizionale"""
         if not xmp_dict:
@@ -900,10 +927,6 @@ class XMPManagerExtended:
                         if 'subject' in merged_dict:
                             merged_dict['subject'] = merged
 
-                cmd = [*XMPManagerExtended._exiftool_cmd, '-overwrite_original']
-                # Converti dict in argomenti ExifTool (gestisce correttamente le liste)
-                cmd.extend(self._build_exiftool_args_from_dict(merged_dict))
-
                 # Crea file sidecar vuoto se non esiste
                 if not sidecar_path.exists():
                     sidecar_path.write_text(
@@ -911,10 +934,9 @@ class XMPManagerExtended:
                         '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="OffGallery XMP Manager"/>'
                     )
 
-                cmd.append(str(sidecar_path))
-
-                result = subprocess.run(cmd, capture_output=True, timeout=30,
-                                        **subprocess_creation_kwargs())
+                # Scrittura tramite argfile UTF-8 (evita perdita accentate su Windows)
+                write_args = ['-overwrite_original'] + self._build_exiftool_args_from_dict(merged_dict)
+                result = self._run_exiftool_write(write_args, sidecar_path, timeout=30)
 
                 if result.returncode == 0:
                     logger.info(f"✓ XMP sidecar scritto: {sidecar_path.name}")
@@ -1048,14 +1070,13 @@ class XMPManagerExtended:
                 pass
 
             # Scrivi: cancella ramo AI|Taxonomy e riscrivi con il nuovo percorso
-            cmd = [*XMPManagerExtended._exiftool_cmd, '-overwrite_original', '-XMP-lr:HierarchicalSubject=']
+            # Argfile UTF-8 per preservare caratteri accentati nei nomi tassonomici
+            write_args = ['-overwrite_original', '-XMP-lr:HierarchicalSubject=']
             for subject in existing_hier:
-                cmd.append(f'-XMP-lr:HierarchicalSubject+={subject}')
-            cmd.append(f'-XMP-lr:HierarchicalSubject+={hierarchical_path}')
-            cmd.append(str(target))
+                write_args.append(f'-XMP-lr:HierarchicalSubject+={subject}')
+            write_args.append(f'-XMP-lr:HierarchicalSubject+={hierarchical_path}')
 
-            result = subprocess.run(cmd, capture_output=True, timeout=15,
-                                    **subprocess_creation_kwargs())
+            result = self._run_exiftool_write(write_args, target, timeout=15)
             if result.returncode == 0:
                 logger.info(f"✓ HierarchicalSubject BioCLIP scritto: {target.name}")
                 return True
@@ -1107,14 +1128,13 @@ class XMPManagerExtended:
                 pass
 
             # Scrivi: cancella ramo GeOFF| e riscrivi con il nuovo percorso
-            cmd = [*XMPManagerExtended._exiftool_cmd, '-overwrite_original', '-XMP-lr:HierarchicalSubject=']
+            # Argfile UTF-8 per preservare caratteri accentati nei nomi geografici
+            write_args = ['-overwrite_original', '-XMP-lr:HierarchicalSubject=']
             for subject in existing_hier:
-                cmd.append(f'-XMP-lr:HierarchicalSubject+={subject}')
-            cmd.append(f'-XMP-lr:HierarchicalSubject+={geo_hierarchy}')
-            cmd.append(str(target))
+                write_args.append(f'-XMP-lr:HierarchicalSubject+={subject}')
+            write_args.append(f'-XMP-lr:HierarchicalSubject+={geo_hierarchy}')
 
-            result = subprocess.run(cmd, capture_output=True, timeout=15,
-                                    **subprocess_creation_kwargs())
+            result = self._run_exiftool_write(write_args, target, timeout=15)
             if result.returncode == 0:
                 logger.info(f"✓ HierarchicalSubject GeOFF scritto: {target.name} → {geo_hierarchy}")
                 return True
