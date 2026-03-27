@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QPushButton, QCheckBox, QSpinBox,
     QDoubleSpinBox, QFileDialog, QMessageBox, QScrollArea,
     QGridLayout, QTextEdit, QComboBox, QRadioButton, QButtonGroup,
-    QProgressBar
+    QProgressBar, QFrame, QStackedLayout
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -992,8 +992,6 @@ class ConfigTab(QWidget):
         Se nessun plugin LLM backend è installato, il widget è disabilitato
         e sovrapposto da un overlay con call-to-action.
         """
-        from PyQt6.QtWidgets import QStackedLayout
-
         llm_section = self.create_llm_vision_section()
 
         if self._llm_plugin_installed():
