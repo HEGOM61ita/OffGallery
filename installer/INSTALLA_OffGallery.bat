@@ -3,13 +3,13 @@ chcp 65001 >nul 2>&1
 setlocal EnableDelayedExpansion
 
 :: ═══════════════════════════════════════════════════════════════════
-:: OffGallery - Unified Installation Wizard
-:: Run with double click to install all components
-:: Automatically detects GPU (NVIDIA/AMD) and allows choosing
-:: the LLM backend (Ollama or LM Studio)
+:: OffGallery - Wizard di Installazione Unificato
+:: Esegui con doppio click per installare tutti i componenti
+:: Rileva automaticamente GPU (NVIDIA/AMD) e permette la scelta
+:: del backend LLM (Ollama o LM Studio)
 :: ═══════════════════════════════════════════════════════════════════
 
-:: === GLOBAL VARIABLES ===
+:: === VARIABILI GLOBALI ===
 set "SCRIPT_DIR=%~dp0"
 set "APP_ROOT=%~dp0.."
 set "CONFIG_FILE=%APP_ROOT%\config_new.yaml"
@@ -40,14 +40,14 @@ set "LMSTUDIO_MODEL=qwen/qwen3-vl-4b"
 
 set "STEP_TOTAL=5"
 
-:: Status flags for summary
+:: Flag di stato per riepilogo
 set "STATUS_MINICONDA=-"
 set "STATUS_ENV=-"
 set "STATUS_PACKAGES=-"
 set "STATUS_LLM=-"
 set "STATUS_LLM_MODEL=-"
 set "STATUS_SHORTCUT=-"
-set "GPU_TYPE=None"
+set "GPU_TYPE=Nessuna"
 set "PYTORCH_VARIANT=cpu"
 set "LLM_BACKEND=none"
 
@@ -58,62 +58,62 @@ cls
 echo.
 echo  ================================================================
 echo.
-echo             OffGallery - Installation Wizard
+echo             OffGallery - Installazione Guidata
 echo.
-echo    Automatic photo cataloguing with AI - 100%% Offline
+echo    Catalogazione automatica foto con AI - 100%% Offline
 echo.
 echo  ================================================================
 echo.
-echo   This wizard will install all required components.
-echo   Estimated time: 20-40 minutes (depends on connection speed).
+echo   Questo wizard installera' tutti i componenti necessari.
+echo   Tempo stimato: 20-40 minuti (dipende dalla connessione).
 echo.
-echo   Components:
-echo     [1] Miniconda (Python environment manager)
-echo     [2] OffGallery Python environment
-echo     [3] Python libraries (PyTorch, CLIP, BioCLIP, etc.)
-echo     [4] LLM Vision backend: Ollama or LM Studio (optional)
-echo     [5] Desktop shortcut
-echo.
-echo  ----------------------------------------------------------------
-echo.
-echo   SYSTEM REQUIREMENTS:
-echo     Operating System:   Windows 10/11 64-bit
-echo     RAM:                8 GB minimum, 16 GB recommended
-echo     Disk Space:         15-25 GB free
-echo     GPU (optional):     NVIDIA with 4+ GB VRAM or AMD
-echo     Internet:           Required for installation
+echo   Componenti:
+echo     [1] Miniconda (gestore ambienti Python)
+echo     [2] Ambiente Python OffGallery
+echo     [3] Librerie Python (PyTorch, CLIP, BioCLIP, etc.)
+echo     [4] Backend LLM Vision: Ollama o LM Studio (opzionale)
+echo     [5] Collegamento sul Desktop
 echo.
 echo  ----------------------------------------------------------------
 echo.
-set /p "CONFIRM_START=  Do you want to proceed with the installation? (Y/N): "
-if /i "!CONFIRM_START!" NEQ "Y" goto :END_CANCELLED
+echo   REQUISITI DI SISTEMA:
+echo     Sistema Operativo:  Windows 10/11 64-bit
+echo     RAM:                8 GB minimo, 16 GB consigliato
+echo     Spazio Disco:       15-25 GB liberi
+echo     GPU (opzionale):    NVIDIA con 4+ GB VRAM oppure AMD
+echo     Internet:           Necessaria per l'installazione
+echo.
+echo  ----------------------------------------------------------------
+echo.
+set /p "CONFIRM_START=  Vuoi procedere con l'installazione? (S/N): "
+if /i "!CONFIRM_START!" NEQ "S" goto :END_CANCELLED
 
 :: ═══════════════════════════════════════════════════════════════════
-:: CHOOSE MINICONDA INSTALLATION PATH
+:: SCELTA PERCORSO INSTALLAZIONE MINICONDA
 :: ═══════════════════════════════════════════════════════════════════
 echo.
 echo  ----------------------------------------------------------------
 echo.
-echo   Where do you want to install Miniconda?
-echo   Press ENTER to accept the default or type another path.
-echo   WARNING: the path must NOT contain spaces!
-echo   Valid examples: C:\miniconda3   D:\miniconda3   E:\tools\miniconda3
+echo   Dove vuoi installare Miniconda?
+echo   Premi INVIO per accettare il default oppure digita un altro percorso.
+echo   ATTENZIONE: il percorso NON deve contenere spazi!
+echo   Esempi validi: C:\miniconda3   D:\miniconda3   E:\tools\miniconda3
 echo.
-set /p "MINICONDA_DIR_INPUT=  Path [!MINICONDA_DIR!]: "
+set /p "MINICONDA_DIR_INPUT=  Percorso [!MINICONDA_DIR!]: "
 if not "!MINICONDA_DIR_INPUT!"=="" set "MINICONDA_DIR=!MINICONDA_DIR_INPUT!"
 
-:: Check for spaces in the chosen path
+:: Verifica assenza spazi nel percorso scelto
 echo !MINICONDA_DIR! | findstr " " >nul
 if !ERRORLEVEL! EQU 0 (
     echo.
-    echo   [ERROR] The path "!MINICONDA_DIR!" contains spaces.
-    echo   Choose a path without spaces ^(e.g. D:\miniconda3^).
+    echo   [ERRORE] Il percorso "!MINICONDA_DIR!" contiene spazi.
+    echo   Scegli un percorso senza spazi ^(es. D:\miniconda3^).
     echo.
     pause
     goto :END_ERROR
 )
 
-:: Update CONDA_BAT with the final path chosen by the user
+:: Aggiorna CONDA_BAT con il percorso definitivo scelto dall'utente
 set "CONDA_BAT=!MINICONDA_DIR!\condabin\conda.bat"
 echo.
 
@@ -128,24 +128,24 @@ echo    STEP 1/%STEP_TOTAL%: Miniconda
 echo  ================================================================
 echo.
 
-:: --- Scenario A: Conda in PATH ---
+:: --- Scenario A: Conda nel PATH ---
 where conda >nul 2>&1
 if !ERRORLEVEL! EQU 0 (
-    for /f "tokens=*" %%v in ('conda --version 2^>nul') do echo   [OK] %%v found in the system.
-    set "STATUS_MINICONDA=Already present"
+    for /f "tokens=*" %%v in ('conda --version 2^>nul') do echo   [OK] %%v trovato nel sistema.
+    set "STATUS_MINICONDA=Gia' presente"
     set "CONDA_CMD=conda"
     goto :STEP2_ENV
 )
 
-:: --- Scenario B: Miniconda/Anaconda installed but not in PATH ---
+:: --- Scenario B: Miniconda/Anaconda installato ma non nel PATH ---
 if exist "!CONDA_BAT!" (
-    echo   [OK] Miniconda found in !MINICONDA_DIR!
-    set "STATUS_MINICONDA=Already present"
+    echo   [OK] Miniconda trovato in !MINICONDA_DIR!
+    set "STATUS_MINICONDA=Gia' presente"
     set "CONDA_CMD=!CONDA_BAT!"
     goto :STEP2_ENV
 )
 
-:: Also check Anaconda paths
+:: Controlla anche percorsi Anaconda
 for %%P in (
     "%USERPROFILE%\anaconda3\condabin\conda.bat"
     "%USERPROFILE%\Anaconda3\condabin\conda.bat"
@@ -153,108 +153,108 @@ for %%P in (
     "%LOCALAPPDATA%\miniconda3\condabin\conda.bat"
 ) do (
     if exist %%P (
-        echo   [OK] Conda found in %%~P
-        set "STATUS_MINICONDA=Already present"
+        echo   [OK] Conda trovato in %%~P
+        set "STATUS_MINICONDA=Gia' presente"
         set "CONDA_CMD=%%~P"
         goto :STEP2_ENV
     )
 )
 
-:: --- Scenario C: Installation required ---
-echo   Miniconda not found. Installing...
+:: --- Scenario C: Installazione necessaria ---
+echo   Miniconda non trovato. Installazione in corso...
 echo.
-echo   Downloading Miniconda (~80 MB)...
+echo   Download Miniconda (~80 MB)...
 echo.
 
-powershell -NoProfile -Command "& { try { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '!MINICONDA_URL!' -OutFile '!MINICONDA_INSTALLER!' -UseBasicParsing; Write-Host '  [OK] Download complete.' } catch { Write-Host '  [ERROR] Download failed:' $_.Exception.Message; exit 1 } }"
+powershell -NoProfile -Command "& { try { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '!MINICONDA_URL!' -OutFile '!MINICONDA_INSTALLER!' -UseBasicParsing; Write-Host '  [OK] Download completato.' } catch { Write-Host '  [ERRORE] Download fallito:' $_.Exception.Message; exit 1 } }"
 
 if !ERRORLEVEL! NEQ 0 (
     echo.
-    echo   [ERROR] Miniconda download failed.
-    echo   Check your internet connection and try again.
+    echo   [ERRORE] Download Miniconda fallito.
+    echo   Verifica la connessione internet e riprova.
     echo.
-    echo   Alternatively, download manually from:
+    echo   In alternativa, scarica manualmente da:
     echo   https://docs.anaconda.com/miniconda/install/
-    echo   then re-run this wizard.
+    echo   poi riesegui questo wizard.
     goto :END_ERROR
 )
 
-:: Verify the file exists and is not corrupted
+:: Verifica che il file esista e non sia corrotto
 if not exist "!MINICONDA_INSTALLER!" (
-    echo   [ERROR] Installer file not found after download.
+    echo   [ERRORE] File installer non trovato dopo il download.
     goto :END_ERROR
 )
 
 for %%A in ("!MINICONDA_INSTALLER!") do (
     if %%~zA LSS 50000000 (
-        echo   [ERROR] Downloaded file is too small. Download is probably corrupted.
-        echo   Delete the file and try again:
+        echo   [ERRORE] File scaricato troppo piccolo. Download probabilmente corrotto.
+        echo   Elimina il file e riprova:
         echo   !MINICONDA_INSTALLER!
         goto :END_ERROR
     )
 )
 
-:: If a partial installation exists, ask whether to remove it
+:: Se esiste una installazione parziale, chiedi se rimuoverla
 if exist "!MINICONDA_DIR!" (
-    echo   [!!] Folder !MINICONDA_DIR! already exists
-    echo       but conda does not appear to be working.
-    echo       This may be an incomplete previous installation.
+    echo   [!!] La cartella !MINICONDA_DIR! esiste gia'
+    echo       ma conda non risulta funzionante.
+    echo       Potrebbe essere un'installazione precedente incompleta.
     echo.
-    set /p "REMOVE_OLD=  Do you want to remove it and reinstall? (Y/N): "
-    if /i "!REMOVE_OLD!"=="Y" (
-        echo   Removing...
+    set /p "REMOVE_OLD=  Vuoi rimuoverla e reinstallare? (S/N): "
+    if /i "!REMOVE_OLD!"=="S" (
+        echo   Rimozione in corso...
         rmdir /s /q "!MINICONDA_DIR!" 2>nul
-        echo   Folder removed.
+        echo   Cartella rimossa.
     ) else (
         echo.
-        echo   Cannot proceed with the existing folder.
-        echo   Remove it manually and re-run the wizard.
+        echo   Impossibile procedere con la cartella esistente.
+        echo   Rimuovila manualmente e riesegui il wizard.
         goto :END_ERROR
     )
 )
 
 echo.
-echo   Installing Miniconda...
-echo   (May take 2-5 minutes, please wait...)
+echo   Installazione Miniconda in corso...
+echo   (Puo' richiedere 2-5 minuti, attendere...)
 echo.
 
 start /wait "" "!MINICONDA_INSTALLER!" /InstallationType=JustMe /RegisterPython=0 /AddToPath=1 /S /D=!MINICONDA_DIR!
 
-:: Post-installation check (concrete check instead of ERRORLEVEL)
+:: Verifica post-installazione (check concreto invece di ERRORLEVEL)
 if not exist "!CONDA_BAT!" (
-    echo   [ERROR] Installation completed but conda.bat not found.
-    echo   Expected path: !CONDA_BAT!
-    echo   Restart the computer and re-run the wizard.
+    echo   [ERRORE] Installazione completata ma conda.bat non trovato.
+    echo   Percorso atteso: !CONDA_BAT!
+    echo   Riavvia il computer e riesegui il wizard.
     goto :END_ERROR
 )
 
-:: Cleanup installer
+:: Pulizia installer
 del /f /q "!MINICONDA_INSTALLER!" 2>nul
 
-:: Initialize conda for this session
+:: Inizializza conda per la sessione
 call "!CONDA_BAT!" init >nul 2>&1
 
-echo   [OK] Miniconda installed successfully!
-set "STATUS_MINICONDA=Installed"
+echo   [OK] Miniconda installato con successo!
+set "STATUS_MINICONDA=Installato"
 set "CONDA_CMD=!CONDA_BAT!"
 
 :: ═══════════════════════════════════════════════════════════════════
-:: STEP 2/5: OFFGALLERY ENVIRONMENT
+:: STEP 2/5: AMBIENTE OFFGALLERY
 :: ═══════════════════════════════════════════════════════════════════
 :STEP2_ENV
 set "STEP_CURRENT=2"
 echo.
 echo  ================================================================
-echo    STEP 2/%STEP_TOTAL%: Python Environment
+echo    STEP 2/%STEP_TOTAL%: Ambiente Python
 echo  ================================================================
 echo.
 
-:: Check whether the environment already exists (conda env list + filesystem fallback)
+:: Verifica se l'ambiente esiste gia' (conda env list + fallback filesystem)
 call "!CONDA_CMD!" env list > "%TEMP%\og_envlist.tmp" 2>nul
 findstr /C:"!ENV_NAME!" "%TEMP%\og_envlist.tmp" >nul 2>&1
 set "ENV_EXISTS=!ERRORLEVEL!"
 del /f /q "%TEMP%\og_envlist.tmp" 2>nul
-:: Filesystem fallback: conda env list may fail with ToS on Anaconda
+:: Fallback filesystem: conda env list puo' fallire con ToS su Anaconda
 if !ENV_EXISTS! NEQ 0 (
     if "!CONDA_CMD!" NEQ "conda" (
         for %%C in ("!CONDA_CMD!") do (
@@ -269,35 +269,35 @@ if !ENV_EXISTS! NEQ 0 (
     )
 )
 if !ENV_EXISTS! EQU 0 (
-    echo   [OK] Environment "!ENV_NAME!" already present.
+    echo   [OK] Ambiente "!ENV_NAME!" gia' presente.
     echo.
-    set /p "RECREATE_ENV=  Do you want to delete it and recreate from scratch? (Y/N): "
-    if /i "!RECREATE_ENV!"=="Y" (
+    set /p "RECREATE_ENV=  Vuoi eliminarlo e ricrearlo da zero? (S/N): "
+    if /i "!RECREATE_ENV!"=="S" (
         echo.
-        echo   Removing existing environment...
+        echo   Rimozione ambiente esistente...
         call "!CONDA_CMD!" env remove -n !ENV_NAME! -y >nul 2>&1
         if !ERRORLEVEL! NEQ 0 (
-            echo   [ERROR] Could not remove the environment.
-            echo   Try manually: conda env remove -n !ENV_NAME! -y
+            echo   [ERRORE] Impossibile rimuovere l'ambiente.
+            echo   Prova manualmente: conda env remove -n !ENV_NAME! -y
             goto :END_ERROR
         )
-        echo   Environment removed. Recreating...
+        echo   Ambiente rimosso. Ricreazione in corso...
         echo.
     ) else (
-        set "STATUS_ENV=Already present"
+        set "STATUS_ENV=Gia' presente"
         goto :STEP3_PACKAGES
     )
 )
 
-echo   Creating environment "!ENV_NAME!" with Python !PYTHON_VER!...
-echo   (1-3 minutes)
+echo   Creazione ambiente "!ENV_NAME!" con Python !PYTHON_VER!...
+echo   (1-3 minuti)
 echo.
 
 call "!CONDA_CMD!" create -n !ENV_NAME! python=!PYTHON_VER! --override-channels -c conda-forge -y
 set "ENV_CREATED=!ERRORLEVEL!"
 
-:: Concrete filesystem check: Anaconda may exit with a non-zero code
-:: even if the environment was created correctly (e.g. residual ToS warning).
+:: Verifica concreta nel filesystem: Anaconda puo' uscire con exit code non-zero
+:: anche se l'ambiente e' stato creato correttamente (es. ToS warning residuo).
 set "ENV_VERIFIED=0"
 if "!CONDA_CMD!" NEQ "conda" (
     for %%C in ("!CONDA_CMD!") do (
@@ -313,88 +313,88 @@ if !ENV_VERIFIED! EQU 0 (
 
 if !ENV_CREATED! NEQ 0 (
     if !ENV_VERIFIED! EQU 1 (
-        echo   [OK] Environment verified in the filesystem ^(exit code !ENV_CREATED! ignored^).
+        echo   [OK] Ambiente verificato nel filesystem ^(exit code !ENV_CREATED! ignorato^).
     ) else (
         echo.
-        echo   [ERROR] Environment creation failed.
-        echo   Possible causes:
-        echo     - Anaconda Terms of Service not accepted
-        echo     - Insufficient disk space
-        echo     - Missing permissions
+        echo   [ERRORE] Creazione ambiente fallita.
+        echo   Possibili cause:
+        echo     - Termini di servizio Anaconda non accettati
+        echo     - Spazio disco insufficiente
+        echo     - Permessi mancanti
         echo.
-        echo   Open the Anaconda Prompt and type:
+        echo   Apri il Prompt Anaconda e digita:
         echo     conda create -n !ENV_NAME! python=!PYTHON_VER! --override-channels -c conda-forge -y
-        echo   then re-run this wizard.
+        echo   poi riesegui questo wizard.
         goto :END_ERROR
     )
 )
 
 echo.
-echo   [OK] Environment "!ENV_NAME!" created!
-set "STATUS_ENV=Created"
+echo   [OK] Ambiente "!ENV_NAME!" creato!
+set "STATUS_ENV=Creato"
 
 :: ═══════════════════════════════════════════════════════════════════
-:: STEP 3/5: PYTHON DEPENDENCIES (with automatic GPU detection)
+:: STEP 3/5: DIPENDENZE PYTHON (con rilevamento GPU automatico)
 :: ═══════════════════════════════════════════════════════════════════
 :STEP3_PACKAGES
 set "STEP_CURRENT=3"
 echo.
 echo  ================================================================
-echo    STEP 3/%STEP_TOTAL%: Python Dependencies
+echo    STEP 3/%STEP_TOTAL%: Dipendenze Python
 echo  ================================================================
 echo.
 
-:: Check requirements file
+:: Verifica file requirements
 if not exist "!REQUIREMENTS!" (
-    echo   [ERROR] Requirements file not found:
+    echo   [ERRORE] File requirements non trovato:
     echo   !REQUIREMENTS!
-    echo   Make sure the installer folder is complete.
+    echo   Assicurati che la cartella installer sia completa.
     goto :END_ERROR
 )
 
-echo   Installing Python libraries (PyTorch, CLIP, BioCLIP, etc.)
-echo   Estimated download: ~3-4 GB
-echo   Estimated time: 10-20 minutes
+echo   Installazione librerie Python (PyTorch, CLIP, BioCLIP, etc.)
+echo   Download stimato: ~3-4 GB
+echo   Tempo stimato: 10-20 minuti
 echo.
-echo   Components:
-echo     - PyTorch (automatic GPU if NVIDIA or AMD present)
+echo   Componenti:
+echo     - PyTorch (GPU automatica se NVIDIA o AMD presente)
 echo     - Transformers (HuggingFace)
-echo     - BioCLIP (nature classification)
-echo     - PyQt6 (graphical interface)
-echo     - OpenCV (image processing)
-echo     - Argos Translate (IT-EN translation)
+echo     - BioCLIP (classificazione natura)
+echo     - PyQt6 (interfaccia grafica)
+echo     - OpenCV (elaborazione immagini)
+echo     - Argos Translate (traduzione IT-EN)
 echo.
-echo   NOTE: The PyTorch download may appear stuck for
-echo   several minutes. This is normal, please wait patiently.
+echo   NOTA: Il download di PyTorch puo' sembrare bloccato per
+echo   diversi minuti. E' normale, attendere pazientemente.
 echo.
 echo  ----------------------------------------------------------------
 echo.
 
-:: === GPU DETECTION ===
-echo   Detecting graphics card...
+:: === RILEVAMENTO SCHEDA GRAFICA ===
+echo   Rilevamento scheda grafica...
 set "PYTORCH_VARIANT=cpu"
 set "PYTORCH_INDEX=https://download.pytorch.org/whl/cpu"
-set "GPU_TYPE=None"
+set "GPU_TYPE=Nessuna"
 set "INSTALL_DIRECTML=0"
 
-:: --- Try NVIDIA first ---
+:: --- Prova NVIDIA prima ---
 nvidia-smi >nul 2>&1
 if !ERRORLEVEL! EQU 0 (
-    echo   [OK] NVIDIA card detected!
-    for /f "tokens=*" %%G in ('nvidia-smi --query-gpu=name --format^=csv^,noheader 2^>nul') do echo        Model: %%G
-    echo   PyTorch will be installed with GPU support ^(CUDA 11.8^)
+    echo   [OK] Scheda NVIDIA rilevata!
+    for /f "tokens=*" %%G in ('nvidia-smi --query-gpu=name --format^=csv^,noheader 2^>nul') do echo        Modello: %%G
+    echo   PyTorch verra' installato con supporto GPU ^(CUDA 11.8^)
     set "PYTORCH_VARIANT=cu118"
     set "PYTORCH_INDEX=https://download.pytorch.org/whl/cu118"
     set "GPU_TYPE=NVIDIA (CUDA)"
     goto :GPU_DETECTED
 )
 
-:: --- Try AMD ---
+:: --- Prova AMD ---
 powershell -NoProfile -Command "Get-CimInstance -ClassName Win32_VideoController | Select-Object Name" 2>nul | findstr /I "AMD Radeon" >nul 2>&1
 if !ERRORLEVEL! EQU 0 (
-    echo   [OK] AMD card detected!
-    for /f "tokens=*" %%G in ('powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match 'AMD|Radeon' } | Select-Object -ExpandProperty Name" 2^>nul') do echo        Model: %%G
-    echo   PyTorch will be installed with GPU support ^(DirectML^)
+    echo   [OK] Scheda AMD rilevata!
+    for /f "tokens=*" %%G in ('powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match 'AMD|Radeon' } | Select-Object -ExpandProperty Name" 2^>nul') do echo        Modello: %%G
+    echo   PyTorch verra' installato con supporto GPU ^(DirectML^)
     set "PYTORCH_VARIANT=DirectML"
     set "PYTORCH_INDEX=https://download.pytorch.org/whl/cpu"
     set "GPU_TYPE=AMD (DirectML)"
@@ -402,224 +402,224 @@ if !ERRORLEVEL! EQU 0 (
     goto :GPU_DETECTED
 )
 
-:: --- No dedicated GPU ---
-echo   [INFO] No dedicated graphics card detected.
-echo          PyTorch will be installed in CPU-only mode.
-echo          ^(If you have a GPU, install the drivers first and re-run^)
+:: --- Nessuna GPU dedicata ---
+echo   [INFO] Nessuna scheda grafica dedicata rilevata.
+echo          PyTorch installato in modalita' solo CPU.
+echo          ^(Se hai una GPU, installa prima i driver e riesegui^)
 
 :GPU_DETECTED
 echo.
 
-:: Update pip
-echo   [1/3] Updating pip...
+:: Aggiorna pip
+echo   [1/3] Aggiornamento pip...
 call "!CONDA_CMD!" run -n !ENV_NAME! python -m pip install --upgrade pip -q 2>nul
 
-:: Pre-install PyTorch with the correct variant
-echo   [2/3] Installing PyTorch ^(!PYTORCH_VARIANT!^)...
-echo         ^(download ~2 GB, please wait patiently^)
+:: Pre-installa PyTorch con la variante corretta
+echo   [2/3] Installazione PyTorch ^(!PYTORCH_VARIANT!^)...
+echo         ^(download ~2 GB, attendere pazientemente^)
 echo.
 call "!CONDA_CMD!" run -n !ENV_NAME! pip install torch torchvision --index-url "!PYTORCH_INDEX!"
 if !ERRORLEVEL! NEQ 0 (
     echo.
-    echo   [!!] PyTorch !PYTORCH_VARIANT! installation failed. Retrying with CPU...
+    echo   [!!] Installazione PyTorch !PYTORCH_VARIANT! fallita. Riprovo con CPU...
     echo.
     set "PYTORCH_VARIANT=cpu"
-    set "GPU_TYPE=None (CPU fallback)"
+    set "GPU_TYPE=Nessuna (fallback CPU)"
     set "INSTALL_DIRECTML=0"
     call "!CONDA_CMD!" run -n !ENV_NAME! pip install torch torchvision --index-url "https://download.pytorch.org/whl/cpu"
 )
 
-:: Install torch-directml if AMD GPU detected
+:: Installa torch-directml se GPU AMD rilevata
 if "!INSTALL_DIRECTML!"=="1" (
     echo.
-    echo   Installing torch-directml for AMD GPU...
+    echo   Installazione torch-directml per GPU AMD...
     call "!CONDA_CMD!" run -n !ENV_NAME! pip install torch-directml
     if !ERRORLEVEL! NEQ 0 (
-        echo   [!!] torch-directml not installed. AMD GPU will not be used.
-        set "GPU_TYPE=AMD (CPU fallback)"
+        echo   [!!] torch-directml non installato. GPU AMD non sara' utilizzata.
+        set "GPU_TYPE=AMD (fallback CPU)"
     )
 )
 
-:: Install remaining dependencies
+:: Installa le restanti dipendenze
 echo.
-echo   [3/3] Installing dependencies...
+echo   [3/3] Installazione dipendenze in corso...
 echo.
 
 call "!CONDA_CMD!" run -n !ENV_NAME! pip install -r "!REQUIREMENTS!"
 if !ERRORLEVEL! NEQ 0 (
     echo.
-    echo   [ERROR] Dependency installation failed.
+    echo   [ERRORE] Installazione dipendenze fallita.
     echo.
-    echo   Possible causes:
-    echo     - No or unstable internet connection
-    echo     - Insufficient disk space ^(~6 GB needed^)
-    echo     - Antivirus blocking the download
+    echo   Possibili cause:
+    echo     - Connessione internet assente o instabile
+    echo     - Spazio disco insufficiente ^(servono ~6 GB^)
+    echo     - Antivirus che blocca il download
     echo.
-    echo   Tip: re-run this wizard. Already downloaded packages
-    echo   will not be downloaded again.
+    echo   Suggerimento: riesegui questo wizard. I pacchetti
+    echo   gia' scaricati non verranno riscaricati.
     goto :END_ERROR
 )
 
-:: Concrete check: verify all critical packages
+:: Verifica concreta: controlla tutti i pacchetti critici
 echo.
-echo   Verifying installation...
+echo   Verifica installazione...
 set "INSTALL_OK=1"
 
-call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import torch; print('  [OK] PyTorch', torch.__version__, '- CUDA:', 'YES' if torch.cuda.is_available() else 'NO')" 2>nul
-if !ERRORLEVEL! NEQ 0 ( echo   [ERROR] torch not found & set "INSTALL_OK=0" )
+call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import torch; print('  [OK] PyTorch', torch.__version__, '- CUDA:', 'SI' if torch.cuda.is_available() else 'NO')" 2>nul
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] torch non trovato & set "INSTALL_OK=0" )
 
-:: Verify DirectML if installed
+:: Verifica DirectML se installato
 if "!INSTALL_DIRECTML!"=="1" (
-    call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import torch_directml; print('  [OK] torch-directml - AMD GPU:', 'YES' if torch_directml.device() else 'NO')" 2>nul
-    if !ERRORLEVEL! NEQ 0 ( echo   [!!] torch-directml not verified )
+    call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import torch_directml; print('  [OK] torch-directml - GPU AMD:', 'SI' if torch_directml.device() else 'NO')" 2>nul
+    if !ERRORLEVEL! NEQ 0 ( echo   [!!] torch-directml non verificato )
 )
 
 call "!CONDA_CMD!" run -n !ENV_NAME! python -c "from PyQt6.QtWidgets import QApplication; print('  [OK] PyQt6')" 2>nul
-if !ERRORLEVEL! NEQ 0 ( echo   [ERROR] PyQt6 not found & set "INSTALL_OK=0" )
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] PyQt6 non trovato & set "INSTALL_OK=0" )
 
 call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import cv2; print('  [OK] OpenCV', cv2.__version__)" 2>nul
-if !ERRORLEVEL! NEQ 0 ( echo   [ERROR] opencv not found & set "INSTALL_OK=0" )
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] opencv non trovato & set "INSTALL_OK=0" )
 
 call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import numpy; print('  [OK] NumPy', numpy.__version__)" 2>nul
-if !ERRORLEVEL! NEQ 0 ( echo   [ERROR] numpy not found & set "INSTALL_OK=0" )
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] numpy non trovato & set "INSTALL_OK=0" )
 
 call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import PIL; print('  [OK] Pillow', PIL.__version__)" 2>nul
-if !ERRORLEVEL! NEQ 0 ( echo   [ERROR] Pillow not found & set "INSTALL_OK=0" )
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] Pillow non trovato & set "INSTALL_OK=0" )
 
 call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import transformers; print('  [OK] transformers', transformers.__version__)" 2>nul
-if !ERRORLEVEL! NEQ 0 ( echo   [ERROR] transformers not found & set "INSTALL_OK=0" )
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] transformers non trovato & set "INSTALL_OK=0" )
 
 call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import open_clip; print('  [OK] open-clip-torch')" 2>nul
-if !ERRORLEVEL! NEQ 0 ( echo   [ERROR] open-clip-torch not found & set "INSTALL_OK=0" )
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] open-clip-torch non trovato & set "INSTALL_OK=0" )
 
 call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import rawpy; print('  [OK] rawpy', rawpy.__version__)" 2>nul
-if !ERRORLEVEL! NEQ 0 ( echo   [ERROR] rawpy not found & set "INSTALL_OK=0" )
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] rawpy non trovato & set "INSTALL_OK=0" )
 
 call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import yaml; print('  [OK] PyYAML', yaml.__version__)" 2>nul
-if !ERRORLEVEL! NEQ 0 ( echo   [ERROR] pyyaml not found & set "INSTALL_OK=0" )
+if !ERRORLEVEL! NEQ 0 ( echo   [ERRORE] pyyaml non trovato & set "INSTALL_OK=0" )
 
 if "!INSTALL_OK!"=="0" (
     echo.
-    echo   [ERROR] Installation incomplete. One or more packages are missing.
-    echo   Re-run this wizard: already downloaded packages will not be downloaded again.
+    echo   [ERRORE] Installazione incompleta. Uno o piu' pacchetti mancano.
+    echo   Riesegui questo wizard: i pacchetti gia' scaricati non verranno riscaricati.
     goto :END_ERROR
 )
 
 echo.
-echo   [OK] Python dependencies installed!
-set "STATUS_PACKAGES=Installed"
+echo   [OK] Dipendenze Python installate!
+set "STATUS_PACKAGES=Installato"
 
 :: ═══════════════════════════════════════════════════════════════════
-:: STEP 4/5: LLM VISION BACKEND (OPTIONAL)
+:: STEP 4/5: BACKEND LLM VISION (OPZIONALE)
 :: ═══════════════════════════════════════════════════════════════════
 :STEP4_LLM
 set "STEP_CURRENT=4"
 echo.
 echo  ================================================================
-echo    STEP 4/%STEP_TOTAL%: LLM Vision Backend (Optional)
+echo    STEP 4/%STEP_TOTAL%: Backend LLM Vision (Opzionale)
 echo  ================================================================
 echo.
-echo   An LLM backend is used to automatically generate descriptions,
-echo   tags and titles with AI. You can choose between:
+echo   Un backend LLM serve per generare descrizioni, tag e titoli
+echo   automatici con AI. Puoi scegliere tra:
 echo.
-echo     [1] Ollama    - Most popular, supports many models
-echo     [2] LM Studio - Graphical interface, good AMD support
-echo     [3] None      - I will install it later, or I already have my own
+echo     [1] Ollama   - Piu' diffuso, supporta molti modelli
+echo     [2] LM Studio - Interfaccia grafica, buon supporto AMD
+echo     [3] Nessuno   - Installo dopo, oppure ho gia' il mio
 echo.
-echo   If you skip this now, you can install it later.
-echo   Search and classification functions work without it.
+echo   Se non lo installi ora, puoi farlo in seguito.
+echo   Le funzioni di ricerca e classificazione funzionano senza.
 echo.
 
-set /p "LLM_CHOICE=  Choose [1/2/3]: "
+set /p "LLM_CHOICE=  Scegli [1/2/3]: "
 
 if "!LLM_CHOICE!"=="1" goto :INSTALL_OLLAMA
 if "!LLM_CHOICE!"=="2" goto :INSTALL_LMSTUDIO
-:: Any other choice = none
+:: Qualunque altra scelta = nessuno
 echo.
-echo   LLM backend skipped. You can install it later.
-set "STATUS_LLM=Skipped"
+echo   Backend LLM saltato. Potrai installarlo in seguito.
+set "STATUS_LLM=Saltato"
 set "STATUS_LLM_MODEL=-"
 set "LLM_BACKEND=none"
 goto :STEP5_SHORTCUT
 
 :: -----------------------------------------------------------------
-:: OLLAMA INSTALLATION
+:: INSTALLAZIONE OLLAMA
 :: -----------------------------------------------------------------
 :INSTALL_OLLAMA
 set "LLM_BACKEND=ollama"
 
-:: Check if Ollama is already installed
+:: Verifica se Ollama e' gia' installato
 where ollama >nul 2>&1
 if !ERRORLEVEL! EQU 0 (
     echo.
-    echo   [OK] Ollama already installed.
+    echo   [OK] Ollama gia' installato.
     goto :OLLAMA_MODEL
 )
 
 :: Download Ollama
 echo.
-echo   Downloading Ollama...
+echo   Download Ollama...
 echo.
 
-powershell -NoProfile -Command "& { try { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '!OLLAMA_URL!' -OutFile '!OLLAMA_INSTALLER!' -UseBasicParsing; Write-Host '  [OK] Download complete.' } catch { Write-Host '  [ERROR] Download failed:' $_.Exception.Message; exit 1 } }"
+powershell -NoProfile -Command "& { try { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '!OLLAMA_URL!' -OutFile '!OLLAMA_INSTALLER!' -UseBasicParsing; Write-Host '  [OK] Download completato.' } catch { Write-Host '  [ERRORE] Download fallito:' $_.Exception.Message; exit 1 } }"
 
 if not exist "!OLLAMA_INSTALLER!" (
     echo.
-    echo   [!!] Ollama download failed. You can install it manually from:
+    echo   [!!] Download Ollama fallito. Puoi installarlo manualmente da:
     echo       https://ollama.com/download
     echo.
-    echo   Continuing with the next steps...
-    set "STATUS_LLM=Failed"
+    echo   Proseguo con gli step successivi...
+    set "STATUS_LLM=Fallito"
     set "STATUS_LLM_MODEL=-"
     pause
     goto :STEP5_SHORTCUT
 )
 
-:: Install Ollama
+:: Installazione Ollama
 echo.
-echo   Installing Ollama...
-echo   (An installation window may appear)
+echo   Installazione Ollama...
+echo   (Potrebbe apparire una finestra di installazione)
 echo.
 
-:: Ollama uses NSIS installer: the standard silent flag is /S
+:: Ollama usa installer NSIS: il flag silenzioso standard e' /S
 start /wait "" "!OLLAMA_INSTALLER!" /S 2>nul
-:: If silent install fails, try interactive installation
+:: Se il silent install fallisce, prova installazione interattiva
 where ollama >nul 2>&1
 if !ERRORLEVEL! NEQ 0 (
     if not exist "%LOCALAPPDATA%\Programs\Ollama\ollama.exe" (
-        echo   Starting interactive installation...
+        echo   Avvio installazione interattiva...
         start /wait "" "!OLLAMA_INSTALLER!"
     )
 )
 
-:: Cleanup
+:: Pulizia
 del /f /q "!OLLAMA_INSTALLER!" 2>nul
 
-:: Update PATH for this session
+:: Aggiorna PATH per questa sessione
 set "PATH=!PATH!;%LOCALAPPDATA%\Programs\Ollama"
 
-:: Post-install check
+:: Verifica post-install
 where ollama >nul 2>&1
 if !ERRORLEVEL! NEQ 0 (
     if exist "%LOCALAPPDATA%\Programs\Ollama\ollama.exe" (
         set "PATH=!PATH!;%LOCALAPPDATA%\Programs\Ollama"
     ) else (
-        echo   [!!] Ollama installed but not found in PATH.
-        echo       Restart the computer and then run:
+        echo   [!!] Ollama installato ma non trovato nel PATH.
+        echo       Riavvia il computer e poi esegui:
         echo       ollama pull !OLLAMA_MODEL!
-        set "STATUS_LLM=Requires restart"
+        set "STATUS_LLM=Richiede riavvio"
         set "STATUS_LLM_MODEL=-"
         goto :STEP5_SHORTCUT
     )
 )
 
-echo   [OK] Ollama installed!
+echo   [OK] Ollama installato!
 
 :OLLAMA_MODEL
 echo.
-echo   Checking model !OLLAMA_MODEL!...
+echo   Verifica modello !OLLAMA_MODEL!...
 
-:: Wait for Ollama service to start (retry with increasing wait)
+:: Attendi avvio servizio Ollama (retry con attesa crescente)
 set "OLLAMA_READY=0"
 for %%t in (8 5 5) do (
     if !OLLAMA_READY! EQU 0 (
@@ -630,92 +630,92 @@ for %%t in (8 5 5) do (
 
 ollama list 2>nul | findstr /C:"!OLLAMA_MODEL!" >nul 2>&1
 if !ERRORLEVEL! EQU 0 (
-    echo   [OK] Model !OLLAMA_MODEL! already installed.
+    echo   [OK] Modello !OLLAMA_MODEL! gia' installato.
     set "STATUS_LLM=Ollama"
     set "STATUS_LLM_MODEL=OK"
     goto :STEP5_SHORTCUT
 )
 
 echo.
-echo   Model !OLLAMA_MODEL! is not installed.
-echo   Download size: ~3.3 GB
+echo   Il modello !OLLAMA_MODEL! non e' installato.
+echo   Dimensione download: ~3.3 GB
 echo.
-set /p "PULL_MODEL=  Do you want to download the model now? (Y/N): "
-if /i "!PULL_MODEL!" NEQ "Y" (
+set /p "PULL_MODEL=  Vuoi scaricare il modello ora? (S/N): "
+if /i "!PULL_MODEL!" NEQ "S" (
     echo.
-    echo   You can download it later with:
+    echo   Puoi scaricarlo in seguito con:
     echo   ollama pull !OLLAMA_MODEL!
-    set "STATUS_LLM=Ollama (no model)"
-    set "STATUS_LLM_MODEL=Not downloaded"
+    set "STATUS_LLM=Ollama (senza modello)"
+    set "STATUS_LLM_MODEL=Non scaricato"
     goto :STEP5_SHORTCUT
 )
 
 echo.
-echo   Downloading model (5-15 minutes)...
+echo   Download modello in corso (5-15 minuti)...
 echo.
 
 ollama pull "!OLLAMA_MODEL!"
 
 if !ERRORLEVEL! NEQ 0 (
     echo.
-    echo   [!!] Model download failed.
-    echo   You can retry with: ollama pull !OLLAMA_MODEL!
+    echo   [!!] Download modello fallito.
+    echo   Puoi riprovare con: ollama pull !OLLAMA_MODEL!
     set "STATUS_LLM=Ollama"
-    set "STATUS_LLM_MODEL=Not downloaded"
+    set "STATUS_LLM_MODEL=Non scaricato"
     pause
     goto :STEP5_SHORTCUT
 )
 
 echo.
-echo   [OK] Ollama + model installed!
+echo   [OK] Ollama + modello installati!
 set "STATUS_LLM=Ollama"
 set "STATUS_LLM_MODEL=OK"
 goto :STEP5_SHORTCUT
 
 :: -----------------------------------------------------------------
-:: LM STUDIO INSTALLATION
+:: INSTALLAZIONE LM STUDIO
 :: -----------------------------------------------------------------
 :INSTALL_LMSTUDIO
 set "LLM_BACKEND=lmstudio"
 
-:: Check if LM Studio is already installed
+:: Verifica se LM Studio e' gia' installato
 if exist "!LMSTUDIO_EXE!" (
     echo.
-    echo   [OK] LM Studio already installed.
+    echo   [OK] LM Studio gia' installato.
     goto :LMSTUDIO_CONFIG
 )
 
 :: Download LM Studio
 echo.
-echo   Downloading LM Studio...
+echo   Download LM Studio...
 echo.
 
-powershell -NoProfile -Command "& { try { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '!LMSTUDIO_URL!' -OutFile '!LMSTUDIO_INSTALLER!' -UseBasicParsing; Write-Host '  [OK] Download complete.' } catch { Write-Host '  [ERROR] Download failed:' $_.Exception.Message; exit 1 } }"
+powershell -NoProfile -Command "& { try { $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '!LMSTUDIO_URL!' -OutFile '!LMSTUDIO_INSTALLER!' -UseBasicParsing; Write-Host '  [OK] Download completato.' } catch { Write-Host '  [ERRORE] Download fallito:' $_.Exception.Message; exit 1 } }"
 
 if not exist "!LMSTUDIO_INSTALLER!" (
     echo.
-    echo   [!!] LM Studio download failed. You can install it manually from:
+    echo   [!!] Download LM Studio fallito. Puoi installarlo manualmente da:
     echo       https://lmstudio.ai
     echo.
-    echo   Continuing with the next steps...
-    set "STATUS_LLM=Failed"
+    echo   Proseguo con gli step successivi...
+    set "STATUS_LLM=Fallito"
     set "STATUS_LLM_MODEL=-"
     pause
     goto :STEP5_SHORTCUT
 )
 
-:: Install LM Studio (interactive)
+:: Installazione LM Studio (interattiva)
 echo.
 echo   ---------------------------------------------------
-echo   ------------------  ATTENTION!  -------------------
+echo   ------------------  ATTENZIONE!  ------------------
 echo   ---------------------------------------------------
 echo.
-echo           The interactive installer will open!
+echo           Si aprira' l'installer interattivo!
 echo.
-echo     Leave all options at DEFAULT, allowing
-echo     LM Studio to start at the end of the installation
-echo     (it will then be closed automatically
-echo     for the subsequent configuration).
+echo     Lasciare tutte le opzioni a DEFAULT, lasciando
+echo     partire, a fine installazione, il processo di
+echo     LM Studio (sara' poi chiuso automaticamente,
+echo     per la successiva configurazione).
 echo.
 echo   ---------------------------------------------------
 echo.
@@ -724,34 +724,34 @@ start /wait "" "!LMSTUDIO_INSTALLER!" 2>nul
 
 if not exist "!LMSTUDIO_EXE!" (
     echo.
-    echo   [!!] LM Studio installation failed.
-    echo       You can install it manually from: https://lmstudio.ai
+    echo   [!!] Installazione LM Studio fallita.
+    echo       Puoi installarlo manualmente da: https://lmstudio.ai
     echo.
-    set "STATUS_LLM=Failed"
+    set "STATUS_LLM=Fallito"
     set "STATUS_LLM_MODEL=-"
     pause
     goto :STEP5_SHORTCUT
 )
 
-:: Cleanup
+:: Pulizia
 del /f /q "!LMSTUDIO_INSTALLER!" 2>nul
 
-:: Update PATH for this session
+:: Aggiorna PATH per questa sessione
 set "PATH=!PATH!;!LMSTUDIO_PATH!"
 
 :LMSTUDIO_CONFIG
 echo.
-echo   Configuring LM Studio...
+echo   Configurazione LM Studio...
 
-:: Check that LM Studio has been launched at least once
-:: (required to create the .lmstudio folder)
+:: Verifica che LM Studio sia stato avviato almeno una volta
+:: (necessario per creare la cartella .lmstudio)
 if exist "%USERPROFILE%\.lmstudio" (
     goto :LMSTUDIO_COPY_CONFIG
 )
 
-:: First launch of LM Studio to create the folders
+:: Prima partenza di LM Studio per creare le cartelle
 powershell -NoProfile -Command "Start-Process -FilePath '!LMSTUDIO_EXE!' -WindowStyle Hidden"
-echo   Waiting for LM Studio first launch...
+echo   Attesa prima partenza di LM Studio...
 echo.
 :WAIT_LM
 tasklist /FI "IMAGENAME eq LM Studio.exe" | find /I "LM Studio.exe" >nul
@@ -760,11 +760,11 @@ if errorlevel 1 (
     goto :WAIT_LM
 )
 timeout /t 5 /nobreak >nul 2>&1
-echo   Closing LM Studio to copy the configuration...
+echo   Chiudo LM Studio per copiare la configurazione...
 taskkill /IM "LM Studio.exe" /F >nul 2>&1
 
 :LMSTUDIO_COPY_CONFIG
-:: Copy configuration files for local server auto-start
+:: Copia file di configurazione per server locale auto-start
 if exist "!LMSTUDIO_CONFIG_SOURCE!" (
     copy /Y "!LMSTUDIO_CONFIG_SOURCE!" "!LMSTUDIO_CONFIG_DEST!" >nul 2>&1
 )
@@ -772,30 +772,30 @@ if exist "!LMSTUDIO_SERVER_SOURCE!" (
     if not exist "%USERPROFILE%\.lmstudio\.internal" mkdir "%USERPROFILE%\.lmstudio\.internal" 2>nul
     copy /Y "!LMSTUDIO_SERVER_SOURCE!" "!LMSTUDIO_SERVER_DEST!" >nul 2>&1
 )
-echo   [OK] Configuration copied.
+echo   [OK] Configurazione copiata.
 
-:: Download model
+:: Download modello
 echo.
-echo   Model !LMSTUDIO_MODEL! is not installed.
-echo   Download size: ~3.3 GB (in two parts).
-echo   This will take between 3 and 15 minutes.
+echo   Il modello !LMSTUDIO_MODEL! non e' installato.
+echo   Dimensione download: ~3.3 GB (in due parti).
+echo   Impieghera' da 3 a 15 minuti.
 echo.
-echo   NOTE: if the model has already been downloaded previously,
-echo         you can safely skip this step.
+echo   NOTA: se il modello e' gia' stato scaricato in precedenza,
+echo         puoi tranquillamente saltare questo passaggio.
 echo.
-set /p "INSTALL_MODEL=  Do you want to download the model now? (Y/N): "
-if /i "!INSTALL_MODEL!"=="Y" (
+set /p "INSTALL_MODEL=  Vuoi scaricare il modello ora? (S/N): "
+if /i "!INSTALL_MODEL!"=="S" (
     lms get !LMSTUDIO_MODEL!
-    echo   [OK] Model downloaded!
+    echo   [OK] Modello scaricato!
     set "STATUS_LLM_MODEL=OK"
 ) else (
     echo.
-    echo   You can download it later by opening LM Studio
-    echo   and searching for: !LMSTUDIO_MODEL!
-    set "STATUS_LLM_MODEL=Not downloaded"
+    echo   Puoi scaricarlo in seguito aprendo LM Studio
+    echo   e cercando: !LMSTUDIO_MODEL!
+    set "STATUS_LLM_MODEL=Non scaricato"
 )
 
-:: Verify LM Studio server
+:: Verifica server LM Studio
 powershell -NoProfile -Command "Start-Process -FilePath '!LMSTUDIO_EXE!' -WindowStyle Hidden"
 set "LMSTUDIO_READY=0"
 for %%t in (8 5 5) do (
@@ -806,132 +806,132 @@ for %%t in (8 5 5) do (
     )
 )
 if !LMSTUDIO_READY! EQU 1 (
-    echo   [OK] LM Studio server is running!
+    echo   [OK] LM Studio server in funzione!
     set "STATUS_LLM=LM Studio"
 ) else (
-    echo   [!!] LM Studio server not responding. Please verify manually.
-    set "STATUS_LLM=LM Studio (server not verified)"
+    echo   [!!] LM Studio server non risponde. Verificare manualmente.
+    set "STATUS_LLM=LM Studio (server non verificato)"
 )
 goto :STEP5_SHORTCUT
 
 :: ═══════════════════════════════════════════════════════════════════
-:: STEP 5/5: DESKTOP SHORTCUT + CONFIGURATION
+:: STEP 5/5: COLLEGAMENTO DESKTOP + CONFIGURAZIONE
 :: ═══════════════════════════════════════════════════════════════════
 :STEP5_SHORTCUT
 set "STEP_CURRENT=5"
 echo.
 echo  ================================================================
-echo    STEP 5/%STEP_TOTAL%: Desktop Shortcut + Configuration
+echo    STEP 5/%STEP_TOTAL%: Collegamento Desktop + Configurazione
 echo  ================================================================
 echo.
 
-:: --- Write chosen backend to config_new.yaml ---
+:: --- Scrivi backend scelto nel config_new.yaml ---
 if "!LLM_BACKEND!" NEQ "none" (
     if exist "!CONFIG_FILE!" (
-        echo   Configuring LLM backend: !LLM_BACKEND!
+        echo   Configurazione backend LLM: !LLM_BACKEND!
         call "!CONDA_CMD!" run -n !ENV_NAME! python -c "import yaml; p='!CONFIG_FILE!'.replace('\\','/'); c=yaml.safe_load(open(p,'r',encoding='utf-8')); lv=c.setdefault('embedding',{}).setdefault('llm_vision',{}); lv['backend']='!LLM_BACKEND!'; lv['endpoint']='http://localhost:1234' if '!LLM_BACKEND!'=='lmstudio' else 'http://localhost:11434'; lv['model']='!LMSTUDIO_MODEL!' if '!LLM_BACKEND!'=='lmstudio' else '!OLLAMA_MODEL!'; yaml.dump(c,open(p,'w',encoding='utf-8'),default_flow_style=False,allow_unicode=True)" 2>nul
         if !ERRORLEVEL! EQU 0 (
-            echo   [OK] Backend '!LLM_BACKEND!' saved to config_new.yaml
+            echo   [OK] Backend '!LLM_BACKEND!' salvato in config_new.yaml
         ) else (
-            echo   [!!] Config write failed. You can configure it from the Config Tab.
+            echo   [!!] Scrittura config fallita. Puoi configurarlo da Config Tab.
         )
     )
 )
 
-:: --- Desktop Shortcut ---
-:: Detect real Desktop path from registry (supports OneDrive)
+:: --- Collegamento Desktop ---
+:: Rileva percorso Desktop reale dal registro (supporta OneDrive)
 set "DESKTOP="
 for /f "tokens=2*" %%a in ('reg query "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" /v Desktop 2^>nul') do set "DESKTOP=%%b"
-:: Expand variables in the path (e.g. %USERPROFILE%)
+:: Espandi variabili nel percorso (es. %USERPROFILE%)
 if defined DESKTOP call set "DESKTOP=!DESKTOP!"
 :: Fallback
 if not defined DESKTOP set "DESKTOP=%USERPROFILE%\Desktop"
 
 set "SHORTCUT_NAME=OffGallery"
 
-:: Check that the Launcher exists
+:: Verifica che il Launcher esista
 if not exist "!LAUNCHER!" (
-    echo   [!!] Launcher file not found: !LAUNCHER!
-    echo       You can create the shortcut manually.
-    set "STATUS_SHORTCUT=Failed"
+    echo   [!!] File Launcher non trovato: !LAUNCHER!
+    echo       Puoi creare il collegamento manualmente.
+    set "STATUS_SHORTCUT=Fallito"
     goto :SUMMARY
 )
 
-echo   Creating shortcut "!SHORTCUT_NAME!" on the Desktop...
+echo   Creazione collegamento "!SHORTCUT_NAME!" sul Desktop...
 echo.
 
-powershell -NoProfile -Command "& { try { $ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('!DESKTOP!\!SHORTCUT_NAME!.lnk'); $s.TargetPath = '!LAUNCHER!'; $s.WorkingDirectory = '!APP_ROOT!'; $s.Description = 'Launch OffGallery - Offline AI photo cataloguing'; $s.Save(); Write-Host '  [OK] Shortcut created on the Desktop.' } catch { Write-Host '  [ERROR]' $_.Exception.Message; exit 1 } }"
+powershell -NoProfile -Command "& { try { $ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('!DESKTOP!\!SHORTCUT_NAME!.lnk'); $s.TargetPath = '!LAUNCHER!'; $s.WorkingDirectory = '!APP_ROOT!'; $s.Description = 'Avvia OffGallery - Catalogazione foto AI offline'; $s.Save(); Write-Host '  [OK] Collegamento creato sul Desktop.' } catch { Write-Host '  [ERRORE]' $_.Exception.Message; exit 1 } }"
 
 if !ERRORLEVEL! NEQ 0 (
     echo.
-    echo   [!!] Shortcut creation failed.
-    echo   You can manually copy the file to the Desktop:
+    echo   [!!] Creazione collegamento fallita.
+    echo   Puoi copiare manualmente il file sul Desktop:
     echo   !LAUNCHER!
-    set "STATUS_SHORTCUT=Failed"
+    set "STATUS_SHORTCUT=Fallito"
 ) else (
-    set "STATUS_SHORTCUT=Created"
+    set "STATUS_SHORTCUT=Creato"
 )
 
 :: ═══════════════════════════════════════════════════════════════════
-:: Create working folders required by the app (excluded from git)
+:: Crea cartelle di lavoro necessarie all'app (escluse da git)
 :: ═══════════════════════════════════════════════════════════════════
 if not exist "!APP_ROOT!\database" mkdir "!APP_ROOT!\database"
 if not exist "!APP_ROOT!\INPUT"    mkdir "!APP_ROOT!\INPUT"
 if not exist "!APP_ROOT!\logs"     mkdir "!APP_ROOT!\logs"
 
 :: ═══════════════════════════════════════════════════════════════════
-:: FINAL SUMMARY
+:: RIEPILOGO FINALE
 :: ═══════════════════════════════════════════════════════════════════
 :SUMMARY
 echo.
 echo  ================================================================
 echo.
-echo              INSTALLATION COMPLETE
+echo              INSTALLAZIONE COMPLETATA
 echo.
 echo  ================================================================
 echo.
-echo   Summary:
+echo   Riepilogo:
 echo.
 echo     Miniconda:          !STATUS_MINICONDA!
-echo     Python Environment: !STATUS_ENV!
-echo     Python Libraries:   !STATUS_PACKAGES! ^(PyTorch: !PYTORCH_VARIANT!^)
-echo     Detected GPU:       !GPU_TYPE!
-echo     LLM Backend:        !STATUS_LLM!
-echo     LLM Model:          !STATUS_LLM_MODEL!
-echo     Shortcut:           !STATUS_SHORTCUT!
+echo     Ambiente Python:    !STATUS_ENV!
+echo     Librerie Python:    !STATUS_PACKAGES! ^(PyTorch: !PYTORCH_VARIANT!^)
+echo     GPU Rilevata:       !GPU_TYPE!
+echo     Backend LLM:        !STATUS_LLM!
+echo     Modello LLM:        !STATUS_LLM_MODEL!
+echo     Collegamento:       !STATUS_SHORTCUT!
 echo.
 echo  ----------------------------------------------------------------
 echo.
-echo   IMPORTANT - FIRST LAUNCH:
+echo   IMPORTANTE - PRIMO AVVIO:
 echo.
-echo   On the first launch, OffGallery will automatically download
-echo   approximately 7 GB of AI models. This is normal and happens
-echo   only once:
+echo   Al primo avvio, OffGallery scarichera' automaticamente
+echo   circa 7 GB di modelli AI. Questo e' normale e avviene
+echo   una sola volta:
 echo.
-echo     - CLIP (semantic search):              ~580 MB
-echo     - DINOv2 (visual similarity):          ~330 MB
-echo     - Aesthetic (aesthetic scoring):       ~1.6 GB
-echo     - BioCLIP + TreeOfLife (nature):       ~4.2 GB
-echo     - Argos Translate (translation):       ~92 MB
+echo     - CLIP (ricerca semantica):           ~580 MB
+echo     - DINOv2 (similarita' visiva):        ~330 MB
+echo     - Aesthetic (valutazione estetica):   ~1.6 GB
+echo     - BioCLIP + TreeOfLife (natura):      ~4.2 GB
+echo     - Argos Translate (traduzione):       ~92 MB
 echo.
-echo   After the first launch, the app will work completely OFFLINE.
+echo   Dopo il primo avvio, l'app funzionera' completamente OFFLINE.
 echo.
 echo  ----------------------------------------------------------------
 echo.
-echo   TO LAUNCH OFFGALLERY:
+echo   PER AVVIARE OFFGALLERY:
 echo.
-echo     Double click "OffGallery" on the Desktop
+echo     Doppio click su "OffGallery" sul Desktop
 echo.
-echo   IMPORTANT - CORRECT LAUNCH:
-echo     ALWAYS use the shortcut (.lnk) created on the Desktop.
-echo     Do NOT copy or move OffGallery_Launcher.bat outside
-echo     the installer\ folder: the .bat must remain in its
-echo     original position to find the application.
-echo     The .lnk shortcut on the Desktop points to the original .bat
-echo     and works correctly from any location.
+echo   IMPORTANTE - AVVIO CORRETTO:
+echo     Usa SEMPRE il collegamento (.lnk) creato sul Desktop.
+echo     NON copiare o spostare OffGallery_Launcher.bat fuori
+echo     dalla cartella installer\: il .bat deve restare nella sua
+echo     posizione originale per trovare l'applicazione.
+echo     Il collegamento .lnk sul Desktop punta al .bat originale
+echo     e funziona correttamente da qualsiasi posizione.
 echo.
-echo   NOTE: If you have just installed Miniconda, you may need
-echo   to restart the computer before the first launch.
+echo   NOTA: Se hai appena installato Miniconda, potrebbe essere
+echo   necessario riavviare il computer prima del primo avvio.
 echo.
 echo  ================================================================
 echo.
@@ -939,11 +939,11 @@ pause
 goto :END
 
 :: ═══════════════════════════════════════════════════════════════════
-:: EXIT HANDLING
+:: GESTIONE USCITE
 :: ═══════════════════════════════════════════════════════════════════
 :END_CANCELLED
 echo.
-echo   Installation cancelled by the user.
+echo   Installazione annullata dall'utente.
 echo.
 pause
 goto :END
@@ -951,10 +951,10 @@ goto :END
 :END_ERROR
 echo.
 echo  ----------------------------------------------------------------
-echo   Installation interrupted due to an error at step !STEP_CURRENT!.
+echo   Installazione interrotta per errore allo step !STEP_CURRENT!.
 echo.
-echo   You can re-run this wizard: steps already completed
-echo   will be detected automatically and skipped.
+echo   Puoi rieseguire questo wizard: gli step gia' completati
+echo   verranno rilevati automaticamente e saltati.
 echo  ----------------------------------------------------------------
 echo.
 pause
