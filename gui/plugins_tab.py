@@ -856,8 +856,13 @@ class LLMPluginCard(QFrame):
         import threading
         def _worker():
             ok = _do_check()
-            # Aggiornamento UI deve avvenire nel thread principale: usiamo invokeMethod via segnale
-            # (più semplice: scriviamo direttamente, PyQt6 gestisce cross-thread per setText)
+            # Guard: il widget potrebbe essere stato distrutto mentre il thread girava
+            try:
+                import sip
+                if sip.isdeleted(self.lbl_status):
+                    return
+            except Exception:
+                pass
             if ok:
                 self.lbl_status.setText("✅ Backend attivo e raggiungibile")
                 self.lbl_status.setStyleSheet(
