@@ -290,9 +290,9 @@ Then reimport the affected photos (re-run Processing on the same folder).
 
 **Method 1 — Double-click (Recommended):**
 
-In the `installer` folder you will find `OffGallery_Launcher.bat`:
+In the `installer` folder you will find `OffGallery_Launcher_EN.bat`:
 
-1. **Copy** `OffGallery_Launcher.bat` to the **Desktop**
+1. **Copy** `OffGallery_Launcher_EN.bat` to the **Desktop**
 2. **Double-click** to launch the app
 
 **Method 2 — From terminal:**
@@ -314,7 +314,7 @@ If you used the wizard, OffGallery appears in the application menu. Search for i
 **Method 2 — From terminal:**
 
 ```bash
-bash installer/offgallery_launcher_linux.sh
+bash installer/offgallery_launcher_linux_en.sh
 ```
 
 **Method 3 — Manual:**
@@ -343,7 +343,7 @@ The wizard also creates `OffGallery.command` on the Desktop as a quick shortcut.
 **Method 3 — From terminal:**
 
 ```bash
-bash installer/offgallery_launcher_mac.sh
+bash installer/offgallery_launcher_mac_en.sh
 ```
 
 ---
@@ -417,7 +417,7 @@ The **Search** tab lets you save and recall complete search configurations, so y
   - Arch: `sudo pacman -S perl-image-exiftool`
 
 ### Linux: app does not launch from the application menu
-- Try from terminal: `bash installer/offgallery_launcher_linux.sh`
+- Try from terminal: `bash installer/offgallery_launcher_linux_en.sh`
 - Check that conda is initialised: `conda --version`
 
 ### macOS: ExifTool not found

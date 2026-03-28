@@ -18,7 +18,7 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REQUIREMENTS="$SCRIPT_DIR/requirements_offgallery.txt"
-LAUNCHER="$SCRIPT_DIR/offgallery_launcher_mac.sh"
+LAUNCHER="$SCRIPT_DIR/offgallery_launcher_mac_en.sh"
 ENV_NAME="OffGallery"
 PYTHON_VER="3.12"
 

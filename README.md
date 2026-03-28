@@ -655,9 +655,9 @@ Typical workflow: import a folder or `.lrcat` catalog → process with AI → se
 |----|-------------------|
 | **Windows** | Double-click the **OffGallery.lnk** shortcut created on the Desktop by the installer |
 | **macOS** | Open **OffGallery.app** from `~/Applications` or search via Spotlight |
-| **Linux** | Use the application menu entry, or run `bash installer/offgallery_launcher_linux.sh` from the app folder |
+| **Linux** | Use the application menu entry, or run `bash installer/offgallery_launcher_linux_en.sh` from the app folder |
 
-> **Windows note:** do not copy or move `OffGallery_Launcher.bat` to the Desktop or any other folder — the `.bat` uses its own location to find the application and will fail if moved. Always use the `.lnk` **shortcut** created by the installer, which points to the original `.bat`. If you lost the shortcut: right-click `installer\OffGallery_Launcher.bat` → **Send to → Desktop (create shortcut)**.
+> **Windows note:** do not copy or move `OffGallery_Launcher.bat` to the Desktop or any other folder — the `.bat` uses its own location to find the application and will fail if moved. Always use the `.lnk` **shortcut** created by the installer, which points to the original `.bat`. If you lost the shortcut: right-click `installer\OffGallery_Launcher_EN.bat` → **Send to → Desktop (create shortcut)**.
 
 > **Full User Manual (EN):** **[docs/USER_MANUAL_EN.html](docs/USER_MANUAL_EN.html)**
 > — Detailed description of every tab, option, badge, advanced concepts (BioCLIP, geotagging, sync state) and troubleshooting.

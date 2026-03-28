@@ -14,7 +14,7 @@ set "SCRIPT_DIR=%~dp0"
 set "APP_ROOT=%~dp0.."
 set "CONFIG_FILE=%APP_ROOT%\config_new.yaml"
 set "REQUIREMENTS=%SCRIPT_DIR%requirements_offgallery.txt"
-set "LAUNCHER=%SCRIPT_DIR%OffGallery_Launcher.bat"
+set "LAUNCHER=%SCRIPT_DIR%OffGallery_Launcher_EN.bat"
 set "ENV_NAME=OffGallery"
 set "PYTHON_VER=3.12"
 set "MINICONDA_URL=https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe"
@@ -924,7 +924,7 @@ echo     Double click "OffGallery" on the Desktop
 echo.
 echo   IMPORTANT - CORRECT LAUNCH:
 echo     ALWAYS use the shortcut (.lnk) created on the Desktop.
-echo     Do NOT copy or move OffGallery_Launcher.bat outside
+echo     Do NOT copy or move OffGallery_Launcher_EN.bat outside
 echo     the installer\ folder: the .bat must remain in its
 echo     original position to find the application.
 echo     The .lnk shortcut on the Desktop points to the original .bat
