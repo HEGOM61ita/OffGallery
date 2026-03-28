@@ -664,6 +664,7 @@ class XMPManagerExtended:
             'ai_description': 'XMP-dc:Description',
             'rating': 'XMP-xmp:Rating',
             'color_label': 'XMP-xmp:Label',
+            'alt_text_accessibility': 'XMP-iptcExt:AltTextAccessibility',
         }
 
         return key_mapping.get(key.lower(), f'XMP:{key}')
@@ -784,13 +785,19 @@ class XMPManagerExtended:
             except (json.JSONDecodeError, TypeError):
                 keywords = []
         
+        description = db_metadata.get('description', '')
+        title = db_metadata.get('title', '') or db_metadata.get('filename', '').replace('_', ' ').split('.')[0]
+        # Alt text accessibilità IPTC: usa description se presente, altrimenti title
+        alt_text = description or title
+
         xmp_relevant_fields = {
-            'title': db_metadata.get('title', '') or db_metadata.get('filename', '').replace('_', ' ').split('.')[0],
-            'description': db_metadata.get('description', ''),
+            'title': title,
+            'description': description,
             'keywords': keywords,
             'subject': keywords,  # Usa stesso campo unified per Subject
             'creator': db_metadata.get('artist', ''),
             'rights': db_metadata.get('copyright', ''),
+            'alt_text_accessibility': alt_text,
         }
         
         # Filtra valori None/vuoti
