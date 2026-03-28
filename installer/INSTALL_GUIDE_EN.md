@@ -60,7 +60,7 @@ The easiest way to install OffGallery is the **installation wizard**:
 1. Open a terminal in the OffGallery folder
 2. Run:
    ```bash
-   bash installer/install_offgallery.sh
+   bash installer/install_offgallery_linux_en.sh
    ```
 3. Follow the on-screen instructions
 
@@ -69,7 +69,7 @@ The easiest way to install OffGallery is the **installation wizard**:
 1. Open a **Terminal** in the OffGallery folder
 2. Run:
    ```bash
-   bash installer/install_offgallery_mac.sh
+   bash installer/install_offgallery_mac_en.sh
    ```
 3. Follow the on-screen instructions
 
@@ -110,7 +110,7 @@ If you prefer to install components individually, follow the steps below.
 
 ### Linux — Manual installation
 
-If you prefer not to use the `install_offgallery.sh` wizard:
+If you prefer not to use the `install_offgallery_linux_en.sh` wizard:
 
 ```bash
 # 1. Install Miniconda (if not already present)
@@ -314,7 +314,7 @@ If you used the wizard, OffGallery appears in the application menu. Search for i
 **Method 2 — From terminal:**
 
 ```bash
-bash installer/offgallery_launcher.sh
+bash installer/offgallery_launcher_linux.sh
 ```
 
 **Method 3 — Manual:**
@@ -417,7 +417,7 @@ The **Search** tab lets you save and recall complete search configurations, so y
   - Arch: `sudo pacman -S perl-image-exiftool`
 
 ### Linux: app does not launch from the application menu
-- Try from terminal: `bash installer/offgallery_launcher.sh`
+- Try from terminal: `bash installer/offgallery_launcher_linux.sh`
 - Check that conda is initialised: `conda --version`
 
 ### macOS: ExifTool not found

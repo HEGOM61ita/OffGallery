@@ -193,7 +193,7 @@ git clone https://github.com/HEGOM61ita/OffGallery.git
 1. Apri un terminale nella cartella OffGallery
 2. Esegui:
    ```bash
-   bash installer/install_offgallery.sh
+   bash installer/install_offgallery_linux_it.sh
    ```
 3. Segui le istruzioni a schermo
 
@@ -202,7 +202,7 @@ git clone https://github.com/HEGOM61ita/OffGallery.git
 1. Apri un terminale nella cartella OffGallery
 2. Esegui:
    ```bash
-   bash installer/install_offgallery_mac.sh
+   bash installer/install_offgallery_mac_it.sh
    ```
 3. Segui le istruzioni a schermo
 
@@ -222,14 +222,14 @@ Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Pyth
 3. `installer/03_install_packages.bat` - Installa librerie
 4. `installer/06_setup_ollama.bat` - Ollama + LLM Vision (opzionale)
 
-**Linux** - usa il wizard `install_offgallery.sh` che copre tutti gli step, oppure installa manualmente:
+**Linux** - usa il wizard `install_offgallery_linux_it.sh` che copre tutti gli step, oppure installa manualmente:
 1. Installa [Miniconda](https://docs.anaconda.com/miniconda/install/) per Linux
 2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
 3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
 4. Installa ExifTool: `sudo apt install libimage-exiftool-perl` (Ubuntu/Debian) o equivalente
 5. (Opzionale) Installa [Ollama](https://ollama.com/download) e `ollama pull qwen3.5:4b-q4_K_M`
 
-**macOS** - usa il wizard `install_offgallery_mac.sh` che copre tutti gli step, oppure installa manualmente:
+**macOS** - usa il wizard `install_offgallery_mac_it.sh` che copre tutti gli step, oppure installa manualmente:
 1. Installa [Miniconda](https://docs.anaconda.com/miniconda/install/) per macOS (scegli la versione arm64 per Apple Silicon, x86_64 per Intel)
 2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
 3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
@@ -239,7 +239,7 @@ Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Pyth
 
 ### Istruzioni Dettagliate
 
-Per una guida passo-passo completa, consulta **[installer/INSTALL_GUIDE.md](installer/INSTALL_GUIDE.md)**.
+Per una guida passo-passo completa, consulta **[installer/INSTALL_GUIDE_IT.md](installer/INSTALL_GUIDE_IT.md)**.
 
 ---
 
@@ -255,7 +255,7 @@ Workflow tipico: importa una cartella o un catalogo `.lrcat` → elabora con AI 
 |---------|-------------------|
 | **Windows** | Doppio click sul collegamento **OffGallery.lnk** creato sul Desktop dall'installer |
 | **macOS** | Apri **OffGallery.app** da `~/Applications` o cerca con Spotlight |
-| **Linux** | Usa la voce nel menu applicazioni, oppure `bash installer/offgallery_launcher.sh` dalla cartella dell'app |
+| **Linux** | Usa la voce nel menu applicazioni, oppure `bash installer/offgallery_launcher_linux.sh` dalla cartella dell'app |
 
 > **Attenzione (Windows):** non copiare o spostare `OffGallery_Launcher.bat` sul Desktop o in altre cartelle — il file `.bat` usa il suo percorso per trovare l'applicazione e non funziona se spostato. Usa sempre il **collegamento** `.lnk` creato dall'installer, che punta al `.bat` originale. Se hai perso il collegamento: tasto destro su `installer\OffGallery_Launcher.bat` → **Invia a → Desktop (crea collegamento)**.
 
@@ -592,12 +592,12 @@ git clone https://github.com/HEGOM61ita/OffGallery.git
 
 #### Linux
 ```bash
-bash installer/install_offgallery.sh
+bash installer/install_offgallery_linux_it.sh
 ```
 
 #### macOS
 ```bash
-bash installer/install_offgallery_mac.sh
+bash installer/install_offgallery_mac_it.sh
 ```
 
 > **Apple Silicon (M1/M2/M3/M4)**: PyTorch automatically uses Metal/MPS for GPU acceleration — no extra configuration needed.
@@ -622,7 +622,7 @@ The wizard installs everything automatically: Miniconda, Python environment, lib
 4. Install ExifTool: `brew install exiftool`
 5. (Optional) Install [Ollama](https://ollama.com/download) and `ollama pull qwen3.5:4b-q4_K_M`
 
-For a full step-by-step guide see **[installer/INSTALL_GUIDE.md](installer/INSTALL_GUIDE.md)**.
+For a full step-by-step guide see **[installer/INSTALL_GUIDE_IT.md](installer/INSTALL_GUIDE_IT.md)**.
 
 ---
 
@@ -655,7 +655,7 @@ Typical workflow: import a folder or `.lrcat` catalog → process with AI → se
 |----|-------------------|
 | **Windows** | Double-click the **OffGallery.lnk** shortcut created on the Desktop by the installer |
 | **macOS** | Open **OffGallery.app** from `~/Applications` or search via Spotlight |
-| **Linux** | Use the application menu entry, or run `bash installer/offgallery_launcher.sh` from the app folder |
+| **Linux** | Use the application menu entry, or run `bash installer/offgallery_launcher_linux.sh` from the app folder |
 
 > **Windows note:** do not copy or move `OffGallery_Launcher.bat` to the Desktop or any other folder — the `.bat` uses its own location to find the application and will fail if moved. Always use the `.lnk` **shortcut** created by the installer, which points to the original `.bat`. If you lost the shortcut: right-click `installer\OffGallery_Launcher.bat` → **Send to → Desktop (create shortcut)**.
 

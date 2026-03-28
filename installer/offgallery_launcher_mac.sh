@@ -45,7 +45,7 @@ if [ -z "$CONDA_CMD" ]; then
     echo "    - /opt/miniconda3"
     echo ""
     echo "  Se hai appena installato Miniconda, apri un nuovo terminale."
-    echo "  Altrimenti esegui: bash installer/install_offgallery_mac.sh"
+    echo "  Altrimenti esegui: bash installer/install_offgallery_mac_it.sh"
     echo ""
     exit 1
 fi
@@ -79,7 +79,7 @@ if [ "$_SYS_ARCH" = "arm64" ]; then
             echo ""
             echo "  Soluzione: reinstalla Miniconda arm64 nativo."
             echo "  Esegui:"
-            echo "    bash \"$SCRIPT_DIR/install_offgallery_mac.sh\""
+            echo "    bash \"$SCRIPT_DIR/install_offgallery_mac_it.sh\""
             echo ""
             echo "  Il wizard di installazione fornirà le istruzioni dettagliate."
             echo ""
@@ -173,7 +173,7 @@ else
     "$CONDA_CMD" env list 2>/dev/null | sed 's/^/      /' || echo "      (nessuno)"
     echo ""
     echo "  Soluzione: esegui il wizard di installazione:"
-    echo "    bash \"$OFFGALLERY_PATH/installer/install_offgallery_mac.sh\""
+    echo "    bash \"$OFFGALLERY_PATH/installer/install_offgallery_mac_it.sh\""
     echo ""
     exit 1
 fi

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════════
-# OffGallery - Installation Wizard for macOS
-# Run with: bash install_offgallery_mac_en.sh
+# OffGallery - Installation Wizard for Linux
+# Run with: bash install_offgallery_linux_en.sh
 # ═══════════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -10,23 +10,23 @@ set -euo pipefail
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
-NC='\033[0m'
+NC='\033[0m' # Reset
 
 # === GLOBAL VARIABLES ===
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REQUIREMENTS="$SCRIPT_DIR/requirements_offgallery.txt"
-LAUNCHER="$SCRIPT_DIR/offgallery_launcher_mac.sh"
+LAUNCHER="$SCRIPT_DIR/offgallery_launcher_linux.sh"
 ENV_NAME="OffGallery"
 PYTHON_VER="3.12"
-
-# Detect architecture (Intel or Apple Silicon)
+# Detect architecture for correct Miniconda URL (x86_64 or aarch64/ARM)
 _ARCH=$(uname -m)
 case "$_ARCH" in
-    arm64) _MINICONDA_ARCH="MacOSX-arm64"   ;;
-    *)     _MINICONDA_ARCH="MacOSX-x86_64"  ;;
+    aarch64|arm64) _MINICONDA_ARCH="Linux-aarch64" ;;
+    *)             _MINICONDA_ARCH="Linux-x86_64"   ;;
 esac
 MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-${_MINICONDA_ARCH}.sh"
 MINICONDA_INSTALLER="/tmp/miniconda_installer.sh"
@@ -41,7 +41,9 @@ STATUS_PACKAGES="-"
 STATUS_OLLAMA="-"
 STATUS_DESKTOP="-"
 
+# Conda command (determined in step 1)
 CONDA_CMD=""
+# Flag: skip environment creation if already present and user does not want to recreate it
 SKIP_ENV_CREATE=false
 
 # === UTILITIES ===
@@ -53,74 +55,50 @@ print_header() {
     echo ""
 }
 
-print_ok()   { echo -e "  ${GREEN}[OK]${NC} $1"; }
-print_err()  { echo -e "  ${RED}[ERROR]${NC} $1"; }
-print_warn() { echo -e "  ${YELLOW}[!!]${NC} $1"; }
-print_info() { echo -e "  ${CYAN}[INFO]${NC} $1"; }
+print_ok() {
+    echo -e "  ${GREEN}[OK]${NC} $1"
+}
+
+print_err() {
+    echo -e "  ${RED}[ERROR]${NC} $1"
+}
+
+print_warn() {
+    echo -e "  ${YELLOW}[!!]${NC} $1"
+}
+
+print_info() {
+    echo -e "  ${CYAN}[INFO]${NC} $1"
+}
 
 ask_yes_no() {
-    local answer answer_lower
-    read -rp "  $1 (y/n): " answer
-    answer_lower=$(echo "$answer" | tr '[:upper:]' '[:lower:]')
-    [[ "$answer_lower" == "s" || "$answer_lower" == "si" || "$answer_lower" == "y" || "$answer_lower" == "yes" ]]
+    local prompt="$1"
+    local answer
+    read -rp "  $prompt (y/n): " answer
+    [[ "${answer,,}" == "s" || "${answer,,}" == "si" || "${answer,,}" == "y" || "${answer,,}" == "yes" ]]
 }
 
 # Check conda environment via filesystem (more reliable than 'conda env list')
+# 'conda env list' can fail on Anaconda profiles with unaccepted ToS.
 env_python_exists() {
     local conda_base
     conda_base=$("$CONDA_CMD" info --base 2>/dev/null | tr -d '\r')
     [ -n "$conda_base" ] && [ -x "$conda_base/envs/$ENV_NAME/bin/python" ]
 }
 
-# Check that the conda architecture matches the system.
-# On Apple Silicon (arm64), an x86_64 Miniconda runs under Rosetta 2:
-# the emulated x86_64 Python process attempts to use native arm64
-# Cocoa/Metal frameworks → guaranteed segfault with PyQt6/Metal.
-check_conda_arch() {
-    # Only on Apple Silicon: not an issue on Intel
-    [ "$_ARCH" = "arm64" ] || return 0
-
-    local conda_base python_bin python_arch
-    conda_base=$("$CONDA_CMD" info --base 2>/dev/null | tr -d '[:space:]')
-
-    # Find the conda base Python
-    python_bin="$conda_base/bin/python3"
-    [ -x "$python_bin" ] || python_bin="$conda_base/bin/python"
-    [ -x "$python_bin" ] || return 0  # Cannot verify, proceed
-
-    python_arch=$(file "$python_bin" 2>/dev/null | grep -oE 'arm64|x86_64' | head -1)
-    [ -n "$python_arch" ] || return 0  # Cannot determine, proceed
-
-    if [ "$python_arch" != "arm64" ]; then
-        echo ""
-        print_err "INCOMPATIBLE CONDA ARCHITECTURE"
-        echo ""
-        echo "   System:  arm64  (Apple Silicon)"
-        echo "   Conda:   $python_arch  (running under Rosetta 2 — x86_64 emulation)"
-        echo ""
-        echo "   On Apple Silicon, Miniconda must be the native arm64 version."
-        echo "   The x86_64 version causes segfaults with PyQt6/Metal"
-        echo "   even when Python is called directly (not via conda run)."
-        echo ""
-        echo "   ── SOLUTION ──────────────────────────────────────────────────"
-        echo ""
-        echo "   1) Uninstall x86_64 Miniconda:"
-        echo "      rm -rf $conda_base"
-        echo "      sed -i.bak '/conda initialize/,/# <<< conda initialize/d' \\"
-        echo "          ~/.zshrc ~/.bash_profile 2>/dev/null; true"
-        echo ""
-        echo "   2) Install native arm64 Miniconda:"
-        echo "      curl -fsSL 'https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh' \\"
-        echo "          -o /tmp/miniconda.sh"
-        echo "      bash /tmp/miniconda.sh -b -p ~/miniconda3"
-        echo "      ~/miniconda3/bin/conda init zsh && rm /tmp/miniconda.sh"
-        echo ""
-        echo "   3) Close and reopen the terminal, then run this installer again."
-        echo ""
-        exit 1
+# Package manager detection
+detect_pkg_manager() {
+    if command -v apt-get &>/dev/null; then
+        echo "apt"
+    elif command -v dnf &>/dev/null; then
+        echo "dnf"
+    elif command -v pacman &>/dev/null; then
+        echo "pacman"
+    elif command -v zypper &>/dev/null; then
+        echo "zypper"
+    else
+        echo "unknown"
     fi
-
-    print_ok "Conda architecture: arm64 (native Apple Silicon — OK)"
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -130,9 +108,9 @@ clear 2>/dev/null || true
 echo ""
 echo -e "${BOLD}  ================================================================${NC}"
 echo ""
-echo -e "${BOLD}             OffGallery - Guided Installation (macOS)${NC}"
+echo -e "${BOLD}             OffGallery - Guided Installation (Linux)${NC}"
 echo ""
-echo "    Automatic photo cataloguing with AI - 100% Offline"
+echo -e "    Automatic photo cataloguing with AI - 100% Offline"
 echo ""
 echo -e "${BOLD}  ================================================================${NC}"
 echo ""
@@ -141,20 +119,19 @@ echo "   Estimated time: 20-40 minutes (depends on connection speed)."
 echo ""
 echo "   Components:"
 echo "     [1] Miniconda (Python environment manager)"
-echo "     [2] OffGallery Python environment"
-echo "     [3] Python libraries + ExifTool"
+echo "     [2] OffGallery Python Environment"
+echo "     [3] Python Libraries + ExifTool"
 echo "     [4] Ollama + LLM Vision model (optional)"
-echo "     [5] Desktop launcher"
+echo "     [5] Launcher and Desktop Entry"
 echo ""
 echo "  ----------------------------------------------------------------"
 echo ""
 echo "   SYSTEM REQUIREMENTS:"
-echo "     Operating System:  macOS 12 Monterey or later"
-echo "     Architecture:      Intel x86_64 or Apple Silicon (M1/M2/M3/M4)"
-echo "     RAM:               8 GB minimum, 16 GB recommended"
-echo "     Disk Space:        15-25 GB free"
-echo "     GPU:               Apple Silicon uses Metal/MPS (included)"
-echo "     Internet:          Required for installation"
+echo "     Operating System:   Linux 64-bit (Ubuntu, Fedora, Arch...)"
+echo "     RAM:                8 GB minimum, 16 GB recommended"
+echo "     Disk Space:         15-25 GB free"
+echo "     GPU (optional):     NVIDIA with 4+ GB VRAM"
+echo "     Internet:           Required for installation"
 echo ""
 echo "  ----------------------------------------------------------------"
 echo ""
@@ -179,60 +156,49 @@ if command -v conda &>/dev/null; then
     STATUS_MINICONDA="Already present"
     CONDA_CMD="conda"
 
-# --- Scenario B: standard macOS paths ---
-elif [ -x "$HOME/miniconda3/bin/conda" ]; then
-    print_ok "Miniconda found in $HOME/miniconda3"
+# --- Scenario B: Miniconda in home directory (installed by this script) ---
+elif [ -x "$MINICONDA_DIR/bin/conda" ]; then
+    print_ok "Miniconda found at $MINICONDA_DIR"
     STATUS_MINICONDA="Already present"
-    CONDA_CMD="$HOME/miniconda3/bin/conda"
-elif [ -x "$HOME/opt/miniconda3/bin/conda" ]; then
-    print_ok "Miniconda found in $HOME/opt/miniconda3"
-    STATUS_MINICONDA="Already present"
-    CONDA_CMD="$HOME/opt/miniconda3/bin/conda"
+    CONDA_CMD="$MINICONDA_DIR/bin/conda"
+
+# --- Scenario C: Anaconda/Miniconda/Miniforge at standard paths ---
 elif [ -x "$HOME/anaconda3/bin/conda" ]; then
-    print_ok "Anaconda found in $HOME/anaconda3"
+    print_ok "Anaconda found at $HOME/anaconda3"
     STATUS_MINICONDA="Already present"
     CONDA_CMD="$HOME/anaconda3/bin/conda"
 elif [ -x "$HOME/miniforge3/bin/conda" ]; then
-    print_ok "Miniforge found in $HOME/miniforge3"
+    print_ok "Miniforge found at $HOME/miniforge3"
     STATUS_MINICONDA="Already present"
     CONDA_CMD="$HOME/miniforge3/bin/conda"
 elif [ -x "$HOME/mambaforge/bin/conda" ]; then
-    print_ok "Mambaforge found in $HOME/mambaforge"
+    print_ok "Mambaforge found at $HOME/mambaforge"
     STATUS_MINICONDA="Already present"
     CONDA_CMD="$HOME/mambaforge/bin/conda"
-# Homebrew cask (Intel and Apple Silicon)
-elif [ -x "/opt/homebrew/Caskroom/miniconda/base/bin/conda" ]; then
-    print_ok "Miniconda (Homebrew cask) found in /opt/homebrew/Caskroom/miniconda/base"
+elif [ -x "/opt/conda/bin/conda" ]; then
+    print_ok "Conda found at /opt/conda (system installation)"
     STATUS_MINICONDA="Already present"
-    CONDA_CMD="/opt/homebrew/Caskroom/miniconda/base/bin/conda"
-elif [ -x "/usr/local/Caskroom/miniconda/base/bin/conda" ]; then
-    print_ok "Miniconda (Homebrew cask Intel) found in /usr/local/Caskroom/miniconda/base"
-    STATUS_MINICONDA="Already present"
-    CONDA_CMD="/usr/local/Caskroom/miniconda/base/bin/conda"
+    CONDA_CMD="/opt/conda/bin/conda"
 elif [ -x "/opt/miniconda3/bin/conda" ]; then
-    print_ok "Miniconda found in /opt/miniconda3"
+    print_ok "Miniconda found at /opt/miniconda3"
     STATUS_MINICONDA="Already present"
     CONDA_CMD="/opt/miniconda3/bin/conda"
+elif [ -x "/opt/anaconda3/bin/conda" ]; then
+    print_ok "Anaconda found at /opt/anaconda3"
+    STATUS_MINICONDA="Already present"
+    CONDA_CMD="/opt/anaconda3/bin/conda"
 
-# --- Scenario C: installation needed ---
+# --- Scenario D: Installation required ---
 else
     echo "   Miniconda not found. Installing..."
     echo ""
-
-    # Show detected architecture
-    if [ "$_ARCH" = "arm64" ]; then
-        print_info "Architecture: Apple Silicon (arm64)"
-    else
-        print_info "Architecture: Intel x86_64"
-    fi
-    echo ""
-    echo "   Downloading Miniconda (~90 MB)..."
+    echo "   Downloading Miniconda (~120 MB)..."
     echo ""
 
-    # Remove any partial previous installation
+    # If a partial/corrupted installation exists, ask whether to remove it
     if [ -d "$MINICONDA_DIR" ]; then
-        print_warn "Folder $MINICONDA_DIR already exists but conda does not work."
-        echo "   This may be an incomplete previous installation."
+        print_warn "The folder $MINICONDA_DIR already exists but conda is not working."
+        echo "   It may be a previous incomplete installation."
         echo ""
         if ask_yes_no "Do you want to remove it and reinstall Miniconda?"; then
             rm -rf "$MINICONDA_DIR"
@@ -240,7 +206,7 @@ else
         else
             print_err "Cannot proceed with the existing folder."
             echo "   Remove it manually: rm -rf $MINICONDA_DIR"
-            echo "   then run this wizard again."
+            echo "   then re-run this wizard."
             exit 1
         fi
     fi
@@ -251,21 +217,21 @@ else
         echo ""
         echo "   Alternatively, download manually from:"
         echo "   https://docs.anaconda.com/miniconda/install/"
-        echo "   then run this wizard again."
+        echo "   then re-run this wizard."
         exit 1
     fi
 
     # Check file size (at least 50 MB)
-    FILE_SIZE=$(stat -f%z "$MINICONDA_INSTALLER" 2>/dev/null || echo "0")
+    FILE_SIZE=$(stat -c%s "$MINICONDA_INSTALLER" 2>/dev/null || stat -f%z "$MINICONDA_INSTALLER" 2>/dev/null || echo "0")
     if [ "$FILE_SIZE" -lt 50000000 ]; then
         print_err "Downloaded file is too small ($FILE_SIZE bytes). Download is probably corrupted."
         rm -f "$MINICONDA_INSTALLER"
         exit 1
     fi
 
-    print_ok "Download completed."
+    print_ok "Download complete."
     echo ""
-    echo "   Installing Miniconda in $MINICONDA_DIR..."
+    echo "   Installing Miniconda to $MINICONDA_DIR..."
     echo "   (This may take 2-5 minutes)"
     echo ""
 
@@ -277,38 +243,33 @@ else
         echo "     - Missing permissions on the home folder"
         echo "     - Corrupted previous installation"
         echo ""
-        echo "   Try removing the folder and running again:"
+        echo "   Try removing the folder and re-run:"
         echo "     rm -rf $MINICONDA_DIR"
-        echo "     bash installer/install_offgallery_mac_en.sh"
+        echo "     bash installer/install_offgallery_linux_en.sh"
         rm -f "$MINICONDA_INSTALLER"
         exit 1
     fi
 
+    # Cleanup installer
     rm -f "$MINICONDA_INSTALLER"
 
+    # Post-installation check
     if [ ! -x "$MINICONDA_DIR/bin/conda" ]; then
         print_err "Installation completed but conda not found."
         echo "   Expected path: $MINICONDA_DIR/bin/conda"
         exit 1
     fi
 
-    # Initialize conda for the current session
+    # Initialise conda for the current shell
     eval "$("$MINICONDA_DIR/bin/conda" shell.bash hook)" 2>/dev/null || true
-
-    # Initialize for bash and zsh (zsh is the default shell on macOS since 2019)
-    "$MINICONDA_DIR/bin/conda" init bash 2>/dev/null || true
-    "$MINICONDA_DIR/bin/conda" init zsh  2>/dev/null || true
 
     print_ok "Miniconda installed successfully!"
     echo ""
-    print_info "Conda has been initialized for bash and zsh."
-    print_info "To make conda available in future terminals, reopen the terminal."
+    print_info "To make conda available in future terminals, run:"
+    echo "        $MINICONDA_DIR/bin/conda init bash"
     STATUS_MINICONDA="Installed"
     CONDA_CMD="$MINICONDA_DIR/bin/conda"
 fi
-
-# Check conda architecture (blocks if x86_64 on Apple Silicon)
-check_conda_arch
 
 # ═══════════════════════════════════════════════════════════════════
 # STEP 2/5: OFFGALLERY ENVIRONMENT
@@ -316,6 +277,7 @@ check_conda_arch
 STEP_CURRENT=2
 print_header "$STEP_CURRENT" "Python Environment"
 
+# Check whether the environment already exists via filesystem (more reliable than 'conda env list')
 if env_python_exists; then
     print_ok "Environment \"$ENV_NAME\" already present."
     echo ""
@@ -339,7 +301,8 @@ if [ "$SKIP_ENV_CREATE" != "true" ]; then
     echo "   Creating environment \"$ENV_NAME\" with Python $PYTHON_VER..."
     echo "   (1-3 minutes)"
     echo ""
-
+    # --override-channels -c conda-forge: avoids Anaconda channels that require
+    # ToS acceptance — conda-forge is public and unrestricted.
     if ! "$CONDA_CMD" create -n "$ENV_NAME" python="$PYTHON_VER" -y \
             --override-channels \
             --channel conda-forge; then
@@ -347,10 +310,11 @@ if [ "$SKIP_ENV_CREATE" != "true" ]; then
         echo "   Possible causes:"
         echo "     - Insufficient disk space"
         echo "     - Missing permissions"
-        echo "     - Network issues while downloading Python"
+        echo "     - Network issues during Python download"
         exit 1
     fi
 
+    # Check via filesystem (not 'conda env list' which can fail with ToS errors)
     if ! env_python_exists; then
         print_err "Environment creation failed (python not found after creation)."
         exit 1
@@ -367,17 +331,12 @@ fi
 STEP_CURRENT=3
 print_header "$STEP_CURRENT" "Python Dependencies + ExifTool"
 
+# Check requirements file
 if [ ! -f "$REQUIREMENTS" ]; then
-    print_err "Requirements file not found: $REQUIREMENTS"
+    print_err "Requirements file not found:"
+    echo "   $REQUIREMENTS"
     echo "   Make sure the installer folder is complete."
     exit 1
-fi
-
-# Show GPU information for the user
-if [ "$_ARCH" = "arm64" ]; then
-    GPU_NOTE="Apple Silicon (M-series) — GPU acceleration via Metal/MPS included"
-else
-    GPU_NOTE="Intel Mac — CPU mode (no NVIDIA GPU available on Mac)"
 fi
 
 echo "   Installing Python libraries (PyTorch, CLIP, BioCLIP, etc.)"
@@ -385,60 +344,63 @@ echo "   Estimated download: ~3 GB"
 echo "   Estimated time: 10-20 minutes"
 echo ""
 echo "   Components:"
-echo "     - PyTorch ($GPU_NOTE)"
+echo "     - PyTorch (GPU CUDA 11.8 / CPU)"
 echo "     - Transformers (HuggingFace)"
 echo "     - BioCLIP (nature classification)"
 echo "     - PyQt6 (graphical interface)"
 echo "     - OpenCV (image processing)"
 echo "     - Argos Translate (IT-EN translation)"
 echo ""
-echo "   NOTE: The PyTorch download may appear stuck for"
-echo "   several minutes. This is normal, please wait patiently."
+echo "   NOTE: The PyTorch download may appear to be stalled for"
+echo "   several minutes. This is normal — please wait patiently."
 echo ""
 echo "  ----------------------------------------------------------------"
 echo ""
 
-# Check Xcode Command Line Tools (required to compile some dependencies)
-echo "   Checking Xcode Command Line Tools..."
-if ! xcode-select -p &>/dev/null; then
-    print_warn "Xcode Command Line Tools not found."
-    echo "   They are required to install some Python libraries."
-    echo ""
-    echo "   Installing (a dialog window may open)..."
-    xcode-select --install 2>/dev/null || true
-    echo ""
-    echo "   If a window appears, click 'Install' and wait for it to complete."
-    echo "   When done, press ENTER to continue."
-    read -r
-else
-    print_ok "Xcode Command Line Tools present."
-fi
-echo ""
+# Install system dependencies for OpenCV and PyQt6
+echo "   [1/3] System dependencies (OpenCV + Qt)..."
+PKG_MGR_SYS=$(detect_pkg_manager)
+case "$PKG_MGR_SYS" in
+    apt)
+        sudo apt-get install -y -qq \
+            libgl1 libglib2.0-0 libegl1 \
+            libxcb-xinerama0 libxcb-cursor0 libxkbcommon-x11-0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-xfixes0 libxcb-shape0 libxcb-util1 \
+            libxcb-xkb1 || true
+        ;;
+    dnf)
+        sudo dnf install -y -q mesa-libGL glib2 libxcb xcb-util-cursor mesa-libEGL || true
+        ;;
+    pacman)
+        sudo pacman -S --noconfirm mesa glib2 libxcb xcb-util-cursor || true
+        ;;
+    zypper)
+        sudo zypper install -y libGL1 glib2 libxcb-xinerama0 libxcb-cursor0 || true
+        ;;
+esac
 
-# Upgrade pip
-echo "   [1/2] Upgrading pip..."
+# Update pip
+echo "   [2/3] Updating pip..."
 "$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" python -m pip install --upgrade pip -q 2>/dev/null || true
 
 # Install requirements
-echo "   [2/2] Installing Python dependencies..."
+echo "   [3/3] Installing Python dependencies..."
 echo ""
 
-# On Mac, PyTorch installs from the standard channel (includes MPS for Apple Silicon)
-# No special index-url needed as on Linux/Windows for CUDA
 if ! "$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" pip install -r "$REQUIREMENTS"; then
     print_err "Dependency installation failed."
     echo ""
     echo "   Possible causes:"
     echo "     - Unstable internet connection"
     echo "     - Insufficient disk space (~6 GB required)"
-    echo "     - Missing Xcode Command Line Tools (run: xcode-select --install)"
     echo ""
-    echo "   Suggestion: run this wizard again. Already downloaded"
-    echo "   packages will not be re-downloaded."
+    echo "   Tip: re-run this wizard. Packages"
+    echo "   already downloaded will not be re-downloaded."
     exit 1
 fi
 
-# Check critical packages
+# Verify critical packages
 echo ""
 echo "   Verifying package installation..."
 INSTALL_OK=true
@@ -447,14 +409,14 @@ check_pkg() {
     local import_expr="$1"
     local label="$2"
     if "$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" python -c "$import_expr" 2>/dev/null; then
-        : # message is already included in the expression
+        : # message already printed by the expression
     else
         print_err "$label not found"
         INSTALL_OK=false
     fi
 }
 
-check_pkg "import torch; mps='YES' if torch.backends.mps.is_available() else 'NO'; print(f'  [OK] PyTorch {torch.__version__} - MPS (Apple Silicon GPU): {mps}')" "torch"
+check_pkg "import torch; cuda='YES' if torch.cuda.is_available() else 'NO'; print(f'  [OK] PyTorch {torch.__version__} - CUDA: {cuda}')" "torch"
 check_pkg "import yaml; print(f'  [OK] PyYAML {yaml.__version__}')" "pyyaml"
 check_pkg "from PyQt6.QtWidgets import QApplication; print('  [OK] PyQt6')" "PyQt6"
 check_pkg "import numpy; print(f'  [OK] NumPy {numpy.__version__}')" "numpy"
@@ -468,11 +430,16 @@ if [ "$INSTALL_OK" = false ]; then
     echo ""
     print_err "Incomplete installation. One or more packages are missing."
     echo ""
-    echo "   Try installing Xcode Command Line Tools if you haven't already:"
-    echo "     xcode-select --install"
+    echo "   If the error involves system libraries (libGL, libxcb, etc.):"
+    case "$PKG_MGR_SYS" in
+        apt)  echo "     sudo apt install libgl1 libxcb-xinerama0 libxcb-cursor0 libegl1" ;;
+        dnf)  echo "     sudo dnf install mesa-libGL libxcb xcb-util-cursor mesa-libEGL" ;;
+        pacman) echo "     sudo pacman -S mesa glib2 libxcb xcb-util-cursor" ;;
+        *)    echo "     Install the Qt/OpenGL dependencies for your system" ;;
+    esac
     echo ""
-    echo "   Then run this wizard again. Already downloaded"
-    echo "   packages will not be re-downloaded."
+    echo "   Then re-run this wizard. Python packages already"
+    echo "   downloaded will not be re-downloaded."
     exit 1
 fi
 
@@ -485,22 +452,46 @@ if command -v exiftool &>/dev/null; then
     print_ok "ExifTool $EXIF_VER already installed."
 else
     echo "   ExifTool not found. Installing..."
+    PKG_MGR=$(detect_pkg_manager)
     EXIFTOOL_INSTALLED=false
 
-    # Attempt 1: Homebrew (standard package manager on Mac)
-    if command -v brew &>/dev/null; then
-        print_info "Homebrew found — installing ExifTool via brew..."
-        if brew install exiftool 2>/dev/null; then
-            EXIFTOOL_INSTALLED=true
-        else
-            print_warn "ExifTool installation via brew failed."
-        fi
-    else
-        print_info "Homebrew not found — trying direct installation..."
-    fi
+    case "$PKG_MGR" in
+        apt)
+            print_info "Detected Debian/Ubuntu system (apt)"
+            if sudo apt-get update -qq && sudo apt-get install -y -qq libimage-exiftool-perl; then
+                EXIFTOOL_INSTALLED=true
+            fi
+            ;;
+        dnf)
+            print_info "Detected Fedora/RHEL system (dnf)"
+            if sudo dnf install -y -q perl-Image-ExifTool; then
+                EXIFTOOL_INSTALLED=true
+            fi
+            ;;
+        pacman)
+            print_info "Detected Arch Linux system (pacman)"
+            if sudo pacman -S --noconfirm perl-image-exiftool; then
+                EXIFTOOL_INSTALLED=true
+            fi
+            ;;
+        zypper)
+            print_info "Detected openSUSE system (zypper)"
+            if sudo zypper install -y exiftool; then
+                EXIFTOOL_INSTALLED=true
+            fi
+            ;;
+        *)
+            print_warn "Unrecognised package manager."
+            ;;
+    esac
 
-    # Attempt 2: Fallback — download tar.gz from exiftool.org (pure Perl, works on Mac)
-    if [ "$EXIFTOOL_INSTALLED" = false ]; then
+    if [ "$EXIFTOOL_INSTALLED" = true ] && command -v exiftool &>/dev/null; then
+        EXIF_VER=$(exiftool -ver 2>/dev/null || echo "?")
+        print_ok "ExifTool $EXIF_VER installed."
+    else
+        # Fallback: install ExifTool locally in ~/.local/bin without root.
+        # Works on any Linux user with perl and curl available.
+        print_info "Attempting local ExifTool installation (without sudo)..."
         if ! command -v perl &>/dev/null; then
             print_warn "perl not found — local ExifTool installation not possible."
         elif ! command -v curl &>/dev/null; then
@@ -511,19 +502,23 @@ else
             mkdir -p "$HOME/.local/bin" "$_ET_DIR"
             echo "   Downloading ExifTool from exiftool.org..."
             _ET_VER=$(curl -fsSL "https://exiftool.org/ver.txt" 2>/dev/null | tr -d '[:space:]')
+            if [ -z "$_ET_VER" ]; then
+                print_warn "Unable to retrieve ExifTool version from exiftool.org/ver.txt"
+                _ET_VER=""
+            fi
             if [ -n "$_ET_VER" ] && curl -fsSL "https://exiftool.org/Image-ExifTool-${_ET_VER}.tar.gz" \
                     -o /tmp/exiftool.tar.gz; then
-                if tar -xzf /tmp/exiftool.tar.gz -C "$_ET_DIR" --strip-components=1; then
+                if tar -xzf /tmp/exiftool.tar.gz -C "$_ET_DIR" \
+                        --strip-components=1; then
                     ln -sf "$_ET_DIR/exiftool" "$_ET_BIN"
                     chmod +x "$_ET_BIN"
                     rm -f /tmp/exiftool.tar.gz
+                    # Add ~/.local/bin to PATH for the current session
                     export PATH="$HOME/.local/bin:$PATH"
-                    # Add to zsh profile (default on Mac) and bash
-                    for _RC in "$HOME/.zshrc" "$HOME/.bash_profile"; do
-                        if ! grep -q 'local/bin' "$_RC" 2>/dev/null; then
-                            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$_RC"
-                        fi
-                    done
+                    # Make permanent in ~/.bashrc if not already present
+                    if ! grep -q 'local/bin' "$HOME/.bashrc" 2>/dev/null; then
+                        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
+                    fi
                     if "$_ET_BIN" -ver &>/dev/null; then
                         EXIF_VER=$("$_ET_BIN" -ver 2>/dev/null || echo "?")
                         print_ok "ExifTool $EXIF_VER installed in ~/.local/bin"
@@ -538,15 +533,16 @@ else
                 print_warn "ExifTool download from exiftool.org failed."
             fi
         fi
-    fi
 
-    if [ "$EXIFTOOL_INSTALLED" != true ]; then
-        print_warn "ExifTool installation unsuccessful."
-        echo "   Install manually using one of these methods:"
-        echo "     Homebrew: brew install exiftool"
-        echo "     Official site: https://exiftool.org  (download the .pkg for macOS)"
-        echo ""
-        echo "   ExifTool is required to read/write XMP metadata."
+        if [ "$EXIFTOOL_INSTALLED" != true ]; then
+            print_warn "ExifTool installation unsuccessful."
+            echo "   Install manually (requires sudo):"
+            echo "     Ubuntu/Debian: sudo apt install libimage-exiftool-perl"
+            echo "     Fedora:        sudo dnf install perl-Image-ExifTool"
+            echo "     Arch:          sudo pacman -S perl-image-exiftool"
+            echo ""
+            echo "   ExifTool is required to read/write XMP metadata."
+        fi
     fi
 fi
 
@@ -560,11 +556,11 @@ STATUS_PACKAGES="Installed"
 STEP_CURRENT=4
 print_header "$STEP_CURRENT" "Ollama (Optional)"
 
-echo "   Ollama is a program to run LLM models locally."
+echo "   Ollama is a program for running LLM models locally."
 echo "   It is used to generate automatic descriptions and tags with AI."
 echo ""
 echo "   If you skip it now, you can install it later."
-echo "   Search and classification functions work without Ollama."
+echo "   Search and classification features work without Ollama."
 echo ""
 
 if ! ask_yes_no "Do you want to install Ollama?"; then
@@ -580,44 +576,30 @@ else
         echo ""
         echo "   Installing Ollama..."
         echo ""
-        OLLAMA_INSTALLED=false
 
-        # Attempt 1: Homebrew
-        if command -v brew &>/dev/null; then
-            print_info "Attempting installation via Homebrew..."
-            if brew install ollama 2>/dev/null; then
-                OLLAMA_INSTALLED=true
-                print_ok "Ollama installed via Homebrew!"
-            else
-                print_warn "Installation via Homebrew failed. Trying official script..."
-            fi
-        fi
-
-        # Attempt 2: official Ollama script
-        if [ "$OLLAMA_INSTALLED" = false ]; then
-            print_info "Downloading official installation script..."
-            if curl -fsSL https://ollama.com/install.sh | sh; then
-                OLLAMA_INSTALLED=true
-                print_ok "Ollama installed!"
-            else
-                print_warn "Ollama installation failed."
-                echo "   Install manually from: https://ollama.com/download"
-                STATUS_OLLAMA="Failed"
-            fi
+        if curl -fsSL https://ollama.com/install.sh | sh; then
+            print_ok "Ollama installed!"
+        else
+            print_warn "Ollama installation failed."
+            echo "   You can install it manually from: https://ollama.com/download"
+            STATUS_OLLAMA="Failed"
         fi
     fi
 
-    # Model management
-    if command -v ollama &>/dev/null && [ "${STATUS_OLLAMA:-}" != "Failed" ]; then
+    # If Ollama is available, manage the model
+    if command -v ollama &>/dev/null && [ "${STATUS_OLLAMA}" != "Failed" ]; then
         echo ""
         echo "   Checking model $OLLAMA_MODEL..."
 
+        # In environments without systemd (WSL2, containers) the server does not start automatically.
+        # First check if it is already running; if it does not respond, start it in the background.
         OLLAMA_READY=false
         if ollama list &>/dev/null; then
             OLLAMA_READY=true
         else
-            print_info "Starting Ollama server in background..."
+            print_info "Starting Ollama server in the background..."
             ollama serve &>/dev/null &
+            OLLAMA_SERVE_PID=$!
             for wait_time in 5 5 5; do
                 sleep "$wait_time"
                 if ollama list &>/dev/null; then
@@ -627,6 +609,7 @@ else
             done
         fi
 
+        # Exact match on model name (awk column 1) to avoid partial matches
         if [ "$OLLAMA_READY" = false ]; then
             print_warn "Ollama server unreachable after 15 seconds."
             echo "   Start it manually with: ollama serve"
@@ -646,13 +629,14 @@ else
                 echo ""
                 echo "   Downloading model (5-15 minutes)..."
                 echo ""
+
                 if ollama pull "$OLLAMA_MODEL"; then
                     echo ""
                     print_ok "Ollama + model installed!"
                     STATUS_OLLAMA="Installed"
                 else
                     print_warn "Model download failed."
-                    echo "   You can retry with: ollama pull $OLLAMA_MODEL"
+                    echo "   You can try again with: ollama pull $OLLAMA_MODEL"
                     STATUS_OLLAMA="Model not downloaded"
                 fi
             else
@@ -666,115 +650,64 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════════════
-# STEP 5/5: LAUNCHER AND DESKTOP SHORTCUT
+# STEP 5/5: LAUNCHER AND DESKTOP ENTRY
 # ═══════════════════════════════════════════════════════════════════
 STEP_CURRENT=5
-print_header "$STEP_CURRENT" "Launcher and Desktop Shortcut"
+print_header "$STEP_CURRENT" "Launcher and Desktop Entry"
 
-# Make the launcher executable
+# --- Make the launcher executable ---
 if [ -f "$LAUNCHER" ]; then
+    # || true: chmod can fail on NTFS filesystems (WSL with /mnt/d, /mnt/c, etc.)
     chmod +x "$LAUNCHER" || true
-    xattr -c "$LAUNCHER" 2>/dev/null || true
     print_ok "Launcher made executable: $LAUNCHER"
 else
     print_warn "Launcher file not found: $LAUNCHER"
     STATUS_DESKTOP="Failed"
 fi
 
-# --- .command on the Desktop (immediate double-click fallback) ---
-DESKTOP="$HOME/Desktop"
-COMMAND_FILE="$DESKTOP/OffGallery.command"
+# --- Create .desktop entry ---
+DESKTOP_DIR="$HOME/.local/share/applications"
+DESKTOP_FILE="$DESKTOP_DIR/offgallery.desktop"
 
-cat > "$COMMAND_FILE" << COMMAND_EOF
-#!/usr/bin/env bash
-# OffGallery Launcher — generated by the installer
-bash "${LAUNCHER}"
-COMMAND_EOF
+mkdir -p "$DESKTOP_DIR"
 
-chmod +x "$COMMAND_FILE"
-xattr -c "$COMMAND_FILE" 2>/dev/null || true
-print_ok "Desktop shortcut created: OffGallery.command"
-STATUS_DESKTOP="Created"
-
-# --- .app bundle in ~/Applications (Spotlight + Launchpad + Dock) ---
-USER_APPS="$HOME/Applications"
-APP_BUNDLE="$USER_APPS/OffGallery.app"
-_AS_TMP="/tmp/offgallery_launcher.applescript"
-
-mkdir -p "$USER_APPS"
-
-# AppleScript: opens a Terminal window and runs the launcher
-cat > "$_AS_TMP" << APPLESCRIPT_EOF
-tell application "Terminal"
-    do script "bash '${LAUNCHER}'"
-    activate
-end tell
-APPLESCRIPT_EOF
-
-if command -v osacompile &>/dev/null; then
-    rm -rf "$APP_BUNDLE"
-    if osacompile -o "$APP_BUNDLE" "$_AS_TMP" 2>/dev/null; then
-        rm -f "$_AS_TMP"
-        # Remove quarantine recursively on the bundle (directory)
-        xattr -cr "$APP_BUNDLE" 2>/dev/null || true
-
-        # Apply custom icon to the bundle using sips + iconutil (built-in macOS)
-        # Look for the best available source in assets/
-        _ICON_SRC=""
-        for _IC in "$APP_ROOT/assets/icon.icns" \
-                   "$APP_ROOT/assets/icon.png" \
-                   "$APP_ROOT/assets/logo3.jpg" \
-                   "$APP_ROOT/assets/logo3.png"; do
-            [ -f "$_IC" ] && _ICON_SRC="$_IC" && break
-        done
-
-        if [ -n "$_ICON_SRC" ] && command -v sips &>/dev/null && command -v iconutil &>/dev/null; then
-            _ICONSET="/tmp/OffGallery.iconset"
-            _ICNS_OUT="/tmp/OffGallery.icns"
-            rm -rf "$_ICONSET"
-            mkdir -p "$_ICONSET"
-
-            # Generate all sizes required by the macOS iconset format
-            _ICON_OK=true
-            for _SPEC in "16x16:16" "16x16@2x:32" "32x32:32" "32x32@2x:64" \
-                         "128x128:128" "128x128@2x:256" \
-                         "256x256:256" "256x256@2x:512" \
-                         "512x512:512" "512x512@2x:1024"; do
-                _NAME="${_SPEC%%:*}"
-                _PX="${_SPEC##*:}"
-                sips -z "$_PX" "$_PX" "$_ICON_SRC" \
-                    --out "$_ICONSET/icon_${_NAME}.png" &>/dev/null || { _ICON_OK=false; break; }
-            done
-
-            if [ "$_ICON_OK" = true ] && iconutil -c icns "$_ICONSET" -o "$_ICNS_OUT" 2>/dev/null; then
-                # Copy the ICNS into the bundle Resources folder
-                cp "$_ICNS_OUT" "$APP_BUNDLE/Contents/Resources/OffGallery.icns"
-                # Register the icon name in Info.plist
-                defaults write "$APP_BUNDLE/Contents/Info" CFBundleIconFile "OffGallery" 2>/dev/null || true
-                # Update timestamp to force Finder to reload the icon
-                touch "$APP_BUNDLE"
-                print_ok "Icon applied to the .app bundle"
-            else
-                print_warn "Icon conversion failed — bundle uses the default icon."
-            fi
-            rm -rf "$_ICONSET" "$_ICNS_OUT" 2>/dev/null || true
-        fi
-
-        print_ok "App created: $APP_BUNDLE"
-        print_info "Searchable via Spotlight (Cmd+Space → OffGallery) and in Launchpad"
-        STATUS_DESKTOP="Created (.command + .app)"
-    else
-        rm -f "$_AS_TMP"
-        print_warn "App creation failed. The .command shortcut on the Desktop is still available."
-    fi
-else
-    rm -f "$_AS_TMP" 2>/dev/null || true
-    print_warn "osacompile not found — .app not created."
-    print_info "Install Xcode Command Line Tools to enable app creation: xcode-select --install"
+# Look for an icon (if available)
+ICON_PATH=""
+if [ -f "$APP_ROOT/assets/icon.png" ]; then
+    ICON_PATH="$APP_ROOT/assets/icon.png"
+elif [ -f "$APP_ROOT/assets/icon.ico" ]; then
+    ICON_PATH="$APP_ROOT/assets/icon.ico"
 fi
 
-# Create working folders required by the app
-mkdir -p "$APP_ROOT/database" "$APP_ROOT/INPUT" "$APP_ROOT/logs"
+cat > "$DESKTOP_FILE" << DESKTOP_EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=OffGallery
+Comment=Automatic photo cataloguing with AI - 100% Offline
+Exec=bash "$LAUNCHER"
+Path=$APP_ROOT
+Terminal=false
+Categories=Graphics;Photography;
+StartupNotify=true
+DESKTOP_EOF
+
+# Add icon only if found
+if [ -n "$ICON_PATH" ]; then
+    echo "Icon=$ICON_PATH" >> "$DESKTOP_FILE"
+fi
+
+# Make the .desktop file executable
+chmod +x "$DESKTOP_FILE"
+
+# Update desktop database
+if command -v update-desktop-database &>/dev/null; then
+    update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+fi
+
+print_ok "Desktop entry created: $DESKTOP_FILE"
+echo "   OffGallery will appear in the applications menu."
+STATUS_DESKTOP="Created"
 
 # ═══════════════════════════════════════════════════════════════════
 # FINAL SUMMARY
@@ -788,25 +721,25 @@ echo -e "${BOLD}  ==============================================================
 echo ""
 echo "   Summary:"
 echo ""
-echo "     Miniconda:           $STATUS_MINICONDA"
-echo "     Python Environment:  $STATUS_ENV"
-echo "     Libraries + ExifTool:$STATUS_PACKAGES"
-echo "     Ollama:              $STATUS_OLLAMA"
-echo "     Desktop:             $STATUS_DESKTOP"
+echo "     Miniconda:              $STATUS_MINICONDA"
+echo "     Python Environment:     $STATUS_ENV"
+echo "     Libraries + ExifTool:   $STATUS_PACKAGES"
+echo "     Ollama:                 $STATUS_OLLAMA"
+echo "     Desktop Entry:          $STATUS_DESKTOP"
 echo ""
 echo "  ----------------------------------------------------------------"
 echo ""
 echo "   IMPORTANT - FIRST LAUNCH:"
 echo ""
-echo "   On the first launch, OffGallery will automatically download"
+echo "   On first launch, OffGallery will automatically download"
 echo "   approximately 7 GB of AI models. This is normal and happens"
 echo "   only once:"
 echo ""
 echo "     - CLIP (semantic search):              ~580 MB"
 echo "     - DINOv2 (visual similarity):          ~330 MB"
-echo "     - Aesthetic (aesthetic evaluation):    ~1.6 GB"
-echo "     - BioCLIP + TreeOfLife (nature):       ~4.2 GB"
-echo "     - Argos Translate (translation):       ~92 MB"
+echo "     - Aesthetic (aesthetic scoring):        ~1.6 GB"
+echo "     - BioCLIP + TreeOfLife (nature):        ~4.2 GB"
+echo "     - Argos Translate (translation):        ~92 MB"
 echo ""
 echo "   After the first launch, the app will work completely OFFLINE."
 echo ""
@@ -814,16 +747,15 @@ echo "  ----------------------------------------------------------------"
 echo ""
 echo "   TO LAUNCH OFFGALLERY:"
 echo ""
-echo "     Spotlight:   Cmd+Space → type 'OffGallery' → Enter"
-echo "     Launchpad:   search for 'OffGallery' among the apps"
-echo "     Desktop:     double-click 'OffGallery.command'"
-echo "     Terminal:    bash $LAUNCHER"
+echo "     From the applications menu: search for \"OffGallery\""
+echo "     From terminal: bash $LAUNCHER"
 echo ""
 
 if [ "$STATUS_MINICONDA" = "Installed" ]; then
     echo "   NOTE: You have just installed Miniconda."
-    echo "   Conda has already been initialized for zsh and bash."
-    echo "   Reopen the terminal to use the 'conda' command."
+    echo "   To use conda in future terminals, run:"
+    echo "     $MINICONDA_DIR/bin/conda init bash"
+    echo "   and reopen the terminal."
     echo ""
 fi
 

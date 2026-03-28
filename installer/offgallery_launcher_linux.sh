@@ -43,7 +43,7 @@ if [ -z "$CONDA_CMD" ]; then
     echo "    - /opt/anaconda3"
     echo ""
     echo "  Se hai appena installato Miniconda, apri un nuovo terminale."
-    echo "  Altrimenti esegui: bash installer/install_offgallery.sh"
+    echo "  Altrimenti esegui: bash installer/install_offgallery_linux_it.sh"
     echo ""
     exit 1
 fi
