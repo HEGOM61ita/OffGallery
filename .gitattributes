@@ -34,6 +34,7 @@ brisque_models/** linguist-vendored
 *.py linguist-language=Python
 
 # =============================================================================
-# LINE ENDINGS: script bash sempre LF (anche su Windows)
+# LINE ENDINGS: script bash sempre LF, batch Windows sempre CRLF
 # =============================================================================
 *.sh text eol=lf
+*.bat text eol=crlf
