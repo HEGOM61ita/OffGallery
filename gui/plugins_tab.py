@@ -858,11 +858,11 @@ class LLMPluginCard(QFrame):
             ok = _do_check()
             # Guard: il widget potrebbe essere stato distrutto mentre il thread girava
             try:
-                import sip
+                from PyQt6 import sip
                 if sip.isdeleted(self.lbl_status):
                     return
             except Exception:
-                pass
+                return
             if ok:
                 self.lbl_status.setText("✅ Backend attivo e raggiungibile")
                 self.lbl_status.setStyleSheet(
