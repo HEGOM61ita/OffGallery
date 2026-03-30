@@ -45,7 +45,11 @@
 # Documentazione (manuale utente)
 !docs/
 !docs/*.txt
-!docs/*.html
+!docs/USER_MANUAL_IT.html
+!docs/USER_MANUAL_EN.html
+# Pagine web pubbliche: escluse fino a nuovo ordine
+docs/index.html
+docs/features.html
 
 # ESSENZIALI PER L'APP - Includere nel repo
 !i18n/
