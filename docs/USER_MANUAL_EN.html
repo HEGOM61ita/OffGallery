@@ -217,6 +217,7 @@
     <li class="section-title"><a>Support</a></li>
     <li><a href="#faq">FAQ</a></li>
     <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#uninstall">Uninstalling</a></li>
   </ul>
 </nav>
 
@@ -1053,6 +1054,101 @@ Destination (e.g. E:\Backup):
   <div class="body">
     <strong>Support and updates</strong>
     <p>Report issues and feature requests on <a href="https://github.com/HEGOM61ita/OffGallery/issues">GitHub Issues</a>. Announcements and discussions on <a href="https://github.com/HEGOM61ita/OffGallery/discussions">GitHub Discussions</a>.</p>
+  </div>
+</div>
+
+<h1 id="uninstall"><span class="section-number">17</span>Uninstalling</h1>
+
+<p>OffGallery has no traditional installer: it is an extracted folder with an associated conda environment. Full removal involves two steps: removing the conda environment and deleting the application folder.</p>
+
+<div class="callout warning">
+  <span class="icon">⚠️</span>
+  <div class="body">
+    <strong>Before you proceed</strong>
+    <p>Export any important metadata via <strong>Export Tab → Export XMP</strong> or <strong>Export CSV</strong> if you want to keep tags, descriptions and ratings you have already generated.</p>
+  </div>
+</div>
+
+<h2>Windows</h2>
+
+<ol>
+  <li>Open the <strong>Anaconda Prompt</strong> from the Start menu.</li>
+  <li>Remove the conda environment:
+    <pre><code>conda deactivate
+conda env remove -n OffGallery</code></pre>
+  </li>
+  <li>Delete the application folder (e.g. <code>C:\OffGallery-main</code> or wherever you extracted it) via File Explorer or from the prompt:
+    <pre><code>rmdir /s /q C:\OffGallery-main</code></pre>
+  </li>
+  <li>If you created a Desktop shortcut, delete it manually.</li>
+</ol>
+
+<h2>macOS</h2>
+
+<ol>
+  <li>Open Terminal.</li>
+  <li>Remove the conda environment:
+    <pre><code>conda deactivate
+conda env remove -n OffGallery</code></pre>
+  </li>
+  <li>Delete the application folder (e.g. <code>/Applications/OffGallery-main</code>):
+    <pre><code>rm -rf /Applications/OffGallery-main</code></pre>
+  </li>
+  <li>Remove any configuration files in your home directory:
+    <pre><code>rm -rf ~/.offgallery</code></pre>
+  </li>
+</ol>
+
+<h2>Linux</h2>
+
+<ol>
+  <li>Open a terminal.</li>
+  <li>Remove the conda environment:
+    <pre><code>conda deactivate
+conda env remove -n OffGallery</code></pre>
+  </li>
+  <li>Delete the application folder:
+    <pre><code>rm -rf ~/OffGallery-main</code></pre>
+    (replace with the actual path where you extracted the app)
+  </li>
+  <li>Remove any configuration files:
+    <pre><code>rm -rf ~/.offgallery</code></pre>
+  </li>
+</ol>
+
+<h2>What remains after uninstallation</h2>
+
+<table>
+  <thead><tr><th>Item</th><th>Location</th><th>Removed by the steps above?</th></tr></thead>
+  <tbody>
+    <tr><td>Conda environment <code>OffGallery</code></td><td><code>~/miniconda3/envs/OffGallery/</code></td><td>Yes — <code>conda env remove</code></td></tr>
+    <tr><td>Application folder</td><td>Where you extracted it</td><td>Yes — removed manually</td></tr>
+    <tr><td>Image database</td><td>Inside the app folder (<code>database/</code>)</td><td>Yes — removed with the folder</td></tr>
+    <tr><td>Downloaded AI models</td><td>Inside the app folder (<code>Models/</code>) or custom path set in <code>config_new.yaml</code></td><td>Only if inside the app folder; otherwise remove manually</td></tr>
+    <tr><td>HuggingFace cache</td><td><code>~/.cache/huggingface/</code> (Linux/macOS) · <code>%USERPROFILE%\.cache\huggingface\</code> (Windows)</td><td>No — remove manually if desired</td></tr>
+    <tr><td>Miniconda / conda itself</td><td><code>~/miniconda3/</code></td><td>No — conda remains installed for other environments</td></tr>
+    <tr><td>XMP sidecar files</td><td>Next to your original photos</td><td>No — these are your data and are never touched</td></tr>
+  </tbody>
+</table>
+
+<div class="callout info">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>HuggingFace cache</strong>
+    <p>On first launch, CLIP and DINOv2 models are downloaded from HuggingFace and saved both in <code>Models/</code> (inside the app folder) and in the HF cache. The cache can occupy several GB. To remove it:</p>
+    <ul>
+      <li><strong>Linux / macOS:</strong> <code>rm -rf ~/.cache/huggingface/</code></li>
+      <li><strong>Windows:</strong> delete the folder <code>%USERPROFILE%\.cache\huggingface\</code> via File Explorer</li>
+    </ul>
+    <p>If you have other projects using HuggingFace, remove only the subfolder <code>hub/models--HEGOM--OffGallery-models</code> instead of the entire cache.</p>
+  </div>
+</div>
+
+<div class="callout info">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>Models in a custom location</strong>
+    <p>If you set an absolute path for AI models in <code>config_new.yaml</code> (e.g. <code>E:\MyModels</code>), that folder is <strong>not</strong> removed automatically. Delete it manually if you no longer need it for other projects.</p>
   </div>
 </div>
 

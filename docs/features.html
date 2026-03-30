@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OffGallery — Tutte le funzionalità</title>
+  <meta name="description" content="OffGallery — Tutte le funzionalità. AI locale, ricerca semantica, plugin, integrazione Lightroom e molto altro." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:           #f5f7fb;
+      --surface:      #ffffff;
+      --surface-2:    #eef3fb;
+      --text:         #0f172a;
+      --text-soft:    #475569;
+      --text-faint:   #64748b;
+      --line:         rgba(15,23,42,0.08);
+      --brand-navy:   #071b49;
+      --brand-blue:   #0a5bff;
+      --brand-cyan:   #22d3ee;
+      --shadow-sm:    0 8px 22px rgba(15,23,42,0.06);
+      --shadow-md:    0 18px 48px rgba(15,23,42,0.10);
+      --shadow-brand: 0 18px 42px rgba(7,27,73,0.20);
+      --radius-sm:    12px;
+      --radius-md:    18px;
+      --radius-full:  999px;
+      --container:    1180px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: "Inter", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(34,211,238,0.08), transparent 30%),
+        linear-gradient(180deg, #f8fbff 0%, #f4f7fc 100%);
+      color: var(--text); line-height: 1.6;
+    }
+    img { display: block; max-width: 100%; height: auto; }
+    a { color: inherit; text-decoration: none; }
+    .container { width: min(var(--container), calc(100% - 32px)); margin: 0 auto; }
+
+    /* ── HEADER ── */
+    .site-header {
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(16px);
+      background: rgba(255,255,255,0.92);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav {
+      min-height: 100px; display: flex;
+      align-items: center; justify-content: space-between; gap: 24px;
+    }
+    .nav-left { display: flex; align-items: center; gap: 32px; min-width: 0; }
+    .brand { display: inline-flex; align-items: center; gap: 16px; flex: 0 0 auto; }
+    .brand-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 12px 20px; border-radius: 18px;
+      background: var(--brand-navy); box-shadow: var(--shadow-brand);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .brand-badge img { height: 58px; width: auto; max-width: none; }
+    .brand-meta { display: flex; flex-direction: column; gap: 3px; }
+    .brand-name { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+    .brand-subtitle { font-size: 0.84rem; color: var(--text-faint); }
+    .nav-links { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; list-style: none; }
+    .nav-links a { font-size: 0.96rem; color: var(--text-soft); font-weight: 500; transition: color 0.15s; }
+    .nav-links a:hover, .nav-links a.active { color: var(--brand-blue); }
+    .nav-actions { display: flex; align-items: center; gap: 10px; }
+    .lang-toggle {
+      display: inline-flex; align-items: center; gap: 7px;
+      min-height: 40px; padding: 0 14px; border-radius: var(--radius-full);
+      font-weight: 600; font-size: 0.85rem;
+      border: 1px solid var(--line); background: var(--surface); color: var(--text-soft);
+      cursor: pointer; box-shadow: var(--shadow-sm);
+      font-family: "Inter", sans-serif; transition: 180ms ease;
+    }
+    .lang-toggle:hover { color: var(--brand-blue); border-color: rgba(10,91,255,0.2); }
+    .lang-toggle svg { flex-shrink: 0; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 46px; padding: 0 20px; border-radius: var(--radius-full);
+      font-weight: 600; font-size: 0.95rem; transition: 180ms ease;
+      border: 1px solid transparent; white-space: nowrap;
+    }
+    .btn-secondary {
+      background: var(--surface); border-color: var(--line);
+      color: var(--text); box-shadow: var(--shadow-sm);
+    }
+    .btn-secondary:hover { border-color: rgba(10,91,255,0.18); color: var(--brand-blue); }
+    .btn-primary {
+      background: linear-gradient(180deg, #0d67ff 0%, #084ce0 100%);
+      color: white; box-shadow: 0 14px 28px rgba(10,91,255,0.24);
+    }
+    .btn-primary:hover { transform: translateY(-1px); }
+
+    /* ── PAGE HERO ── */
+    .page-hero { padding: 52px 0 28px; }
+    .page-hero-shell {
+      background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(239,245,255,0.92));
+      border: 1px solid rgba(10,91,255,0.08);
+      border-radius: 28px; box-shadow: var(--shadow-md); padding: 36px;
+    }
+    .back-link {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 0.88rem; color: var(--text-faint); font-weight: 500;
+      margin-bottom: 20px; transition: color 0.15s;
+    }
+    .back-link:hover { color: var(--brand-blue); }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 8px 14px; border-radius: var(--radius-full);
+      background: rgba(10,91,255,0.08); color: #1145b5;
+      font-size: 0.86rem; font-weight: 600; margin-bottom: 18px;
+    }
+    .page-hero h1 {
+      font-size: clamp(2rem, 4vw, 3.4rem); line-height: 1.02;
+      letter-spacing: -0.05em; margin-bottom: 14px; max-width: 16ch;
+    }
+    .page-hero p { color: var(--text-soft); font-size: clamp(1rem, 1.2vw, 1.08rem); max-width: 62ch; }
+
+    /* ── TOC ── */
+    .toc-strip { padding: 16px 0; }
+    .toc-panel {
+      background: rgba(255,255,255,0.7); border: 1px solid var(--line);
+      border-radius: 20px; padding: 14px 20px;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+      box-shadow: var(--shadow-sm);
+    }
+    .toc-panel a {
+      font-size: 0.88rem; font-weight: 500; color: var(--text-soft);
+      padding: 6px 16px; border-radius: var(--radius-full);
+      border: 1px solid var(--line); background: var(--surface);
+      transition: 180ms ease;
+    }
+    .toc-panel a:hover { color: var(--brand-blue); border-color: rgba(10,91,255,0.2); }
+
+    /* ── CONTENT ── */
+    .content-section { padding: 20px 0 36px; }
+    .content-grid { display: grid; gap: 20px; }
+
+    .group-header { margin-bottom: 20px; }
+    .group-eyebrow {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 6px 14px; border-radius: var(--radius-full);
+      background: rgba(10,91,255,0.08); color: #1145b5;
+      font-size: 0.82rem; font-weight: 600; margin-bottom: 12px;
+    }
+    .group-header h2 {
+      font-size: clamp(1.5rem, 2.4vw, 2.2rem);
+      line-height: 1.06; letter-spacing: -0.04em; margin-bottom: 8px;
+    }
+    .group-header p { color: var(--text-soft); font-size: 0.96rem; }
+
+    .feat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 16px;
+    }
+    .feat-card {
+      background: rgba(255,255,255,0.86); border: 1px solid var(--line);
+      border-radius: 20px; padding: 24px; box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .feat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .feat-icon { width: 36px; height: 36px; margin-bottom: 14px; color: var(--brand-blue); }
+    .feat-icon svg {
+      width: 100%; height: 100%; stroke: currentColor; fill: none;
+      stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .feat-kicker {
+      font-size: 0.74rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.12em; color: #3b5bcc; margin-bottom: 8px;
+    }
+    .feat-card h3 { font-size: 1.04rem; line-height: 1.2; margin-bottom: 8px; letter-spacing: -0.02em; }
+    .feat-card p { color: var(--text-soft); font-size: 0.91rem; line-height: 1.65; }
+    .feat-tag {
+      display: inline-block; margin-top: 12px;
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+      padding: 3px 10px; border-radius: var(--radius-full);
+      background: rgba(15,23,42,0.05); color: var(--text-faint);
+    }
+
+    /* ── PLUGIN CARDS ── */
+    .plugins-grid {
+      display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px;
+    }
+    .plugin-detail-card {
+      background: rgba(255,255,255,0.86); border: 1px solid var(--line);
+      border-radius: 20px; padding: 28px; box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .plugin-detail-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .plugin-detail-icon { width: 36px; height: 36px; margin-bottom: 14px; color: var(--text-faint); }
+    .plugin-detail-icon svg {
+      width: 100%; height: 100%; stroke: currentColor; fill: none;
+      stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .plugin-type {
+      font-size: 0.74rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.12em; color: #3b5bcc; margin-bottom: 8px;
+    }
+    .plugin-detail-card h3 { font-size: 1.14rem; letter-spacing: -0.02em; margin-bottom: 14px; }
+    .plugin-detail-card p { color: var(--text-soft); font-size: 0.91rem; line-height: 1.65; margin-bottom: 8px; }
+    .plugin-models {
+      margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line);
+      font-size: 0.86rem; color: var(--text-soft);
+    }
+    .plugin-models strong {
+      display: block; font-size: 0.72rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text-faint); margin-bottom: 4px;
+    }
+    .plugin-badge {
+      display: inline-block; margin-top: 16px;
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+      padding: 4px 12px; border-radius: var(--radius-full);
+      background: rgba(15,23,42,0.06); color: var(--text-faint);
+    }
+    .plugin-badge.beta { background: rgba(10,91,255,0.08); color: var(--brand-blue); }
+
+    /* ── CTA ── */
+    .cta-band {
+      padding: 28px; border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(235,243,255,0.92));
+      border: 1px solid rgba(10,91,255,0.10); box-shadow: var(--shadow-md);
+      display: flex; align-items: center; justify-content: space-between; gap: 22px; flex-wrap: wrap;
+    }
+    .cta-band h3 { font-size: clamp(1.2rem, 2vw, 1.7rem); line-height: 1.1; margin-bottom: 6px; letter-spacing: -0.03em; }
+    .cta-band p { color: var(--text-soft); max-width: 52ch; }
+
+    /* ── FOOTER ── */
+    footer { padding: 36px 0 56px; }
+    .footer-inner {
+      border-top: 1px solid var(--line); padding-top: 28px;
+      display: grid; grid-template-columns: 1fr auto;
+      gap: 32px; align-items: start;
+    }
+    .footer-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .footer-brand-badge { padding: 7px 12px; border-radius: 12px; background: var(--brand-navy); }
+    .footer-brand-badge img { height: 26px; width: auto; max-width: none; }
+    .footer-brand-name { font-size: 1rem; font-weight: 700; color: var(--text); }
+    .footer-desc { color: var(--text-faint); font-size: 0.86rem; max-width: 360px; margin-bottom: 18px; }
+    .footer-links { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 18px; }
+    .footer-links a { font-size: 0.86rem; color: var(--text-faint); font-weight: 500; transition: color 0.15s; }
+    .footer-links a:hover { color: var(--brand-blue); }
+    .footer-legal { font-size: 0.78rem; color: var(--text-faint); }
+    .footer-donate { text-align: right; }
+    .footer-donate-label {
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-faint); margin-bottom: 8px;
+    }
+    .footer-donate p { font-size: 0.88rem; color: var(--text-soft); margin-bottom: 14px; line-height: 1.5; }
+    .btn-kofi {
+      display: inline-flex; align-items: center; gap: 8px;
+      min-height: 42px; padding: 0 22px;
+      background: #ff5e5b; color: white;
+      border: none; border-radius: var(--radius-full);
+      font-weight: 700; font-size: 0.9rem;
+      font-family: "Inter", sans-serif; cursor: pointer;
+      text-decoration: none; transition: 180ms ease;
+      box-shadow: 0 6px 18px rgba(255,94,91,0.35);
+    }
+    .btn-kofi:hover { transform: translateY(-1px); background: #ff4441; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 1080px) {
+      .feat-grid, .plugins-grid { grid-template-columns: 1fr 1fr; }
+      .nav { min-height: auto; padding: 14px 0; flex-direction: column; align-items: flex-start; }
+      .nav-left { flex-direction: column; align-items: flex-start; width: 100%; }
+      .nav-actions { width: 100%; flex-wrap: wrap; }
+      .footer-inner { grid-template-columns: 1fr; }
+      .footer-donate { text-align: left; }
+    }
+    @media (max-width: 720px) {
+      .container { width: min(var(--container), calc(100% - 20px)); }
+      .feat-grid, .plugins-grid { grid-template-columns: 1fr; }
+      .brand-badge img { height: 44px; }
+      .nav-actions .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header class="site-header">
+  <div class="container nav">
+    <div class="nav-left">
+      <a href="index.html" class="brand" aria-label="OffGallery Home">
+        <span class="brand-badge">
+          <img src="../assets/logo3.jpg" alt="Logo OffGallery" width="866" height="402" loading="eager" />
+        </span>
+        <span class="brand-meta">
+          <span class="brand-name">OffGallery</span>
+          <span class="brand-subtitle" data-i18n="brand_subtitle">Catalogazione fotografica con AI locale</span>
+        </span>
+      </a>
+      <nav class="nav-links" aria-label="Navigazione principale">
+        <li><a href="index.html#features" data-i18n="nav_features">Funzionalità</a></li>
+        <li><a href="index.html#plugins" data-i18n="nav_plugins">Plugin</a></li>
+        <li><a href="index.html#beta" data-i18n="nav_beta">Beta Access</a></li>
+        <li><a href="features.html" class="active" data-i18n="nav_allfeatures">Tutte le funzionalità</a></li>
+      </nav>
+    </div>
+    <div class="nav-actions">
+      <button class="lang-toggle" id="langToggle" aria-label="Cambia lingua">
+        <!-- mostra la lingua di destinazione (EN quando si è in IT) -->
+        <svg id="flagIcon" width="22" height="15" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="40" fill="#012169"/>
+          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="8"/>
+          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="4.8"/>
+          <path d="M30,0 V40 M0,20 H60" stroke="#fff" stroke-width="13.3"/>
+          <path d="M30,0 V40 M0,20 H60" stroke="#C8102E" stroke-width="8"/>
+        </svg>
+        <span id="langLabel">EN</span>
+      </button>
+      <a class="btn btn-secondary" href="index.html" data-i18n="back_home">Torna alla home</a>
+      <a class="btn btn-primary" href="https://github.com/HEGOM/OffGallery/releases" data-i18n="hero_download">Scarica OffGallery</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- ── PAGE HERO ── -->
+  <section class="page-hero">
+    <div class="container">
+      <div class="page-hero-shell">
+        <a href="index.html" class="back-link" data-i18n="back_home">← Torna alla homepage</a>
+        <div class="eyebrow" data-i18n="page_eyebrow">AI · Metadati · Ricerca · Plugin</div>
+        <h1 data-i18n="page_title">Tutte le funzionalità.</h1>
+        <p data-i18n="page_sub">Una panoramica completa di ciò che OffGallery mette a disposizione del fotografo professionista.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TOC ── -->
+  <section class="toc-strip">
+    <div class="container">
+      <div class="toc-panel">
+        <a href="#ai" data-i18n="toc_ai">AI e analisi</a>
+        <a href="#metadata" data-i18n="toc_meta">Metadati e integrazione</a>
+        <a href="#search" data-i18n="toc_search">Ricerca e organizzazione</a>
+        <a href="#plugins" data-i18n="toc_plugins">Plugin</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CONTENT ── -->
+  <section class="content-section">
+    <div class="container content-grid">
+
+      <!-- AI -->
+      <div id="ai">
+        <div class="group-header">
+          <div class="group-eyebrow" data-i18n="g1_eyebrow">AI e analisi</div>
+          <h2 data-i18n="g1_title">Modelli AI locali, orchestrati in un unico sistema.</h2>
+          <p data-i18n="g1_sub">Tutti i modelli girano in locale. Dopo il primo download non serve più connessione internet.</p>
+        </div>
+        <div class="feat-grid">
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+            <div class="feat-kicker" data-i18n="ai1_kicker">CLIP</div>
+            <h3 data-i18n="ai1_title">Ricerca semantica CLIP</h3>
+            <p data-i18n="ai1_body">CLIP (ViT-L/14, 768 dimensioni) confronta query testuali con il contenuto visivo di ogni immagine. Le query in italiano vengono tradotte offline via argostranslate prima dell'encoding.</p>
+            <span class="feat-tag">openai/clip-vit-large-patch14</span>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div>
+            <div class="feat-kicker" data-i18n="ai2_kicker">DINOv2</div>
+            <h3 data-i18n="ai2_title">Similarità visiva DINOv2</h3>
+            <p data-i18n="ai2_body">DINOv2 genera embedding visivi per la ricerca per similarità: trova immagini simili a quella selezionata e rileva near-duplicate nell'archivio.</p>
+            <span class="feat-tag">facebook/dinov2-base</span>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+            <div class="feat-kicker" data-i18n="ai3_kicker">BioCLIP</div>
+            <h3 data-i18n="ai3_title">Riconoscimento specie BioCLIP</h3>
+            <p data-i18n="ai3_body">BioCLIP v2 riconosce circa 450.000 specie biologiche da TreeOfLife. Produce una gerarchia tassonomica completa a 7 livelli: regno, phylum, classe, ordine, famiglia, genere, specie.</p>
+            <span class="feat-tag">imageomics/bioclip</span>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+            <div class="feat-kicker" data-i18n="ai4_kicker">LLM Vision</div>
+            <h3 data-i18n="ai4_title">LLM Vision locale</h3>
+            <p data-i18n="ai4_body">Genera titoli, descrizioni e tag in linguaggio naturale tramite modelli vision locali (Qwen3-VL-4B e superiori). Nessun testo inviato online. Output in italiano o in altre lingue configurabili.</p>
+            <span class="feat-tag">Ollama / LM Studio</span>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+            <div class="feat-kicker" data-i18n="ai5_kicker">Estetica</div>
+            <h3 data-i18n="ai5_title">Valutazione estetica</h3>
+            <p data-i18n="ai5_body">Punteggio estetico da 0 a 10 basato su modello addestrato su dataset fotografici. Visibile in gallery come badge sovrapposto all'immagine.</p>
+            <span class="feat-tag">Aesthetic Predictor</span>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+            <div class="feat-kicker" data-i18n="ai6_kicker">MUSIQ</div>
+            <h3 data-i18n="ai6_title">Qualità tecnica MUSIQ</h3>
+            <p data-i18n="ai6_body">MUSIQ analizza la qualità tecnica percepita: nitidezza, rumore, sfocature. Punteggio separato dall'estetica, utile per scartare rapidamente gli scatti tecnici fallimentari.</p>
+            <span class="feat-tag">MUSIQ / pyiqa</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- METADATI -->
+      <div id="metadata">
+        <div class="group-header">
+          <div class="group-eyebrow" data-i18n="g2_eyebrow">Metadati e integrazione</div>
+          <h2 data-i18n="g2_title">Compatibile con i flussi di lavoro fotografici esistenti.</h2>
+          <p data-i18n="g2_sub">XMP, Lightroom, EXIF, geolocalizzazione offline. Nessuna rottura nel workflow.</p>
+        </div>
+        <div class="feat-grid">
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+            <div class="feat-kicker">XMP</div>
+            <h3 data-i18n="m1_title">Sidecar XMP bidirezionale</h3>
+            <p data-i18n="m1_body">Importa ed esporta metadati via sidecar XMP standard. Tag, rating, descrizioni e gerarchie tassonomiche compatibili con Lightroom, Capture One, digiKam e altri.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
+            <div class="feat-kicker">Lightroom</div>
+            <h3 data-i18n="m2_title">Importazione catalogo Lightroom</h3>
+            <p data-i18n="m2_body">Legge cataloghi .lrcat (SQLite) in sola lettura. Importa la lista file con rating, flag e label colore direttamente da Lightroom Classic, senza toccare il catalogo originale.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+            <div class="feat-kicker">EXIF</div>
+            <h3 data-i18n="m3_title">Estrazione EXIF completa</h3>
+            <p data-i18n="m3_body">ExifTool estrae oltre 200 campi EXIF/IPTC/XMP: fotocamera, obiettivo, ISO, apertura, velocità, dati GPS, copyright, flash. Ricercabili e filtrabili dalla search tab.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+            <div class="feat-kicker">GeOFF</div>
+            <h3 data-i18n="m4_title">Geolocalizzazione offline</h3>
+            <p data-i18n="m4_body">Le coordinate GPS vengono convertite in gerarchia geografica (Continente › Paese › Regione › Città) offline tramite reverse_geocoder con dati GeoNames bundled. Nessuna API esterna.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+            <div class="feat-kicker" data-i18n="m5_kicker">Statistiche</div>
+            <h3 data-i18n="m5_title">Statistiche archivio</h3>
+            <p data-i18n="m5_body">Stats tab con distribuzione per fotocamera, obiettivo, ISO, apertura, velocità otturatore, rating e label colore. Panoramica quantitativa del proprio archivio.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            <div class="feat-kicker">CSV</div>
+            <h3 data-i18n="m6_title">Export CSV</h3>
+            <p data-i18n="m6_body">Esporta i metadati dell'intero archivio o di una selezione filtrata in formato CSV per analisi esterne, backup leggibile o integrazione con altri strumenti.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- RICERCA -->
+      <div id="search">
+        <div class="group-header">
+          <div class="group-eyebrow" data-i18n="g3_eyebrow">Ricerca e organizzazione</div>
+          <h2 data-i18n="g3_title">Trova qualsiasi foto in secondi.</h2>
+          <p data-i18n="g3_sub">Ricerca semantica, fuzzy matching, similarità visiva. 25+ formati RAW supportati.</p>
+        </div>
+        <div class="feat-grid">
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg></div>
+            <div class="feat-kicker" data-i18n="s1_kicker">Ricerca</div>
+            <h3 data-i18n="s1_title">Ricerca combinata semantica + tag</h3>
+            <p data-i18n="s1_body">Combina ricerca semantica CLIP con filtro per tag, rating Lightroom, label colore, fotocamera, obiettivo, data e posizione geografica. Tutti i filtri applicabili contemporaneamente.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
+            <div class="feat-kicker">Fuzzy</div>
+            <h3 data-i18n="s2_title">Fuzzy matching sui tag</h3>
+            <p data-i18n="s2_body">La ricerca per tag usa fuzzy matching: trova "airone" anche se il tag scritto è "airone cenerino". Tolleranza configurabile per gestire varianti linguistiche.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
+            <div class="feat-kicker">DINOv2</div>
+            <h3 data-i18n="s3_title">Ricerca per similarità visiva</h3>
+            <p data-i18n="s3_body">Seleziona un'immagine e cerca le visualmente simili tramite embedding DINOv2. Utile per trovare varianti dello stesso scatto o near-duplicate prima del culling.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+            <div class="feat-kicker">RAW</div>
+            <h3 data-i18n="s4_title">25+ formati RAW supportati</h3>
+            <p data-i18n="s4_body">Canon CR2/CR3, Nikon NEF/NRW, Sony ARW, Fujifilm RAF, Olympus ORF, Panasonic RW2, Pentax PEF/DNG, Leica DNG, Phase One IIQ e altri. Più JPG, PNG, TIFF, HEIC.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+            <div class="feat-kicker" data-i18n="s5_kicker">i18n</div>
+            <h3 data-i18n="s5_title">Interfaccia multilingua</h3>
+            <p data-i18n="s5_body">GUI disponibile in italiano, inglese, francese, tedesco, spagnolo e portoghese. Output LLM configurabile separatamente in qualsiasi lingua supportata dal modello locale.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+            <div class="feat-kicker" data-i18n="s6_kicker">Gallery</div>
+            <h3 data-i18n="s6_title">Badge visuali in gallery</h3>
+            <p data-i18n="s6_body">Ogni miniatura mostra in overlay i badge AI: punteggio estetico, qualità tecnica, rating Lightroom, label colore. Informazioni immediate senza aprire i dettagli.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- PLUGIN -->
+      <div id="plugins">
+        <div class="group-header">
+          <div class="group-eyebrow" data-i18n="g4_eyebrow">Plugin</div>
+          <h2 data-i18n="g4_title">Un'architettura pensata per crescere.</h2>
+          <p data-i18n="g4_sub">Aggiungi e cambia backend LLM, integra nuove sorgenti dati — senza modificare il core dell'applicazione.</p>
+        </div>
+        <div class="plugins-grid">
+          <div class="plugin-detail-card">
+            <div class="plugin-detail-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+            <p class="plugin-type" data-i18n="pd_type_llm">Backend LLM</p>
+            <h3>Ollama LLM Vision</h3>
+            <p data-i18n="pd_ollama_1">Collega OffGallery a un server Ollama locale per la generazione di tag, titoli e descrizioni fotografiche in linguaggio naturale.</p>
+            <p data-i18n="pd_ollama_2">Comunicazione via API REST locale (porta 11434). Auto-discovery all'avvio se il server è attivo.</p>
+            <div class="plugin-models">
+              <strong data-i18n="pd_models_label">Modelli consigliati</strong>
+              Qwen3-VL-4B, LLaVA 1.6, Gemma3-4B-vision, MiniCPM-V
+            </div>
+            <span class="plugin-badge beta" data-i18n="pd_badge_beta_tester">Gratuito per beta tester</span>
+          </div>
+          <div class="plugin-detail-card">
+            <div class="plugin-detail-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2"/></svg></div>
+            <p class="plugin-type" data-i18n="pd_type_llm">Backend LLM</p>
+            <h3>LM Studio</h3>
+            <p data-i18n="pd_lms_1">Usa LM Studio come server locale compatibile OpenAI. Ideale per chi preferisce un'interfaccia grafica per la gestione dei modelli e la configurazione della quantizzazione.</p>
+            <p data-i18n="pd_lms_2">Compatibile con qualsiasi modello vision caricato in LM Studio via API locale (porta 1234).</p>
+            <div class="plugin-models">
+              <strong data-i18n="pd_models_label">Modelli consigliati</strong>
+              Qwen3-VL (qualsiasi dimensione), modelli GGUF vision compatibili
+            </div>
+            <span class="plugin-badge beta" data-i18n="pd_badge_beta_tester">Gratuito per beta tester</span>
+          </div>
+          <div class="plugin-detail-card">
+            <div class="plugin-detail-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+            <p class="plugin-type" data-i18n="pd_type_bio">Fotografia naturalistica</p>
+            <h3>BioNomen</h3>
+            <p data-i18n="pd_bio_1">Arricchisce i tag generati da BioCLIP con i nomi comuni delle specie in più lingue. Un airone cenere diventa anche "grey heron", "héron cendré", "Graureiher" — automaticamente, offline.</p>
+            <p data-i18n="pd_bio_2">I dati provengono dal database GBIF, bundled localmente. Nessuna connessione internet richiesta dopo l'installazione.</p>
+            <p data-i18n="pd_bio_3">Indispensabile per fotografi wildlife, botanici e naturalisti che archiviano grandi volumi di foto con soggetti biologici identificati da BioCLIP.</p>
+            <span class="plugin-badge beta" data-i18n="pd_badge_beta">Gratuito per beta tester — accesso limitato</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="cta-band">
+        <div>
+          <h3 data-i18n="cta_title">Pronto a iniziare?</h3>
+          <p data-i18n="cta_body">Scarica OffGallery e porta la tua catalogazione fotografica in locale.</p>
+        </div>
+        <a class="btn btn-primary" href="https://github.com/HEGOM/OffGallery/releases" data-i18n="hero_download">Scarica OffGallery</a>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <span class="footer-brand-badge">
+            <img src="../assets/logo3.jpg" alt="OffGallery" width="866" height="402" loading="lazy" />
+          </span>
+          <span class="footer-brand-name">OffGallery</span>
+        </div>
+        <p class="footer-desc" data-i18n="footer_desc">Catalogazione fotografica intelligente, offline e privata. Open source, AGPLv3.</p>
+        <div class="footer-links">
+          <a href="index.html" data-i18n="f_home">Homepage</a>
+          <a href="https://github.com/HEGOM/OffGallery" data-i18n="f_github">GitHub</a>
+          <a href="USER_MANUAL_IT.html" data-i18n="f_manual">Manuale utente</a>
+          <a href="index.html#beta" data-i18n="f_beta">Beta Access</a>
+          <a href="mailto:OffGallery.AI.info@gmail.com" data-i18n="f_contact">Contatto</a>
+        </div>
+        <p class="footer-legal">© 2025 OffGallery — <span data-i18n="f_license">Licenza AGPLv3 — Software libero</span></p>
+      </div>
+      <div class="footer-donate">
+        <p class="footer-donate-label" data-i18n="donate_label">Supporta il progetto</p>
+        <p data-i18n="donate_footer_text">OffGallery è sviluppato nel tempo libero.<br />Una donazione fa la differenza.</p>
+        <a href="https://ko-fi.com/PLACEHOLDER" class="btn-kofi" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+          <span data-i18n="donate_btn">Supporta su Ko-fi</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const T = {
+    it: {
+      brand_subtitle: "Catalogazione fotografica con AI locale",
+      nav_features: "Funzionalità", nav_plugins: "Plugin",
+      nav_beta: "Beta Access", nav_allfeatures: "Tutte le funzionalità",
+      back_home: "← Torna alla homepage",
+      hero_download: "Scarica OffGallery",
+      page_eyebrow: "AI · Metadati · Ricerca · Plugin",
+      page_title: "Tutte le funzionalità.",
+      page_sub: "Una panoramica completa di ciò che OffGallery mette a disposizione del fotografo professionista.",
+      toc_ai: "AI e analisi", toc_meta: "Metadati e integrazione",
+      toc_search: "Ricerca e organizzazione", toc_plugins: "Plugin",
+      g1_eyebrow: "AI e analisi", g1_title: "Modelli AI locali, orchestrati in un unico sistema.",
+      g1_sub: "Tutti i modelli girano in locale. Dopo il primo download non serve più connessione internet.",
+      ai1_kicker: "CLIP", ai1_title: "Ricerca semantica CLIP",
+      ai1_body: "CLIP (ViT-L/14, 768 dimensioni) confronta query testuali con il contenuto visivo di ogni immagine. Le query in italiano vengono tradotte offline via argostranslate prima dell'encoding.",
+      ai2_kicker: "DINOv2", ai2_title: "Similarità visiva DINOv2",
+      ai2_body: "DINOv2 genera embedding visivi per la ricerca per similarità: trova immagini simili a quella selezionata e rileva near-duplicate nell'archivio.",
+      ai3_kicker: "BioCLIP", ai3_title: "Riconoscimento specie BioCLIP",
+      ai3_body: "BioCLIP v2 riconosce circa 450.000 specie biologiche da TreeOfLife. Produce una gerarchia tassonomica completa a 7 livelli: regno, phylum, classe, ordine, famiglia, genere, specie.",
+      ai4_kicker: "LLM Vision", ai4_title: "LLM Vision locale",
+      ai4_body: "Genera titoli, descrizioni e tag in linguaggio naturale tramite modelli vision locali (Qwen3-VL-4B e superiori). Nessun testo inviato online. Output in italiano o in altre lingue configurabili.",
+      ai5_kicker: "Estetica", ai5_title: "Valutazione estetica",
+      ai5_body: "Punteggio estetico da 0 a 10 basato su modello addestrato su dataset fotografici. Visibile in gallery come badge sovrapposto all'immagine.",
+      ai6_kicker: "MUSIQ", ai6_title: "Qualità tecnica MUSIQ",
+      ai6_body: "MUSIQ analizza la qualità tecnica percepita: nitidezza, rumore, sfocature. Punteggio separato dall'estetica, utile per scartare rapidamente gli scatti tecnici fallimentari.",
+      g2_eyebrow: "Metadati e integrazione", g2_title: "Compatibile con i flussi di lavoro fotografici esistenti.",
+      g2_sub: "XMP, Lightroom, EXIF, geolocalizzazione offline. Nessuna rottura nel workflow.",
+      m1_title: "Sidecar XMP bidirezionale",
+      m1_body: "Importa ed esporta metadati via sidecar XMP standard. Tag, rating, descrizioni e gerarchie tassonomiche compatibili con Lightroom, Capture One, digiKam e altri.",
+      m2_title: "Importazione catalogo Lightroom",
+      m2_body: "Legge cataloghi .lrcat (SQLite) in sola lettura. Importa la lista file con rating, flag e label colore direttamente da Lightroom Classic, senza toccare il catalogo originale.",
+      m3_title: "Estrazione EXIF completa",
+      m3_body: "ExifTool estrae oltre 200 campi EXIF/IPTC/XMP: fotocamera, obiettivo, ISO, apertura, velocità, dati GPS, copyright, flash. Ricercabili e filtrabili dalla search tab.",
+      m4_title: "Geolocalizzazione offline",
+      m4_body: "Le coordinate GPS vengono convertite in gerarchia geografica (Continente › Paese › Regione › Città) offline tramite reverse_geocoder con dati GeoNames bundled. Nessuna API esterna.",
+      m5_kicker: "Statistiche", m5_title: "Statistiche archivio",
+      m5_body: "Stats tab con distribuzione per fotocamera, obiettivo, ISO, apertura, velocità otturatore, rating e label colore. Panoramica quantitativa del proprio archivio.",
+      m6_title: "Export CSV",
+      m6_body: "Esporta i metadati dell'intero archivio o di una selezione filtrata in formato CSV per analisi esterne, backup leggibile o integrazione con altri strumenti.",
+      g3_eyebrow: "Ricerca e organizzazione", g3_title: "Trova qualsiasi foto in secondi.",
+      g3_sub: "Ricerca semantica, fuzzy matching, similarità visiva. 25+ formati RAW supportati.",
+      s1_kicker: "Ricerca", s1_title: "Ricerca combinata semantica + tag",
+      s1_body: "Combina ricerca semantica CLIP con filtro per tag, rating Lightroom, label colore, fotocamera, obiettivo, data e posizione geografica. Tutti i filtri applicabili contemporaneamente.",
+      s2_title: "Fuzzy matching sui tag",
+      s2_body: "La ricerca per tag usa fuzzy matching: trova \"airone\" anche se il tag scritto è \"airone cenerino\". Tolleranza configurabile per gestire varianti linguistiche.",
+      s3_title: "Ricerca per similarità visiva",
+      s3_body: "Seleziona un'immagine e cerca le visualmente simili tramite embedding DINOv2. Utile per trovare varianti dello stesso scatto o near-duplicate prima del culling.",
+      s4_title: "25+ formati RAW supportati",
+      s4_body: "Canon CR2/CR3, Nikon NEF/NRW, Sony ARW, Fujifilm RAF, Olympus ORF, Panasonic RW2, Pentax PEF/DNG, Leica DNG, Phase One IIQ e altri. Più JPG, PNG, TIFF, HEIC.",
+      s5_kicker: "i18n", s5_title: "Interfaccia multilingua",
+      s5_body: "GUI disponibile in italiano, inglese, francese, tedesco, spagnolo e portoghese. Output LLM configurabile separatamente in qualsiasi lingua supportata dal modello locale.",
+      s6_kicker: "Gallery", s6_title: "Badge visuali in gallery",
+      s6_body: "Ogni miniatura mostra in overlay i badge AI: punteggio estetico, qualità tecnica, rating Lightroom, label colore. Informazioni immediate senza aprire i dettagli.",
+      g4_eyebrow: "Plugin", g4_title: "Un'architettura pensata per crescere.",
+      g4_sub: "Aggiungi e cambia backend LLM, integra nuove sorgenti dati — senza modificare il core dell'applicazione.",
+      pd_type_llm: "Backend LLM", pd_type_bio: "Fotografia naturalistica",
+      pd_ollama_1: "Collega OffGallery a un server Ollama locale per la generazione di tag, titoli e descrizioni fotografiche in linguaggio naturale.",
+      pd_ollama_2: "Comunicazione via API REST locale (porta 11434). Auto-discovery all'avvio se il server è attivo.",
+      pd_lms_1: "Usa LM Studio come server locale compatibile OpenAI. Ideale per chi preferisce un'interfaccia grafica per la gestione dei modelli e la configurazione della quantizzazione.",
+      pd_lms_2: "Compatibile con qualsiasi modello vision caricato in LM Studio via API locale (porta 1234).",
+      pd_bio_1: "Arricchisce i tag generati da BioCLIP con i nomi comuni delle specie in più lingue. Un airone cenere diventa anche \"grey heron\", \"héron cendré\", \"Graureiher\" — automaticamente, offline.",
+      pd_bio_2: "I dati provengono dal database GBIF, bundled localmente. Nessuna connessione internet richiesta dopo l'installazione.",
+      pd_bio_3: "Indispensabile per fotografi wildlife, botanici e naturalisti che archiviano grandi volumi di foto con soggetti biologici identificati da BioCLIP.",
+      pd_models_label: "Modelli consigliati",
+      pd_badge_beta_tester: "Gratuito per beta tester", pd_badge_beta: "Gratuito per beta tester — accesso limitato",
+      cta_title: "Pronto a iniziare?",
+      cta_body: "Scarica OffGallery e porta la tua catalogazione fotografica in locale.",
+      f_home: "Homepage", f_github: "GitHub", f_manual: "Manuale utente",
+      f_beta: "Beta Access", f_contact: "Contatto",
+      f_license: "Licenza AGPLv3 — Software libero",
+      footer_desc: "Catalogazione fotografica intelligente, offline e privata. Open source, AGPLv3.",
+      donate_label: "Supporta il progetto",
+      donate_footer_text: "OffGallery è sviluppato nel tempo libero.<br />Una donazione fa la differenza.",
+      donate_btn: "Supporta su Ko-fi",
+    },
+    en: {
+      brand_subtitle: "Photo cataloging with local AI",
+      nav_features: "Features", nav_plugins: "Plugins",
+      nav_beta: "Beta Access", nav_allfeatures: "All features",
+      back_home: "← Back to homepage",
+      hero_download: "Download OffGallery",
+      page_eyebrow: "AI · Metadata · Search · Plugins",
+      page_title: "All features.",
+      page_sub: "A complete overview of what OffGallery offers professional photographers.",
+      toc_ai: "AI & analysis", toc_meta: "Metadata & integration",
+      toc_search: "Search & organization", toc_plugins: "Plugins",
+      g1_eyebrow: "AI & analysis", g1_title: "Local AI models, orchestrated in one system.",
+      g1_sub: "All models run locally. After the first download, no internet connection is needed.",
+      ai1_kicker: "CLIP", ai1_title: "CLIP semantic search",
+      ai1_body: "CLIP (ViT-L/14, 768 dimensions) matches text queries against the visual content of every image. Italian queries are translated offline via argostranslate before encoding.",
+      ai2_kicker: "DINOv2", ai2_title: "DINOv2 visual similarity",
+      ai2_body: "DINOv2 generates visual embeddings for similarity search: find images similar to a selected one and detect near-duplicates in the archive.",
+      ai3_kicker: "BioCLIP", ai3_title: "BioCLIP species recognition",
+      ai3_body: "BioCLIP v2 recognizes approximately 450,000 biological species from TreeOfLife. Produces a complete 7-level taxonomic hierarchy: kingdom, phylum, class, order, family, genus, species.",
+      ai4_kicker: "LLM Vision", ai4_title: "Local LLM Vision",
+      ai4_body: "Generates titles, descriptions and tags in natural language via local vision models (Qwen3-VL-4B and larger). Nothing sent online. Output in Italian or any other configurable language.",
+      ai5_kicker: "Aesthetic", ai5_title: "Aesthetic scoring",
+      ai5_body: "Aesthetic score from 0 to 10 based on a scoring model trained on photographic datasets. Displayed in gallery as an overlay badge on each thumbnail.",
+      ai6_kicker: "MUSIQ", ai6_title: "Technical quality MUSIQ",
+      ai6_body: "MUSIQ analyzes perceived technical quality: sharpness, noise, blur. Score separate from aesthetics — useful for quickly discarding technically failed shots.",
+      g2_eyebrow: "Metadata & integration", g2_title: "Compatible with existing photographic workflows.",
+      g2_sub: "XMP, Lightroom, EXIF, offline geolocation. No disruption to your workflow.",
+      m1_title: "Bidirectional XMP sidecar",
+      m1_body: "Import and export metadata via standard XMP sidecars. Tags, ratings, descriptions and taxonomic hierarchies compatible with Lightroom, Capture One, digiKam and others.",
+      m2_title: "Lightroom catalog import",
+      m2_body: "Reads .lrcat catalogs (SQLite) read-only. Imports the file list with ratings, flags and color labels directly from Lightroom Classic, without touching the original catalog.",
+      m3_title: "Full EXIF extraction",
+      m3_body: "ExifTool extracts over 200 EXIF/IPTC/XMP fields: camera, lens, ISO, aperture, speed, GPS data, copyright, flash. Searchable and filterable from the search tab.",
+      m4_title: "Offline geolocation",
+      m4_body: "GPS coordinates are converted to geographic hierarchy (Continent › Country › Region › City) offline via reverse_geocoder with bundled GeoNames data. No external API.",
+      m5_kicker: "Stats", m5_title: "Archive statistics",
+      m5_body: "Stats tab with distribution by camera, lens, ISO, aperture, shutter speed, rating and color label. Quantitative overview of your photographic archive.",
+      m6_title: "CSV export",
+      m6_body: "Export metadata from the entire archive or a filtered selection to CSV for external analysis, readable backups or integration with other tools.",
+      g3_eyebrow: "Search & organization", g3_title: "Find any photo in seconds.",
+      g3_sub: "Semantic search, fuzzy matching, visual similarity. 25+ RAW formats supported.",
+      s1_kicker: "Search", s1_title: "Combined semantic + tag search",
+      s1_body: "Combine CLIP semantic search with filters for tags, Lightroom ratings, color labels, camera, lens, date and geographic location. All filters applicable simultaneously.",
+      s2_title: "Fuzzy tag matching",
+      s2_body: "Tag search uses fuzzy matching: finds \"heron\" even if the tag written is \"grey heron\". Configurable tolerance to handle linguistic variants.",
+      s3_title: "Visual similarity search",
+      s3_body: "Select an image and search for visually similar ones via DINOv2 embeddings. Useful for finding variants of the same shot or near-duplicates before culling.",
+      s4_title: "25+ RAW formats supported",
+      s4_body: "Canon CR2/CR3, Nikon NEF/NRW, Sony ARW, Fujifilm RAF, Olympus ORF, Panasonic RW2, Pentax PEF/DNG, Leica DNG, Phase One IIQ and more. Plus JPG, PNG, TIFF, HEIC.",
+      s5_kicker: "i18n", s5_title: "Multilingual interface",
+      s5_body: "GUI available in Italian, English, French, German, Spanish and Portuguese. LLM output language configurable separately in any language supported by the local model.",
+      s6_kicker: "Gallery", s6_title: "Visual badges in gallery",
+      s6_body: "Every thumbnail shows AI badges as overlay: aesthetic score, technical quality, Lightroom rating, color label. Immediate information without opening details.",
+      g4_eyebrow: "Plugins", g4_title: "An architecture built to grow.",
+      g4_sub: "Add and switch LLM backends, integrate new data sources — without modifying the core application.",
+      pd_type_llm: "LLM Backend", pd_type_bio: "Nature photography",
+      pd_ollama_1: "Connect OffGallery to a local Ollama server for natural language tag, title and description generation.",
+      pd_ollama_2: "Communication via local REST API (port 11434). Auto-discovered at startup if the server is running.",
+      pd_lms_1: "Use LM Studio as a local OpenAI-compatible server. Ideal for those who prefer a GUI for managing downloaded models and configuring quantization.",
+      pd_lms_2: "Compatible with any vision model loaded in LM Studio via local API (port 1234).",
+      pd_bio_1: "Enriches BioCLIP-generated tags with common species names in multiple languages. A grey heron becomes also \"airone cenerino\", \"héron cendré\", \"Graureiher\" — automatically, offline.",
+      pd_bio_2: "Data comes from the GBIF database, bundled locally. No internet connection required after installation.",
+      pd_bio_3: "Essential for wildlife, botanical and nature photographers archiving large volumes of photos with biological subjects identified by BioCLIP.",
+      pd_models_label: "Recommended models",
+      pd_badge_beta_tester: "Free for beta testers", pd_badge_beta: "Free for beta testers — limited access",
+      cta_title: "Ready to start?",
+      cta_body: "Download OffGallery and bring your photo cataloging in-house.",
+      f_home: "Homepage", f_github: "GitHub", f_manual: "User manual",
+      f_beta: "Beta Access", f_contact: "Contact",
+      f_license: "AGPLv3 License — Free software",
+      footer_desc: "Intelligent photo cataloging, offline and private. Open source, AGPLv3.",
+      donate_label: "Support the project",
+      donate_footer_text: "OffGallery is developed in free time.<br />A donation makes a difference.",
+      donate_btn: "Support on Ko-fi",
+    }
+  };
+
+  const FLAG_IT = `<svg width="22" height="15" viewBox="0 0 22 15" xmlns="http://www.w3.org/2000/svg"><rect width="7.33" height="15" fill="#009246"/><rect x="7.33" width="7.34" height="15" fill="#fff"/><rect x="14.67" width="7.33" height="15" fill="#ce2b37"/></svg>`;
+  const FLAG_EN = `<svg width="22" height="15" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#012169"/><path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="8"/><path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="5"/><rect x="25" width="10" height="40" fill="#fff"/><rect y="15" width="60" height="10" fill="#fff"/><rect x="27" width="6" height="40" fill="#C8102E"/><rect y="17" width="60" height="6" fill="#C8102E"/></svg>`;
+
+  let lang = 'it';
+  function applyLang(l) {
+    const t = T[l];
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const k = el.getAttribute('data-i18n');
+      if (!t[k]) return;
+      el.innerHTML = t[k];
+    });
+    document.documentElement.lang = l;
+    // mostra la bandiera della lingua di destinazione
+    const nextLang = l === 'it' ? 'en' : 'it';
+    const nextFlag = nextLang === 'en' ? FLAG_EN : FLAG_IT;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = nextFlag;
+    const newSvg = tmp.firstChild;
+    newSvg.id = 'flagIcon';
+    document.getElementById('flagIcon').replaceWith(newSvg);
+    document.getElementById('langLabel').textContent = nextLang.toUpperCase();
+  }
+  document.getElementById('langToggle').addEventListener('click', () => { lang = lang === 'it' ? 'en' : 'it'; applyLang(lang); });
+</script>
+</body>
+</html>
