@@ -1,3 +1,7 @@
+# Copyright (C) 2026  OffGallery / HEGOM
+# Licensed under the GNU Affero General Public License v3 — see LICENSE in project root.
+# Covered by the Plugin Interface Exception — see plugins/PLUGIN_LICENSE_EXCEPTION.md.
+
 """
 Loader e auto-detection dei plugin LLM Vision.
 
