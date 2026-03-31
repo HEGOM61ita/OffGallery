@@ -29,20 +29,32 @@ o distribuiti sotto licenze diverse dall'AGPLv3 — per produrre un'opera combin
 Questa eccezione si ispira alla **GCC Runtime Library Exception** e alla
 **GNU Classpath Exception**. **Non si applica a nessun altro file di OffGallery.**
 
-## Cosa significa in pratica
+## Riepilogo licenze per componente
 
 | Componente | Licenza | Note |
 |---|---|---|
 | OffGallery core | AGPLv3 | Tutti i file tranne i due sotto |
 | `plugins/base.py` | AGPLv3 + eccezione | Interfaccia pubblica plugin |
 | `plugins/loader.py` | AGPLv3 + eccezione | Loader plugin |
+| `plugins/llm_ollama/` | **OffGallery Plugins License v1.0** | Proprietaria, nessuna redistribuzione — vedi `plugins/llm_ollama/LICENSE` |
+| `plugins/llm_lmstudio/` | **OffGallery Plugins License v1.0** | Proprietaria, nessuna redistribuzione — vedi `plugins/llm_lmstudio/LICENSE` |
+| `plugins/bionomen/` | **OffGallery Plugins License v1.0** | Proprietaria, nessuna redistribuzione — vedi `plugins/bionomen/LICENSE` |
 | Plugin di terze parti che implementano `LLMVisionPlugin` | Libera scelta | Purché rispettino le 3 condizioni sopra |
-| `plugins/bionomen/` | Licenza separata (subprocess isolato) | Non soggetto a questa eccezione né all'AGPLv3 di OffGallery — è un processo indipendente |
 
-## Plugin inclusi in questo repository
+## Plugin ufficiali: OffGallery Plugins License
 
-I plugin inclusi nel repository ufficiale (`plugins/llm_ollama/`, `plugins/llm_lmstudio/`)
-sono distribuiti sotto AGPLv3 come il resto del progetto.
+I plugin inclusi nel repository ufficiale (`plugins/llm_ollama/`, `plugins/llm_lmstudio/`,
+`plugins/bionomen/`) sono distribuiti sotto la **OffGallery Plugins License v1.0**,
+una licenza proprietaria che:
+
+- Consente l'uso personale e professionale su singolo computer
+- Consente modifiche solo per uso personale, con obbligo di attribuzione
+- **Vieta** la redistribuzione a terzi (in forma sorgente o binaria)
+- **Vieta** l'uso multi-seat o SaaS senza licenza separata
+
+I testi completi si trovano nei rispettivi file `LICENSE` all'interno di ogni
+directory di plugin. Per ogni plugin è anche presente un `LEGAL_NOTICE.txt`
+che chiarisce il rapporto con questa eccezione.
 
 ## Avviso
 
