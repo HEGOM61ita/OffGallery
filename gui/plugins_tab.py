@@ -749,9 +749,10 @@ class LLMPluginCard(QFrame):
     # Segnale emesso quando l'utente clicca Configura (il ricevente apre la Config Tab)
     configure_requested = pyqtSignal()
 
-    def __init__(self, manifest: dict, parent=None):
+    def __init__(self, manifest: dict, config: dict = None, parent=None):
         super().__init__(parent)
         self._manifest = manifest
+        self._config = config or {}
 
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
@@ -835,7 +836,9 @@ class LLMPluginCard(QFrame):
 
     def _check_connection(self):
         """Verifica in background se l'endpoint del plugin è raggiungibile."""
-        endpoint = self._manifest.get("default_endpoint", "")
+        # Legge endpoint dalla config utente; fallback al default_endpoint del manifest
+        llm_cfg = self._config.get('embedding', {}).get('models', {}).get('llm_vision', {})
+        endpoint = llm_cfg.get('endpoint', '').strip() or self._manifest.get("default_endpoint", "")
         health_path = self._manifest.get("health_check_path", "")
         if not endpoint or not health_path:
             self.lbl_status.setText("⚠️ Endpoint non configurato")
@@ -847,7 +850,7 @@ class LLMPluginCard(QFrame):
             try:
                 import urllib.request
                 req = urllib.request.Request(url, method="GET")
-                with urllib.request.urlopen(req, timeout=2) as resp:
+                with urllib.request.urlopen(req, timeout=5) as resp:
                     return resp.status == 200
             except Exception:
                 return False
@@ -962,6 +965,15 @@ class PluginsTab(QWidget):
             self._no_plugins_label.show()
             return
 
+        # Carica config utente per passarla alle LLMPluginCard
+        app_config = {}
+        try:
+            import yaml
+            with open(self._config_path, "r", encoding="utf-8") as f:
+                app_config = yaml.safe_load(f) or {}
+        except Exception:
+            pass
+
         any_found = False
         for manifest_path in sorted(plugins_dir.rglob("manifest.json")):
             try:
@@ -989,6 +1001,7 @@ class PluginsTab(QWidget):
             elif plugin_type == "llm_backend":
                 card = LLMPluginCard(
                     manifest=manifest,
+                    config=app_config,
                     parent=self._cards_container,
                 )
                 card.configure_requested.connect(self.navigate_to_config.emit)
