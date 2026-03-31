@@ -820,23 +820,60 @@ Destination (e.g. E:\Backup):
       <td><code>http://localhost:1234</code></td>
       <td>Optimised for OpenAI-compatible API. AMD/DirectML support, <code>lms</code> CLI unload. Recommended VL models: qwen3-VL</td>
     </tr>
+    <tr>
+      <td><strong>BioNomen</strong></td>
+      <td>—</td>
+      <td>—</td>
+      <td>Common and scientific names for biological species (Aves, Mammalia, Insecta, Plantae…). Offline database downloadable from GBIF. Configurable via Config → Plugin → BioNomen</td>
+    </tr>
   </tbody>
 </table>
 
-<p>To receive the plugins, write to: <strong><a href="mailto:offgallery.ai.info@gmail.com">offgallery.ai.info@gmail.com</a></strong></p>
-<p style="font-size:0.9em; color:#888;">The email address provided will be used exclusively to send the requested plugin and for any necessary update notifications. It will not be used for any other purpose or shared with third parties.</p>
+<p>Plugins are distributed via the private <strong>OffGallery_BETA</strong> repository, available to authorised beta testers. To request access: <strong><a href="mailto:offgallery.ai.info@gmail.com">offgallery.ai.info@gmail.com</a></strong></p>
+<p style="font-size:0.9em; color:#888;">The email address provided will be used exclusively to grant access to the plugins and for update notifications. It will not be used for any other purpose or shared with third parties.</p>
 
-<h3>Installing a plugin (from zip)</h3>
+<h3>Installing plugins (from the beta repo)</h3>
+
+<p>Full instructions are in <code>plugins/INSTALL.md</code> inside the beta repo. In brief:</p>
+
 <ol>
-  <li>Extract the zip contents into the <code>plugins/</code> folder of your OffGallery installation</li>
-  <li>The resulting structure should be:
-    <pre>plugins/
-└── llm_ollama/
-    ├── __init__.py
-    ├── plugin.py
-    └── manifest.json</pre>
+  <li><strong>Clone the beta repo</strong> into any folder (not inside OffGallery):
+    <pre>git clone https://github.com/HEGOM61ita/OffGallery_BETA.git offgallery-beta
+cd offgallery-beta</pre>
   </li>
-  <li>Restart OffGallery — the plugin is detected automatically at startup, no additional configuration needed</li>
+  <li><strong>Run the installer</strong> for your operating system:
+    <ul>
+      <li><strong>Windows</strong> — double-click <code>install_plugins.bat</code></li>
+      <li><strong>macOS</strong> — double-click <code>install_plugins.command</code></li>
+      <li><strong>Linux</strong> — <code>bash install_plugins.sh</code></li>
+    </ul>
+    The installer automatically locates your OffGallery installation and copies the plugins into the correct location.
+  </li>
+  <li><strong>Restart OffGallery</strong> — plugins are detected automatically at startup. In the Log panel you will see:
+    <pre>Plugin LLM attivo: Ollama
+Plugin LLM attivo: LM Studio
+BioNomen: plugin disponibile</pre>
+  </li>
+</ol>
+
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>OffGallery not found automatically?</strong>
+    <p>If the installer cannot locate your OffGallery folder, specify it manually:<br>
+    <code>python install_plugins.py --target "C:/path/to/OffGallery"</code></p>
+  </div>
+</div>
+
+<h3>BioNomen plugin — species database</h3>
+
+<p>The species database is <strong>not included</strong> in the repo: each user downloads the taxa they need. The download uses GBIF and requires internet only once; all subsequent use is fully offline.</p>
+
+<ol>
+  <li>Start OffGallery</li>
+  <li>Go to <strong>Config → Plugin → BioNomen → Configure</strong></li>
+  <li>Select the taxa of interest (Aves, Mammalia, Reptilia, Amphibia, Insecta, Plantae)</li>
+  <li>Click <strong>Download database</strong></li>
 </ol>
 
 <h3>Switching backends</h3>
