@@ -15,6 +15,13 @@ from PIL import Image
 from io import BytesIO
 from utils.subprocess_utils import subprocess_creation_kwargs
 
+# Registra il supporto HEIC/HEIF in Pillow (se pillow-heif è installato)
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+except ImportError:
+    pass
+
 logger = logging.getLogger(__name__)
 
 
@@ -1076,8 +1083,9 @@ class RAWProcessor:
             # Calcola varianza media tra i canali
             avg_variance = (np.mean(rg_diff) + np.mean(rb_diff) + np.mean(gb_diff)) / 3
             
-            # Soglia empirica: se varianza < 3, probabilmente B/N
-            is_bw = avg_variance < 3.0
+            # Soglia empirica: se varianza < 1.5, probabilmente B/N
+            # (3.0 era troppo permissivo: classificava come B/N immagini quasi monocromatiche)
+            is_bw = avg_variance < 1.5
             
             logger.info(f"🔬 Analisi B/N dettagliata - Varianza: {avg_variance:.2f}, B/N: {is_bw}")
             return is_bw

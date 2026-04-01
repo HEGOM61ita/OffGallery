@@ -29,6 +29,7 @@ reverse_geocoder
 
 # === IMAGE PROCESSING ===
 pillow
+pillow-heif
 rawpy
 opencv-python-headless
 numpy
