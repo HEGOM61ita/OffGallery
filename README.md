@@ -348,7 +348,7 @@ offgallery/
 ## Formati Supportati
 
 ### Immagini Standard
-`JPG` `JPEG` `PNG` `TIFF` `TIF` `WEBP` `BMP`
+`JPG` `JPEG` `PNG` `TIFF` `TIF` `WEBP` `BMP` `HEIC`
 
 ### Formati RAW
 | Produttore | Formati |
@@ -707,7 +707,7 @@ Switching backends does not require a restart. Tags and descriptions already in 
 
 ## Supported Formats
 
-**Standard:** `JPG` `JPEG` `PNG` `TIFF` `TIF` `WEBP` `BMP`
+**Standard:** `JPG` `JPEG` `PNG` `TIFF` `TIF` `WEBP` `BMP` `HEIC`
 
 **RAW:**
 
