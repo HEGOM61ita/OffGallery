@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OffGallery — Il tuo archivio. La tua AI. Zero cloud.</title>
+  <meta name="description" content="OffGallery — Catalogazione fotografica intelligente con AI locale. Ricerca semantica, riconoscimento specie, sync Lightroom. Zero cloud, privacy totale." />
+  <meta name="keywords" content="OffGallery, fotografia, AI locale, offline, catalogazione foto, ricerca semantica, Lightroom, privacy" />
+  <meta property="og:title" content="OffGallery — Il tuo archivio. La tua AI. Zero cloud." />
+  <meta property="og:description" content="Catalogazione intelligente per fotografi professionisti. AI locale, nessun dato inviato online." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:           #f5f7fb;
+      --surface:      #ffffff;
+      --surface-2:    #eef3fb;
+      --text:         #0f172a;
+      --text-soft:    #475569;
+      --text-faint:   #64748b;
+      --line:         rgba(15,23,42,0.08);
+      --brand-navy:   #071b49;
+      --brand-blue:   #0a5bff;
+      --brand-cyan:   #22d3ee;
+      --shadow-sm:    0 8px 22px rgba(15,23,42,0.06);
+      --shadow-md:    0 18px 48px rgba(15,23,42,0.10);
+      --shadow-brand: 0 18px 42px rgba(7,27,73,0.20);
+      --radius-sm:    12px;
+      --radius-full:  999px;
+      --container:    1180px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: "Inter", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(34,211,238,0.08), transparent 30%),
+        linear-gradient(180deg, #f8fbff 0%, #f4f7fc 100%);
+      color: var(--text); line-height: 1.6;
+      padding-left: 100px;
+    }
+    img { display: block; max-width: 100%; height: auto; }
+    a { color: inherit; text-decoration: none; }
+    .container { width: min(var(--container), calc(100% - 32px)); margin: 0 auto; }
+
+    /* ── SIDENAV ── */
+    .sidenav {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: 100px; z-index: 200;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 18px 0 24px;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(16px);
+      border-right: 1px solid var(--line);
+      box-shadow: 2px 0 18px rgba(7,27,73,0.06);
+    }
+    .sidenav-logo {
+      display: flex; align-items: center; justify-content: center;
+      width: 44px; height: 44px; border-radius: 14px;
+      background: var(--brand-navy);
+      box-shadow: 0 6px 18px rgba(7,27,73,0.28);
+      margin-bottom: 10px; flex-shrink: 0;
+    }
+    .sidenav-logo img { height: 26px; width: auto; }
+    .sidenav-divider {
+      width: 28px; height: 1px;
+      background: var(--line); margin: 8px 0 12px;
+      flex-shrink: 0;
+    }
+    .sidenav-items {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 4px;
+      flex: 1; width: 100%;
+    }
+    .sidenav-item {
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      width: 76px; height: 76px; border-radius: 18px;
+      color: var(--text-faint);
+      transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+      cursor: pointer;
+    }
+    .sidenav-item svg {
+      width: 44px; height: 44px;
+      stroke: currentColor; fill: none;
+      stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
+      transition: stroke 0.18s;
+    }
+    .sidenav-item:hover,
+    .sidenav-item.active {
+      background: rgba(10,91,255,0.08);
+      color: var(--brand-blue);
+      box-shadow: 0 0 0 1px rgba(10,91,255,0.12);
+    }
+    .sidenav-item.active {
+      background: rgba(10,91,255,0.13);
+    }
+    /* dot indicatore voce attiva */
+    .sidenav-item.active::before {
+      content: '';
+      position: absolute; left: -1px; top: 50%; transform: translateY(-50%);
+      width: 3px; height: 22px; border-radius: 0 3px 3px 0;
+      background: var(--brand-blue);
+    }
+    /* tooltip */
+    .sidenav-item .sn-tip {
+      pointer-events: none;
+      position: absolute; left: 88px; top: 50%; transform: translateY(-50%);
+      white-space: nowrap;
+      background: var(--brand-navy); color: #fff;
+      font-size: 0.78rem; font-weight: 600; letter-spacing: 0.01em;
+      padding: 6px 12px; border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(7,27,73,0.22);
+      opacity: 0; translate: -6px 0;
+      transition: opacity 0.18s, translate 0.18s;
+    }
+    .sidenav-item .sn-tip::before {
+      content: '';
+      position: absolute; right: 100%; top: 50%; transform: translateY(-50%);
+      border: 5px solid transparent;
+      border-right-color: var(--brand-navy);
+    }
+    .sidenav-item:hover .sn-tip {
+      opacity: 1; translate: 0 0;
+    }
+    /* highlight accent sul tooltip */
+    .sidenav-item:hover .sn-tip { background: var(--brand-blue); }
+    .sidenav-item:hover .sn-tip::before { border-right-color: var(--brand-blue); }
+
+    /* Mobile: barra orizzontale in basso */
+    @media (max-width: 768px) {
+      body { padding-left: 0; padding-bottom: 64px; }
+      .sidenav {
+        top: auto; bottom: 0; left: 0; right: 0;
+        width: 100%; height: 64px;
+        flex-direction: row; justify-content: space-around;
+        padding: 0 8px;
+        border-right: none; border-top: 1px solid var(--line);
+        box-shadow: 0 -2px 18px rgba(7,27,73,0.07);
+      }
+      .sidenav-logo, .sidenav-divider { display: none; }
+      .sidenav-items { flex-direction: row; gap: 0; justify-content: space-around; width: 100%; }
+      .sidenav-item { width: 64px; height: 64px; }
+      .sidenav-item .sn-tip {
+        left: 50%; translate: -50% 0;
+        top: auto; bottom: 58px; transform: none;
+      }
+      .sidenav-item:hover .sn-tip { translate: -50% 0; }
+      .sidenav-item .sn-tip::before {
+        right: auto; left: 50%; top: 100%; transform: translateX(-50%);
+        border-right-color: transparent;
+        border-top-color: var(--brand-blue);
+        border-bottom: none;
+      }
+      .sidenav-item.active::before { display: none; }
+    }
+
+    /* ── HEADER ── */
+    .site-header {
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(16px);
+      background: rgba(255,255,255,0.92);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav {
+      min-height: 120px;
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 24px;
+    }
+    .nav-left { display: flex; align-items: center; gap: 36px; min-width: 0; }
+    .brand { display: inline-flex; align-items: center; gap: 18px; flex: 0 0 auto; }
+    .brand-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 14px 22px; border-radius: 18px;
+      background: var(--brand-navy); box-shadow: var(--shadow-brand);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .brand-badge img { height: 72px; width: auto; max-width: none; }
+    .brand-meta { display: flex; flex-direction: column; gap: 4px; }
+    .brand-name { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
+    .brand-subtitle { font-size: 0.84rem; color: var(--text-faint); }
+.nav-actions { display: flex; align-items: center; gap: 10px; }
+
+    /* ── LANG TOGGLE ── */
+    .lang-toggle {
+      display: inline-flex; align-items: center; gap: 7px;
+      min-height: 40px; padding: 0 14px;
+      border-radius: var(--radius-full);
+      font-weight: 600; font-size: 0.85rem;
+      border: 1px solid var(--line); background: var(--surface);
+      color: var(--text-soft); cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      font-family: "Inter", sans-serif; transition: 180ms ease;
+    }
+    .lang-toggle:hover { color: var(--brand-blue); border-color: rgba(10,91,255,0.2); }
+    .lang-toggle svg { flex-shrink: 0; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 48px; padding: 0 22px;
+      border-radius: var(--radius-full);
+      font-weight: 600; font-size: 0.95rem;
+      transition: 180ms ease; border: 1px solid transparent; white-space: nowrap;
+    }
+    .btn-secondary {
+      background: var(--surface); border-color: var(--line);
+      color: var(--text); box-shadow: var(--shadow-sm);
+    }
+    .btn-secondary:hover { border-color: rgba(10,91,255,0.18); color: var(--brand-blue); }
+    .btn-primary {
+      background: linear-gradient(180deg, #0d67ff 0%, #084ce0 100%);
+      color: white; box-shadow: 0 14px 28px rgba(10,91,255,0.24);
+    }
+    .btn-primary:hover { transform: translateY(-1px); }
+
+    /* ── HERO ── */
+    .hero { padding: 52px 0 40px; }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0,1.2fr) minmax(320px,430px);
+      gap: 36px; align-items: start;
+    }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 8px 14px; border-radius: var(--radius-full);
+      background: rgba(10,91,255,0.08); color: #1145b5;
+      font-size: 0.86rem; font-weight: 600; margin-bottom: 18px;
+    }
+
+    /* hero-notes sopra il titolo */
+    .hero-notes {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 20px;
+    }
+    .hero-notes span {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 7px 14px; border-radius: var(--radius-full);
+      font-size: 0.86rem; font-weight: 500;
+      border: 1px solid rgba(15,23,42,0.07);
+    }
+    .note-privacy  { background: #e8f4e8; color: #2d6a2d; }
+    .note-ai       { background: #e8eeff; color: #1a3acc; }
+    .note-oss      { background: #fff4e0; color: #7a4a00; }
+
+    .hero h1 {
+      font-size: clamp(1.9rem, 3.6vw, 3.2rem);
+      line-height: 1.05; letter-spacing: -0.04em;
+      max-width: 16ch; margin-bottom: 18px;
+    }
+    .hero h1 .accent { color: var(--brand-blue); }
+    .hero-lead {
+      font-size: clamp(0.98rem, 1.2vw, 1.08rem);
+      color: var(--text-soft); max-width: 58ch; margin-bottom: 28px;
+    }
+    .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+
+    /* ── DOWNLOAD CARD ── */
+    .download-card {
+      position: relative; overflow: hidden;
+      padding: 28px; border-radius: 24px;
+      background: linear-gradient(180deg, #0c3d97 0%, #071b49 100%);
+      color: white; box-shadow: var(--shadow-brand);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .download-card::before {
+      content: ""; position: absolute;
+      inset: auto -40px -50px auto; width: 180px; height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(34,211,238,0.28), transparent 70%);
+    }
+    .download-label {
+      font-size: 0.78rem; text-transform: uppercase;
+      letter-spacing: 0.11em; color: rgba(255,255,255,0.65); margin-bottom: 12px;
+    }
+    .download-card h2 {
+      font-size: clamp(1.3rem, 1.9vw, 1.8rem); line-height: 1.1;
+      letter-spacing: -0.03em; margin-bottom: 12px; max-width: 14ch;
+    }
+    .download-card p { color: rgba(255,255,255,0.82); font-size: 0.94rem; margin-bottom: 18px; max-width: 32ch; }
+    .download-meta { display: grid; gap: 10px; margin: 16px 0 20px; }
+    .download-meta div {
+      display: flex; justify-content: space-between; gap: 12px;
+      font-size: 0.9rem; padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .download-meta span:first-child { color: rgba(255,255,255,0.60); }
+    .download-meta strong { color: #fff; font-weight: 600; }
+    .download-card .btn-dl {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; min-height: 48px;
+      background: #ffffff; color: var(--brand-navy);
+      border: none; border-radius: var(--radius-full);
+      font-weight: 700; font-size: 0.96rem;
+      font-family: "Inter", sans-serif; cursor: pointer;
+      transition: 180ms ease; text-decoration: none;
+    }
+    .download-card .btn-dl:hover { background: #eaf1ff; }
+
+    /* ── DONATE BAND ── */
+    .donate-band {
+      margin-top: 18px; padding: 20px 24px;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 18px; text-align: center;
+    }
+    .donate-band p {
+      font-size: 0.88rem; color: rgba(255,255,255,0.85);
+      margin-bottom: 12px; line-height: 1.5;
+    }
+    .donate-band p strong { color: #fff; }
+    .btn-kofi {
+      display: inline-flex; align-items: center; gap: 8px;
+      min-height: 42px; padding: 0 22px;
+      background: #ff5e5b; color: white;
+      border: none; border-radius: var(--radius-full);
+      font-weight: 700; font-size: 0.9rem;
+      font-family: "Inter", sans-serif; cursor: pointer;
+      text-decoration: none; transition: 180ms ease;
+      box-shadow: 0 4px 12px rgba(255,94,91,0.22);
+      opacity: 0.85;
+    }
+    .btn-kofi:hover { transform: translateY(-1px); background: #ff4441; opacity: 1; }
+
+    /* ── TRUST STRIP ── */
+    .trust-strip { padding: 16px 0; }
+    .trust-panel {
+      background: rgba(255,255,255,0.7); border: 1px solid var(--line);
+      border-radius: 20px; padding: 16px 20px;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .trust-title {
+      font-size: 0.82rem; color: var(--text-faint);
+      font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+    }
+    .trust-list { display: flex; flex-wrap: wrap; gap: 10px; }
+    .trust-list span {
+      font-size: 0.9rem; font-weight: 500;
+      padding: 5px 14px; border-radius: var(--radius-full);
+      border: 1px solid rgba(15,23,42,0.07);
+    }
+    .trust-list span:nth-child(1) { background: #e8f4e8; color: #2d6a2d; }
+    .trust-list span:nth-child(2) { background: #e8eeff; color: #1a3acc; }
+    .trust-list span:nth-child(3) { background: #fff4e0; color: #7a4a00; }
+    .trust-list span:nth-child(4) { background: #fce8f3; color: #8b1a5a; }
+    .trust-list span:nth-child(5) { background: #e8f7ff; color: #0c5a8a; }
+    .trust-list span:nth-child(6) { background: #f0ffe8; color: #3a6a10; }
+
+    /* ── SECTION DIVIDER ── */
+    .section-divider {
+      width: 100%; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--line) 20%, var(--line) 80%, transparent);
+      margin: 0;
+    }
+
+    /* ── SECTIONS ── */
+    section { padding: 36px 0; }
+    .section-head { margin-bottom: 24px; max-width: 760px; }
+    .section-head h2 {
+      font-size: clamp(1.65rem, 2.5vw, 2.4rem);
+      line-height: 1.06; letter-spacing: -0.04em; margin-bottom: 10px;
+    }
+    .section-head p { color: var(--text-soft); font-size: 1rem; }
+
+    /* ── PROBLEM ── */
+    .problem-intro {
+      font-size: 0.92rem; font-weight: 600; color: var(--text-faint);
+      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px;
+    }
+    .problem-bullets {
+      padding-left: 1.2rem; color: var(--text-soft); font-size: 0.96rem;
+      margin-bottom: 24px; line-height: 1.7;
+    }
+    .problem-bullets li + li { margin-top: 4px; }
+    .problem-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+    .problem-card {
+      background: rgba(255,255,255,0.84); border: 1px solid var(--line);
+      border-radius: 22px; padding: 26px; box-shadow: var(--shadow-sm);
+    }
+    .problem-card h3 { font-size: 1.06rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 10px; }
+    .problem-card p { color: var(--text-soft); font-size: 0.94rem; }
+
+    /* ── FEATURE GRID ── */
+    .feature-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; }
+    .feature-card {
+      background: rgba(255,255,255,0.84); border: 1px solid var(--line);
+      border-radius: 22px; padding: 26px; box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .feature-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .feature-icon { width: 40px; height: 40px; margin-bottom: 16px; color: var(--brand-blue); }
+    .feature-icon svg {
+      width: 100%; height: 100%; stroke: currentColor; fill: none;
+      stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .feature-kicker {
+      font-size: 0.74rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.12em; color: #3b5bcc; margin-bottom: 8px;
+    }
+    .feature-card h3 { font-size: 1.1rem; line-height: 1.2; margin-bottom: 8px; letter-spacing: -0.02em; }
+    .feature-card p { color: var(--text-soft); font-size: 0.93rem; }
+    .feature-footnote {
+      font-size: 0.76rem; color: var(--text-faint);
+      margin-top: 12px; padding-top: 10px;
+      border-top: 1px solid var(--line); line-height: 1.5;
+    }
+    .features-cta { margin-top: 28px; text-align: center; }
+
+    /* ── SCREENSHOTS ── */
+    .screenshot-main {
+      width: 100%; aspect-ratio: 16/9;
+      background: var(--surface-2); border: 1px solid var(--line);
+      border-radius: 18px; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-faint); font-size: 0.82rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      margin-bottom: 18px; box-shadow: var(--shadow-md);
+    }
+    .screenshot-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .screenshot-small {
+      aspect-ratio: 16/9; background: var(--surface-2);
+      border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-faint); font-size: 0.8rem;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      box-shadow: var(--shadow-sm);
+    }
+    .screenshot-main img, .screenshot-small img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* ── PLUGINS ── */
+    .plugins-intro { color: var(--text-soft); font-size: 0.96rem; max-width: 680px; margin-bottom: 24px; }
+    .plugins-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; }
+    .plugin-card {
+      background: rgba(255,255,255,0.84); border: 1px solid var(--line);
+      border-radius: 22px; padding: 26px; box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .plugin-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .plugin-icon { width: 36px; height: 36px; margin-bottom: 14px; color: var(--text-faint); }
+    .plugin-icon svg {
+      width: 100%; height: 100%; stroke: currentColor; fill: none;
+      stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .plugin-type {
+      font-size: 0.73rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.12em; color: #3b5bcc; margin-bottom: 8px;
+    }
+    .plugin-card h3 { font-size: 1.08rem; letter-spacing: -0.02em; margin-bottom: 8px; }
+    .plugin-card p { color: var(--text-soft); font-size: 0.91rem; }
+    .plugin-badge {
+      display: inline-block; margin-top: 14px;
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+      padding: 4px 12px; border-radius: var(--radius-full);
+      background: rgba(15,23,42,0.05); color: var(--text-faint);
+    }
+    .plugin-badge.beta {
+      background: rgba(10,91,255,0.08); color: var(--brand-blue);
+    }
+    .plugin-badge.beta { background: rgba(255,140,0,0.1); color: #c06800; }
+
+    /* ── PLUGIN ACCESS BAND ── */
+    .plugin-access-band {
+      padding: 28px; border-radius: 24px;
+      background: rgba(255,255,255,0.7);
+      border: 1px solid var(--line); box-shadow: var(--shadow-sm);
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 22px; flex-wrap: wrap;
+    }
+    .plugin-access-band h3 { font-size: clamp(1.1rem, 1.8vw, 1.5rem); line-height: 1.15; margin-bottom: 6px; letter-spacing: -0.02em; }
+    .plugin-access-band p { color: var(--text-soft); max-width: 52ch; font-size: 0.95rem; }
+
+    /* ── CTA BAND ── */
+    .cta-band {
+      padding: 28px; border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(235,243,255,0.92));
+      border: 1px solid rgba(10,91,255,0.10); box-shadow: var(--shadow-md);
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 22px; flex-wrap: wrap;
+    }
+    .cta-band h3 { font-size: clamp(1.2rem, 2vw, 1.7rem); line-height: 1.1; margin-bottom: 6px; letter-spacing: -0.03em; }
+    .cta-band p { color: var(--text-soft); max-width: 52ch; }
+
+    /* ── FOOTER ── */
+    footer { padding: 36px 0 56px; }
+    .footer-inner {
+      border-top: 1px solid var(--line); padding-top: 28px;
+      display: grid; grid-template-columns: 1fr auto;
+      gap: 32px; align-items: start;
+    }
+    .footer-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .footer-brand-badge { padding: 7px 12px; border-radius: 12px; background: var(--brand-navy); }
+    .footer-brand-badge img { height: 26px; width: auto; max-width: none; }
+    .footer-brand-name { font-size: 1rem; font-weight: 700; color: var(--text); }
+    .footer-desc { color: var(--text-faint); font-size: 0.86rem; max-width: 360px; margin-bottom: 18px; }
+    .footer-links { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 18px; }
+    .footer-links a { font-size: 0.86rem; color: var(--text-faint); font-weight: 500; transition: color 0.15s; }
+    .footer-links a:hover { color: var(--brand-blue); }
+    .footer-legal { font-size: 0.78rem; color: var(--text-faint); }
+    .footer-donate { text-align: right; }
+    .footer-donate-label {
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-faint); margin-bottom: 8px;
+    }
+    .footer-donate p { font-size: 0.88rem; color: var(--text-soft); margin-bottom: 14px; line-height: 1.5; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 1080px) {
+      .hero-grid, .feature-grid, .plugins-grid, .problem-grid { grid-template-columns: 1fr; }
+      .footer-inner { grid-template-columns: 1fr; }
+      .footer-donate { text-align: left; }
+    }
+    @media (max-width: 720px) {
+      .container { width: min(var(--container), calc(100% - 20px)); }
+      .hero { padding-top: 28px; }
+      .screenshot-row { grid-template-columns: 1fr; }
+      .brand-badge img { height: 52px; }
+      .hero-actions .btn, .nav-actions .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── SIDENAV ── -->
+<nav class="sidenav" aria-label="Navigazione laterale">
+  <a href="#" class="sidenav-logo" aria-label="Home">
+    <img src="assets/logo3.jpg" alt="OffGallery" />
+  </a>
+  <div class="sidenav-divider"></div>
+  <div class="sidenav-items">
+
+    <!-- Home -->
+    <a href="#" class="sidenav-item active" id="sn-home">
+      <svg viewBox="0 0 24 24">
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H15v-5h-6v5H4a1 1 0 0 1-1-1V9.5z"/>
+      </svg>
+      <span class="sn-tip" data-i18n="nav_home">Home</span>
+    </a>
+
+    <!-- Funzionalità -->
+    <a href="#features" class="sidenav-item" id="sn-features">
+      <svg viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+        <path d="M17.5 14v6M14.5 17h6"/>
+      </svg>
+      <span class="sn-tip" data-i18n="nav_features">Funzionalità</span>
+    </a>
+
+    <!-- Plugin -->
+    <a href="#plugins" class="sidenav-item" id="sn-plugins">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 2l2.5 4.5H20l-4 3.5 1.5 5.5L12 13l-5.5 2.5L8 10 4 6.5h5.5L12 2z"/>
+      </svg>
+      <span class="sn-tip" data-i18n="nav_plugins">Plugin</span>
+    </a>
+
+    <!-- Accesso plugin -->
+    <a href="#beta" class="sidenav-item" id="sn-beta">
+      <svg viewBox="0 0 24 24">
+        <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>
+      </svg>
+      <span class="sn-tip" data-i18n="nav_beta">Accesso plugin</span>
+    </a>
+
+    <!-- Tutte le funzionalità -->
+    <a href="features.html" class="sidenav-item" id="sn-allfeatures">
+      <svg viewBox="0 0 24 24">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <path d="M9 12h6M9 16h4"/>
+      </svg>
+      <span class="sn-tip" data-i18n="nav_allfeatures">Tutte le feature</span>
+    </a>
+
+  </div>
+</nav>
+
+<!-- ── HEADER ── -->
+<header class="site-header">
+  <div class="container nav">
+    <div class="nav-left">
+      <a href="#" class="brand" aria-label="OffGallery Home">
+        <span class="brand-badge">
+          <img src="assets/logo3.jpg" alt="Logo OffGallery" width="866" height="402" loading="eager" />
+        </span>
+        <span class="brand-meta">
+          <span class="brand-name">OffGallery</span>
+          <span class="brand-subtitle" data-i18n="brand_subtitle">Catalogazione fotografica con AI locale</span>
+        </span>
+      </a>
+    </div>
+    <div class="nav-actions">
+      <button class="lang-toggle" id="langToggle" aria-label="Cambia lingua">
+        <!-- mostra la lingua di destinazione (EN quando si è in IT) -->
+        <svg id="flagIcon" width="22" height="15" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="40" fill="#012169"/>
+          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="8"/>
+          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="4.8"/>
+          <path d="M30,0 V40 M0,20 H60" stroke="#fff" stroke-width="13.3"/>
+          <path d="M30,0 V40 M0,20 H60" stroke="#C8102E" stroke-width="8"/>
+        </svg>
+        <span id="langLabel">EN</span>
+      </button>
+      <a class="btn btn-primary" href="https://github.com/HEGOM61ita/OffGallery/archive/refs/heads/main.zip" data-i18n="hero_download">Scarica OffGallery</a>
+    </div>
+  </div>
+</header>
+
+<!-- ── HERO ── -->
+<main>
+  <section class="hero">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <div class="eyebrow" data-i18n="hero_eyebrow">Offline first · Privacy totale · AI locale</div>
+
+        <!-- note SOPRA il titolo -->
+        <div class="hero-notes">
+          <span class="note-privacy" data-i18n="note1">✓ Nessuna foto inviata online</span>
+          <span class="note-ai" data-i18n="note2">✓ Modelli AI in locale</span>
+          <span class="note-oss" data-i18n="note3">✓ Open source · AGPLv3</span>
+        </div>
+
+        <h1 data-i18n="hero_title">Il tuo archivio.<br /><span class="accent">La tua AI.</span><br />Zero cloud.</h1>
+        <p class="hero-lead" data-i18n="hero_sub">Ricerca semantica, riconoscimento di 450.000 specie biologiche, valutazione estetica e sync Lightroom. Tutto sul tuo computer, tutto offline.</p>
+      </div>
+
+      <aside class="download-card" id="scarica">
+        <div class="download-label" data-i18n="dl_label">Scarica OffGallery</div>
+        <h2 data-i18n="dl_title">Analizza migliaia di RAW. Sul tuo computer. Offline.</h2>
+        <p data-i18n="dl_body">AI locale, privacy totale. Analizza migliaia di RAW senza connessione internet.</p>
+        <div class="download-meta">
+          <div><span data-i18n="dl_platform">Piattaforma</span><strong data-i18n="dl_platform_val">Windows · macOS · Linux</strong></div>
+          <div><span data-i18n="dl_lang">Lingue</span><strong data-i18n="dl_lang_val">IT · EN · FR · DE · ES · PT</strong></div>
+          <div><span data-i18n="dl_license">Licenza</span><strong>AGPLv3 · Open source</strong></div>
+        </div>
+        <a class="btn-dl" href="https://github.com/HEGOM61ita/OffGallery/archive/refs/heads/main.zip" data-i18n="hero_download">Scarica OffGallery</a>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ── TRUST STRIP ── -->
+  <section class="trust-strip">
+    <div class="container">
+      <div class="trust-panel">
+        <div class="trust-title" data-i18n="trust_for">Adatto a</div>
+        <div class="trust-list">
+          <span data-i18n="trust1">Fotoamatori evoluti</span>
+          <span data-i18n="trust2">Fotografi professionisti</span>
+          <span data-i18n="trust3">Archivi RAW numerosi</span>
+          <span data-i18n="trust4">Flessibilità workflow</span>
+          <span data-i18n="trust6">Compatibilità Lightroom e altri</span>
+          <span data-i18n="trust5">Wildlife e botanica</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <!-- ── PROBLEM ── -->
+  <section id="problem">
+    <div class="container">
+      <div class="section-head">
+        <p class="problem-intro" data-i18n="problem_title">Le tue foto: perché dovrebbero finire su un server altrui?</p>
+        <ul class="problem-bullets" data-i18n="problem_sub">
+          <li>I servizi cloud catalogano le tue immagini a distanza. OffGallery fa tutto in locale.</li>
+          <li>Lascia il compito della catalogazione al tuo computer.</li>
+          <li>Con gli appositi plugin, personalizza il tuo sistema e aggiungi nuove funzionalità.</li>
+        </ul>
+      </div>
+      <div class="problem-grid">
+        <div class="problem-card">
+          <h3 data-i18n="prob1_title">Cloud = perdita di controllo</h3>
+          <p data-i18n="prob1_body">I servizi cloud di catalogazione AI caricano le tue immagini su server remoti. I tuoi soggetti, le tue location, i tuoi clienti: metadati estratti lontano dai tuoi occhi.</p>
+        </div>
+        <div class="problem-card">
+          <h3 data-i18n="prob2_title">Abbonamenti e lock-in</h3>
+          <p data-i18n="prob2_body">Paghi ogni mese per funzionalità che potrebbero sparire. Il giorno in cui smetti di pagare, perdi l'accesso ai tuoi stessi dati catalogati.</p>
+        </div>
+        <div class="problem-card">
+          <h3 data-i18n="prob3_title">Cerchi per parole chiave, trovi frustrazione.</h3>
+          <p data-i18n="prob3_body">La maggior parte dei software cerca per nome file o tag manuali. OffGallery capisce il contenuto visivo: "tramonto con riflesso sull'acqua" trova le foto giuste, anche senza keywords (tags).</p>
+        </div>
+        <div class="problem-card">
+          <h3 data-i18n="prob4_title">L'alternativa esiste.</h3>
+          <p data-i18n="prob4_body">Modelli AI di nuova generazione girano in locale su hardware consumer. OffGallery li orchestra tutti — CLIP, DINOv2, BioCLIP, LLM vision — senza connessione internet.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <!-- ── FEATURES ── -->
+  <section id="features">
+    <div class="container">
+      <div class="section-head">
+        <h2 data-i18n="feat_title">Cinque strumenti. Uno per ogni problema reale.</h2>
+        <p data-i18n="feat_sub">Cinque funzionalità core, tutte eseguite in locale sul tuo hardware.</p>
+      </div>
+      <div class="feature-grid">
+
+        <article class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <div class="feature-kicker" data-i18n="f1_kicker">Privacy</div>
+          <h3 data-i18n="f1_title">100% offline e privato</h3>
+          <p data-i18n="f1_body">Nessuna foto caricata online, mai. Tutti i modelli AI girano in locale. Dopo il primo download, OffGallery funziona senza connessione internet.*</p>
+          <p class="feature-footnote" data-i18n="f1_note">* Eccetto l'installazione iniziale dei modelli AI (~6 GB, una tantum) e, se richiesto, alcuni plugin.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div>
+          <div class="feature-kicker" data-i18n="f2_kicker">AI</div>
+          <h3 data-i18n="f2_title">AI multi-modello</h3>
+          <p data-i18n="f2_body">CLIP per la ricerca semantica, DINOv2 per la similarità visiva, BioCLIP per ~450.000 specie biologiche, LLM vision locale per titoli e tag automatici, Aesthetic scorer e MUSIQ per la qualità tecnica ed estetica.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+          <div class="feature-kicker" data-i18n="f3_kicker">Integrazione</div>
+          <h3 data-i18n="f3_title">Integrazione Lightroom</h3>
+          <p data-i18n="f3_body">Importa cataloghi .lrcat e sincronizza tag, rating e metadati via sidecar XMP compatibili con Lightroom, Capture One e qualsiasi DAM che supporti lo standard.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+          <div class="feature-kicker" data-i18n="f4_kicker">Ricerca</div>
+          <h3 data-i18n="f4_title">Ricerca semantica</h3>
+          <p data-i18n="f4_body">Cerca per concetto: "bambino che corre sulla spiaggia", "volatili in volo al tramonto". La query viene compresa e confrontata con il contenuto visivo di ogni immagine.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+          <div class="feature-kicker" data-i18n="f5_kicker">Plugin</div>
+          <h3 data-i18n="f5_title">Plugin ecosystem</h3>
+          <p data-i18n="f5_body">Architettura estendibile tramite plugin. Scegli il backend LLM tra Ollama e LM Studio, e arricchisci le funzionalità con moduli specializzati come BioNomen per la fotografia naturalistica.</p>
+        </article>
+
+      </div>
+      <div class="features-cta">
+        <a href="features.html" class="btn btn-secondary" data-i18n="feat_cta">Vai alla documentazione tecnica</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <!-- ── SCREENSHOTS ── -->
+  <section id="screenshots" class="screenshots-section">
+    <div class="container">
+      <div class="section-head">
+        <h2 data-i18n="ss_title">L'interfaccia.</h2>
+      </div>
+      <div class="screenshot-main">
+        <img src="assets/Int_search.png" alt="OffGallery — Ricerca semantica"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='none';" />
+        <span style="display:none"></span>
+      </div>
+      <div class="screenshot-row">
+        <div class="screenshot-small">
+          <img src="assets/Int_gallery.png" alt="OffGallery — Gallery"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='none';" />
+          <span style="display:none"></span>
+        </div>
+        <div class="screenshot-small">
+          <img src="assets/Int_stat.png" alt="OffGallery — Statistiche"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='none';" />
+          <span style="display:none"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <!-- ── PLUGINS ── -->
+  <section id="plugins">
+    <div class="container">
+      <div class="section-head">
+        <h2 data-i18n="plug_title">Estendi OffGallery con moduli specializzati.</h2>
+        <p class="plugins-intro" data-i18n="plug_intro">Ogni plugin viene riconosciuto automaticamente all'avvio. Scegli il backend LLM, attiva solo quello che usi — gli altri non occupano VRAM.</p>
+      </div>
+      <div class="plugins-grid">
+
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_llm">Backend LLM</p>
+          <h3>Ollama LLM Vision</h3>
+          <p data-i18n="plug_ollama_body">Collega OffGallery a Ollama per generare tag, titoli e descrizioni. Supporta modelli vision come Qwen3-VL, LLaVA, Gemma3. Accesso riservato ai beta tester.</p>
+          <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
+        </div>
+
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_llm">Backend LLM</p>
+          <h3>LM Studio</h3>
+          <p data-i18n="plug_lmstudio_body">Usa LM Studio come server LLM locale con interfaccia grafica. Ideale per gestire modelli vision quantizzati. Accesso riservato ai beta tester.</p>
+          <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
+        </div>
+
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_bio">Fotografia naturalistica</p>
+          <h3>BioNomen</h3>
+          <p data-i18n="plug_bionomen_body">Un airone cenerino identificato da BioCLIP diventa automaticamente "grey heron", "héron cendré", "Graureiher" — in tutti i sidecar XMP, offline. Dati GBIF bundled, taxa selezionabili dalla configurazione.</p>
+          <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <!-- ── PLUGIN ACCESS ── -->
+  <section id="beta">
+    <div class="container">
+      <div class="plugin-access-band">
+        <div>
+          <h3 data-i18n="access_title">Plugin disponibili su richiesta.</h3>
+          <p data-i18n="access_body">I plugin LLM Vision e BioNomen sono accessibili a chi usa OffGallery e vuole provarli. Scrivi per ricevere le istruzioni di installazione.</p>
+        </div>
+        <a class="btn btn-secondary" href="mailto:OffGallery.AI.info@gmail.com" data-i18n="access_cta">Scrivi per l'accesso</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <section>
+    <div class="container">
+      <div class="cta-band">
+        <div>
+          <h3 data-i18n="cta_title">Vuoi sapere esattamente cosa fa?</h3>
+          <p data-i18n="cta_body">Una pagina con ogni funzionalità documentata — modelli, formati, filtri di ricerca, metadati.</p>
+        </div>
+        <a class="btn btn-primary" href="features.html" data-i18n="feat_cta">Vai alla documentazione tecnica</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <span class="footer-brand-badge">
+            <img src="assets/logo3.jpg" alt="OffGallery" width="866" height="402" loading="lazy" />
+          </span>
+          <span class="footer-brand-name">OffGallery</span>
+        </div>
+        <p class="footer-desc" data-i18n="footer_desc">Catalogazione fotografica intelligente, offline e privata. Open source, AGPLv3.</p>
+        <div class="footer-links">
+          <a href="https://github.com/HEGOM61ita/OffGallery" data-i18n="footer_github">GitHub</a>
+          <a href="features.html" data-i18n="footer_features">Funzionalità</a>
+          <a href="USER_MANUAL_IT.html" data-i18n="footer_manual">Manuale utente</a>
+          <a href="mailto:OffGallery.AI.info@gmail.com" data-i18n="footer_contact">Contatto</a>
+        </div>
+        <p class="footer-legal">© 2025 OffGallery — <span data-i18n="footer_license">Licenza AGPLv3 — Software libero</span></p>
+      </div>
+      <div class="footer-donate">
+        <p class="footer-donate-label" data-i18n="donate_label">Supporta il progetto</p>
+        <p data-i18n="donate_footer_text">OffGallery è sviluppato nel tempo libero.<br />Una donazione fa la differenza.</p>
+        <!-- Ko-fi button disabled until account is set up
+        <a href="https://ko-fi.com/PLACEHOLDER" class="btn-kofi" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+          <span data-i18n="donate_btn">Supporta su Ko-fi</span>
+        </a>
+        -->
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- ── I18N ── -->
+<script>
+  // SVG flag IT
+  const FLAG_IT = `<svg width="22" height="15" viewBox="0 0 22 15" xmlns="http://www.w3.org/2000/svg"><rect width="7.33" height="15" fill="#009246"/><rect x="7.33" width="7.34" height="15" fill="#fff"/><rect x="14.67" width="7.33" height="15" fill="#ce2b37"/></svg>`;
+  // SVG flag UK
+  const FLAG_EN = `<svg width="22" height="15" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#012169"/><path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="8"/><path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="4.8"/><path d="M30,0 V40 M0,20 H60" stroke="#fff" stroke-width="13.3"/><path d="M30,0 V40 M0,20 H60" stroke="#C8102E" stroke-width="8"/></svg>`;
+
+  const T = {
+    it: {
+      brand_subtitle:   "Catalogazione fotografica con AI locale",
+      nav_home: "Home",
+      nav_features:     "Funzionalità", nav_plugins: "Plugin",
+      nav_beta:         "Accesso plugin", nav_allfeatures: "Tutte le feature",
+      hero_eyebrow:     "Offline first · Privacy totale · AI locale",
+      hero_title:       "Il tuo archivio.<br /><span class=\"accent\">La tua AI.</span><br />Zero cloud.",
+      hero_sub:         "Ricerca semantica, riconoscimento di 450.000 specie biologiche, valutazione estetica e sync Lightroom. Tutto sul tuo computer, tutto offline.",
+      hero_download:    "Scarica OffGallery", hero_github: "GitHub",
+      note1: "✓ Nessuna foto inviata online", note2: "✓ Modelli AI in locale", note3: "✓ Open source · AGPLv3",
+      dl_label: "Scarica OffGallery",
+      dl_title: "Analizza migliaia di RAW. Sul tuo computer. Offline.",
+      dl_body: "AI locale, privacy totale. Analizza migliaia di RAW senza connessione internet.",
+      dl_platform: "Piattaforma", dl_platform_val: "Windows · macOS · Linux",
+      dl_lang: "Lingue", dl_lang_val: "IT · EN · FR · DE · ES · PT",
+      dl_license: "Licenza",
+      donate_card_text: "<strong>OffGallery è gratuito.</strong><br />Se ti è utile, una donazione aiuta lo sviluppo.",
+      donate_btn: "Supporta su Ko-fi",
+      trust_for: "Adatto a",
+      trust1: "Fotoamatori evoluti", trust2: "Fotografi professionisti",
+      trust3: "Archivi RAW numerosi", trust4: "Flessibilità workflow",
+      trust6: "Compatibilità Lightroom e altri",
+      trust5: "Wildlife e botanica",
+      problem_title: "Le tue foto: perché dovrebbero finire su un server altrui?",
+      problem_sub: "<li>I servizi cloud catalogano le tue immagini a distanza. OffGallery fa tutto in locale.</li><li>Lascia il compito della catalogazione al tuo computer.</li><li>Con gli appositi plugin, personalizza il tuo sistema e aggiungi nuove funzionalità.</li>",
+      prob1_title: "Cloud = perdita di controllo",
+      prob1_body: "I servizi cloud di catalogazione AI caricano le tue immagini su server remoti. I tuoi soggetti, le tue location, i tuoi clienti: metadati estratti lontano dai tuoi occhi.",
+      prob2_title: "Abbonamenti e lock-in",
+      prob2_body: "Paghi ogni mese per funzionalità che potrebbero sparire. Il giorno in cui smetti di pagare, perdi l'accesso ai tuoi stessi dati catalogati.",
+      prob3_title: "Cerchi per parole chiave, trovi frustrazione.",
+      prob3_body: "La maggior parte dei software cerca per nome file o tag manuali. OffGallery capisce il contenuto visivo: \"tramonto con riflesso sull'acqua\" trova le foto giuste, anche senza keywords (tags).",
+      prob4_title: "L'alternativa esiste.",
+      prob4_body: "Modelli AI di nuova generazione girano in locale su hardware consumer. OffGallery li orchestra tutti — CLIP, DINOv2, BioCLIP, LLM vision — senza connessione internet.",
+      feat_title: "Cinque strumenti. Uno per ogni problema reale.",
+      feat_sub: "Cinque funzionalità core, tutte eseguite in locale sul tuo hardware.",
+      f1_kicker: "Privacy", f1_title: "100% offline e privato",
+      f1_body: "Nessuna foto caricata online, mai. Tutti i modelli AI girano in locale. Dopo il primo download, OffGallery funziona senza connessione internet.*",
+      f1_note: "* Eccetto l'installazione iniziale dei modelli AI (~6 GB, una tantum) e, se richiesto, alcuni plugin.",
+      f2_kicker: "AI", f2_title: "AI multi-modello",
+      f2_body: "CLIP per la ricerca semantica, DINOv2 per la similarità visiva, BioCLIP per ~450.000 specie biologiche, LLM vision locale per titoli e tag automatici, Aesthetic scorer e MUSIQ per la qualità tecnica ed estetica.",
+      f3_kicker: "Integrazione", f3_title: "Integrazione Lightroom",
+      f3_body: "Importa cataloghi .lrcat e sincronizza tag, rating e metadati via sidecar XMP compatibili con Lightroom, Capture One e qualsiasi DAM che supporti lo standard.",
+      f4_kicker: "Ricerca", f4_title: "Ricerca semantica",
+      f4_body: "Cerca per concetto: \"bambino che corre sulla spiaggia\", \"volatili in volo al tramonto\". La query viene compresa e confrontata con il contenuto visivo di ogni immagine.",
+      f5_kicker: "Plugin", f5_title: "Plugin ecosystem",
+      f5_body: "Architettura estendibile tramite plugin. Scegli il backend LLM tra Ollama e LM Studio, e arricchisci le funzionalità con moduli specializzati come BioNomen per la fotografia naturalistica.",
+      feat_cta: "Vai alla documentazione tecnica",
+      ss_title: "L'interfaccia.",
+      plug_title: "Estendi OffGallery con moduli specializzati.",
+      plug_intro: "Ogni plugin viene riconosciuto automaticamente all'avvio. Scegli il backend LLM, attiva solo quello che usi — gli altri non occupano VRAM.",
+      plug_type_llm: "Backend LLM", plug_type_bio: "Fotografia naturalistica",
+      plug_ollama_body: "Collega OffGallery a Ollama per generare tag, titoli e descrizioni. Supporta modelli vision come Qwen3-VL, LLaVA, Gemma3. Accesso riservato ai beta tester.",
+      plug_lmstudio_body: "Usa LM Studio come server LLM locale con interfaccia grafica. Ideale per gestire modelli vision quantizzati. Accesso riservato ai beta tester.",
+      plug_bionomen_body: "Un airone cenerino identificato da BioCLIP diventa automaticamente \"grey heron\", \"héron cendré\", \"Graureiher\" — in tutti i sidecar XMP, offline. Dati GBIF bundled, taxa selezionabili dalla configurazione.",
+      plug_badge_beta_access: "Disponibile per beta tester",
+      access_title: "Plugin disponibili su richiesta.",
+      access_body: "I plugin LLM Vision e BioNomen sono accessibili a chi usa OffGallery e vuole provarli. Scrivi per ricevere le istruzioni di installazione.",
+      access_cta: "Scrivi per l'accesso",
+      cta_title: "Vuoi sapere esattamente cosa fa?",
+      cta_body: "Una pagina con ogni funzionalità documentata — modelli, formati, filtri di ricerca, metadati.",
+      footer_desc: "Catalogazione fotografica intelligente, offline e privata. Open source, AGPLv3.",
+      footer_github: "GitHub", footer_features: "Funzionalità",
+      footer_manual: "Manuale utente", footer_contact: "Contatto",
+      footer_license: "Licenza AGPLv3 — Software libero",
+      donate_label: "Supporta il progetto",
+      donate_footer_text: "OffGallery è sviluppato nel tempo libero.<br />Una donazione fa la differenza.",
+    },
+    en: {
+      brand_subtitle:   "Photo cataloging with local AI",
+      nav_home: "Home",
+      nav_features:     "Features", nav_plugins: "Plugins",
+      nav_beta:         "Plugin access", nav_allfeatures: "All features",
+      hero_eyebrow:     "Offline first · Total privacy · Local AI",
+      hero_title:       "Your archive.<br /><span class=\"accent\">Your AI.</span><br />Zero cloud.",
+      hero_sub:         "Semantic search, recognition of 450,000 biological species, aesthetic scoring and Lightroom sync. All on your computer, all offline.",
+      hero_download:    "Download OffGallery", hero_github: "GitHub",
+      note1: "✓ No photo ever uploaded online", note2: "✓ AI models run locally", note3: "✓ Open source · AGPLv3",
+      dl_label: "Download OffGallery",
+      dl_title: "Analyze thousands of RAWs. On your computer. Offline.",
+      dl_body: "Local AI, total privacy. Analyze thousands of RAWs with no internet connection.",
+      dl_platform: "Platform", dl_platform_val: "Windows · macOS · Linux",
+      dl_lang: "Languages", dl_lang_val: "IT · EN · FR · DE · ES · PT",
+      dl_license: "License",
+      donate_card_text: "<strong>OffGallery is free.</strong><br />If it's useful to you, a donation helps development.",
+      donate_btn: "Support on Ko-fi",
+      trust_for: "Built for",
+      trust1: "Advanced amateurs", trust2: "Professional photographers",
+      trust3: "Large RAW archives", trust4: "Workflow flexibility",
+      trust6: "Lightroom compatibility &amp; more",
+      trust5: "Wildlife &amp; botany",
+      problem_title: "Your photos: why should they end up on someone else's server?",
+      problem_sub: "<li>Cloud services catalog your images remotely. OffGallery does everything locally.</li><li>Let your computer handle the cataloging task.</li><li>With the right plugins, customize your system and add new features.</li>",
+      prob1_title: "Cloud = loss of control",
+      prob1_body: "AI cataloging cloud services upload your images to remote servers. Your subjects, your locations, your clients — metadata extracted far from your eyes.",
+      prob2_title: "Subscriptions and lock-in",
+      prob2_body: "You pay every month for features that might disappear. The day you stop paying, you lose access to your own cataloged data.",
+      prob3_title: "You search by keywords, you find frustration.",
+      prob3_body: "Most software searches by filename or manual tags. OffGallery understands visual content: \"sunset reflected on water\" finds the right photos, even without keywords (tags).",
+      prob4_title: "The alternative exists.",
+      prob4_body: "Next-generation AI models run locally on consumer hardware. OffGallery orchestrates them all — CLIP, DINOv2, BioCLIP, LLM vision — with no internet connection.",
+      feat_title: "Five tools. One for every real problem.",
+      feat_sub: "Five core features, all running locally on your hardware.",
+      f1_kicker: "Privacy", f1_title: "100% offline and private",
+      f1_body: "No photo ever uploaded online. All AI models run locally. After the first download, OffGallery works without an internet connection.*",
+      f1_note: "* Except the initial AI model installation (~6 GB, one-time) and, if required, some plugins.",
+      f2_kicker: "AI", f2_title: "Multi-model AI",
+      f2_body: "CLIP for semantic search, DINOv2 for visual similarity, BioCLIP for ~450,000 biological species, local LLM vision for automatic titles and tags, Aesthetic scorer and MUSIQ for technical and aesthetic quality.",
+      f3_kicker: "Integration", f3_title: "Lightroom integration",
+      f3_body: "Import .lrcat catalogs and sync tags, ratings and metadata via XMP sidecars compatible with Lightroom, Capture One and any DAM supporting the standard.",
+      f4_kicker: "Search", f4_title: "Semantic search",
+      f4_body: "Search by concept: \"child running on the beach\", \"birds in flight at sunset\". The query is understood and matched against the visual content of every image.",
+      f5_kicker: "Plugins", f5_title: "Plugin ecosystem",
+      f5_body: "Extensible architecture via plugins. Choose your LLM backend between Ollama and LM Studio, and enrich functionality with specialized modules like BioNomen.",
+      feat_cta: "Technical documentation",
+      ss_title: "The interface.",
+      plug_title: "Extend OffGallery with specialized modules.",
+      plug_intro: "Every plugin is auto-discovered at startup. Choose the LLM backend, activate only what you use — the others don't occupy VRAM.",
+      plug_type_llm: "LLM Backend", plug_type_bio: "Nature photography",
+      plug_ollama_body: "Connect OffGallery to Ollama for natural language tag, title and description generation. Supports vision models like Qwen3-VL, LLaVA, Gemma3. Access reserved for beta testers.",
+      plug_lmstudio_body: "Use LM Studio as a local LLM server with a GUI. Ideal for managing quantized vision models. Access reserved for beta testers.",
+      plug_bionomen_body: "A grey heron identified by BioCLIP automatically becomes \"airone cenerino\", \"héron cendré\", \"Graureiher\" — in all XMP sidecars, offline. GBIF data bundled, taxa selectable from configuration.",
+      plug_badge_beta_access: "Available for beta testers",
+      access_title: "Plugins available on request.",
+      access_body: "The LLM Vision and BioNomen plugins are available to OffGallery users who want to try them. Write to receive installation instructions.",
+      access_cta: "Write for access",
+      cta_title: "Want to know exactly what it does?",
+      cta_body: "A page with every feature documented — models, formats, search filters, metadata.",
+      footer_desc: "Intelligent photo cataloging, offline and private. Open source, AGPLv3.",
+      footer_github: "GitHub", footer_features: "Features",
+      footer_manual: "User manual", footer_contact: "Contact",
+      footer_license: "AGPLv3 License — Free software",
+      donate_label: "Support the project",
+      donate_footer_text: "OffGallery is developed in free time.<br />A donation makes a difference.",
+    }
+  };
+
+  let lang = 'it';
+
+  function applyLang(l) {
+    const t = T[l];
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const k = el.getAttribute('data-i18n');
+      if (!t[k]) return;
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = t[k];
+      else if (el.tagName === 'OPTION') el.textContent = t[k];
+      else el.innerHTML = t[k];
+    });
+    document.documentElement.lang = l;
+    // mostra la bandiera della lingua di destinazione (quella a cui si passerà al click)
+    const nextLang = l === 'it' ? 'en' : 'it';
+    const nextFlag = nextLang === 'en' ? FLAG_EN : FLAG_IT;
+    const nextLabel = nextLang === 'en' ? 'EN' : 'IT';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = nextFlag;
+    const newSvg = tmp.firstChild;
+    newSvg.id = 'flagIcon';
+    document.getElementById('flagIcon').replaceWith(newSvg);
+    document.getElementById('langLabel').textContent = nextLabel;
+  }
+
+  document.getElementById('langToggle').addEventListener('click', () => {
+    lang = lang === 'it' ? 'en' : 'it';
+    applyLang(lang);
+  });
+</script>
+</body>
+</html>
