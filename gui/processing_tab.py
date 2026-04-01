@@ -1699,10 +1699,11 @@ class ProcessingTab(QWidget):
         """Apre dialog per selezione directory input"""
         from PyQt6.QtWidgets import QFileDialog
         
+        previous_folder = self.input_dir_label.text()
         directory = QFileDialog.getExistingDirectory(
             self,
             t("processing.group.source_icon"),
-            str(Path.home())
+            previous_folder if Path(previous_folder).exists() else str(Path.home())
         )
         
         if directory:
