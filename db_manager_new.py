@@ -646,6 +646,18 @@ class DatabaseManager:
         """Alias per update_image_title"""
         return self.update_image_title(image_id, title)
     
+    def ensure_plugin_columns(self, manifest: dict) -> None:
+        """Aggiunge le colonne richieste da un plugin se non esistono già."""
+        for col in manifest.get('db_columns', []):
+            try:
+                self.cursor.execute(
+                    f"ALTER TABLE images ADD COLUMN {col['name']} {col['type']}"
+                )
+                self.conn.commit()
+                logger.info(f"Colonna plugin aggiunta: {col['name']} ({col['type']})")
+            except sqlite3.OperationalError:
+                pass  # colonna già presente
+
     def update_image_metadata(self, image_id: int, **kwargs) -> bool:
         """Aggiorna metadata multipli per un'immagine specifica"""
         try:

@@ -1324,7 +1324,8 @@ class ProcessingTab(QWidget):
     # ─────────────────────────────────────────────────────────────
 
     def _discover_standalone_plugins(self) -> list[dict]:
-        """Scansiona plugins/**/manifest.json e ritorna i plugin di tipo 'standalone'."""
+        """Scansiona plugins/**/manifest.json e ritorna i plugin di tipo 'standalone',
+        ordinati per priority (default 100 se assente)."""
         plugins_dir = get_app_dir() / 'plugins'
         found = []
         if not plugins_dir.is_dir():
@@ -1338,6 +1339,7 @@ class ProcessingTab(QWidget):
                     found.append(manifest)
             except Exception as e:
                 logger.warning(f"Errore lettura manifest {manifest_path}: {e}")
+        found.sort(key=lambda m: m.get('priority', 100))
         return found
 
     def _build_plugins_section(self, grid: 'QGridLayout', start_row: int,
@@ -1374,45 +1376,87 @@ class ProcessingTab(QWidget):
         grid.addWidget(sep_w, start_row, 0, 1, 5)
         cur_row = start_row + 1
 
-        for manifest in self._discovered_plugins:
-            plugin_id   = manifest.get('id', '')
-            plugin_name = manifest.get('name', plugin_id)
-            plugin_desc = manifest.get('description', '')
-            # Descrizione breve: prima frase, max 40 caratteri
-            short_desc = (plugin_desc[:40] + '…') if len(plugin_desc) > 40 else plugin_desc
+        # Raggruppa plugin per pipeline_stage; plugin senza stage → post_import
+        _stage_order = ['pre_llm', 'post_import']
+        _stage_labels = {'pre_llm': 'Pre-LLM', 'post_import': 'Post-import'}
+        _stage_colors = {'pre_llm': ('#b87333', '#d4924a'), 'post_import': ('#4a7c59', '#6aad7e')}
 
-            # Widget nome + descrizione
-            name_w = QWidget()
-            name_lay = QHBoxLayout(name_w)
-            name_lay.setContentsMargins(0, 2, 0, 2)
-            name_lay.setSpacing(4)
-            lbl = QLabel(plugin_name)
-            lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #c8b4e8;")
-            name_lay.addWidget(lbl)
-            if short_desc:
-                desc_lbl = QLabel(short_desc)
-                desc_lbl.setStyleSheet("font-size: 9px; color: #7f8c8d;")
-                name_lay.addWidget(desc_lbl)
-            name_lay.addStretch()
-            grid.addWidget(name_w, cur_row, col_name)
+        from collections import defaultdict
+        _by_stage: dict[str, list] = defaultdict(list)
+        for m in self._discovered_plugins:
+            stage = m.get('pipeline_stage', 'post_import')
+            _by_stage[stage].append(m)
 
-            # Checkbox abilita (colonna Genera, colonne Sovrascrivi/Max lasciate vuote)
-            chk = QCheckBox()
-            chk.setToolTip(f"Esegui {plugin_name} al termine dell'import")
-            grid.addWidget(chk, cur_row, col_gen, alignment=Qt.AlignmentFlag.AlignCenter)
+        # Aggiungi stage non standard in coda
+        extra_stages = [s for s in _by_stage if s not in _stage_order]
+        stages_to_show = [s for s in _stage_order if s in _by_stage] + extra_stages
 
-            # Progress bar (inizialmente nascosta, appare al lancio)
-            pb = QProgressBar()
-            pb.setRange(0, 100)
-            pb.setValue(0)
-            pb.setTextVisible(False)
-            pb.setStyleSheet(_pb_plugin_style)
-            pb.setFixedHeight(8)
-            pb.setVisible(False)
-            grid.addWidget(pb, cur_row, col_bar)
+        # Helper: sotto-separatore stage
+        def _make_stage_sep(label: str, color_line: str, color_text: str) -> QWidget:
+            w = QWidget()
+            lay = QHBoxLayout(w)
+            lay.setContentsMargins(8, 4, 0, 2)
+            lay.setSpacing(4)
+            l = QLabel("")
+            l.setFixedHeight(1)
+            l.setStyleSheet(f"background-color: {color_line};")
+            lay.addWidget(l, stretch=1)
+            lbl = QLabel(label)
+            lbl.setStyleSheet(f"font-size: 9px; font-weight: bold; color: {color_text};")
+            lay.addWidget(lbl)
+            r = QLabel("")
+            r.setFixedHeight(1)
+            r.setStyleSheet(f"background-color: {color_line};")
+            lay.addWidget(r, stretch=3)
+            return w
 
-            self._plugin_rows[plugin_id] = {'check': chk, 'bar': pb}
-            cur_row += 1
+        for stage in stages_to_show:
+            # Sotto-separatore stage (omesso se c'è un solo stage con un solo plugin)
+            if len(stages_to_show) > 1 or len(_by_stage[stage]) > 0:
+                cl, ct = _stage_colors.get(stage, ('#555', '#aaa'))
+                stage_label = _stage_labels.get(stage, stage)
+                grid.addWidget(_make_stage_sep(stage_label, cl, ct), cur_row, 0, 1, 5)
+                cur_row += 1
+
+            for manifest in _by_stage[stage]:
+                plugin_id   = manifest.get('id', '')
+                plugin_name = manifest.get('name', plugin_id)
+                plugin_desc = manifest.get('description', '')
+                # Descrizione breve: prima frase, max 40 caratteri
+                short_desc = (plugin_desc[:40] + '…') if len(plugin_desc) > 40 else plugin_desc
+
+                # Widget nome + descrizione
+                name_w = QWidget()
+                name_lay = QHBoxLayout(name_w)
+                name_lay.setContentsMargins(0, 2, 0, 2)
+                name_lay.setSpacing(4)
+                lbl = QLabel(plugin_name)
+                lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #c8b4e8;")
+                name_lay.addWidget(lbl)
+                if short_desc:
+                    desc_lbl = QLabel(short_desc)
+                    desc_lbl.setStyleSheet("font-size: 9px; color: #7f8c8d;")
+                    name_lay.addWidget(desc_lbl)
+                name_lay.addStretch()
+                grid.addWidget(name_w, cur_row, col_name)
+
+                # Checkbox abilita
+                chk = QCheckBox()
+                chk.setToolTip(f"Esegui {plugin_name} al termine dell'import")
+                grid.addWidget(chk, cur_row, col_gen, alignment=Qt.AlignmentFlag.AlignCenter)
+
+                # Progress bar (inizialmente nascosta, appare al lancio)
+                pb = QProgressBar()
+                pb.setRange(0, 100)
+                pb.setValue(0)
+                pb.setTextVisible(False)
+                pb.setStyleSheet(_pb_plugin_style)
+                pb.setFixedHeight(8)
+                pb.setVisible(False)
+                grid.addWidget(pb, cur_row, col_bar)
+
+                self._plugin_rows[plugin_id] = {'check': chk, 'bar': pb}
+                cur_row += 1
 
     # ─────────────────────────────────────────────────────────────
     # LANCIO PLUGIN POST-IMPORT
