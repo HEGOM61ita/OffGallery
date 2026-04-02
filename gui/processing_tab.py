@@ -1242,6 +1242,22 @@ class PluginStdoutReader(QThread):
                             self.plugin_progress.emit(self.plugin_id, current, total)
                         except ValueError:
                             pass
+                elif line.startswith("DONE:"):
+                    # Formato: DONE:<total>:<matched>:<not_matched>
+                    parts = line.split(":")
+                    if len(parts) == 4:
+                        try:
+                            total       = int(parts[1])
+                            matched     = int(parts[2])
+                            not_matched = int(parts[3])
+                            self.plugin_log.emit(
+                                f"[{self.plugin_id}] ✓ {matched} con nome  ✗ {not_matched} senza  (tot. {total})",
+                                "success"
+                            )
+                        except ValueError:
+                            pass
+                elif line.startswith("ERROR:"):
+                    self.plugin_log.emit(f"[{self.plugin_id}] {line}", "error")
                 else:
                     self.plugin_log.emit(f"[{self.plugin_id}] {line}", "info")
             self.process.wait()
@@ -1460,15 +1476,19 @@ class ProcessingTab(QWidget):
 
         self.add_log_message(f"▶ Avvio plugin: {manifest.get('name', plugin_id)}", "info")
 
-        # Costruisce comando
+        # Costruisce comando — modalità headless (niente finestra Qt)
         cmd = [sys.executable, str(entry_path)]
         if self._plugin_db_path:
             cmd += ['--db', self._plugin_db_path]
         if self._plugin_dir:
             cmd += ['--directory', self._plugin_dir]
+            cmd += ['--mode', 'directory']
+        else:
+            cmd += ['--mode', 'unprocessed']
         config_json = Path(plugin_dir) / 'config.json'
         if config_json.exists():
             cmd += ['--config', str(config_json)]
+        cmd += ['--headless']
 
         try:
             proc = subprocess.Popen(
@@ -2540,6 +2560,13 @@ class ProcessingTab(QWidget):
                          self.pt_llm_bar):
                 _bar.setValue(0)
                 _bar.setRange(0, 100)
+
+            # Reset progress bar plugin (nascondi finché non girano di nuovo)
+            for row in self._plugin_rows.values():
+                pb = row.get('bar')
+                if pb:
+                    pb.setValue(0)
+                    pb.setVisible(False)
 
             self.worker.start()
 
