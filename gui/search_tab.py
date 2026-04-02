@@ -110,7 +110,12 @@ class SearchTab(QWidget):
         # Controllo ricerca dinamica
         self.search_active = False
         self.search_cancelled = False
-        
+
+        # Filtri plugin dinamici: field_name → widget (QLineEdit o QComboBox)
+        self._plugin_filter_widgets: dict = {}
+        # Manifest plugin con search_filters (ordinati per priority)
+        self._plugin_filter_manifests: list = self._discover_plugin_filters()
+
         self.init_ui()
         self.load_config_defaults()
         
@@ -131,6 +136,23 @@ class SearchTab(QWidget):
                 return str(config_path)
 
         return str(app_dir / 'config_new.yaml')
+
+    def _discover_plugin_filters(self) -> list:
+        """Scansiona manifest plugin e ritorna quelli con search_filters, ordinati per priority."""
+        plugins_dir = get_app_dir() / 'plugins'
+        found = []
+        if not plugins_dir.is_dir():
+            return found
+        for manifest_path in sorted(plugins_dir.rglob('manifest.json')):
+            try:
+                with open(manifest_path, 'r', encoding='utf-8') as f:
+                    manifest = json.load(f)
+                if manifest.get('type') == 'standalone' and manifest.get('search_filters'):
+                    found.append(manifest)
+            except Exception:
+                pass
+        found.sort(key=lambda m: m.get('priority', 100))
+        return found
 
     def _show_loading_popup(self, text):
         """Crea un piccolo pop-up di caricamento al centro."""
@@ -323,6 +345,20 @@ class SearchTab(QWidget):
             params.append(date_from)
             params.append(date_to + " 23:59:59")
 
+        # --- FILTRI PLUGIN DINAMICI ---
+        for field, widget in self._plugin_filter_widgets.items():
+            if isinstance(widget, QComboBox):
+                value = widget.currentData()
+                if value is not None:
+                    conditions.append(f"{field} = ?")
+                    params.append(value)
+            else:
+                # QLineEdit: filtro LIKE case-insensitive
+                text = widget.text().strip()
+                if text:
+                    conditions.append(f"{field} LIKE ?")
+                    params.append(f"%{text}%")
+
         # Uniamo tutto
         sql_string = " AND ".join(conditions) if conditions else None
         return sql_string, params
@@ -457,11 +493,14 @@ class SearchTab(QWidget):
         # Filtri fotografici (senza groupbox esterno)
         layout.addWidget(self.create_photo_filters_section())
 
-        # Qualità + GPS + Sync + Data + Azioni
+        # Qualità + GPS + Sync + Plugin + Data + Azioni
         row_bottom = QHBoxLayout()
         row_bottom.addWidget(self.create_quality_section())
         row_bottom.addWidget(self.create_gps_section())
         row_bottom.addWidget(self.create_sync_section())
+        _plugin_section = self.create_plugin_filters_section()
+        if _plugin_section:
+            row_bottom.addWidget(_plugin_section)
         row_bottom.addWidget(self.create_date_section())
         row_bottom.addStretch()
         row_bottom.addWidget(self.create_action_buttons())
@@ -953,6 +992,63 @@ class SearchTab(QWidget):
         group.setLayout(layout)
         return group
     
+    def create_plugin_filters_section(self):
+        """Genera un QGroupBox con i filtri dinamici esposti dai plugin installati.
+        Ogni plugin che dichiara search_filters nel manifest ottiene la sua sezione.
+        Ritorna None se non ci sono filtri plugin da mostrare."""
+        if not self._plugin_filter_manifests:
+            return None
+
+        # Determina la lingua corrente per le label
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                _cfg = yaml.safe_load(f) or {}
+            _lang = _cfg.get('ui', {}).get('language', 'it')
+        except Exception:
+            _lang = 'it'
+
+        group = QGroupBox("Plugin")
+        layout = QVBoxLayout()
+        layout.setSpacing(4)
+
+        for manifest in self._plugin_filter_manifests:
+            _labels = manifest.get('labels', {}).get(_lang, manifest.get('labels', {}).get('it', {}))
+            _enums  = manifest.get('enum_fields', {})
+
+            for flt in manifest.get('search_filters', []):
+                field   = flt['field']
+                widget_type = flt.get('widget', 'lineedit')
+                label_key   = flt.get('label_key', field)
+                label_text  = _labels.get(label_key, label_key)
+
+                row = QHBoxLayout()
+                row.setSpacing(4)
+                row.addWidget(QLabel(label_text + ':'))
+
+                if widget_type == 'combobox' and field in _enums:
+                    combo = QComboBox()
+                    combo.setMinimumWidth(100)
+                    # Voce vuota = "tutti"
+                    combo.addItem("—", None)
+                    enum_entries = _enums[field].get(_lang, _enums[field].get('en', {}))
+                    for code, display in enum_entries.items():
+                        combo.addItem(display, code)
+                    row.addWidget(combo)
+                    row.addStretch()
+                    self._plugin_filter_widgets[field] = combo
+                else:
+                    le = QLineEdit()
+                    le.setPlaceholderText(label_text)
+                    le.setMinimumWidth(100)
+                    row.addWidget(le)
+                    row.addStretch()
+                    self._plugin_filter_widgets[field] = le
+
+                layout.addLayout(row)
+
+        group.setLayout(layout)
+        return group
+
     def create_sync_section(self):
         """Filtri sync"""
         group = QGroupBox(t("search.group.sync"))
@@ -1066,6 +1162,11 @@ class SearchTab(QWidget):
             'date_filter_enabled': self.date_filter_enabled.isChecked(),
             'date_from': self.date_from.date().toString("yyyy-MM-dd"),
             'date_to': self.date_to.date().toString("yyyy-MM-dd"),
+            # Filtri plugin dinamici: field → valore corrente
+            'plugin_filters': {
+                field: (w.currentData() if isinstance(w, QComboBox) else w.text())
+                for field, w in self._plugin_filter_widgets.items()
+            },
         }
 
     def _set_search_params(self, params):
@@ -1149,6 +1250,19 @@ class SearchTab(QWidget):
             date_to = QDate.fromString(params.get('date_to', '2099-12-31'), "yyyy-MM-dd")
             if date_to.isValid():
                 self.date_to.setDate(date_to)
+
+            # Filtri plugin dinamici
+            plugin_vals = params.get('plugin_filters', {})
+            for field, widget in self._plugin_filter_widgets.items():
+                val = plugin_vals.get(field)
+                if val is None:
+                    continue
+                if isinstance(widget, QComboBox):
+                    idx = widget.findData(val)
+                    if idx >= 0:
+                        widget.setCurrentIndex(idx)
+                else:
+                    widget.setText(str(val))
 
         finally:
             for w in widgets:

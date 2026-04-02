@@ -52,6 +52,8 @@ class ExportTab(QWidget):
         self.main_window = None
         self.images_to_export = []
         self.config_path = self._get_config_path()
+        # Colonne CSV aggiuntive dai plugin: lista di (field_name, header_label)
+        self._plugin_csv_columns: list = self._discover_plugin_csv_columns()
         self._build_ui()
         self._load_state_from_config()
 
@@ -556,6 +558,36 @@ class ExportTab(QWidget):
             if p.exists():
                 return str(p)
         return str(app_dir / 'config_new.yaml')
+
+    def _discover_plugin_csv_columns(self) -> list:
+        """Ritorna lista di (field_name, header_label) dai plugin con output_fields."""
+        plugins_dir = get_app_dir() / 'plugins'
+        columns = []
+        if not plugins_dir.is_dir():
+            return columns
+        # Determina lingua corrente
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                _cfg = yaml.safe_load(f) or {}
+            _lang = _cfg.get('ui', {}).get('language', 'it')
+        except Exception:
+            _lang = 'it'
+        manifests = []
+        for manifest_path in sorted(plugins_dir.rglob('manifest.json')):
+            try:
+                with open(manifest_path, 'r', encoding='utf-8') as f:
+                    manifest = json.load(f)
+                if manifest.get('type') == 'standalone' and manifest.get('output_fields'):
+                    manifests.append(manifest)
+            except Exception:
+                pass
+        manifests.sort(key=lambda m: m.get('priority', 100))
+        for manifest in manifests:
+            _labels = manifest.get('labels', {}).get(_lang, manifest.get('labels', {}).get('it', {}))
+            for field in manifest.get('output_fields', []):
+                label = _labels.get(field, field)
+                columns.append((field, label))
+        return columns
 
     # ------------------------------------------------------------------
     # PERSISTENZA STATO (config_new.yaml)
@@ -1070,6 +1102,9 @@ class ExportTab(QWidget):
                     # Processing
                     'Processed_Date', 'Processing_Time', 'Embedding_Generated', 'LLM_Generated'
                 ]
+                # Colonne aggiuntive dai plugin
+                for _field, _label in self._plugin_csv_columns:
+                    headers.append(_label)
                 writer.writerow(headers)
                 
                 exclude_gps = options.get('advanced', {}).get('csv_exclude_gps', False)
@@ -1167,6 +1202,9 @@ class ExportTab(QWidget):
                         bool_to_text(data.get('embedding_generated')),
                         bool_to_text(data.get('llm_generated'))
                     ]
+                    # Valori colonne plugin
+                    for _field, _label in self._plugin_csv_columns:
+                        row.append(data.get(_field, ''))
                     writer.writerow(row)
             
             return True
