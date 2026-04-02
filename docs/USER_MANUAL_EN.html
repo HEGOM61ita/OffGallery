@@ -188,6 +188,7 @@
     <li class="sub"><a href="#proc-source">Image Source</a></li>
     <li class="sub"><a href="#proc-mode">Processing Mode</a></li>
     <li class="sub"><a href="#proc-ai">AI Options</a></li>
+    <li class="sub"><a href="#proc-plugin">Post-import Plugins</a></li>
     <li class="sub"><a href="#ai-gen-only">AI Gen. Only</a></li>
     <li class="sub"><a href="#proc-run">Run & Monitor</a></li>
     <li><a href="#search">Search Tab</a></li>
@@ -400,6 +401,38 @@
   <div class="body">
     <strong>Smart tag merge</strong>
     <p>With "Overwrite" off, the merge is <em>case-insensitive</em>: if the database already contains "Bird" and the LLM generates "bird", the tag is not duplicated.</p>
+  </div>
+</div>
+
+<h2 id="proc-plugin">4.3b Post-import Plugins</h2>
+
+<p>Immediately below the <strong>AI Generation</strong> panel, the Processing tab shows a <strong>Plugin</strong> section (highlighted with a purple border) listing any standalone plugins that support automatic post-import execution.</p>
+
+<p>Each plugin shows its name and a <strong>checkbox</strong> to enable it. Enabled plugins run automatically in sequence once the import finishes — no separate window is opened.</p>
+
+<h3>How it works</h3>
+<ul>
+  <li>Check the box next to the plugin you want to run (e.g. <strong>BioNomen</strong>)</li>
+  <li>Start the import normally with the <strong>Start</strong> button</li>
+  <li>When all images have been imported, the enabled plugins execute automatically in sequence</li>
+  <li>A <strong>progress bar</strong> appears inline inside the Plugin section — no separate pop-up</li>
+  <li>The <strong>Start</strong> button stays disabled until all plugins have finished</li>
+  <li>The <strong>Plugin</strong> tab (in Config) is locked during execution to avoid conflicts</li>
+</ul>
+
+<h3>Log output</h3>
+<p>When each plugin finishes, a compact summary appears in the Log panel, for example:</p>
+<pre>BioNomen completed: ✓ 42 with name  ✗ 8 without  (tot. 50)</pre>
+<p>This shows how many images received a common name (✓) and how many had no match in the offline database (✗).</p>
+
+<h3>BioNomen plugin</h3>
+<p><strong>BioNomen</strong> enriches images with common names for biological species identified by BioCLIP. It runs in <em>headless</em> mode (no separate UI) and automatically uses the selected directory as a filter to limit the images it processes. A <strong>session cache</strong> avoids repeated lookups for the same species within a single run.</p>
+
+<div class="callout note">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>Plugins available from the beta repo only</strong>
+    <p>The Plugin section appears in the Processing tab only when standalone plugins are installed. Plugins are distributed via the private <strong>OffGallery_BETA</strong> repository. If you do not yet have access, the section will not appear. See <a href="#llm-plugins">§ 9b LLM Plugins</a> for installation details.</p>
   </div>
 </div>
 

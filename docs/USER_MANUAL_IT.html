@@ -361,6 +361,7 @@
     <li class="sub"><a href="#elab-sorgente">Sorgente Immagini</a></li>
     <li class="sub"><a href="#elab-modalita">Modalità Elaborazione</a></li>
     <li class="sub"><a href="#elab-ai">Opzioni AI</a></li>
+    <li class="sub"><a href="#elab-plugin">Plugin post-import</a></li>
     <li class="sub"><a href="#solo-gen-ai">Solo Gen. AI</a></li>
     <li class="sub"><a href="#elab-avvio">Avvio e Monitoraggio</a></li>
     <li><a href="#ricerca">Tab Ricerca</a></li>
@@ -573,6 +574,38 @@
   <div class="body">
     <strong>Merge intelligente dei tag</strong>
     <p>Con "Sovrascrivi" disattivato, il merge è <em>case-insensitive</em>: se il database contiene già "Uccello" e il LLM genera "uccello", il tag non viene duplicato.</p>
+  </div>
+</div>
+
+<h2 id="elab-plugin">4.3b Plugin post-import</h2>
+
+<p>Subito dopo il pannello <strong>Generazione AI</strong>, nel tab Processing appare una sezione <strong>Plugin</strong> (contrassegnata da un bordo viola) che elenca i plugin standalone installati e compatibili con l'esecuzione automatica post-import.</p>
+
+<p>Ogni plugin mostra il proprio nome e un <strong>checkbox</strong> per abilitarlo. I plugin abilitati vengono eseguiti automaticamente in sequenza al termine dell'import, senza nessuna finestra separata.</p>
+
+<h3>Come funziona</h3>
+<ul>
+  <li>Spunta il checkbox accanto al plugin che vuoi eseguire (es. <strong>BioNomen</strong>)</li>
+  <li>Avvia normalmente l'import con il pulsante <strong>Avvia</strong></li>
+  <li>Al termine dell'import delle immagini, i plugin abilitati partono automaticamente in sequenza</li>
+  <li>Una <strong>barra di progresso</strong> appare inline nella sezione Plugin — nessun popup separato</li>
+  <li>Il pulsante <strong>Avvia</strong> rimane disabilitato finché tutti i plugin non completano l'esecuzione</li>
+  <li>Il tab <strong>Plugin</strong> (in Config) viene bloccato durante l'esecuzione per evitare conflitti</li>
+</ul>
+
+<h3>Risultato nel log</h3>
+<p>Al termine di ogni plugin appare nel pannello Log un riepilogo compatto, ad esempio:</p>
+<pre>BioNomen completato: ✓ 42 con nome  ✗ 8 senza  (tot. 50)</pre>
+<p>Questo indica quante immagini hanno ricevuto un nome comune (✓) e quante non hanno trovato corrispondenza nel database offline (✗).</p>
+
+<h3>Plugin BioNomen</h3>
+<p><strong>BioNomen</strong> è il plugin che arricchisce le immagini con i nomi comuni delle specie biologiche riconosciute da BioCLIP. Viene eseguito in modalità <em>headless</em> (senza interfaccia grafica propria) e usa automaticamente la directory selezionata come filtro per limitare le immagini elaborate. Una <strong>cache di sessione</strong> evita ricerche ripetute per la stessa specie nella stessa esecuzione.</p>
+
+<div class="callout note">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>Plugin disponibili solo nella repo beta</strong>
+    <p>La sezione Plugin appare nel tab Processing solo se sono installati plugin standalone. I plugin sono distribuiti tramite la repo privata <strong>OffGallery_BETA</strong>. Se non hai ancora accesso, la sezione non compare. Vedi <a href="#plugin-llm">§ 9b Plugin LLM</a> per i dettagli di installazione.</p>
   </div>
 </div>
 
