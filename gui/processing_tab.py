@@ -7,6 +7,7 @@ OTTIMIZZATO: Cache thumbnail + LLM parallele per performance migliori
 
 import yaml
 import sys
+import subprocess
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QGridLayout,
@@ -1213,7 +1214,47 @@ class ProcessingWorker(QThread):
         self.is_paused = False
 
 
+class PluginStdoutReader(QThread):
+    """Legge stdout di un subprocess plugin e traduce PROGRESS:n:total in signal."""
+
+    plugin_progress = pyqtSignal(str, int, int)  # plugin_id, current, total
+    plugin_log      = pyqtSignal(str, str)        # message, level
+    plugin_finished = pyqtSignal(str)             # plugin_id
+
+    def __init__(self, plugin_id: str, process: subprocess.Popen):
+        super().__init__()
+        self.plugin_id = plugin_id
+        self.process   = process
+
+    def run(self):
+        try:
+            for raw_line in self.process.stdout:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                if line.startswith("PROGRESS:"):
+                    # Formato atteso: PROGRESS:<current>:<total>
+                    parts = line.split(":")
+                    if len(parts) == 3:
+                        try:
+                            current = int(parts[1])
+                            total   = int(parts[2])
+                            self.plugin_progress.emit(self.plugin_id, current, total)
+                        except ValueError:
+                            pass
+                else:
+                    self.plugin_log.emit(f"[{self.plugin_id}] {line}", "info")
+            self.process.wait()
+        except Exception as e:
+            self.plugin_log.emit(f"[{self.plugin_id}] Errore lettura output: {e}", "error")
+        finally:
+            self.plugin_finished.emit(self.plugin_id)
+
+
 class ProcessingTab(QWidget):
+    # Emesso per bloccare/sbloccare il tab Plugin mentre i plugin girano
+    plugins_lock = pyqtSignal(bool)  # True = blocca, False = sblocca
+
     def __init__(self, main_window):
         super().__init__(main_window)
 
@@ -1232,6 +1273,16 @@ class ProcessingTab(QWidget):
         self.processing_log_file = None  # File handle per log processing su disco
         self.catalog_path = None          # Path catalogo selezionato
         self.catalog_files = []           # Lista file dal catalogo
+
+        # Plugin standalone scoperti via manifest (autodiscovery)
+        self._discovered_plugins: list[dict] = []
+        # Riferimenti UI per riga plugin: plugin_id → {check, bar, pb_widget}
+        self._plugin_rows: dict[str, dict] = {}
+        # Reader thread attivi durante esecuzione post-import
+        self._active_plugin_readers: list[PluginStdoutReader] = []
+        # Contatore plugin ancora in esecuzione (per sapere quando sbloccare il tab)
+        self._plugins_running = 0
+
         self.init_ui()
     
     def _get_config_path(self):
@@ -1251,7 +1302,221 @@ class ProcessingTab(QWidget):
 
         # Se nessun config trovato, usa default
         return str(app_dir / 'config_new.yaml')
-    
+
+    # ─────────────────────────────────────────────────────────────
+    # PLUGIN AUTODISCOVERY
+    # ─────────────────────────────────────────────────────────────
+
+    def _discover_standalone_plugins(self) -> list[dict]:
+        """Scansiona plugins/**/manifest.json e ritorna i plugin di tipo 'standalone'."""
+        plugins_dir = get_app_dir() / 'plugins'
+        found = []
+        if not plugins_dir.is_dir():
+            return found
+        for manifest_path in sorted(plugins_dir.rglob('manifest.json')):
+            try:
+                with open(manifest_path, 'r', encoding='utf-8') as f:
+                    manifest = json.load(f)
+                if manifest.get('type') == 'standalone':
+                    manifest['_dir'] = str(manifest_path.parent)
+                    found.append(manifest)
+            except Exception as e:
+                logger.warning(f"Errore lettura manifest {manifest_path}: {e}")
+        return found
+
+    def _build_plugins_section(self, grid: 'QGridLayout', start_row: int,
+                               col_name: int, col_gen: int, col_bar: int):
+        """Aggiunge la sezione Plugin alla griglia modelli, se ci sono plugin installati."""
+        self._discovered_plugins = self._discover_standalone_plugins()
+        if not self._discovered_plugins:
+            return
+
+        # Stile progress bar plugin: gradiente blu, distinto dal gold dei modelli
+        _pb_plugin_style = """
+            QProgressBar { border: 1px solid #555; background: #2a2a2a;
+                           border-radius: 3px; max-height: 8px; }
+            QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+                stop:0 #2563a8, stop:1 #4a90d9); border-radius: 2px; }
+        """
+
+        # Separatore con colore viola per distinguere dalla sezione LLM
+        sep_w = QWidget()
+        sep_lay = QHBoxLayout(sep_w)
+        sep_lay.setContentsMargins(0, 6, 0, 2)
+        sep_lay.setSpacing(4)
+        sep_l = QLabel("")
+        sep_l.setFixedHeight(1)
+        sep_l.setStyleSheet("background-color: #7c5cbf;")
+        sep_lay.addWidget(sep_l, stretch=1)
+        sep_lbl = QLabel("Plugin")
+        sep_lbl.setStyleSheet("font-size: 10px; font-weight: bold; color: #9b7fd4;")
+        sep_lay.addWidget(sep_lbl)
+        sep_r = QLabel("")
+        sep_r.setFixedHeight(1)
+        sep_r.setStyleSheet("background-color: #7c5cbf;")
+        sep_lay.addWidget(sep_r, stretch=1)
+        grid.addWidget(sep_w, start_row, 0, 1, 5)
+        cur_row = start_row + 1
+
+        for manifest in self._discovered_plugins:
+            plugin_id   = manifest.get('id', '')
+            plugin_name = manifest.get('name', plugin_id)
+            plugin_desc = manifest.get('description', '')
+            # Descrizione breve: prima frase, max 40 caratteri
+            short_desc = (plugin_desc[:40] + '…') if len(plugin_desc) > 40 else plugin_desc
+
+            # Widget nome + descrizione
+            name_w = QWidget()
+            name_lay = QHBoxLayout(name_w)
+            name_lay.setContentsMargins(0, 2, 0, 2)
+            name_lay.setSpacing(4)
+            lbl = QLabel(plugin_name)
+            lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #c8b4e8;")
+            name_lay.addWidget(lbl)
+            if short_desc:
+                desc_lbl = QLabel(short_desc)
+                desc_lbl.setStyleSheet("font-size: 9px; color: #7f8c8d;")
+                name_lay.addWidget(desc_lbl)
+            name_lay.addStretch()
+            grid.addWidget(name_w, cur_row, col_name)
+
+            # Checkbox abilita (colonna Genera, colonne Sovrascrivi/Max lasciate vuote)
+            chk = QCheckBox()
+            chk.setToolTip(f"Esegui {plugin_name} al termine dell'import")
+            grid.addWidget(chk, cur_row, col_gen, alignment=Qt.AlignmentFlag.AlignCenter)
+
+            # Progress bar (inizialmente nascosta, appare al lancio)
+            pb = QProgressBar()
+            pb.setRange(0, 100)
+            pb.setValue(0)
+            pb.setTextVisible(False)
+            pb.setStyleSheet(_pb_plugin_style)
+            pb.setFixedHeight(8)
+            pb.setVisible(False)
+            grid.addWidget(pb, cur_row, col_bar)
+
+            self._plugin_rows[plugin_id] = {'check': chk, 'bar': pb}
+            cur_row += 1
+
+    # ─────────────────────────────────────────────────────────────
+    # LANCIO PLUGIN POST-IMPORT
+    # ─────────────────────────────────────────────────────────────
+
+    def _launch_post_import_plugins(self):
+        """Lancia in sequenza i plugin abilitati dopo il completamento dell'import."""
+        # Determina quali plugin sono abilitati
+        to_run = [
+            m for m in self._discovered_plugins
+            if self._plugin_rows.get(m.get('id', ''), {}).get('check', QCheckBox()).isChecked()
+        ]
+        if not to_run:
+            return
+
+        # Ottieni percorso DB dalla config
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                cfg = yaml.safe_load(f)
+            db_path = cfg.get('paths', {}).get('database', '')
+        except Exception:
+            db_path = ''
+
+        # Directory corrente selezionata
+        current_dir = self.input_dir_label.text() if self.source_dir_radio.isChecked() else ''
+
+        # Blocca tab Plugin finché almeno un plugin gira
+        self._plugins_running = len(to_run)
+        self.plugins_lock.emit(True)
+
+        # Lancia sequenzialmente: ogni plugin parte quando il precedente finisce
+        # — implementato concatenando il signal plugin_finished
+        self._plugin_queue = list(to_run)
+        self._plugin_db_path = db_path
+        self._plugin_dir = current_dir
+        self._launch_next_plugin()
+
+    def _launch_next_plugin(self):
+        """Lancia il prossimo plugin nella coda, se presente."""
+        if not self._plugin_queue:
+            return
+
+        manifest   = self._plugin_queue.pop(0)
+        plugin_id  = manifest.get('id', '')
+        plugin_dir = manifest.get('_dir', '')
+        entry_point = manifest.get('entry_point', '')
+
+        entry_path = Path(plugin_dir) / entry_point
+        if not entry_path.exists():
+            self.add_log_message(
+                f"⚠️ Plugin {plugin_id}: entry point non trovato ({entry_path})", "warning"
+            )
+            self._on_plugin_finished(plugin_id)
+            return
+
+        # Mostra progress bar
+        row = self._plugin_rows.get(plugin_id, {})
+        if row.get('bar'):
+            row['bar'].setValue(0)
+            row['bar'].setVisible(True)
+
+        self.add_log_message(f"▶ Avvio plugin: {manifest.get('name', plugin_id)}", "info")
+
+        # Costruisce comando
+        cmd = [sys.executable, str(entry_path)]
+        if self._plugin_db_path:
+            cmd += ['--db', self._plugin_db_path]
+        if self._plugin_dir:
+            cmd += ['--directory', self._plugin_dir]
+        config_json = Path(plugin_dir) / 'config.json'
+        if config_json.exists():
+            cmd += ['--config', str(config_json)]
+
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
+            )
+        except Exception as e:
+            self.add_log_message(f"⚠️ Plugin {plugin_id}: errore avvio — {e}", "error")
+            self._on_plugin_finished(plugin_id)
+            return
+
+        # Avvia reader thread
+        reader = PluginStdoutReader(plugin_id, proc)
+        reader.plugin_progress.connect(self._on_plugin_progress)
+        reader.plugin_log.connect(self.add_log_message)
+        reader.plugin_finished.connect(self._on_plugin_finished)
+        self._active_plugin_readers.append(reader)
+        reader.start()
+
+    def _on_plugin_progress(self, plugin_id: str, current: int, total: int):
+        """Aggiorna la progress bar del plugin in base a PROGRESS:n:total."""
+        row = self._plugin_rows.get(plugin_id, {})
+        pb = row.get('bar')
+        if pb and total > 0:
+            pb.setValue(int(current * 100 / total))
+
+    def _on_plugin_finished(self, plugin_id: str):
+        """Chiamato quando un plugin subprocess termina."""
+        row = self._plugin_rows.get(plugin_id, {})
+        pb = row.get('bar')
+        if pb:
+            pb.setValue(100)
+
+        self.add_log_message(f"✅ Plugin completato: {plugin_id}", "success")
+
+        self._plugins_running -= 1
+
+        # Se ci sono altri plugin in coda, lancia il prossimo
+        if self._plugin_queue:
+            self._launch_next_plugin()
+        elif self._plugins_running <= 0:
+            # Tutti i plugin terminati: riabilita tab Plugin e pulsante Start
+            self.plugins_lock.emit(False)
+            self.start_btn.setEnabled(True)
+
     def init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 4, 6, 2)
@@ -1592,6 +1857,9 @@ class ProcessingTab(QWidget):
         _cur_row += 1
 
         # (riga info rimossa — lo spazio è recuperato per ExifTool)
+
+        # === Sezione Plugin (autodiscovery da manifest.json) ===
+        self._build_plugins_section(models_grid, _cur_row, _COL_NAME, _COL_GEN, _COL_BAR)
 
         # Larghezze colonne
         models_grid.setColumnMinimumWidth(_COL_NAME, 75)
@@ -2443,6 +2711,10 @@ class ProcessingTab(QWidget):
 
         # Aggiorna scan per refresh statistiche
         self.scan_directory()
+
+        # Lancia plugin post-import se abilitati (start_btn rimane disabilitato
+        # finché tutti i plugin non hanno terminato)
+        self._launch_post_import_plugins()
     
     def save_log(self):
         """Salva il contenuto del log live su file"""

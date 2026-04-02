@@ -552,6 +552,7 @@ class MainWindow(QMainWindow):
         self.export_tab.export_completed.connect(self.on_export_completed)
         self.config_tab.config_saved.connect(self._on_config_saved)
         self.plugins_tab.navigate_to_config.connect(self._navigate_to_config_tab)
+        self.processing_tab.plugins_lock.connect(self._on_plugins_lock)
         
         layout.addWidget(self.tabs)
 
@@ -737,6 +738,12 @@ class MainWindow(QMainWindow):
     def _navigate_to_config_tab(self):
         """Naviga alla Config Tab (indice 0)."""
         self.tabs.setCurrentWidget(self.config_tab)
+
+    def _on_plugins_lock(self, locked: bool):
+        """Abilita/disabilita il tab Plugin durante l'esecuzione post-import dei plugin."""
+        plugins_index = self.tabs.indexOf(self.plugins_tab)
+        if plugins_index >= 0:
+            self.tabs.setTabEnabled(plugins_index, not locked)
 
     def _on_config_saved(self, new_config):
         """
