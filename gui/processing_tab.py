@@ -911,6 +911,15 @@ class ProcessingWorker(QThread):
             location_hint = prep.get('location_hint')
             geo_hierarchy = prep.get('geo_hierarchy')
 
+            # Contesto aggiuntivo dai plugin (llm_context_fields): legge da image_data
+            img_data_for_ctx = prep.get('image_data', {})
+            extra_context: dict = {}
+            for _pm in self._discovered_plugins:
+                for _field in _pm.get('llm_context_fields', []):
+                    _val = img_data_for_ctx.get(_field)
+                    if _val:
+                        extra_context[_field] = _val
+
             try:
                 # Determina cosa generare (rispettando overwrite)
                 # Usa ai_fields per sapere se tags/desc/title sono già nel DB
@@ -982,6 +991,7 @@ class ProcessingWorker(QThread):
                             bioclip_context=bioclip_context,
                             category_hint=category_hint,
                             location_hint=location_hint,
+                            extra_context=extra_context or None,
                         )
                         llm_results.update(combined)
                 except Exception as e:
@@ -1482,6 +1492,17 @@ class ProcessingTab(QWidget):
 
         # Directory corrente selezionata
         current_dir = self.input_dir_label.text() if self.source_dir_radio.isChecked() else ''
+
+        # Assicura che le colonne richieste dai plugin esistano nel DB
+        if db_path:
+            try:
+                from db_manager_new import DatabaseManager
+                _tmp_db = DatabaseManager(db_path)
+                for _m in to_run:
+                    _tmp_db.ensure_plugin_columns(_m)
+                _tmp_db.close()
+            except Exception as _e:
+                logger.warning(f"ensure_plugin_columns: {_e}")
 
         # Blocca tab Plugin finché almeno un plugin gira
         self._plugins_running = len(to_run)
