@@ -18,6 +18,18 @@ class ImageRetrieval:
         self.default_threshold = 0.15 # Abbassiamo il default dato il rumore multilingua
         self.stems_cache = {}  # Cache per stems delle immagini
 
+    def _plugin_columns(self) -> str:
+        """Ritorna la lista di colonne plugin che esistono nel DB, da aggiungere alla SELECT.
+        Gestisce DB creati prima dell'installazione dei plugin (colonne assenti)."""
+        candidates = ['protected_area', 'habitat', 'weather_context']
+        try:
+            self.db.cursor.execute("PRAGMA table_info(images)")
+            existing = {row[1] for row in self.db.cursor.fetchall()}
+            found = [c for c in candidates if c in existing]
+            return (", " + ", ".join(found)) if found else ""
+        except Exception:
+            return ""
+
     def _cosine_similarity(self, v1, v2):
         norm1 = np.linalg.norm(v1)
         norm2 = np.linalg.norm(v2)
@@ -54,13 +66,14 @@ class ImageRetrieval:
         # 1. CONTROLLO QUERY VUOTA
         if not query_text.strip():
             # Solo filtri - restituiamo tutti i risultati filtrati senza processing AI
-            base_sql = """
+            plugin_cols = self._plugin_columns()
+            base_sql = f"""
             SELECT id, filepath, filename, clip_embedding, tags, description, title,
                    camera_make, camera_model, lens_model, focal_length, aperture,
                    iso, shutter_speed, width, height, datetime_original,
                    datetime_digitized, datetime_modified, processed_date,
                    aesthetic_score, technical_score, lr_rating, color_label,
-                   bioclip_taxonomy, geo_hierarchy
+                   bioclip_taxonomy, geo_hierarchy{plugin_cols}
             FROM images
             """
             if filters_sql:
@@ -95,13 +108,14 @@ class ImageRetrieval:
         
         # 3. SQL FETCH - Prende TUTTE le immagini per ricerca semantica
         # La ricerca CLIP deve confrontare la query con OGNI immagine nel database
-        base_sql = """
+        plugin_cols = self._plugin_columns()
+        base_sql = f"""
         SELECT id, filepath, filename, clip_embedding, tags, description, title,
                camera_make, camera_model, lens_model, focal_length, aperture,
                iso, shutter_speed, width, height, datetime_original,
                datetime_digitized, datetime_modified, processed_date,
                aesthetic_score, technical_score, lr_rating, color_label,
-               bioclip_taxonomy, geo_hierarchy
+               bioclip_taxonomy, geo_hierarchy{plugin_cols}
         FROM images
         WHERE clip_embedding IS NOT NULL
         """
