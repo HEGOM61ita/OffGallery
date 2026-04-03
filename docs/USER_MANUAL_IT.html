@@ -601,6 +601,14 @@
 <h3>Plugin BioNomen</h3>
 <p><strong>BioNomen</strong> è il plugin che arricchisce le immagini con i nomi comuni delle specie biologiche riconosciute da BioCLIP. Viene eseguito in modalità <em>headless</em> (senza interfaccia grafica propria) e usa automaticamente la directory selezionata come filtro per limitare le immagini elaborate. Una <strong>cache di sessione</strong> evita ricerche ripetute per la stessa specie nella stessa esecuzione.</p>
 
+<h3>Plugin NaturArea</h3>
+<p><strong>NaturArea</strong> aggiunge a ogni foto con coordinate GPS il nome dell'<strong>area protetta</strong> più vicina (dal database mondiale WDPA) e il <strong>tipo di habitat</strong> (dalle mappe satellitari ESA WorldCover). Richiede la costruzione del database WDPA una sola volta a partire da un file GeoJSON scaricato; le tile ESA vengono scaricate automaticamente per zona geografica al primo utilizzo.</p>
+<p>Campi scritti: <code>protected_area</code> (es. <em>Parco Nazionale del Pollino</em>) e <code>habitat</code> (es. <em>tree_cover</em>). Entrambi sono ricercabili dai filtri Plugin nel tab Ricerca e compaiono nel tooltip hover della Gallery.</p>
+
+<h3>Plugin Weather Context</h3>
+<p><strong>Weather Context</strong> recupera il meteo storico per ogni foto con GPS e data tramite l'<strong>API Open-Meteo</strong> (gratuita, senza chiave). I risultati vengono salvati in una cache locale, quindi le rielaborazioni successive non richiedono connessione internet. Il campo <code>weather_context</code> contiene un JSON con temperatura, condizione, umidità, vento e precipitazioni.</p>
+<p>Il codice condizione (es. <code>drizzle</code>) viene tradotto automaticamente nella lingua dell'interfaccia nei tooltip e nei filtri di ricerca. Le foto senza GPS o senza data vengono silenziosamente saltate.</p>
+
 <div class="callout note">
   <span class="icon">ℹ️</span>
   <div class="body">
@@ -1033,6 +1041,18 @@ Destinazione (es. E:\Backup):
       <td>—</td>
       <td>Nomi comuni e scientifici di specie biologiche (Aves, Mammalia, Insecta, Plantae…). Database offline scaricabile da GBIF. Configurabile da Config → Plugin → BioNomen</td>
     </tr>
+    <tr>
+      <td><strong>NaturArea</strong></td>
+      <td>—</td>
+      <td>—</td>
+      <td>Area protetta (WDPA) e habitat (ESA WorldCover) per foto con GPS. Richiede costruzione database una tantum. Tile ESA scaricate automaticamente per zona.</td>
+    </tr>
+    <tr>
+      <td><strong>Weather Context</strong></td>
+      <td>—</td>
+      <td>open-meteo.com</td>
+      <td>Meteo storico per foto con GPS e data (temperatura, condizione, umidità, vento, precipitazioni). Risultati in cache locale. Connessione richiesta solo al momento dell'elaborazione.</td>
+    </tr>
   </tbody>
 </table>
 
@@ -1082,6 +1102,39 @@ BioNomen: plugin disponibile</pre>
   <li>Seleziona i taxa di interesse (Aves, Mammalia, Reptilia, Amphibia, Insecta, Plantae)</li>
   <li>Clicca <strong>Scarica database</strong></li>
 </ol>
+
+<h3>Plugin NaturArea — prima configurazione</h3>
+
+<p>NaturArea richiede la costruzione di un database locale una sola volta prima di poter essere eseguito.</p>
+
+<ol>
+  <li>Scarica il file GeoJSON WDPA da <a href="https://www.protectedplanet.net" target="_blank">protectedplanet.net</a> → Download → GeoJSON (~500 MB)</li>
+  <li>Apri OffGallery → <strong>Config → Plugin → NaturArea → Configura</strong></li>
+  <li>Nel campo <em>Step 1</em>, seleziona il file GeoJSON scaricato</li>
+  <li>Cambia facoltativamente il percorso di output del database</li>
+  <li>Clicca <strong>Costruisci database ora</strong> — richiede 2–5 minuti</li>
+  <li>Una volta completato, clicca <strong>Avvia</strong> nella card NaturArea per elaborare le foto</li>
+</ol>
+
+<p>Le tile ESA WorldCover vengono scaricate automaticamente (~50–100 MB per zona) la prima volta che vengono elaborate foto di una nuova area geografica. Vengono salvate in cache per i successivi utilizzi.</p>
+
+<h3>Plugin Weather Context — utilizzo</h3>
+
+<p>Weather Context non richiede alcuna configurazione preliminare. Utilizza l'API gratuita Open-Meteo e salva i risultati in cache locale.</p>
+
+<ol>
+  <li>Assicurati che le foto abbiano coordinate GPS e data/ora nell'EXIF</li>
+  <li>Clicca <strong>Avvia</strong> nella card Weather Context (oppure abilita la checkbox per l'esecuzione automatica dopo ogni importazione)</li>
+  <li>I risultati appaiono nel tooltip della Gallery e sono ricercabili tramite il filtro <em>Condizione meteo</em> nel tab Ricerca</li>
+</ol>
+
+<div class="callout note">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>Connessione internet richiesta durante l'elaborazione</strong>
+    <p>Weather Context interroga l'API Open-Meteo per ogni combinazione unica di posizione+data. Una volta che un risultato è salvato in cache locale, le elaborazioni successive (anche sulle stesse foto) non richiedono connessione internet.</p>
+  </div>
+</div>
 
 <h3>Come cambiare backend</h3>
 <ol>
