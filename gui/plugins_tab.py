@@ -111,7 +111,7 @@ class StdoutReaderThread(QThread):
                     if sep != -1:
                         fonte = rest[:sep]
                         specie = rest[sep+1:]
-                        logger.debug(f"BioNomen [{fonte}] → {specie}")
+                        logger.debug(f"Plugin [{fonte}] → {specie}")
                 elif line.startswith("LOG:"):
                     # Formato: LOG:level:messaggio
                     rest = line[len("LOG:"):]
@@ -120,11 +120,11 @@ class StdoutReaderThread(QThread):
                         level = rest[:sep].lower()
                         msg = rest[sep+1:]
                         if level == "warning":
-                            logger.warning(f"BioNomen: {msg}")
+                            logger.warning(f"Plugin: {msg}")
                         elif level == "error":
-                            logger.error(f"BioNomen: {msg}")
+                            logger.error(f"Plugin: {msg}")
                         else:
-                            logger.info(f"BioNomen: {msg}")
+                            logger.info(f"Plugin: {msg}")
             self._process.wait()
         except Exception as e:
             logger.debug(f"StdoutReaderThread: errore lettura stdout: {e}")
@@ -135,23 +135,25 @@ class StdoutReaderThread(QThread):
 class DownloadWorker(QThread):
     """
     Thread in-process per il download/inizializzazione del database del plugin.
-    Importa bionomen.py direttamente senza sottoprocesso.
+    Carica dinamicamente il modulo core del plugin tramite <plugin_id>.py.
     """
     progress = pyqtSignal(int, int)
     status   = pyqtSignal(str)
     finished = pyqtSignal()
     error    = pyqtSignal(str)
 
-    def __init__(self, plugin_dir: Path, language: str = "it", parent=None):
+    def __init__(self, plugin_dir: Path, plugin_id: str, language: str = "it", parent=None):
         super().__init__(parent)
         self._plugin_dir = plugin_dir
+        self._plugin_id  = plugin_id
         self._language   = language
 
     def run(self):
         try:
             import importlib.util
+            core_file = self._plugin_dir / f"{self._plugin_id}.py"
             spec = importlib.util.spec_from_file_location(
-                "bionomen_core_dl", str(self._plugin_dir / "bionomen.py")
+                f"{self._plugin_id}_core_dl", str(core_file)
             )
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
@@ -162,11 +164,14 @@ class DownloadWorker(QThread):
             def _status_cb(text):
                 self.status.emit(text)
 
-            mod.download_and_build_database(
-                language=self._language,
-                progress_callback=_progress_cb,
-                status_callback=_status_cb,
-            )
+            # Chiama download_and_build_database con i kwargs supportati
+            import inspect
+            sig = inspect.signature(mod.download_and_build_database)
+            kwargs = dict(progress_callback=_progress_cb, status_callback=_status_cb)
+            if "language" in sig.parameters:
+                kwargs["language"] = self._language
+
+            mod.download_and_build_database(**kwargs)
             self.finished.emit()
         except Exception as e:
             logger.error(f"DownloadWorker errore: {e}")
@@ -223,8 +228,9 @@ class PluginCard(QFrame):
         name = self._manifest.get("name", "Plugin")
         version = self._manifest.get("version", "")
         description = self._manifest.get("description", "")
+        icon = self._manifest.get("icon", "🧩")
 
-        lbl_name = QLabel(f"🔤 {name}  v{version}")
+        lbl_name = QLabel(f"{icon} {name}  v{version}")
         lbl_name.setStyleSheet(
             f"font-size: 14px; font-weight: bold; color: {_COLORS['ambra_light']};"
         )
@@ -334,29 +340,47 @@ class PluginCard(QFrame):
         layout.addWidget(self.lbl_dl_status)
 
 
+    def _load_core_module(self):
+        """Carica dinamicamente il modulo core del plugin (<plugin_id>.py).
+        Ritorna il modulo o None se non trovato/errore."""
+        import importlib.util
+        plugin_id   = self._manifest.get("id", "")
+        core_file   = self._plugin_dir / f"{plugin_id}.py"
+        if not core_file.exists():
+            return None
+        try:
+            spec = importlib.util.spec_from_file_location(
+                f"{plugin_id}_core", str(core_file)
+            )
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+        except Exception as e:
+            logger.warning(f"Impossibile caricare modulo core plugin '{plugin_id}': {e}")
+            return None
+
     def _refresh_db_status(self):
         """
         Aggiorna l'etichetta stato DB e il testo del bottone azione.
-        Verifica se il plugin ha una funzione is_database_present().
+        Usa le funzioni standard is_database_present() / get_database_date() del modulo core.
         """
-        entry_point = self._manifest.get("entry_point", "")
-        # Cerca bionomen.py nella stessa directory dell'entry point
-        bionomen_module = self._plugin_dir / "bionomen.py"
-        if not bionomen_module.exists():
+        requires_db = self._manifest.get("requires_db", True)
+
+        # Plugin senza DB (es. Meteo che usa cache on-demand) — mostra sempre abilitato
+        if not requires_db:
+            self.lbl_db.setText("Nessun database richiesto — dati recuperati on-demand")
+            self.lbl_db.setStyleSheet(f"font-size: 11px; color: {_COLORS['grigio_medio']};")
+            self.btn_db.hide()
+            self.btn_start.setEnabled(True)
+            return
+
+        mod = self._load_core_module()
+        if mod is None:
             self.lbl_db.setText(t("plugins.label.database_missing"))
             self.btn_start.setEnabled(False)
             return
 
         try:
-            # Carica dinamicamente il modulo bionomen per controllare il DB
-            import importlib.util
-            spec = importlib.util.spec_from_file_location(
-                f"bionomen_core_{self._manifest.get('id', 'plugin')}",
-                str(bionomen_module),
-            )
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-
             if hasattr(mod, "is_database_present") and mod.is_database_present():
                 date_str = ""
                 if hasattr(mod, "get_database_date"):
@@ -391,21 +415,18 @@ class PluginCard(QFrame):
     def _on_db_action(self):
         """Scarica o aggiorna il database del plugin direttamente in-process."""
         from PyQt6.QtWidgets import QMessageBox
-        bionomen_module = self._plugin_dir / "bionomen.py"
-        if not bionomen_module.exists():
-            logger.warning("bionomen.py non trovato")
+        mod = self._load_core_module()
+        if mod is None:
+            logger.warning(f"Modulo core plugin non trovato per: {self._manifest.get('id')}")
             return
 
         # Se già presente chiede conferma aggiornamento
         try:
-            import importlib.util
-            spec = importlib.util.spec_from_file_location("bionomen_core_check", str(bionomen_module))
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            if mod.is_database_present():
+            if hasattr(mod, "is_database_present") and mod.is_database_present():
+                plugin_name = self._manifest.get("name", "Plugin")
                 reply = QMessageBox.question(
                     self, "Aggiorna database",
-                    "Il database BioNomen è già presente.\nVuoi verificare e aggiornare?",
+                    f"Il database {plugin_name} è già presente.\nVuoi verificare e aggiornare?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 )
                 if reply != QMessageBox.StandardButton.Yes:
@@ -429,12 +450,13 @@ class PluginCard(QFrame):
         self.progress_bar.show()
         self.lbl_dl_counter.setText("")
         self.lbl_dl_counter.show()
-        self.lbl_dl_status.setText("Connessione a GBIF...")
+        self.lbl_dl_status.setText("Inizializzazione...")
         self.lbl_dl_status.show()
         self.btn_dl_stop.show()
         self._dl_start_time = None
 
-        self._download_worker = DownloadWorker(self._plugin_dir, language=language, parent=self)
+        plugin_id = self._manifest.get("id", "plugin")
+        self._download_worker = DownloadWorker(self._plugin_dir, plugin_id=plugin_id, language=language, parent=self)
         self._download_worker.progress.connect(self._on_download_progress)
         self._download_worker.status.connect(self._on_download_status)
         self._download_worker.finished.connect(self._on_download_finished)
@@ -501,7 +523,7 @@ class PluginCard(QFrame):
                 else:
                     eta_str = f"  (~{remaining / 3600:.1f}h)"
 
-        self.lbl_dl_counter.setText(f"{cur_fmt} / {tot_fmt} specie{eta_str}")
+        self.lbl_dl_counter.setText(f"{cur_fmt} / {tot_fmt}{eta_str}")
 
     def _on_download_finished(self):
         """Chiamato al termine del download."""
@@ -528,45 +550,63 @@ class PluginCard(QFrame):
         logger.error(f"Errore download DB plugin: {msg}")
 
     def _on_configure(self):
-        """Apre il ConfigDialog di BioNomen direttamente, senza lanciare il sottoprocesso."""
+        """Apre il ConfigDialog del plugin caricando il modulo UI dalla entry_point."""
         try:
             import importlib.util
-            ui_path = self._plugin_dir / self._manifest.get("entry_point", "bionomen_ui.py")
-            spec = importlib.util.spec_from_file_location("bionomen_ui", str(ui_path))
+            plugin_id = self._manifest.get("id", "plugin")
+            entry_point = self._manifest.get("entry_point", f"{plugin_id}_ui.py")
+            ui_path = self._plugin_dir / entry_point
+            spec = importlib.util.spec_from_file_location(f"{plugin_id}_ui", str(ui_path))
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
 
-            # Calcola conteggi candidati per il dialog
-            count_unprocessed, count_total, count_gallery = -1, -1, -1
-            if self._db_path:
-                try:
-                    import sqlite3
-                    conn = sqlite3.connect(self._db_path)
-                    count_total = conn.execute(
-                        "SELECT COUNT(*) FROM images WHERE bioclip_taxonomy IS NOT NULL"
-                    ).fetchone()[0]
-                    count_unprocessed = conn.execute(
-                        "SELECT COUNT(*) FROM images WHERE bioclip_taxonomy IS NOT NULL AND vernacular_name IS NULL"
-                    ).fetchone()[0]
-                    conn.close()
-                except Exception:
-                    pass
+            if not hasattr(mod, "ConfigDialog"):
+                logger.warning(f"Plugin '{plugin_id}' non espone ConfigDialog in {entry_point}")
+                return
 
             # Conta foto selezionate in gallery
+            count_gallery = -1
             main_window = self._get_main_window()
             if main_window and hasattr(main_window, "get_selected_gallery_items"):
                 selected = main_window.get_selected_gallery_items()
                 count_gallery = len(selected) if selected else 0
 
+            # Calcola conteggi candidati per il dialog (se DB disponibile)
+            count_unprocessed, count_total = -1, -1
+            if self._db_path:
+                try:
+                    import sqlite3
+                    conn = sqlite3.connect(self._db_path)
+                    run_condition = self._manifest.get("run_condition", "")
+                    output_fields = self._manifest.get("output_fields", [])
+
+                    # Totale foto processabili (rispettando run_condition)
+                    base_where = "bioclip_taxonomy IS NOT NULL" if run_condition == "bioclip_not_null" else "1=1"
+                    count_total = conn.execute(
+                        f"SELECT COUNT(*) FROM images WHERE {base_where}"
+                    ).fetchone()[0]
+
+                    # Foto non ancora processate (tutti gli output_fields sono NULL)
+                    if output_fields:
+                        null_conds = " AND ".join(f"{f} IS NULL" for f in output_fields)
+                        try:
+                            count_unprocessed = conn.execute(
+                                f"SELECT COUNT(*) FROM images WHERE {base_where} AND ({null_conds})"
+                            ).fetchone()[0]
+                        except Exception:
+                            count_unprocessed = -1
+
+                    conn.close()
+                except Exception:
+                    pass
+
             # Legge modalità salvata in config (persistenza tra sessioni)
             try:
-                bionomen_mod_path = ui_path.parent / "bionomen.py"
-                bionomen_spec = importlib.util.spec_from_file_location("bionomen_core", str(bionomen_mod_path))
-                bionomen_mod = importlib.util.module_from_spec(bionomen_spec)
-                bionomen_spec.loader.exec_module(bionomen_mod)
-                saved_mode = bionomen_mod.load_config().get("mode", self._mode)
-                if saved_mode != "directory":  # directory richiede scelta interattiva
-                    self._mode = saved_mode
+                core_mod = self._load_core_module()
+                if core_mod and hasattr(core_mod, "load_config"):
+                    saved_mode = core_mod.load_config().get("mode", self._mode)
+                    if saved_mode not in ("directory",):
+                        self._mode = saved_mode
             except Exception:
                 pass
 
@@ -582,13 +622,11 @@ class PluginCard(QFrame):
                 if self._mode == "directory":
                     dir_filter = self._pick_directory()
                     if not dir_filter:
-                        # Utente ha annullato il tree → ricade su unprocessed
                         self._mode = "unprocessed"
                         self._directory_filter = ""
                         self.lbl_mode.hide()
                     else:
                         self._directory_filter = dir_filter
-                        # Mostra le directory selezionate come etichetta
                         n = len(dir_filter.split("|"))
                         dirs_short = ", ".join(
                             Path(d).name for d in dir_filter.split("|")[:3]
@@ -614,7 +652,7 @@ class PluginCard(QFrame):
         return None
 
     def _on_start_stop(self):
-        """Avvia l'elaborazione aprendo la finestra BioNomen."""
+        """Avvia l'elaborazione del plugin."""
         if self._process and self._process.poll() is None:
             return  # Processo già attivo — non fare nulla (btn_start è disabilitato)
         self._start_processing()
@@ -644,8 +682,9 @@ class PluginCard(QFrame):
                     if hasattr(item, "image_data") and item.image_data.get("id") is not None
                 ]
             if not selected:
+                plugin_name = self._manifest.get("name", "Plugin")
                 QMessageBox.warning(
-                    self, "BioNomen",
+                    self, plugin_name,
                     "Nessuna foto selezionata in Gallery.\n"
                     "Seleziona almeno una foto prima di avviare.",
                 )
@@ -702,8 +741,10 @@ class PluginCard(QFrame):
 
             # Legge filepath e calcola directory parent (come db_manager.get_directory_image_counts)
             conn = sqlite3.connect(self._db_path)
+            run_condition = self._manifest.get("run_condition", "")
+            where = "bioclip_taxonomy IS NOT NULL" if run_condition == "bioclip_not_null" else "1=1"
             rows = conn.execute(
-                "SELECT filepath FROM images WHERE bioclip_taxonomy IS NOT NULL"
+                f"SELECT filepath FROM images WHERE {where}"
             ).fetchall()
             conn.close()
 
@@ -713,8 +754,9 @@ class PluginCard(QFrame):
                     parent = str(Path(fp).parent)
                     dir_counts[parent] = dir_counts.get(parent, 0) + 1
 
+            plugin_name = self._manifest.get("name", "Plugin")
             if not dir_counts:
-                QMessageBox.information(self, "BioNomen", "Nessuna directory nel database.")
+                QMessageBox.information(self, plugin_name, "Nessuna directory nel database.")
                 return ""
 
             dlg = DirectoryTreeDialog(dir_counts, parent=self)
