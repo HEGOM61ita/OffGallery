@@ -1765,47 +1765,61 @@ class SearchTab(QWidget):
                 self.log_message(f"Traceback: {traceback.format_exc()}", "error")
             
             # Filtri plugin dinamici: popola combobox con valori presenti nel DB
-            for field, widget in self._plugin_filter_widgets.items():
-                if not isinstance(widget, QComboBox):
-                    continue
-                meta      = self._plugin_filter_meta.get(field, {})
-                db_col    = meta.get('db_column', field)
-                json_path = meta.get('json_extract')
-                enum_all  = meta.get('enum_fields', {})
-                lang      = meta.get('lang', 'it')
-                enum_map  = enum_all.get(lang, enum_all.get('en', {}))
-                try:
-                    # Controlla che la colonna esista (potrebbe non esserci su DB vecchi)
-                    db_manager.cursor.execute("PRAGMA table_info(images)")
-                    existing_cols = {row[1] for row in db_manager.cursor.fetchall()}
-                    if db_col not in existing_cols:
+            # Usa connessione separata per evitare conflitti col cursore db_manager
+            import sqlite3 as _sqlite3
+            try:
+                _plugin_conn = _sqlite3.connect(db_path)
+                _plugin_cur  = _plugin_conn.cursor()
+                _plugin_cur.execute("PRAGMA table_info(images)")
+                existing_cols = {row[1] for row in _plugin_cur.fetchall()}
+            except Exception as e:
+                self.log_message(f"⚠️ Impossibile leggere schema DB per filtri plugin: {e}", "warning")
+                existing_cols = set()
+                _plugin_conn = None
+                _plugin_cur  = None
+
+            if _plugin_cur:
+                for field, widget in self._plugin_filter_widgets.items():
+                    if not isinstance(widget, QComboBox):
                         continue
-                    if json_path:
-                        db_manager.cursor.execute(
-                            f"SELECT DISTINCT json_extract({db_col}, ?) "
-                            f"FROM images WHERE {db_col} IS NOT NULL",
-                            (json_path,)
-                        )
-                    else:
-                        db_manager.cursor.execute(
-                            f"SELECT DISTINCT {db_col} FROM images "
-                            f"WHERE {db_col} IS NOT NULL AND {db_col} != '' ORDER BY {db_col}"
-                        )
-                    codes = [row[0] for row in db_manager.cursor.fetchall() if row[0]]
-                    codes.sort()
-                    current_val = widget.currentData()
-                    widget.clear()
-                    widget.addItem(t("search.combo.all_m"), None)
-                    for code in codes:
-                        label = enum_map.get(code, code) if enum_map else code
-                        widget.addItem(label, code)
-                    # Ripristina selezione precedente
-                    if current_val is not None:
-                        idx = widget.findData(current_val)
-                        if idx >= 0:
-                            widget.setCurrentIndex(idx)
-                except Exception as e:
-                    self.log_message(f"⚠️ Filtro plugin {field}: {e}", "warning")
+                    meta      = self._plugin_filter_meta.get(field, {})
+                    db_col    = meta.get('db_column', field)
+                    json_path = meta.get('json_extract')
+                    enum_all  = meta.get('enum_fields', {})
+                    lang      = meta.get('lang', 'it')
+                    enum_map  = enum_all.get(lang, enum_all.get('en', {}))
+                    try:
+                        if db_col not in existing_cols:
+                            self.log_message(f"⚠️ Colonna '{db_col}' non nel DB — plugin non ancora eseguito?", "info")
+                            continue
+                        if json_path:
+                            _plugin_cur.execute(
+                                f"SELECT DISTINCT json_extract({db_col}, ?) "
+                                f"FROM images WHERE {db_col} IS NOT NULL",
+                                (json_path,)
+                            )
+                        else:
+                            _plugin_cur.execute(
+                                f"SELECT DISTINCT {db_col} FROM images "
+                                f"WHERE {db_col} IS NOT NULL AND {db_col} != '' ORDER BY {db_col}"
+                            )
+                        codes = [row[0] for row in _plugin_cur.fetchall() if row[0]]
+                        codes.sort()
+                        current_val = widget.currentData()
+                        widget.clear()
+                        widget.addItem(t("search.combo.all_m"), None)
+                        for code in codes:
+                            label = enum_map.get(code, code) if enum_map else code
+                            widget.addItem(label, code)
+                        self.log_message(f"✓ Filtro plugin '{field}': {len(codes)} valori", "info")
+                        # Ripristina selezione precedente
+                        if current_val is not None:
+                            idx = widget.findData(current_val)
+                            if idx >= 0:
+                                widget.setCurrentIndex(idx)
+                    except Exception as e:
+                        self.log_message(f"⚠️ Filtro plugin {field}: {e}", "warning")
+                _plugin_conn.close()
 
             db_manager.close()
             self.log_message("✓ Caricamento filtri completato", "info")
