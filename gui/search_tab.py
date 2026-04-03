@@ -1050,7 +1050,7 @@ class SearchTab(QWidget):
                     combo = QComboBox()
                     combo.setMinimumWidth(100)
                     # Voce vuota = "tutti" — le voci vengono popolate da on_activated()
-                    combo.addItem("—", None)
+                    combo.addItem(t("search.combo.all_m"), None)
                     row.addWidget(combo)
                     row.addStretch()
                     self._plugin_filter_widgets[field] = combo
@@ -1531,7 +1531,17 @@ class SearchTab(QWidget):
                     continue
         
             logger.debug(f"Reset completato: {reset_success} successi, {reset_errors} errori")
-        
+
+            # Reset filtri plugin dinamici
+            for field, widget in self._plugin_filter_widgets.items():
+                try:
+                    if isinstance(widget, QComboBox):
+                        widget.setCurrentIndex(0)
+                    elif hasattr(widget, 'clear'):
+                        widget.clear()
+                except Exception as e:
+                    logger.debug(f"Errore reset filtro plugin {field}: {e}")
+
             # Date speciali con controllo sicurezza
             try:
                 if hasattr(self, "date_from") and self.date_from:
@@ -1785,7 +1795,7 @@ class SearchTab(QWidget):
                     codes.sort()
                     current_val = widget.currentData()
                     widget.clear()
-                    widget.addItem("—", None)
+                    widget.addItem(t("search.combo.all_m"), None)
                     for code in codes:
                         label = enum_map.get(code, code) if enum_map else code
                         widget.addItem(label, code)
