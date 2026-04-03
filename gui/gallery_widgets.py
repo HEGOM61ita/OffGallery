@@ -856,6 +856,53 @@ class ImageCard(QFrame):
                 except Exception:
                     pass
 
+            # Sezione NaturArea (area protetta + habitat) — solo se plugin installato
+            _naturarea_installed = (get_app_dir() / 'plugins' / 'naturarea' / 'manifest.json').exists()
+            if _naturarea_installed:
+                protected_area = self.image_data.get('protected_area', '')
+                habitat = self.image_data.get('habitat', '')
+                if protected_area or habitat:
+                    lines.append("🏞 AREA NATURALE")
+                    if protected_area and protected_area != 'none':
+                        lines.append(protected_area[:45])
+                    if habitat:
+                        lines.append(f"Habitat: {habitat}")
+                    lines.append("")
+
+            # Sezione Meteo — solo se plugin installato
+            _meteo_installed = (get_app_dir() / 'plugins' / 'weather_context' / 'manifest.json').exists()
+            if _meteo_installed:
+                weather_raw = self.image_data.get('weather_context', '')
+                if weather_raw:
+                    try:
+                        wdata = json.loads(weather_raw) if isinstance(weather_raw, str) else weather_raw
+                        if isinstance(wdata, dict):
+                            lines.append("🌤 METEO")
+                            cond = wdata.get('condition', '')
+                            temp = wdata.get('temp_c')
+                            hum  = wdata.get('humidity')
+                            wind = wdata.get('wind_kmh')
+                            prec = wdata.get('precip_mm')
+                            parts = []
+                            if cond:
+                                parts.append(cond)
+                            if temp is not None:
+                                parts.append(f"{temp}°C")
+                            if hum is not None:
+                                parts.append(f"umidità {hum}%")
+                            if parts:
+                                lines.append(", ".join(parts))
+                            if wind is not None or prec is not None:
+                                extra = []
+                                if wind is not None:
+                                    extra.append(f"vento {wind} km/h")
+                                if prec is not None:
+                                    extra.append(f"precip. {prec} mm")
+                                lines.append(", ".join(extra))
+                            lines.append("")
+                    except Exception:
+                        pass
+
             # Descrizione
             description = self.image_data.get('description', '')
             if description and len(description) > 0:  # ← FIX: Controlla che esista E non sia vuoto
@@ -1132,6 +1179,37 @@ class ImageCard(QFrame):
             bioclip_action = QAction(t("widgets.action.run_bioclip"), self)
             bioclip_action.triggered.connect(lambda: self._run_bioclip_and_refresh(target_items))
             ai_menu.addAction(bioclip_action)
+
+            # ═══ PLUGIN AZIONI (NaturArea, Meteo) ═══
+            _naturarea_manifest = get_app_dir() / 'plugins' / 'naturarea' / 'manifest.json'
+            _meteo_manifest = get_app_dir() / 'plugins' / 'weather_context' / 'manifest.json'
+            if _naturarea_manifest.exists() or _meteo_manifest.exists():
+                plugin_menu = menu.addMenu(f"Plugin{multi_label}")
+
+                if _naturarea_manifest.exists():
+                    na_gen = QAction(f"🏞 Genera Area Naturale", self)
+                    na_gen.triggered.connect(lambda: self._run_plugin_on_selection(
+                        target_items, 'naturarea', 'naturarea_ui.py'))
+                    plugin_menu.addAction(na_gen)
+
+                    na_del = QAction("🗑 Rimuovi Area Naturale", self)
+                    na_del.triggered.connect(lambda: self._clear_plugin_fields(
+                        target_items, ['protected_area', 'habitat']))
+                    plugin_menu.addAction(na_del)
+
+                if _meteo_manifest.exists():
+                    if _naturarea_manifest.exists():
+                        plugin_menu.addSeparator()
+
+                    mt_gen = QAction(f"🌤 Genera Meteo", self)
+                    mt_gen.triggered.connect(lambda: self._run_plugin_on_selection(
+                        target_items, 'weather_context', 'weather_ui.py'))
+                    plugin_menu.addAction(mt_gen)
+
+                    mt_del = QAction("🗑 Rimuovi Meteo", self)
+                    mt_del.triggered.connect(lambda: self._clear_plugin_fields(
+                        target_items, ['weather_context']))
+                    plugin_menu.addAction(mt_del)
 
             # ═══ TROVA SIMILI (singolo, in evidenza) ═══
             similar_action = QAction(t("widgets.action.find_similar"), self)
@@ -3080,6 +3158,99 @@ class ImageCard(QFrame):
         msg.setStyleSheet("QLabel { font-family: 'Consolas', 'Monaco', monospace; }")
         msg.exec()
     
+    def _run_plugin_on_selection(self, target_items, plugin_id: str, entry_point: str):
+        """Lancia un plugin standalone sui target_items selezionati in modalità selection."""
+        import sys
+        try:
+            import yaml as _yaml
+            app_dir = get_app_dir()
+            config_path = app_dir / 'config_new.yaml'
+            db_path = ''
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    _cfg = _yaml.safe_load(f) or {}
+                db_path = _cfg.get('paths', {}).get('database', '')
+
+            if not db_path:
+                logger.warning(f"Plugin {plugin_id}: percorso DB non trovato")
+                return
+
+            # Raccoglie gli ID delle immagini selezionate
+            ids = [item.image_id for item in target_items if item.image_id is not None]
+            if not ids:
+                return
+
+            plugin_dir = app_dir / 'plugins' / plugin_id
+            entry_path = plugin_dir / entry_point
+            config_json = plugin_dir / 'config.json'
+
+            cmd = [sys.executable, str(entry_path),
+                   '--db', db_path,
+                   '--mode', 'selection',
+                   '--ids', json.dumps(ids),
+                   '--headless']
+            if config_json.exists():
+                cmd += ['--config', str(config_json)]
+
+            gallery = self._gallery
+            if gallery and hasattr(gallery, 'add_log_message'):
+                gallery.add_log_message(f"▶ Plugin {plugin_id} su {len(ids)} foto...", "info")
+
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1,
+                **subprocess_creation_kwargs()
+            )
+            # Legge output in thread separato per non bloccare la UI
+            import threading
+            def _read():
+                for line in proc.stdout:
+                    line = line.strip()
+                    if line.startswith('DONE:'):
+                        parts = line.split(':')
+                        matched = parts[2] if len(parts) > 2 else '?'
+                        if gallery and hasattr(gallery, 'add_log_message'):
+                            gallery.add_log_message(
+                                f"✅ {plugin_id}: {matched}/{parts[1]} foto arricchite", "success")
+                        # Invalida cache tooltip e aggiorna immagini
+                        for item in target_items:
+                            if hasattr(item, '_cached_semantic_tooltip'):
+                                del item._cached_semantic_tooltip
+                    elif line.startswith('ERROR:'):
+                        if gallery and hasattr(gallery, 'add_log_message'):
+                            gallery.add_log_message(f"⚠️ {plugin_id}: {line[6:]}", "warning")
+            threading.Thread(target=_read, daemon=True).start()
+
+        except Exception as e:
+            logger.error(f"_run_plugin_on_selection {plugin_id}: {e}")
+
+    def _clear_plugin_fields(self, target_items, fields: list):
+        """Imposta a NULL i campi plugin specificati per le immagini selezionate."""
+        try:
+            db_manager = self._get_database_manager()
+            if not db_manager:
+                return
+            count = 0
+            for item in target_items:
+                if item.image_id is None:
+                    continue
+                kwargs = {f: None for f in fields}
+                db_manager.update_image_metadata(item.image_id, **kwargs)
+                # Aggiorna image_data locale e invalida cache tooltip
+                for f in fields:
+                    item.image_data[f] = None
+                if hasattr(item, '_cached_semantic_tooltip'):
+                    del item._cached_semantic_tooltip
+                count += 1
+            db_manager.close()
+            gallery = self._gallery
+            if gallery and hasattr(gallery, 'add_log_message'):
+                gallery.add_log_message(
+                    f"🗑 Rimossi {', '.join(fields)} da {count} foto", "info")
+        except Exception as e:
+            logger.error(f"_clear_plugin_fields: {e}")
+
     def _get_database_manager(self):
         """Ottieni DatabaseManager SOLO da config_new.yaml - nessuna alternativa"""
         try:

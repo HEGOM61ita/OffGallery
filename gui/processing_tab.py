@@ -1544,6 +1544,9 @@ class ProcessingTab(QWidget):
         config_json = Path(plugin_dir) / 'config.json'
         if config_json.exists():
             cmd += ['--config', str(config_json)]
+        # Applica run_condition: bioclip_not_null → passa flag al subprocess
+        if manifest.get('run_condition') == 'bioclip_not_null':
+            cmd += ['--filter-bioclip']
         cmd += ['--headless']
 
         try:
