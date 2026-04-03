@@ -22,7 +22,8 @@
     {"name": "weather_context", "type": "TEXT"}
   ],
   "search_filters": [
-    {"field": "weather_condition", "widget": "combobox", "label_key": "weather_condition"}
+    {"field": "weather_condition", "widget": "combobox", "label_key": "weather_condition",
+     "db_column": "weather_context", "json_extract": "$.condition"}
   ],
   "enum_fields": {
     "weather_condition": {

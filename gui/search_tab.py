@@ -113,6 +113,8 @@ class SearchTab(QWidget):
 
         # Filtri plugin dinamici: field_name → widget (QLineEdit o QComboBox)
         self._plugin_filter_widgets: dict = {}
+        # Metadati filtro: field_name → dict con db_column, json_extract, enum_fields
+        self._plugin_filter_meta: dict = {}
         # Manifest plugin con search_filters (ordinati per priority)
         self._plugin_filter_manifests: list = self._discover_plugin_filters()
 
@@ -347,17 +349,28 @@ class SearchTab(QWidget):
 
         # --- FILTRI PLUGIN DINAMICI ---
         for field, widget in self._plugin_filter_widgets.items():
+            meta = self._plugin_filter_meta.get(field, {})
+            db_col      = meta.get('db_column', field)
+            json_path   = meta.get('json_extract')  # es. "$.condition"
             if isinstance(widget, QComboBox):
                 value = widget.currentData()
                 if value is not None:
-                    conditions.append(f"{field} = ?")
-                    params.append(value)
+                    if json_path:
+                        conditions.append(f"json_extract({db_col}, ?) = ?")
+                        params.extend([json_path, value])
+                    else:
+                        conditions.append(f"{db_col} = ?")
+                        params.append(value)
             else:
                 # QLineEdit: filtro LIKE case-insensitive
                 text = widget.text().strip()
                 if text:
-                    conditions.append(f"{field} LIKE ?")
-                    params.append(f"%{text}%")
+                    if json_path:
+                        conditions.append(f"json_extract({db_col}, ?) LIKE ?")
+                        params.extend([json_path, f"%{text}%"])
+                    else:
+                        conditions.append(f"{db_col} LIKE ?")
+                        params.append(f"%{text}%")
 
         # Uniamo tutto
         sql_string = " AND ".join(conditions) if conditions else None
@@ -1025,14 +1038,19 @@ class SearchTab(QWidget):
                 row.setSpacing(4)
                 row.addWidget(QLabel(label_text + ':'))
 
-                if widget_type == 'combobox' and field in _enums:
+                # Salva metadati per SQL e popolamento DB
+                self._plugin_filter_meta[field] = {
+                    'db_column':    flt.get('db_column', field),
+                    'json_extract': flt.get('json_extract'),
+                    'enum_fields':  _enums.get(field, {}),
+                    'lang':         _lang,
+                }
+
+                if widget_type == 'combobox':
                     combo = QComboBox()
                     combo.setMinimumWidth(100)
-                    # Voce vuota = "tutti"
+                    # Voce vuota = "tutti" — le voci vengono popolate da on_activated()
                     combo.addItem("—", None)
-                    enum_entries = _enums[field].get(_lang, _enums[field].get('en', {}))
-                    for code, display in enum_entries.items():
-                        combo.addItem(display, code)
                     row.addWidget(combo)
                     row.addStretch()
                     self._plugin_filter_widgets[field] = combo
@@ -1736,6 +1754,49 @@ class SearchTab(QWidget):
                 import traceback
                 self.log_message(f"Traceback: {traceback.format_exc()}", "error")
             
+            # Filtri plugin dinamici: popola combobox con valori presenti nel DB
+            for field, widget in self._plugin_filter_widgets.items():
+                if not isinstance(widget, QComboBox):
+                    continue
+                meta      = self._plugin_filter_meta.get(field, {})
+                db_col    = meta.get('db_column', field)
+                json_path = meta.get('json_extract')
+                enum_all  = meta.get('enum_fields', {})
+                lang      = meta.get('lang', 'it')
+                enum_map  = enum_all.get(lang, enum_all.get('en', {}))
+                try:
+                    # Controlla che la colonna esista (potrebbe non esserci su DB vecchi)
+                    db_manager.cursor.execute("PRAGMA table_info(images)")
+                    existing_cols = {row[1] for row in db_manager.cursor.fetchall()}
+                    if db_col not in existing_cols:
+                        continue
+                    if json_path:
+                        db_manager.cursor.execute(
+                            f"SELECT DISTINCT json_extract({db_col}, ?) "
+                            f"FROM images WHERE {db_col} IS NOT NULL",
+                            (json_path,)
+                        )
+                    else:
+                        db_manager.cursor.execute(
+                            f"SELECT DISTINCT {db_col} FROM images "
+                            f"WHERE {db_col} IS NOT NULL AND {db_col} != '' ORDER BY {db_col}"
+                        )
+                    codes = [row[0] for row in db_manager.cursor.fetchall() if row[0]]
+                    codes.sort()
+                    current_val = widget.currentData()
+                    widget.clear()
+                    widget.addItem("—", None)
+                    for code in codes:
+                        label = enum_map.get(code, code) if enum_map else code
+                        widget.addItem(label, code)
+                    # Ripristina selezione precedente
+                    if current_val is not None:
+                        idx = widget.findData(current_val)
+                        if idx >= 0:
+                            widget.setCurrentIndex(idx)
+                except Exception as e:
+                    self.log_message(f"⚠️ Filtro plugin {field}: {e}", "warning")
+
             db_manager.close()
             self.log_message("✓ Caricamento filtri completato", "info")
             
