@@ -19,13 +19,24 @@ class ImageRetrieval:
         self.stems_cache = {}  # Cache per stems delle immagini
 
     def _plugin_columns(self) -> str:
-        """Ritorna la lista di colonne plugin che esistono nel DB, da aggiungere alla SELECT.
+        """Ritorna le colonne plugin che esistono nel DB, lette dai manifest installati.
         Gestisce DB creati prima dell'installazione dei plugin (colonne assenti)."""
-        candidates = ['protected_area', 'habitat', 'weather_context']
         try:
+            plugins_dir = Path(__file__).parent / 'plugins'
+            candidates = []
+            if plugins_dir.is_dir():
+                for mpath in plugins_dir.rglob('manifest.json'):
+                    try:
+                        m = json.loads(mpath.read_text(encoding='utf-8'))
+                        if m.get('type') == 'standalone':
+                            candidates.extend(m.get('output_fields', []))
+                    except Exception:
+                        pass
+            if not candidates:
+                return ""
             self.db.cursor.execute("PRAGMA table_info(images)")
             existing = {row[1] for row in self.db.cursor.fetchall()}
-            found = [c for c in candidates if c in existing]
+            found = [c for c in dict.fromkeys(candidates) if c in existing]
             return (", " + ", ".join(found)) if found else ""
         except Exception:
             return ""

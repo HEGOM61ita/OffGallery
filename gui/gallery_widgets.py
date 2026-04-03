@@ -856,74 +856,89 @@ class ImageCard(QFrame):
                 except Exception:
                     pass
 
-            # Sezione NaturArea (area protetta + habitat) — solo se plugin installato
-            _naturarea_manifest_path = get_app_dir() / 'plugins' / 'naturarea' / 'manifest.json'
-            if _naturarea_manifest_path.exists():
-                protected_area = self.image_data.get('protected_area', '')
-                habitat = self.image_data.get('habitat', '')
-                if protected_area or habitat:
-                    lines.append("🏞 AREA NATURALE")
-                    if protected_area and protected_area != 'none':
-                        lines.append(protected_area[:45])
-                    if habitat:
-                        # Traduce il codice habitat nella lingua UI tramite enum_fields del manifest
-                        habitat_label = habitat
-                        try:
-                            from i18n import current_language
-                            _na_manifest = json.loads(_naturarea_manifest_path.read_text(encoding='utf-8'))
-                            _ui_lang = current_language()
-                            _hab_map = _na_manifest.get('enum_fields', {}).get('habitat', {}).get(_ui_lang, {})
-                            habitat_label = _hab_map.get(habitat, habitat)
-                        except Exception:
-                            pass
-                        lines.append(f"Habitat: {habitat_label}")
-                    lines.append("")
-
-            # Sezione Meteo — solo se plugin installato
-            _meteo_manifest_path = get_app_dir() / 'plugins' / 'weather_context' / 'manifest.json'
-            if _meteo_manifest_path.exists():
-                weather_raw = self.image_data.get('weather_context', '')
-                if weather_raw:
+            # Sezioni plugin — generiche, guidate dai manifest installati con gallery_action: true
+            try:
+                from i18n import current_language as _cur_lang
+                _ui_lang = _cur_lang()
+            except Exception:
+                _ui_lang = 'it'
+            _plugins_dir = get_app_dir() / 'plugins'
+            if _plugins_dir.is_dir():
+                _plugin_manifests = []
+                for _mp in sorted(_plugins_dir.rglob('manifest.json')):
                     try:
-                        wdata = json.loads(weather_raw) if isinstance(weather_raw, str) else weather_raw
-                        if isinstance(wdata, dict):
-                            lines.append("🌤 METEO")
-                            cond = wdata.get('condition', '')
-                            temp = wdata.get('temp_c')
-                            hum  = wdata.get('humidity')
-                            wind = wdata.get('wind_kmh')
-                            prec = wdata.get('precip_mm')
-
-                            # Traduce il codice condizione nella lingua UI tramite enum_fields del manifest
-                            if cond:
-                                try:
-                                    from i18n import current_language
-                                    _meteo_manifest = json.loads(_meteo_manifest_path.read_text(encoding='utf-8'))
-                                    _ui_lang = current_language()
-                                    _cond_map = _meteo_manifest.get('enum_fields', {}).get('weather_condition', {}).get(_ui_lang, {})
-                                    cond = _cond_map.get(cond, cond)
-                                except Exception:
-                                    pass
-
-                            parts = []
-                            if cond:
-                                parts.append(cond)
-                            if temp is not None:
-                                parts.append(f"{temp}°C")
-                            if hum is not None:
-                                parts.append(f"umidità {hum}%")
-                            if parts:
-                                lines.append(", ".join(parts))
-                            if wind is not None or prec is not None:
-                                extra = []
-                                if wind is not None:
-                                    extra.append(f"vento {wind} km/h")
-                                if prec is not None:
-                                    extra.append(f"precip. {prec} mm")
-                                lines.append(", ".join(extra))
-                            lines.append("")
+                        _pm = json.loads(_mp.read_text(encoding='utf-8'))
+                        if _pm.get('type') == 'standalone' and _pm.get('gallery_action'):
+                            _pm['_path'] = _mp
+                            _plugin_manifests.append(_pm)
                     except Exception:
                         pass
+                _plugin_manifests.sort(key=lambda m: m.get('priority', 100))
+
+                for _pm in _plugin_manifests:
+                    _tooltip_fields = _pm.get('tooltip_fields', [])
+                    if not _tooltip_fields:
+                        continue
+                    _icon = _pm.get('icon', '')
+                    _pname = _pm.get('name', _pm.get('id', ''))
+                    _enums = _pm.get('enum_fields', {})
+                    _section_lines = []
+                    for _tf in _tooltip_fields:
+                        _fname   = _tf.get('field', '')
+                        _ftype   = _tf.get('type', 'text')
+                        _fval    = self.image_data.get(_fname)
+                        if not _fval:
+                            continue
+                        if _ftype == 'json':
+                            # Campo JSON: estrae sotto-chiavi secondo json_keys
+                            try:
+                                _jdata = json.loads(_fval) if isinstance(_fval, str) else _fval
+                                if not isinstance(_jdata, dict):
+                                    continue
+                                _row1, _row2 = [], []
+                                for _jk in _tf.get('json_keys', []):
+                                    _k   = _jk.get('key', '')
+                                    _v   = _jdata.get(_k)
+                                    if _v is None:
+                                        continue
+                                    _ek  = _jk.get('enum_key')
+                                    _fmt = _jk.get('format', '{v}')
+                                    if _ek and _ek in _enums:
+                                        _emap = _enums[_ek].get(_ui_lang, _enums[_ek].get('it', {}))
+                                        _v = _emap.get(str(_v), str(_v))
+                                    else:
+                                        _v = _fmt.format(v=_v)
+                                    # Prima coppia di valori in riga 1, resto in riga 2
+                                    if len(_row1) < 3:
+                                        _row1.append(str(_v))
+                                    else:
+                                        _row2.append(str(_v))
+                                if _row1:
+                                    _section_lines.append(", ".join(_row1))
+                                if _row2:
+                                    _section_lines.append(", ".join(_row2))
+                            except Exception:
+                                pass
+                        else:
+                            # Campo testo diretto (eventualmente con enum o max_len)
+                            _skip = _tf.get('skip_values', [])
+                            if str(_fval) in _skip:
+                                continue
+                            _max_len = _tf.get('max_len')
+                            _ek = _tf.get('enum_key')
+                            if _ek and _ek in _enums:
+                                _emap = _enums[_ek].get(_ui_lang, _enums[_ek].get('it', {}))
+                                _fval = _emap.get(str(_fval), str(_fval))
+                            _label_key = _tf.get('label_key')
+                            _labels = _pm.get('labels', {}).get(_ui_lang, _pm.get('labels', {}).get('it', {}))
+                            _flabel = _labels.get(_label_key or _fname, '') if _label_key else ''
+                            _disp   = str(_fval)[:_max_len] if _max_len else str(_fval)
+                            _section_lines.append(f"{_flabel}: {_disp}" if _flabel else _disp)
+
+                    if _section_lines:
+                        lines.append(f"{_icon} {_pname.upper()}" if _icon else _pname.upper())
+                        lines.extend(_section_lines)
+                        lines.append("")
 
             # Descrizione
             description = self.image_data.get('description', '')
@@ -1202,36 +1217,41 @@ class ImageCard(QFrame):
             bioclip_action.triggered.connect(lambda: self._run_bioclip_and_refresh(target_items))
             ai_menu.addAction(bioclip_action)
 
-            # ═══ PLUGIN AZIONI (NaturArea, Meteo) ═══
-            _naturarea_manifest = get_app_dir() / 'plugins' / 'naturarea' / 'manifest.json'
-            _meteo_manifest = get_app_dir() / 'plugins' / 'weather_context' / 'manifest.json'
-            if _naturarea_manifest.exists() or _meteo_manifest.exists():
+            # ═══ PLUGIN AZIONI — generiche, guidate dai manifest ═══
+            _ga_plugins = []
+            _pd = get_app_dir() / 'plugins'
+            if _pd.is_dir():
+                for _mp in sorted(_pd.rglob('manifest.json')):
+                    try:
+                        _pm2 = json.loads(_mp.read_text(encoding='utf-8'))
+                        if _pm2.get('type') == 'standalone' and _pm2.get('gallery_action'):
+                            _ga_plugins.append((_mp.parent, _pm2))
+                    except Exception:
+                        pass
+                _ga_plugins.sort(key=lambda x: x[1].get('priority', 100))
+
+            if _ga_plugins:
                 plugin_menu = menu.addMenu(f"Plugin{multi_label}")
-
-                if _naturarea_manifest.exists():
-                    na_gen = QAction(f"🏞 Genera Area Naturale", self)
-                    na_gen.triggered.connect(lambda: self._run_plugin_on_selection(
-                        target_items, 'naturarea', 'naturarea_ui.py'))
-                    plugin_menu.addAction(na_gen)
-
-                    na_del = QAction("🗑 Rimuovi Area Naturale", self)
-                    na_del.triggered.connect(lambda: self._clear_plugin_fields(
-                        target_items, ['protected_area', 'habitat']))
-                    plugin_menu.addAction(na_del)
-
-                if _meteo_manifest.exists():
-                    if _naturarea_manifest.exists():
+                for _idx, (_pdir, _pm2) in enumerate(_ga_plugins):
+                    if _idx > 0:
                         plugin_menu.addSeparator()
-
-                    mt_gen = QAction(f"🌤 Genera Meteo", self)
-                    mt_gen.triggered.connect(lambda: self._run_plugin_on_selection(
-                        target_items, 'weather_context', 'weather_ui.py'))
-                    plugin_menu.addAction(mt_gen)
-
-                    mt_del = QAction("🗑 Rimuovi Meteo", self)
-                    mt_del.triggered.connect(lambda: self._clear_plugin_fields(
-                        target_items, ['weather_context']))
-                    plugin_menu.addAction(mt_del)
+                    _icon2   = _pm2.get('icon', '')
+                    _pname2  = _pm2.get('name', _pm2.get('id', ''))
+                    _pid2    = _pm2.get('id', _pdir.name)
+                    _ep2     = _pm2.get('entry_point', f'{_pid2}_ui.py')
+                    _ofields = _pm2.get('output_fields', [])
+                    _label_gen = f"{_icon2} Genera {_pname2}" if _icon2 else f"Genera {_pname2}"
+                    _label_del = f"🗑 Rimuovi {_pname2}"
+                    act_gen = QAction(_label_gen, self)
+                    act_gen.triggered.connect(
+                        (lambda pid=_pid2, ep=_ep2: lambda: self._run_plugin_on_selection(target_items, pid, ep))()
+                    )
+                    plugin_menu.addAction(act_gen)
+                    act_del = QAction(_label_del, self)
+                    act_del.triggered.connect(
+                        (lambda of=_ofields: lambda: self._clear_plugin_fields(target_items, of))()
+                    )
+                    plugin_menu.addAction(act_del)
 
             # ═══ TROVA SIMILI (singolo, in evidenza) ═══
             similar_action = QAction(t("widgets.action.find_similar"), self)
