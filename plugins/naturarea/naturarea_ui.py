@@ -332,9 +332,10 @@ def main():
     parser.add_argument('--config',    required=False, help="Percorso config.json plugin")
     parser.add_argument('--directory', required=False, help="Directory immagini (non usato, per compatibilità)")
     parser.add_argument('--mode',      required=False, default='unprocessed',
-                        choices=['unprocessed', 'directory', 'selection'],
-                        help="Modalità: unprocessed=tutte, selection=ids da --ids")
-    parser.add_argument('--ids',       required=False, help="JSON array di image_id (per modalità selection)")
+                        choices=['unprocessed', 'all', 'directory', 'selection', 'ids'],
+                        help="Modalità: unprocessed=non processate, all=tutte, selection/ids=da --ids")
+    parser.add_argument('--ids',       required=False, help="JSON array di image_id inline")
+    parser.add_argument('--ids-file',  required=False, dest='ids_file', help="Path a file JSON con array di image_id")
     parser.add_argument('--filter-bioclip', action='store_true',
                         help="Processa solo foto con bioclip_taxonomy non NULL")
     parser.add_argument('--headless',  action='store_true', help="Modalità headless (nessuna UI Qt)")
@@ -349,11 +350,15 @@ def main():
     except Exception:
         pass
 
-    # Prepara image_ids se modalità selection
+    # Prepara image_ids se modalità selection o ids (da gallery)
     image_ids = None
-    if args.mode == 'selection' and args.ids:
+    if args.mode in ('selection', 'ids'):
         try:
-            image_ids = json.loads(args.ids)
+            if args.ids_file:
+                with open(args.ids_file, 'r', encoding='utf-8') as f:
+                    image_ids = json.load(f)
+            elif args.ids:
+                image_ids = json.loads(args.ids)
         except Exception:
             print("ERROR:ids non validi", flush=True)
             sys.exit(1)
@@ -376,6 +381,7 @@ def main():
             config=config,
             image_ids=image_ids,
             filter_bioclip=args.filter_bioclip,
+            unprocessed_only=(args.mode == 'unprocessed'),
             progress_cb=_progress
         )
         total = matched + not_matched

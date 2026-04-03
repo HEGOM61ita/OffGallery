@@ -239,6 +239,7 @@ def get_weather(lat: float, lon: float, datetime_str: str,
 def process_images(db_path: str, config: dict,
                    image_ids: Optional[list] = None,
                    filter_bioclip: bool = False,
+                   unprocessed_only: bool = False,
                    progress_cb=None) -> Tuple[int, int]:
     """Processa le immagini nel DB: recupera e scrive weather_context.
 
@@ -269,6 +270,8 @@ def process_images(db_path: str, config: dict,
     params = []
     if filter_bioclip:
         where_clauses.append("bioclip_taxonomy IS NOT NULL")
+    if unprocessed_only:
+        where_clauses.append("weather_context IS NULL")
     if image_ids:
         placeholders = ','.join('?' * len(image_ids))
         where_clauses.append(f"id IN ({placeholders})")
