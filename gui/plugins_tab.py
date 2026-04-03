@@ -73,13 +73,17 @@ _PB_STYLE = """
 class StdoutReaderThread(QThread):
     """
     Thread che legge stdout di un sottoprocesso e parsa:
-      PROGRESS:n:total         → aggiorna progress bar
-      SUMMARY:tot:match:nomatch → riepilogo finale
-      SOURCE:fonte:specie      → log info fonte consultata
-      LOG:level:messaggio      → log warning/error
+      PROGRESS:n:total              → aggiorna progress bar
+      SUMMARY:tot:match:nomatch     → riepilogo finale (BioNomen)
+      DONE:tot:matched:not_matched  → riepilogo finale (NaturArea, Meteo)
+      ERROR:messaggio               → errore fatale dal plugin
+      SOURCE:fonte:specie           → log info fonte consultata
+      LOG:level:messaggio           → log warning/error
+    Legge anche stderr e lo emette via error() se il processo esce con codice non zero.
     """
     progress = pyqtSignal(int, int)
     summary  = pyqtSignal(int, int, int)
+    error    = pyqtSignal(str)
     finished = pyqtSignal()
 
     def __init__(self, process: subprocess.Popen, parent=None):
@@ -87,9 +91,27 @@ class StdoutReaderThread(QThread):
         self._process = process
 
     def run(self):
+        import threading
+        stderr_lines = []
+
+        def _read_stderr():
+            try:
+                for line in self._process.stderr:
+                    line = line.strip()
+                    if line:
+                        stderr_lines.append(line)
+                        logger.debug(f"Plugin stderr: {line}")
+            except Exception:
+                pass
+
+        t_err = threading.Thread(target=_read_stderr, daemon=True)
+        t_err.start()
+
         try:
             for line in self._process.stdout:
                 line = line.strip()
+                if not line:
+                    continue
                 if line.startswith("PROGRESS:"):
                     parts = line.split(":")
                     if len(parts) == 3:
@@ -106,8 +128,11 @@ class StdoutReaderThread(QThread):
                             self.summary.emit(int(parts[1]), int(parts[2]), int(parts[3]))
                         except ValueError:
                             pass
+                elif line.startswith("ERROR:"):
+                    msg = line[len("ERROR:"):]
+                    logger.error(f"Plugin ERROR: {msg}")
+                    self.error.emit(msg)
                 elif line.startswith("SOURCE:"):
-                    # Formato: SOURCE:fonte:nome_scientifico
                     rest = line[len("SOURCE:"):]
                     sep = rest.find(":")
                     if sep != -1:
@@ -115,7 +140,6 @@ class StdoutReaderThread(QThread):
                         specie = rest[sep+1:]
                         logger.debug(f"Plugin [{fonte}] → {specie}")
                 elif line.startswith("LOG:"):
-                    # Formato: LOG:level:messaggio
                     rest = line[len("LOG:"):]
                     sep = rest.find(":")
                     if sep != -1:
@@ -127,7 +151,16 @@ class StdoutReaderThread(QThread):
                             logger.error(f"Plugin: {msg}")
                         else:
                             logger.info(f"Plugin: {msg}")
-            self._process.wait()
+
+            rc = self._process.wait()
+            t_err.join(timeout=2)
+
+            # Se il processo è uscito con errore e non ha già emesso ERROR:, usa stderr
+            if rc != 0 and stderr_lines:
+                # Prendi le ultime 3 righe di stderr (le più utili)
+                msg = " | ".join(stderr_lines[-3:])
+                self.error.emit(f"exit {rc}: {msg}")
+
         except Exception as e:
             logger.debug(f"StdoutReaderThread: errore lettura stdout: {e}")
         finally:
@@ -738,6 +771,7 @@ class PluginCard(QFrame):
             self._reader_thread = StdoutReaderThread(self._process, parent=self)
             self._reader_thread.progress.connect(self._on_process_progress)
             self._reader_thread.summary.connect(self._on_process_summary)
+            self._reader_thread.error.connect(self._on_process_error)
             self._reader_thread.finished.connect(self._on_process_finished)
             self._reader_thread.start()
 
@@ -794,10 +828,20 @@ class PluginCard(QFrame):
 
     def _on_process_summary(self, total: int, matched: int, not_matched: int):
         """Mostra riepilogo finale dell'elaborazione."""
+        self.lbl_dl_status.setStyleSheet(f"font-size: 10px; color: {_COLORS['ambra_light']};")
         self.lbl_dl_status.setText(
             f"✅ {total} foto  —  {matched} processate  —  {not_matched} saltate"
         )
         self.lbl_dl_status.show()
+
+    def _on_process_error(self, msg: str):
+        """Mostra errore fatale del processo."""
+        # Tronca il messaggio a 200 caratteri per non rompere il layout
+        short = msg[:200] + ("…" if len(msg) > 200 else "")
+        self.lbl_dl_status.setText(f"❌ {short}")
+        self.lbl_dl_status.setStyleSheet(f"font-size: 10px; color: {_COLORS['rosso']};")
+        self.lbl_dl_status.show()
+        logger.error(f"Plugin processo errore: {msg}")
 
     def _on_process_finished(self):
         """Chiamato quando il sottoprocesso termina."""
