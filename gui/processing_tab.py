@@ -911,14 +911,6 @@ class ProcessingWorker(QThread):
             location_hint = prep.get('location_hint')
             geo_hierarchy = prep.get('geo_hierarchy')
 
-            # Contesto aggiuntivo dai plugin (llm_context_fields): legge da image_data
-            img_data_for_ctx = prep.get('image_data', {})
-            extra_context: dict = {}
-            for _pm in self._discovered_plugins:
-                for _field in _pm.get('llm_context_fields', []):
-                    _val = img_data_for_ctx.get(_field)
-                    if _val:
-                        extra_context[_field] = _val
 
             try:
                 # Determina cosa generare (rispettando overwrite)
@@ -991,7 +983,6 @@ class ProcessingWorker(QThread):
                             bioclip_context=bioclip_context,
                             category_hint=category_hint,
                             location_hint=location_hint,
-                            extra_context=extra_context or None,
                         )
                         llm_results.update(combined)
                 except Exception as e:

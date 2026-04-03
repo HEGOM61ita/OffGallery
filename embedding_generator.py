@@ -1886,8 +1886,7 @@ class EmbeddingGenerator:
                               max_title_words: int = 5,
                               bioclip_context: Optional[str] = None,
                               category_hint: Optional[str] = None,
-                              location_hint: Optional[str] = None,
-                              extra_context: Optional[dict] = None) -> dict:
+                              location_hint: Optional[str] = None) -> dict:
         """Genera tags/descrizione/titolo con UNA SOLA chiamata LLM.
 
         Risparmia ~2/3 del tempo rispetto a 3 chiamate separate: l'immagine viene
@@ -1909,8 +1908,7 @@ class EmbeddingGenerator:
 
             result = self._call_llm_vision_combined(
                 image_b64, modes, max_tags, max_description_words, max_title_words,
-                category_hint=category_hint, location_hint=location_hint,
-                extra_context=extra_context
+                category_hint=category_hint, location_hint=location_hint
             )
             if not result:
                 return {}
@@ -1939,8 +1937,7 @@ class EmbeddingGenerator:
                                    max_tags: int, max_description_words: int,
                                    max_title_words: int,
                                    category_hint: Optional[str] = None,
-                                   location_hint: Optional[str] = None,
-                                   extra_context: Optional[dict] = None) -> dict:
+                                   location_hint: Optional[str] = None) -> dict:
         """Prompt combinato → una sola chiamata Ollama per tutti i modi richiesti."""
         try:
             llm_config = self.embedding_config.get('models', {}).get('llm_vision', {})
@@ -1975,18 +1972,10 @@ class EmbeddingGenerator:
             else:
                 location_line = "- LOCATION: No GPS data. Do NOT mention, guess or infer any location.\n"
 
-            # Contesto aggiuntivo dai plugin (es. protected_area, habitat, weather_context)
-            extra_lines = ""
-            if extra_context:
-                for key, value in extra_context.items():
-                    if value:
-                        extra_lines += f"- {key.upper()}: {value}\n"
-
             language_rules = (
                 f"LANGUAGE: ALL output MUST be in {lang_name}. NEVER mix languages.\n"
                 f"{category_line}"
                 f"{location_line}"
-                f"{extra_lines}"
                 f"- If no species hint and you recognize an animal/plant, use a generic {lang_name} term.\n"
                 "- NEVER guess a species name. NEVER use scientific/Latin names.\n"
             )
