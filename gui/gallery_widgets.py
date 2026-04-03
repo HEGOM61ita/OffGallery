@@ -857,8 +857,8 @@ class ImageCard(QFrame):
                     pass
 
             # Sezione NaturArea (area protetta + habitat) — solo se plugin installato
-            _naturarea_installed = (get_app_dir() / 'plugins' / 'naturarea' / 'manifest.json').exists()
-            if _naturarea_installed:
+            _naturarea_manifest_path = get_app_dir() / 'plugins' / 'naturarea' / 'manifest.json'
+            if _naturarea_manifest_path.exists():
                 protected_area = self.image_data.get('protected_area', '')
                 habitat = self.image_data.get('habitat', '')
                 if protected_area or habitat:
@@ -866,7 +866,17 @@ class ImageCard(QFrame):
                     if protected_area and protected_area != 'none':
                         lines.append(protected_area[:45])
                     if habitat:
-                        lines.append(f"Habitat: {habitat}")
+                        # Traduce il codice habitat nella lingua UI tramite enum_fields del manifest
+                        habitat_label = habitat
+                        try:
+                            from i18n import current_language
+                            _na_manifest = json.loads(_naturarea_manifest_path.read_text(encoding='utf-8'))
+                            _ui_lang = current_language()
+                            _hab_map = _na_manifest.get('enum_fields', {}).get('habitat', {}).get(_ui_lang, {})
+                            habitat_label = _hab_map.get(habitat, habitat)
+                        except Exception:
+                            pass
+                        lines.append(f"Habitat: {habitat_label}")
                     lines.append("")
 
             # Sezione Meteo — solo se plugin installato

@@ -1833,5 +1833,14 @@ class SearchTab(QWidget):
         # Data
         if self.date_filter_enabled.isChecked():
             return True
-            
+
+        # Filtri plugin dinamici
+        for field, widget in self._plugin_filter_widgets.items():
+            if isinstance(widget, QComboBox):
+                if widget.currentData() is not None:
+                    return True
+            else:
+                if widget.text().strip():
+                    return True
+
         return False
