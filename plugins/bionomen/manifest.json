@@ -1,0 +1,30 @@
+{
+  "id": "bionomen",
+  "name": "BioNomen",
+  "version": "1.0.0",
+  "description": "Arricchisce tag con nomi comuni biologici da GBIF",
+  "icon": "🔤",
+  "author": "OffGallery",
+  "license": "OffGallery Plugins License v1.0 — Proprietary, no redistribution",
+  "entry_point": "bionomen_ui.py",
+  "requires_db": true,
+  "requires_download": true,
+  "min_offgallery_version": "1.0",
+  "type": "standalone",
+  "pipeline_stage": "post_import",
+  "priority": 100,
+  "input_fields": ["bioclip_taxonomy"],
+  "output_fields": ["vernacular_name"],
+  "llm_context_fields": [],
+  "db_columns": [
+    {"name": "vernacular_name", "type": "TEXT"}
+  ],
+  "search_filters": [
+    {"field": "vernacular_name", "widget": "lineedit", "label_key": "vernacular_name"}
+  ],
+  "enum_fields": {},
+  "labels": {
+    "it": {"vernacular_name": "Nome comune"},
+    "en": {"vernacular_name": "Common name"}
+  }
+}

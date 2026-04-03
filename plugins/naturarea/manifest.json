@@ -1,0 +1,69 @@
+{
+  "id": "naturarea",
+  "name": "NaturArea",
+  "version": "1.0.0",
+  "description": "Arricchisce foto GPS con area protetta (WDPA) e habitat (ESA WorldCover). Richiede download dati una tantum.",
+  "icon": "🏞",
+  "author": "OffGallery",
+  "license": "OffGallery Plugins License v1.0 — Proprietary, no redistribution",
+  "entry_point": "naturarea_ui.py",
+  "requires_db": true,
+  "requires_download": true,
+  "min_offgallery_version": "1.0",
+  "type": "standalone",
+  "pipeline_stage": "pre_llm",
+  "priority": 20,
+  "run_condition": "bioclip_not_null",
+  "gallery_action": true,
+  "input_fields": ["gps_latitude", "gps_longitude"],
+  "output_fields": ["protected_area", "habitat"],
+  "llm_context_fields": [],
+  "db_columns": [
+    {"name": "protected_area", "type": "TEXT"},
+    {"name": "habitat",        "type": "TEXT"}
+  ],
+  "search_filters": [
+    {"field": "protected_area", "widget": "lineedit",  "label_key": "protected_area"},
+    {"field": "habitat",        "widget": "combobox",  "label_key": "habitat"}
+  ],
+  "enum_fields": {
+    "habitat": {
+      "it": {
+        "tree_cover":         "Bosco",
+        "shrubland":          "Macchia/Arbusteto",
+        "grassland":          "Prato/Pascolo",
+        "cropland":           "Coltivato",
+        "built_up":           "Urbano/Edificato",
+        "bare_sparse":        "Suolo nudo/Sparso",
+        "snow_ice":           "Neve/Ghiaccio",
+        "water":              "Acqua",
+        "herbaceous_wetland": "Zone umide erbose",
+        "mangroves":          "Mangrovie",
+        "moss_lichen":        "Muschi/Licheni"
+      },
+      "en": {
+        "tree_cover":         "Forest/Tree cover",
+        "shrubland":          "Shrubland",
+        "grassland":          "Grassland",
+        "cropland":           "Cropland",
+        "built_up":           "Built-up/Urban",
+        "bare_sparse":        "Bare/Sparse vegetation",
+        "snow_ice":           "Snow/Ice",
+        "water":              "Water",
+        "herbaceous_wetland": "Herbaceous wetland",
+        "mangroves":          "Mangroves",
+        "moss_lichen":        "Moss/Lichen"
+      }
+    }
+  },
+  "labels": {
+    "it": {
+      "protected_area": "Area protetta",
+      "habitat":        "Habitat"
+    },
+    "en": {
+      "protected_area": "Protected area",
+      "habitat":        "Habitat"
+    }
+  }
+}
