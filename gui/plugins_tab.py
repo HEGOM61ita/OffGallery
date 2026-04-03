@@ -97,7 +97,9 @@ class StdoutReaderThread(QThread):
                             self.progress.emit(int(parts[1]), int(parts[2]))
                         except ValueError:
                             pass
-                elif line.startswith("SUMMARY:"):
+                elif line.startswith("SUMMARY:") or line.startswith("DONE:"):
+                    # SUMMARY:tot:match:nomatch  (BioNomen)
+                    # DONE:tot:matched:not_matched  (NaturArea, Meteo)
                     parts = line.split(":")
                     if len(parts) == 4:
                         try:
@@ -718,12 +720,24 @@ class PluginCard(QFrame):
             )
             logger.info(f"Plugin (elaborazione) avviato: {' '.join(cmd)}")
 
-            # Tasto Avvia rimane disabilitato finché il processo gira
+            # Disabilita bottoni durante elaborazione
             self.btn_start.setEnabled(False)
             self.btn_configure.setEnabled(False)
-            self.btn_db.setEnabled(False)
+            if self.btn_db.isVisible():
+                self.btn_db.setEnabled(False)
+
+            # Mostra progress bar e counter per il feedback visivo
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(0)
+            self.progress_bar.show()
+            self.lbl_dl_counter.setText("In elaborazione...")
+            self.lbl_dl_counter.show()
+            self.lbl_dl_status.setText("")
+            self.lbl_dl_status.hide()
 
             self._reader_thread = StdoutReaderThread(self._process, parent=self)
+            self._reader_thread.progress.connect(self._on_process_progress)
+            self._reader_thread.summary.connect(self._on_process_summary)
             self._reader_thread.finished.connect(self._on_process_finished)
             self._reader_thread.start()
 
@@ -769,11 +783,30 @@ class PluginCard(QFrame):
             logger.error(f"Errore apertura dialog directory: {e}")
             return ""
 
+    def _on_process_progress(self, current: int, total: int):
+        """Aggiorna progress bar durante l'elaborazione."""
+        if total > 0:
+            pct = int(current * 100 / total)
+            self.progress_bar.setValue(pct)
+        cur_fmt = f"{current:,}".replace(",", ".")
+        tot_fmt = f"{total:,}".replace(",", ".")
+        self.lbl_dl_counter.setText(f"{cur_fmt} / {tot_fmt}")
+
+    def _on_process_summary(self, total: int, matched: int, not_matched: int):
+        """Mostra riepilogo finale dell'elaborazione."""
+        self.lbl_dl_status.setText(
+            f"✅ {total} foto  —  {matched} processate  —  {not_matched} saltate"
+        )
+        self.lbl_dl_status.show()
+
     def _on_process_finished(self):
         """Chiamato quando il sottoprocesso termina."""
+        self.progress_bar.hide()
+        self.lbl_dl_counter.hide()
         self.btn_start.setEnabled(True)
         self.btn_configure.setEnabled(True)
-        self.btn_db.setEnabled(True)
+        if self.btn_db.isVisible() or not self.btn_db.isHidden():
+            self.btn_db.setEnabled(True)
         self._process = None
         self._reader_thread = None
         self._refresh_db_status()
