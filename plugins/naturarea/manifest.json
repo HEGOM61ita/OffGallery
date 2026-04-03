@@ -7,17 +7,21 @@
   "author": "OffGallery",
   "license": "OffGallery Plugins License v1.0 — Proprietary, no redistribution",
   "entry_point": "naturarea_ui.py",
-  "requires_db": true,
-  "requires_download": true,
+  "requires_db": false,
+  "requires_download": false,
+  "pip_dependencies": ["rasterio"],
   "min_offgallery_version": "1.0",
   "type": "standalone",
   "pipeline_stage": "pre_llm",
   "priority": 20,
-  "run_condition": "bioclip_not_null",
   "gallery_action": true,
   "input_fields": ["gps_latitude", "gps_longitude"],
   "output_fields": ["protected_area", "habitat"],
   "llm_context_fields": [],
+  "tooltip_fields": [
+    {"field": "protected_area", "skip_values": ["none"], "max_len": 45},
+    {"field": "habitat",        "enum_key": "habitat"}
+  ],
   "db_columns": [
     {"name": "protected_area", "type": "TEXT"},
     {"name": "habitat",        "type": "TEXT"}
