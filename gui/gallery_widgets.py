@@ -3204,8 +3204,6 @@ class ImageCard(QFrame):
             if config_json.exists():
                 cmd += ['--config', str(config_json)]
 
-            gallery = self._gallery
-
             # Leggi output_fields dal manifest per sapere quali campi aggiornare al termine
             manifest_path = plugin_dir / 'manifest.json'
             output_fields = []
@@ -3217,8 +3215,19 @@ class ImageCard(QFrame):
             except Exception:
                 pass
 
-            if gallery and hasattr(gallery, 'add_log_message'):
-                gallery.add_log_message(f"▶ {plugin_name}: elaborazione {len(ids)} foto...", "info")
+            def _status(msg: str):
+                """Mostra messaggio nella status bar della main window (thread-safe via QTimer)."""
+                from PyQt6.QtCore import QTimer
+                from PyQt6.QtWidgets import QApplication as _QApp
+                def _do():
+                    win = _QApp.activeWindow()
+                    if win and hasattr(win, 'update_status'):
+                        win.update_status(msg, 8000)
+                    elif win and hasattr(win, 'status_bar'):
+                        win.status_bar.showMessage(msg, 8000)
+                QTimer.singleShot(0, _do)
+
+            _status(f"▶ {plugin_name}: elaborazione {len(ids)} foto...")
 
             proc = subprocess.Popen(
                 cmd,
@@ -3238,11 +3247,9 @@ class ImageCard(QFrame):
                         total   = parts[1] if len(parts) > 1 else '?'
                         matched = parts[2] if len(parts) > 2 else '?'
                         skipped = parts[3] if len(parts) > 3 else '?'
-                        if gallery and hasattr(gallery, 'add_log_message'):
-                            gallery.add_log_message(
-                                f"✅ {plugin_name}: {matched}/{total} foto arricchite"
-                                + (f", {skipped} saltate" if skipped != '0' else ""),
-                                "success")
+                        msg = (f"✅ {plugin_name}: {matched}/{total} foto arricchite"
+                               + (f", {skipped} saltate" if skipped != '0' else ""))
+                        _status(msg)
                         # Rilegge i campi output dal DB e aggiorna image_data di ogni item
                         if output_fields and db_path:
                             try:
@@ -3267,8 +3274,7 @@ class ImageCard(QFrame):
                                     if hasattr(item, '_cached_semantic_tooltip'):
                                         del item._cached_semantic_tooltip
                     elif line.startswith('ERROR:'):
-                        if gallery and hasattr(gallery, 'add_log_message'):
-                            gallery.add_log_message(f"❌ {plugin_name}: {line[6:]}", "warning")
+                        _status(f"❌ {plugin_name}: {line[6:]}")
 
             threading.Thread(target=_read, daemon=True).start()
 
