@@ -870,8 +870,8 @@ class ImageCard(QFrame):
                     lines.append("")
 
             # Sezione Meteo — solo se plugin installato
-            _meteo_installed = (get_app_dir() / 'plugins' / 'weather_context' / 'manifest.json').exists()
-            if _meteo_installed:
+            _meteo_manifest_path = get_app_dir() / 'plugins' / 'weather_context' / 'manifest.json'
+            if _meteo_manifest_path.exists():
                 weather_raw = self.image_data.get('weather_context', '')
                 if weather_raw:
                     try:
@@ -883,6 +883,18 @@ class ImageCard(QFrame):
                             hum  = wdata.get('humidity')
                             wind = wdata.get('wind_kmh')
                             prec = wdata.get('precip_mm')
+
+                            # Traduce il codice condizione nella lingua UI tramite enum_fields del manifest
+                            if cond:
+                                try:
+                                    from i18n import current_language
+                                    _meteo_manifest = json.loads(_meteo_manifest_path.read_text(encoding='utf-8'))
+                                    _ui_lang = current_language()
+                                    _cond_map = _meteo_manifest.get('enum_fields', {}).get('weather_condition', {}).get(_ui_lang, {})
+                                    cond = _cond_map.get(cond, cond)
+                                except Exception:
+                                    pass
+
                             parts = []
                             if cond:
                                 parts.append(cond)
