@@ -3205,8 +3205,20 @@ class ImageCard(QFrame):
                 cmd += ['--config', str(config_json)]
 
             gallery = self._gallery
+
+            # Leggi output_fields dal manifest per sapere quali campi aggiornare al termine
+            manifest_path = plugin_dir / 'manifest.json'
+            output_fields = []
+            plugin_name = plugin_id
+            try:
+                _manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+                output_fields = _manifest.get('output_fields', [])
+                plugin_name = _manifest.get('name', plugin_id)
+            except Exception:
+                pass
+
             if gallery and hasattr(gallery, 'add_log_message'):
-                gallery.add_log_message(f"▶ Plugin {plugin_id} su {len(ids)} foto...", "info")
+                gallery.add_log_message(f"▶ {plugin_name}: elaborazione {len(ids)} foto...", "info")
 
             proc = subprocess.Popen(
                 cmd,
@@ -3214,24 +3226,50 @@ class ImageCard(QFrame):
                 text=True, bufsize=1,
                 **subprocess_creation_kwargs()
             )
-            # Legge output in thread separato per non bloccare la UI
+
             import threading
+            import sqlite3 as _sqlite3
+
             def _read():
                 for line in proc.stdout:
                     line = line.strip()
                     if line.startswith('DONE:'):
                         parts = line.split(':')
+                        total   = parts[1] if len(parts) > 1 else '?'
                         matched = parts[2] if len(parts) > 2 else '?'
+                        skipped = parts[3] if len(parts) > 3 else '?'
                         if gallery and hasattr(gallery, 'add_log_message'):
                             gallery.add_log_message(
-                                f"✅ {plugin_id}: {matched}/{parts[1]} foto arricchite", "success")
-                        # Invalida cache tooltip e aggiorna immagini
-                        for item in target_items:
-                            if hasattr(item, '_cached_semantic_tooltip'):
-                                del item._cached_semantic_tooltip
+                                f"✅ {plugin_name}: {matched}/{total} foto arricchite"
+                                + (f", {skipped} saltate" if skipped != '0' else ""),
+                                "success")
+                        # Rilegge i campi output dal DB e aggiorna image_data di ogni item
+                        if output_fields and db_path:
+                            try:
+                                cols = ", ".join(output_fields)
+                                conn = _sqlite3.connect(db_path)
+                                for item in target_items:
+                                    if item.image_id is None:
+                                        continue
+                                    row = conn.execute(
+                                        f"SELECT {cols} FROM images WHERE id=?",
+                                        (item.image_id,)
+                                    ).fetchone()
+                                    if row:
+                                        for field, val in zip(output_fields, row):
+                                            item.image_data[field] = val
+                                    if hasattr(item, '_cached_semantic_tooltip'):
+                                        del item._cached_semantic_tooltip
+                                conn.close()
+                            except Exception as e:
+                                logger.warning(f"_run_plugin_on_selection: aggiornamento image_data fallito: {e}")
+                                for item in target_items:
+                                    if hasattr(item, '_cached_semantic_tooltip'):
+                                        del item._cached_semantic_tooltip
                     elif line.startswith('ERROR:'):
                         if gallery and hasattr(gallery, 'add_log_message'):
-                            gallery.add_log_message(f"⚠️ {plugin_id}: {line[6:]}", "warning")
+                            gallery.add_log_message(f"❌ {plugin_name}: {line[6:]}", "warning")
+
             threading.Thread(target=_read, daemon=True).start()
 
         except Exception as e:
