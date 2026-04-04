@@ -49,6 +49,7 @@ def load_plugin(config: dict) -> Optional[LLMVisionPlugin]:
         plugin = _try_load_ollama(llm_config)
         if plugin:
             logger.info("Plugin LLM attivo: Ollama")
+            llm_config['last_detected_backend'] = 'ollama'
             return plugin
         logger.warning("Ollama selezionato in config ma non raggiungibile — LLM disabilitato")
         return None
@@ -57,20 +58,25 @@ def load_plugin(config: dict) -> Optional[LLMVisionPlugin]:
         plugin = _try_load_lmstudio(llm_config)
         if plugin:
             logger.info("Plugin LLM attivo: LM Studio")
+            llm_config['last_detected_backend'] = 'lmstudio'
             return plugin
         logger.warning("LM Studio selezionato in config ma non raggiungibile — LLM disabilitato")
         return None
 
-    # auto: prova Ollama, poi LM Studio
-    plugin = _try_load_ollama(llm_config)
-    if plugin:
-        logger.info("Auto-detected: Ollama attivo")
-        return plugin
+    # auto: prova prima il backend usato l'ultima volta (hint), poi l'altro
+    # Riduce le chiamate inutili al backend sbagliato
+    last_backend = llm_config.get('last_detected_backend', '')
+    if last_backend == 'lmstudio':
+        order = [('lmstudio', _try_load_lmstudio), ('ollama', _try_load_ollama)]
+    else:
+        order = [('ollama', _try_load_ollama), ('lmstudio', _try_load_lmstudio)]
 
-    plugin = _try_load_lmstudio(llm_config)
-    if plugin:
-        logger.info("Auto-detected: LM Studio attivo")
-        return plugin
+    for name, loader_fn in order:
+        plugin = loader_fn(llm_config)
+        if plugin:
+            logger.info(f"Auto-detected: {name} attivo")
+            llm_config['last_detected_backend'] = name
+            return plugin
 
     logger.warning(
         "Nessun backend LLM trovato (Ollama/LM Studio non raggiungibili) — "

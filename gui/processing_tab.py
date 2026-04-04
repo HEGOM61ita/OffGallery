@@ -1343,9 +1343,12 @@ class ProcessingTab(QWidget):
         found.sort(key=lambda m: m.get('priority', 100))
         return found
 
-    def _build_plugins_section(self, grid: 'QGridLayout', start_row: int,
-                               col_name: int, col_gen: int, col_bar: int):
-        """Aggiunge la sezione Plugin alla griglia modelli, se ci sono plugin installati."""
+    def _build_plugins_section(self, parent_layout: 'QVBoxLayout'):
+        """Costruisce il pannello Plugin nella colonna destra del GroupBox Generazione AI.
+
+        Riceve un QVBoxLayout in cui aggiungere il titolo e le righe plugin.
+        Se non ci sono plugin installati, non aggiunge nulla.
+        """
         self._discovered_plugins = self._discover_standalone_plugins()
         if not self._discovered_plugins:
             return
@@ -1358,24 +1361,23 @@ class ProcessingTab(QWidget):
                 stop:0 #2563a8, stop:1 #4a90d9); border-radius: 2px; }
         """
 
-        # Separatore con colore viola per distinguere dalla sezione LLM
-        sep_w = QWidget()
-        sep_lay = QHBoxLayout(sep_w)
-        sep_lay.setContentsMargins(0, 6, 0, 2)
-        sep_lay.setSpacing(4)
-        sep_l = QLabel("")
-        sep_l.setFixedHeight(1)
-        sep_l.setStyleSheet("background-color: #7c5cbf;")
-        sep_lay.addWidget(sep_l, stretch=1)
-        sep_lbl = QLabel("Plugin")
-        sep_lbl.setStyleSheet("font-size: 10px; font-weight: bold; color: #9b7fd4;")
-        sep_lay.addWidget(sep_lbl)
-        sep_r = QLabel("")
-        sep_r.setFixedHeight(1)
-        sep_r.setStyleSheet("background-color: #7c5cbf;")
-        sep_lay.addWidget(sep_r, stretch=1)
-        grid.addWidget(sep_w, start_row, 0, 1, 5)
-        cur_row = start_row + 1
+        # Intestazione colonna Plugin (stile analogo ai separatori nella griglia modelli)
+        hdr_w = QWidget()
+        hdr_lay = QHBoxLayout(hdr_w)
+        hdr_lay.setContentsMargins(0, 0, 0, 2)
+        hdr_lay.setSpacing(4)
+        hdr_l = QLabel("")
+        hdr_l.setFixedHeight(1)
+        hdr_l.setStyleSheet("background-color: #7c5cbf;")
+        hdr_lay.addWidget(hdr_l, stretch=1)
+        hdr_lbl = QLabel("Plugin")
+        hdr_lbl.setStyleSheet("font-size: 10px; font-weight: bold; color: #9b7fd4;")
+        hdr_lay.addWidget(hdr_lbl)
+        hdr_r = QLabel("")
+        hdr_r.setFixedHeight(1)
+        hdr_r.setStyleSheet("background-color: #7c5cbf;")
+        hdr_lay.addWidget(hdr_r, stretch=1)
+        parent_layout.addWidget(hdr_w)
 
         # Raggruppa plugin per pipeline_stage; plugin senza stage → post_import
         _stage_order = ['pre_llm', 'post_import']
@@ -1412,12 +1414,10 @@ class ProcessingTab(QWidget):
             return w
 
         for stage in stages_to_show:
-            # Sotto-separatore stage (omesso se c'è un solo stage con un solo plugin)
             if len(stages_to_show) > 1 or len(_by_stage[stage]) > 0:
                 cl, ct = _stage_colors.get(stage, ('#555', '#aaa'))
                 stage_label = _stage_labels.get(stage, stage)
-                grid.addWidget(_make_stage_sep(stage_label, cl, ct), cur_row, 0, 1, 5)
-                cur_row += 1
+                parent_layout.addWidget(_make_stage_sep(stage_label, cl, ct))
 
             for manifest in _by_stage[stage]:
                 plugin_id   = manifest.get('id', '')
@@ -1426,38 +1426,40 @@ class ProcessingTab(QWidget):
                 # Descrizione breve: prima frase, max 40 caratteri
                 short_desc = (plugin_desc[:40] + '…') if len(plugin_desc) > 40 else plugin_desc
 
-                # Widget nome + descrizione
-                name_w = QWidget()
-                name_lay = QHBoxLayout(name_w)
-                name_lay.setContentsMargins(0, 2, 0, 2)
-                name_lay.setSpacing(4)
+                # Riga plugin: [checkbox] [nome] [desc] [progress bar]
+                row_w = QWidget()
+                row_lay = QHBoxLayout(row_w)
+                row_lay.setContentsMargins(0, 2, 0, 2)
+                row_lay.setSpacing(4)
+
+                chk = QCheckBox()
+                chk.setToolTip(f"Esegui {plugin_name} al termine dell'import")
+                row_lay.addWidget(chk)
+
                 lbl = QLabel(plugin_name)
                 lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #c8b4e8;")
-                name_lay.addWidget(lbl)
+                row_lay.addWidget(lbl)
+
                 if short_desc:
                     desc_lbl = QLabel(short_desc)
                     desc_lbl.setStyleSheet("font-size: 9px; color: #7f8c8d;")
-                    name_lay.addWidget(desc_lbl)
-                name_lay.addStretch()
-                grid.addWidget(name_w, cur_row, col_name)
+                    row_lay.addWidget(desc_lbl)
 
-                # Checkbox abilita
-                chk = QCheckBox()
-                chk.setToolTip(f"Esegui {plugin_name} al termine dell'import")
-                grid.addWidget(chk, cur_row, col_gen, alignment=Qt.AlignmentFlag.AlignCenter)
-
-                # Progress bar (inizialmente nascosta, appare al lancio)
+                # Progress bar a destra della riga, si espande nello spazio rimasto
                 pb = QProgressBar()
                 pb.setRange(0, 100)
                 pb.setValue(0)
                 pb.setTextVisible(False)
                 pb.setStyleSheet(_pb_plugin_style)
                 pb.setFixedHeight(8)
+                pb.setMinimumWidth(60)
                 pb.setVisible(False)
-                grid.addWidget(pb, cur_row, col_bar)
+                row_lay.addWidget(pb, stretch=1)
 
+                parent_layout.addWidget(row_w)
                 self._plugin_rows[plugin_id] = {'check': chk, 'bar': pb}
-                cur_row += 1
+
+        parent_layout.addStretch()
 
     # ─────────────────────────────────────────────────────────────
     # LANCIO PLUGIN POST-IMPORT
@@ -1937,9 +1939,6 @@ class ProcessingTab(QWidget):
 
         # (riga info rimossa — lo spazio è recuperato per ExifTool)
 
-        # === Sezione Plugin (autodiscovery da manifest.json) ===
-        self._build_plugins_section(models_grid, _cur_row, _COL_NAME, _COL_GEN, _COL_BAR)
-
         # Larghezze colonne
         models_grid.setColumnMinimumWidth(_COL_NAME, 75)
         models_grid.setColumnMinimumWidth(_COL_GEN, 22)
@@ -1947,7 +1946,32 @@ class ProcessingTab(QWidget):
         models_grid.setColumnMinimumWidth(_COL_MAX, 40)
         models_grid.setColumnStretch(_COL_BAR, 1)  # progress bar si espande
 
-        models_group.setLayout(models_grid)
+        # Layout interno del GroupBox: griglia modelli a sinistra, plugin a destra
+        _inner_layout = QHBoxLayout()
+        _inner_layout.setSpacing(8)
+        _inner_layout.setContentsMargins(0, 0, 0, 0)
+
+        _models_widget = QWidget()
+        _models_widget.setLayout(models_grid)
+        _inner_layout.addWidget(_models_widget, stretch=3)
+
+        # Separatore verticale tra modelli e plugin
+        _vsep = QWidget()
+        _vsep.setFixedWidth(1)
+        _vsep.setStyleSheet("background-color: #444;")
+        _inner_layout.addWidget(_vsep)
+
+        # Colonna Plugin (costruita da _build_plugins_section)
+        _plugins_col = QVBoxLayout()
+        _plugins_col.setSpacing(2)
+        _plugins_col.setContentsMargins(4, 3, 4, 3)
+        self._build_plugins_section(_plugins_col)
+
+        _plugins_widget = QWidget()
+        _plugins_widget.setLayout(_plugins_col)
+        _inner_layout.addWidget(_plugins_widget, stretch=2)
+
+        models_group.setLayout(_inner_layout)
         mid_layout.addWidget(models_group, stretch=2)
 
         layout.addLayout(mid_layout)

@@ -27,7 +27,7 @@
     {"name": "habitat",        "type": "TEXT"}
   ],
   "search_filters": [
-    {"field": "protected_area", "widget": "lineedit",  "label_key": "protected_area"},
+    {"field": "protected_area", "widget": "combobox",  "label_key": "protected_area"},
     {"field": "habitat",        "widget": "combobox",  "label_key": "habitat"}
   ],
   "enum_fields": {

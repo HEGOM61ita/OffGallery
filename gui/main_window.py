@@ -693,20 +693,21 @@ class MainWindow(QMainWindow):
         plugin = getattr(emb_gen, 'llm_plugin', None)
         llm_enabled = emb_gen.embedding_config.get('models', {}).get('llm_vision', {}).get('enabled', False)
         if plugin is not None:
+            # Plugin già caricato: ping solo sul backend corretto, nessuna doppia chiamata
             try:
                 alive = plugin.is_available()
             except Exception:
                 alive = False
-            if alive:
-                plugin_class = type(plugin).__name__
-                label = 'LM Studio' if 'LMStudio' in plugin_class else 'Ollama'
-                self.header.update_model_status('llm', 'ok', label=label)
-            else:
-                plugin_class = type(plugin).__name__
-                label = 'LM Studio' if 'LMStudio' in plugin_class else 'Ollama'
-                self.header.update_model_status('llm', 'error', label=label)
+            plugin_class = type(plugin).__name__
+            label = 'LM Studio' if 'LMStudio' in plugin_class else 'Ollama'
+            self.header.update_model_status('llm', 'ok' if alive else 'error', label=label)
         elif llm_enabled:
-            # Nessun plugin caricato ma LLM abilitato: riprova auto-detect
+            # Nessun plugin caricato ma LLM abilitato: riprova auto-detect,
+            # ma solo ogni 5 minuti (10 cicli da 30s) per non spammare entrambi i backend
+            self._llm_redetect_counter = getattr(self, '_llm_redetect_counter', 0) + 1
+            if self._llm_redetect_counter < 10:
+                return
+            self._llm_redetect_counter = 0
             try:
                 import sys
                 from utils.paths import get_app_dir
