@@ -9,7 +9,7 @@
   "entry_point": "naturarea_ui.py",
   "requires_db": false,
   "requires_download": false,
-  "pip_dependencies": ["rasterio"],
+  "pip_dependencies": [],
   "min_offgallery_version": "1.0",
   "type": "standalone",
   "pipeline_stage": "pre_llm",

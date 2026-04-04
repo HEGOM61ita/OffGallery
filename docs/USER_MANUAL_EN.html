@@ -429,8 +429,8 @@
 <p><strong>BioNomen</strong> enriches images with common names for biological species identified by BioCLIP. It runs in <em>headless</em> mode (no separate UI) and automatically uses the selected directory as a filter to limit the images it processes. A <strong>session cache</strong> avoids repeated lookups for the same species within a single run.</p>
 
 <h3>NaturArea plugin</h3>
-<p><strong>NaturArea</strong> adds two fields to each GPS-tagged photo: the name of the nearest <strong>protected area</strong> (from the WDPA world database) and the <strong>habitat type</strong> (from ESA WorldCover satellite maps). Requires a one-time database build from a downloaded GeoJSON source; ESA tiles are fetched automatically per geographic zone on first use.</p>
-<p>Output fields: <code>protected_area</code> (e.g. <em>Parco Nazionale del Pollino</em>) and <code>habitat</code> (e.g. <em>tree_cover</em>). Both are searchable via the Plugin filters in the Search tab and appear in the Gallery hover tooltip.</p>
+<p><strong>NaturArea</strong> adds two fields to each GPS-tagged photo: the name of the nearest <strong>protected area</strong> (via the public UNEP-WCMC API, no local database required) and the <strong>habitat type</strong> (from ESA WorldCover satellite maps bundled with the plugin). No additional libraries or database setup needed — it works out of the box.</p>
+<p>Output fields: <code>protected_area</code> (e.g. <em>Parco Nazionale del Pollino</em>) and <code>habitat</code> (e.g. <em>Forest/Tree cover</em>). Both are searchable via the Plugin filters in the Search tab and appear in the Gallery hover tooltip. WDPA lookups are cached locally to avoid repeated API calls.</p>
 
 <h3>Weather Context plugin</h3>
 <p><strong>Weather Context</strong> retrieves historical weather for each GPS+date photo from the <strong>Open-Meteo API</strong> (free, no API key). Results are cached locally so re-processing the same photos requires no internet access. The <code>weather_context</code> JSON field stores temperature, condition, humidity, wind and precipitation.</p>
@@ -871,7 +871,7 @@ Destination (e.g. E:\Backup):
       <td><strong>NaturArea</strong></td>
       <td>—</td>
       <td>—</td>
-      <td>Protected area name (WDPA) and habitat type (ESA WorldCover) for GPS-tagged photos. One-time database build required. ESA tiles auto-downloaded per zone.</td>
+      <td>Protected area name (UNEP-WCMC API) and habitat type (ESA WorldCover, tiles bundled) for GPS-tagged photos. No local database needed. Internet required only for WDPA lookup (cached locally after first access).</td>
     </tr>
     <tr>
       <td><strong>Weather Context</strong></td>
@@ -929,20 +929,17 @@ BioNomen: plugin disponibile</pre>
   <li>Click <strong>Download database</strong></li>
 </ol>
 
-<h3>NaturArea plugin — first-time setup</h3>
+<h3>NaturArea plugin — usage</h3>
 
-<p>NaturArea requires a one-time database build before it can run.</p>
+<p>NaturArea requires no prior setup. ESA WorldCover tiles for the supported geographic areas are already bundled with the plugin; protected area lookups use the public UNEP-WCMC API (internet required on first access per location, then cached locally).</p>
 
 <ol>
-  <li>Download the WDPA GeoJSON file from <a href="https://www.protectedplanet.net" target="_blank">protectedplanet.net</a> → Download → GeoJSON (~500 MB)</li>
-  <li>Open OffGallery → <strong>Config → Plugin → NaturArea → Configure</strong></li>
-  <li>In <em>Step 1</em>, browse to the downloaded GeoJSON file</li>
-  <li>Optionally change the database output path</li>
-  <li>Click <strong>Build database now</strong> — takes 2–5 minutes</li>
-  <li>Once complete, click <strong>Run</strong> in the NaturArea card to process your photos</li>
+  <li>Ensure photos have GPS coordinates in EXIF</li>
+  <li>Go to <strong>Config → Plugin → NaturArea → Configure</strong> to optionally adjust the ESA tile cache directory, GPS tolerance and API timeout</li>
+  <li>Click <strong>Run</strong> in the NaturArea card to process your photos</li>
 </ol>
 
-<p>ESA WorldCover tiles are downloaded automatically (~50–100 MB per zone) the first time photos from a new geographic area are processed. They are cached locally for future runs.</p>
+<p>Results (<em>protected area</em> and <em>habitat</em>) appear in the Gallery hover tooltip and are searchable via the Plugin filters in the Search tab.</p>
 
 <h3>Weather Context plugin — usage</h3>
 
