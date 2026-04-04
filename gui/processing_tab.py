@@ -1998,11 +1998,6 @@ class ProcessingTab(QWidget):
         self.stop_btn.setStyleSheet("min-width: 90px;")
         controls_layout.addWidget(self.stop_btn)
 
-        self.log_btn = QPushButton(t("processing.btn.save_log"))
-        self.log_btn.clicked.connect(self.save_log)
-        self.log_btn.setStyleSheet("min-width: 90px;")
-        controls_layout.addWidget(self.log_btn)
-
         controls_layout.addStretch()
         controls_group.setLayout(controls_layout)
         layout.addWidget(controls_group)
@@ -2826,35 +2821,3 @@ class ProcessingTab(QWidget):
         # finché tutti i plugin non hanno terminato)
         self._launch_post_import_plugins()
     
-    def save_log(self):
-        """Salva il contenuto del log live su file"""
-        try:
-            from PyQt6.QtWidgets import QFileDialog
-            
-            # Proponi nome file con timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            suggested_name = f"processing_log_{timestamp}.txt"
-            
-            # Dialog salvataggio
-            file_path, _ = QFileDialog.getSaveFileName(
-                self,
-                t("processing.msg.log_saved_title"),
-                suggested_name,
-                "File di testo (*.txt);;Tutti i file (*.*)"
-            )
-
-            if file_path:
-                # Estrai testo puro dal log HTML
-                plain_text = self.log_display.toPlainText()
-
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write("=" * 70 + "\n")
-                    f.write(f"LOG PROCESSING OFFGALLERY\n")
-                    f.write(f"Salvato: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    f.write("=" * 70 + "\n\n")
-                    f.write(plain_text)
-
-                QMessageBox.information(self, t("processing.msg.log_saved_title"), t("processing.msg.log_saved_msg", path=file_path))
-
-        except Exception as e:
-            QMessageBox.warning(self, t("processing.msg.error_title"), t("processing.msg.log_save_error", error=e))
