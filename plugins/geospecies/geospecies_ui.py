@@ -373,8 +373,7 @@ class DownloadDialog:
     def __init__(self, parent=None):
         from PyQt6.QtWidgets import (
             QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-            QTreeWidget, QTreeWidgetItem, QCheckBox, QProgressBar,
-            QWidget, QTextEdit, QSplitter,
+            QTreeWidget, QProgressBar, QWidget, QTextEdit,
         )
         from PyQt6.QtCore import Qt
 
@@ -382,12 +381,16 @@ class DownloadDialog:
         self._dl_thread = None
         self._dl_worker = None
 
+        from plugins.geospecies.geospecies import load_config
+        self._dl_taxa = load_config().get("enabled_taxa", [])
+
         self._dlg = QDialog(parent)
         self._dlg.setWindowTitle(pt("gs.download_title"))
         self._dlg.setModal(True)
-        self._dlg.resize(600, 520)
-        self._dlg.setMinimumSize(500, 400)
+        self._dlg.resize(420, 480)
+        self._dlg.setMinimumSize(350, 380)
         self._dlg.setStyleSheet(_DARK_STYLE)
+        self._dlg.closeEvent = self._on_close_event
 
         layout = QVBoxLayout(self._dlg)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -401,28 +404,24 @@ class DownloadDialog:
         )
         layout.addWidget(info)
 
-        splitter = QSplitter()
-        splitter.setStyleSheet("QSplitter::handle { background: #3A3A3A; }")
-        layout.addWidget(splitter, stretch=1)
+        taxa_info = QLabel(f"<b>{pt('gs.download_taxa')}:</b> {', '.join(self._dl_taxa)}")
+        taxa_info.setWordWrap(True)
+        taxa_info.setStyleSheet("font-size: 10px; color: #A0C0A0; margin-bottom: 4px;")
+        layout.addWidget(taxa_info)
 
         # ── Albero paesi ─────────────────────────────────────────────────
-        country_widget = QWidget()
-        country_layout = QVBoxLayout(country_widget)
-        country_layout.setContentsMargins(0, 0, 0, 0)
-        country_layout.setSpacing(4)
-
         country_header = QHBoxLayout()
         country_header.addWidget(QLabel(f"<b>{pt('gs.download_countries')}</b>"))
         btn_load = QPushButton(pt("gs.btn_load_countries"))
         btn_load.setFixedHeight(24)
         btn_load.clicked.connect(self._load_countries)
         country_header.addWidget(btn_load)
-        country_layout.addLayout(country_header)
+        layout.addLayout(country_header)
 
         self._country_tree = QTreeWidget()
         self._country_tree.setHeaderHidden(True)
         self._country_tree.setAlternatingRowColors(True)
-        country_layout.addWidget(self._country_tree)
+        layout.addWidget(self._country_tree, stretch=1)
 
         sel_row = QHBoxLayout()
         btn_all = QPushButton(pt("gs.btn_select_all"))
@@ -434,27 +433,7 @@ class DownloadDialog:
         sel_row.addWidget(btn_all)
         sel_row.addWidget(btn_none)
         sel_row.addStretch()
-        country_layout.addLayout(sel_row)
-        splitter.addWidget(country_widget)
-
-        # ── Taxon da scaricare ────────────────────────────────────────────
-        taxon_widget = QWidget()
-        taxon_layout = QVBoxLayout(taxon_widget)
-        taxon_layout.setContentsMargins(8, 0, 0, 0)
-        taxon_layout.setSpacing(4)
-        taxon_layout.addWidget(QLabel(f"<b>{pt('gs.download_taxa')}</b>"))
-
-        from plugins.geospecies.geospecies import DEFAULT_TAXA
-        self._dl_taxon_checks = {}
-        for taxon in DEFAULT_TAXA:
-            cb = QCheckBox(taxon)
-            cb.setChecked(True)
-            self._dl_taxon_checks[taxon] = cb
-            taxon_layout.addWidget(cb)
-
-        taxon_layout.addStretch()
-        splitter.addWidget(taxon_widget)
-        splitter.setSizes([380, 180])
+        layout.addLayout(sel_row)
 
         # ── Progress + log ────────────────────────────────────────────────
         self._progress = QProgressBar()
@@ -564,7 +543,7 @@ class DownloadDialog:
             self._log_msg(pt("gs.download_no_countries"))
             return
 
-        taxa = [t for t, cb in self._dl_taxon_checks.items() if cb.isChecked()]
+        taxa = self._dl_taxa
         if not taxa:
             self._log_msg(pt("gs.download_no_taxa"))
             return
@@ -612,6 +591,13 @@ class DownloadDialog:
         self._dl_worker.finished.connect(self._dl_thread.quit)
         self._dl_worker.finished.connect(self._on_download_finished)
         self._dl_thread.start()
+
+    def _on_close_event(self, event):
+        """Attende la fine del thread prima di chiudere per evitare crash."""
+        if self._dl_thread and self._dl_thread.isRunning():
+            self._dl_thread.quit()
+            self._dl_thread.wait(3000)
+        event.accept()
 
     def _on_download_finished(self):
         self._btn_download.setEnabled(True)

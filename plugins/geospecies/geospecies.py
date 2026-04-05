@@ -44,7 +44,8 @@ TAXON_STRATEGY = {t: 'A' for t in GBIF_TAXON_KEYS}
 DEFAULT_TAXA = ['Aves', 'Mammalia', 'Reptilia', 'Plantae', 'Fungi', 'Insecta', 'Amphibia', 'Arachnida']
 
 # ── Endpoint ───────────────────────────────────────────────────────────────
-GBIF_SPECIES_URL  = "https://api.gbif.org/v1/species/search"
+GBIF_SPECIES_URL    = "https://api.gbif.org/v1/species/search"
+GBIF_OCCURRENCE_URL = "https://api.gbif.org/v1/occurrence/search"
 
 # Schema versione cache
 CACHE_SCHEMA = "1.0"
@@ -300,44 +301,66 @@ def _save_cache(cache_dir: Path, cache_key: str, species: list,
 # ── Fetch GBIF per paese ───────────────────────────────────────────────────
 
 def _fetch_gbif_country(country_iso2: str, taxon: str,
-                        max_species: int, timeout: int) -> Optional[list]:
-    """Scarica lista specie GBIF per paese e taxon.
-    Paginazione con limit 300. Si ferma a max_species o endOfRecords.
+                        max_species: int, timeout: int,
+                        status_cb=None) -> Optional[list]:
+    """Scarica lista specie GBIF per paese e taxon via occurrence/search.
+    Paginazione con limit 300, early exit dopo 5 pagine senza specie nuove.
     """
     taxon_key = GBIF_TAXON_KEYS.get(taxon)
     if not taxon_key:
         return None
 
     logger.info(f"GeoSpecies: fetch GBIF country={country_iso2} taxon={taxon}...")
+    seen = set()
     species = []
     offset = 0
     limit = 300
+    empty_pages = 0
+    MAX_EMPTY = 5
 
     try:
         while True:
             params = urllib.parse.urlencode({
-                "country":        country_iso2,
-                "higherTaxonKey": taxon_key,
-                "rank":           "SPECIES",
-                "status":         "ACCEPTED",
-                "limit":          limit,
-                "offset":         offset,
+                "country":  country_iso2,
+                "taxonKey": taxon_key,
+                "limit":    limit,
+                "offset":   offset,
             })
-            url = f"{GBIF_SPECIES_URL}?{params}"
+            url = f"{GBIF_OCCURRENCE_URL}?{params}"
             with urllib.request.urlopen(url, timeout=timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
 
             results = data.get("results", [])
+            if not results:
+                break
+
+            new_this_page = 0
             for item in results:
-                name = (item.get("canonicalName") or item.get("scientificName", "")).strip()
-                if name and name not in species:
+                name = (item.get("species") or item.get("genericName", "")).strip()
+                if name and name not in seen:
+                    seen.add(name)
                     species.append(name)
+                    new_this_page += 1
                     if len(species) >= max_species:
                         break
 
-            if len(species) >= max_species or data.get("endOfRecords", True) or not results:
+            if len(species) >= max_species:
                 break
+
+            if new_this_page == 0:
+                empty_pages += 1
+                if empty_pages >= MAX_EMPTY:
+                    logger.debug(f"GeoSpecies: early exit dopo {MAX_EMPTY} pagine senza specie nuove")
+                    break
+            else:
+                empty_pages = 0
+
+            if data.get("endOfRecords", False):
+                break
+
             offset += limit
+            if status_cb:
+                status_cb(f"  {taxon}/{country_iso2}: {len(species)} specie...")
 
         logger.info(f"GeoSpecies: GBIF {country_iso2}/{taxon} → {len(species)} specie")
         return species if species else None
@@ -370,7 +393,7 @@ def download_area(country_iso2: str, taxon: str,
         status_cb(f"Download {taxon} per {country_iso2}...")
 
     source = "gbif"
-    species = _fetch_gbif_country(country_iso2, taxon, max_species, timeout)
+    species = _fetch_gbif_country(country_iso2, taxon, max_species, timeout, status_cb=status_cb)
 
     if species is not None:
         _save_cache(cache_dir, cache_key, species, key=country_iso2,
