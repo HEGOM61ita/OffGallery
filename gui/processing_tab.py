@@ -1520,6 +1520,12 @@ class ProcessingTab(QWidget):
         plugin_dir = manifest.get('_dir', '')
         entry_point = manifest.get('entry_point', '')
 
+        # Plugin config_only (es. GeoSpecies): operano nella pipeline interna,
+        # non come subprocess autonomo. Saltiamo silenziosamente.
+        if manifest.get('config_only', False):
+            self._on_plugin_finished(plugin_id)
+            return
+
         entry_path = Path(plugin_dir) / entry_point
         if not entry_path.exists():
             self.add_log_message(

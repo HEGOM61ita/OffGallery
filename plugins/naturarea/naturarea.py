@@ -237,7 +237,8 @@ def download_esa_tile(lat: float, lon: float, tiles_dir: Path) -> Optional[Path]
 def _read_geotiff_pixel(tif_path: Path, lat: float, lon: float) -> Optional[int]:
     """Legge il valore del pixel in un GeoTIFF per coordinate lat/lon.
     Implementazione nativa senza dipendenze esterne: usa solo struct e stdlib.
-    Supporta GeoTIFF stripped (come ESA WorldCover) con pixel a 1 byte."""
+    Supporta GeoTIFF stripped e tiled (ESA WorldCover usa formato tiled).
+    Compressione: uncompressed e DEFLATE."""
     import struct
 
     try:
@@ -246,9 +247,9 @@ def _read_geotiff_pixel(tif_path: Path, lat: float, lon: float) -> Optional[int]
             # ── Intestazione TIFF ─────────────────────────────────────────
             byte_order = f.read(2)
             if byte_order == b'II':
-                endian = '<'   # little-endian
+                endian = '<'
             elif byte_order == b'MM':
-                endian = '>'   # big-endian
+                endian = '>'
             else:
                 logger.error(f"GeoTIFF {tif_path.name}: byte order non valido")
                 return None
@@ -264,7 +265,6 @@ def _read_geotiff_pixel(tif_path: Path, lat: float, lon: float) -> Optional[int]
             f.seek(ifd_offset)
             num_entries = struct.unpack(endian + 'H', f.read(2))[0]
 
-            # Tag TIFF rilevanti
             TAG_IMAGE_WIDTH        = 256
             TAG_IMAGE_LENGTH       = 257
             TAG_BITS_PER_SAMPLE    = 258
@@ -272,20 +272,21 @@ def _read_geotiff_pixel(tif_path: Path, lat: float, lon: float) -> Optional[int]
             TAG_STRIP_OFFSETS      = 273
             TAG_ROWS_PER_STRIP     = 278
             TAG_STRIP_BYTE_COUNTS  = 279
-            TAG_SAMPLE_FORMAT      = 339
-            TAG_MODEL_PIXEL_SCALE  = 33550   # GeoTIFF
-            TAG_MODEL_TIEPOINT     = 33922   # GeoTIFF
+            TAG_TILE_WIDTH         = 322
+            TAG_TILE_LENGTH        = 323
+            TAG_TILE_OFFSETS       = 324
+            TAG_TILE_BYTE_COUNTS   = 325
+            TAG_MODEL_PIXEL_SCALE  = 33550
+            TAG_MODEL_TIEPOINT     = 33922
+
+            type_sizes = {1:1, 2:1, 3:2, 4:4, 5:8, 11:4, 12:8}
+            type_fmts  = {1:'B', 2:'s', 3:'H', 4:'I', 5:'II', 11:'f', 12:'d'}
 
             tags = {}
             for _ in range(num_entries):
                 entry = f.read(12)
                 tag, dtype, count = struct.unpack(endian + 'HHI', entry[:8])
                 value_bytes = entry[8:12]
-
-                # Tipo TIFF: 1=BYTE,2=ASCII,3=SHORT,4=LONG,5=RATIONAL,
-                #            11=FLOAT,12=DOUBLE
-                type_sizes = {1:1, 2:1, 3:2, 4:4, 5:8, 11:4, 12:8}
-                type_fmts  = {1:'B', 2:'s', 3:'H', 4:'I', 5:'II', 11:'f', 12:'d'}
 
                 t_size = type_sizes.get(dtype, 0)
                 total_bytes = count * t_size
@@ -299,11 +300,10 @@ def _read_geotiff_pixel(tif_path: Path, lat: float, lon: float) -> Optional[int]
                     raw = f.read(total_bytes)
                     f.seek(pos)
 
-                # Decodifica valore
                 fmt = type_fmts.get(dtype)
                 if fmt and fmt != 's':
                     vals = struct.unpack(endian + fmt * count, raw)
-                    if dtype == 5:   # RATIONAL = coppia numeratore/denominatore
+                    if dtype == 5:
                         vals = tuple(vals[i] / vals[i+1] for i in range(0, len(vals), 2))
                     tags[tag] = vals[0] if count == 1 else list(vals)
                 else:
@@ -316,9 +316,8 @@ def _read_geotiff_pixel(tif_path: Path, lat: float, lon: float) -> Optional[int]
             bits        = tags.get(TAG_BITS_PER_SAMPLE, 8)
 
             if compression not in (1, 8):
-                logger.warning(f"GeoTIFF {tif_path.name}: compressione {compression} non supportata (solo uncompressed/DEFLATE)")
+                logger.warning(f"GeoTIFF {tif_path.name}: compressione {compression} non supportata")
                 return None
-
             if bits not in (8, 16):
                 logger.warning(f"GeoTIFF {tif_path.name}: {bits} bit/pixel non supportati")
                 return None
@@ -327,8 +326,6 @@ def _read_geotiff_pixel(tif_path: Path, lat: float, lon: float) -> Optional[int]
             pixel_fmt = endian + ('B' if bits == 8 else 'H')
 
             # ── Geotrasformazione ─────────────────────────────────────────
-            # ModelPixelScaleTag: (ScaleX, ScaleY, ScaleZ)
-            # ModelTiepointTag:   (I, J, K, X, Y, Z) — uno o più tiepoint
             pixel_scale = tags.get(TAG_MODEL_PIXEL_SCALE)
             tiepoint    = tags.get(TAG_MODEL_TIEPOINT)
 
@@ -341,59 +338,93 @@ def _read_geotiff_pixel(tif_path: Path, lat: float, lon: float) -> Optional[int]
             if isinstance(tiepoint, (int, float)):
                 tiepoint = [tiepoint]
 
-            scale_x =  pixel_scale[0]
-            scale_y =  pixel_scale[1]
-            tie_i   =  tiepoint[0]    # colonna pixel del tiepoint
-            tie_j   =  tiepoint[1]    # riga pixel del tiepoint
-            tie_x   =  tiepoint[3]    # longitudine del tiepoint
-            tie_y   =  tiepoint[4]    # latitudine del tiepoint
+            scale_x = pixel_scale[0]
+            scale_y = pixel_scale[1]
+            tie_x   = tiepoint[3]
+            tie_y   = tiepoint[4]
 
-            # Converti coordinate geografiche → pixel
-            col = int((lon - tie_x) / scale_x + tie_i)
-            row = int((tie_y - lat) / scale_y + tie_j)
+            col = int((lon - tie_x) / scale_x)
+            row = int((tie_y - lat) / scale_y)
 
             if not (0 <= col < width and 0 <= row < height):
                 logger.debug(f"Coordinate ({lat},{lon}) fuori dalla tile {tif_path.name}")
                 return None
 
-            # ── Lettura pixel da strip ────────────────────────────────────
-            rows_per_strip   = tags.get(TAG_ROWS_PER_STRIP, height)
-            strip_offsets    = tags.get(TAG_STRIP_OFFSETS)
-            strip_bytecounts = tags.get(TAG_STRIP_BYTE_COUNTS)
+            # ── Lettura pixel: tiled o stripped ──────────────────────────
+            tile_width  = tags.get(TAG_TILE_WIDTH)
+            tile_length = tags.get(TAG_TILE_LENGTH)
+            is_tiled    = tile_width is not None and tile_length is not None
 
-            if strip_offsets is None:
-                logger.error(f"GeoTIFF {tif_path.name}: StripOffsets mancante")
-                return None
+            if is_tiled:
+                # Formato tiled (es. ESA WorldCover)
+                tile_offsets     = tags.get(TAG_TILE_OFFSETS, [])
+                tile_bytecounts  = tags.get(TAG_TILE_BYTE_COUNTS, [])
+                if isinstance(tile_offsets, (int, float)):
+                    tile_offsets = [int(tile_offsets)]
+                if isinstance(tile_bytecounts, (int, float)):
+                    tile_bytecounts = [int(tile_bytecounts)]
 
-            # strip_offsets può essere un singolo int o una lista
-            if isinstance(strip_offsets, (int, float)):
-                strip_offsets = [int(strip_offsets)]
-            if isinstance(strip_bytecounts, (int, float)):
-                strip_bytecounts = [int(strip_bytecounts)]
+                tiles_across = (width  + tile_width  - 1) // tile_width
+                tile_col     = col // tile_width
+                tile_row     = row // tile_length
+                tile_idx     = tile_row * tiles_across + tile_col
 
-            strip_idx    = row // rows_per_strip
-            row_in_strip = row % rows_per_strip
+                if tile_idx >= len(tile_offsets):
+                    logger.error(f"GeoTIFF {tif_path.name}: tile index {tile_idx} fuori range")
+                    return None
 
-            if strip_idx >= len(strip_offsets):
-                logger.error(f"GeoTIFF {tif_path.name}: strip index {strip_idx} fuori range")
-                return None
+                col_in_tile = col % tile_width
+                row_in_tile = row % tile_length
 
-            if compression == 1:
-                # Uncompressed — lettura diretta con offset
-                pixel_offset = (strip_offsets[strip_idx]
-                                + (row_in_strip * width + col) * bytes_per_pixel)
-                f.seek(pixel_offset)
-                raw_pixel = f.read(bytes_per_pixel)
-                return struct.unpack(pixel_fmt, raw_pixel)[0]
+                if compression == 1:
+                    pixel_offset = (tile_offsets[tile_idx]
+                                    + (row_in_tile * tile_width + col_in_tile) * bytes_per_pixel)
+                    f.seek(pixel_offset)
+                    raw_pixel = f.read(bytes_per_pixel)
+                else:
+                    import zlib
+                    f.seek(tile_offsets[tile_idx])
+                    compressed = f.read(tile_bytecounts[tile_idx])
+                    raw_tile = zlib.decompress(compressed)
+                    pixel_offset = (row_in_tile * tile_width + col_in_tile) * bytes_per_pixel
+                    raw_pixel = raw_tile[pixel_offset: pixel_offset + bytes_per_pixel]
+
             else:
-                # DEFLATE (compression=8) — decomprimi l'intera strip con zlib
-                import zlib
-                f.seek(strip_offsets[strip_idx])
-                compressed = f.read(strip_bytecounts[strip_idx])
-                raw_strip = zlib.decompress(compressed)
-                pixel_offset = (row_in_strip * width + col) * bytes_per_pixel
-                raw_pixel = raw_strip[pixel_offset: pixel_offset + bytes_per_pixel]
-                return struct.unpack(pixel_fmt, raw_pixel)[0]
+                # Formato stripped
+                strip_offsets    = tags.get(TAG_STRIP_OFFSETS)
+                strip_bytecounts = tags.get(TAG_STRIP_BYTE_COUNTS)
+                rows_per_strip   = tags.get(TAG_ROWS_PER_STRIP, height)
+
+                if strip_offsets is None:
+                    logger.error(f"GeoTIFF {tif_path.name}: né StripOffsets né TileOffsets trovati")
+                    return None
+
+                if isinstance(strip_offsets, (int, float)):
+                    strip_offsets = [int(strip_offsets)]
+                if isinstance(strip_bytecounts, (int, float)):
+                    strip_bytecounts = [int(strip_bytecounts)]
+
+                strip_idx    = row // rows_per_strip
+                row_in_strip = row % rows_per_strip
+
+                if strip_idx >= len(strip_offsets):
+                    logger.error(f"GeoTIFF {tif_path.name}: strip index {strip_idx} fuori range")
+                    return None
+
+                if compression == 1:
+                    pixel_offset = (strip_offsets[strip_idx]
+                                    + (row_in_strip * width + col) * bytes_per_pixel)
+                    f.seek(pixel_offset)
+                    raw_pixel = f.read(bytes_per_pixel)
+                else:
+                    import zlib
+                    f.seek(strip_offsets[strip_idx])
+                    compressed = f.read(strip_bytecounts[strip_idx])
+                    raw_strip = zlib.decompress(compressed)
+                    pixel_offset = (row_in_strip * width + col) * bytes_per_pixel
+                    raw_pixel = raw_strip[pixel_offset: pixel_offset + bytes_per_pixel]
+
+            return struct.unpack(pixel_fmt, raw_pixel)[0]
 
     except Exception as e:
         logger.error(f"Errore lettura GeoTIFF {tif_path}: {e}")
