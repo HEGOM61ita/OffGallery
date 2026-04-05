@@ -98,7 +98,6 @@ _STRINGS = {
 
     # Tab etichette
     "gs.tab_taxon":      {"it": "Taxon",      "en": "Taxa"},
-    "gs.tab_sources":    {"it": "Fonti dati", "en": "Data sources"},
     "gs.tab_cache":      {"it": "Cache",      "en": "Cache"},
     "gs.tab_params":     {"it": "Parametri",  "en": "Parameters"},
 
@@ -107,34 +106,23 @@ _STRINGS = {
         "it": "Seleziona i gruppi di specie da usare per affinare BioCLIP.",
         "en": "Select the species groups to use to refine BioCLIP.",
     },
-    "gs.taxon_group_a": {
-        "it": "Specie mobili — lista per paese (Strategy A)",
-        "en": "Mobile species — country checklist (Strategy A)",
-    },
-    "gs.taxon_group_b": {
-        "it": "Specie sessili — lista per area geografica (Strategy B)",
-        "en": "Sessile species — geographic area checklist (Strategy B)",
+    "gs.taxon_group_all": {
+        "it": "Specie per paese (GBIF)",
+        "en": "Species by country (GBIF)",
     },
 
-    # Tab Fonti dati
+    # Tab Taxon — GBIF info
     "gs.gbif_info": {
         "it": (
-            "GBIF (Global Biodiversity Information Facility) è la fonte principale per tutte le checklist. "
+            "GBIF (Global Biodiversity Information Facility) è la fonte per tutte le checklist. "
             "Richiede connessione internet solo durante il download della cache; "
             "l'elaborazione delle foto avviene offline."
         ),
         "en": (
-            "GBIF (Global Biodiversity Information Facility) is the main source for all checklists. "
+            "GBIF (Global Biodiversity Information Facility) is the source for all checklists. "
             "Internet connection is required only during cache download; "
             "photo processing runs offline."
         ),
-    },
-    "gs.ebird_enable":   {"it": "Usa eBird per gli uccelli (Aves)",
-                          "en": "Use eBird for birds (Aves)"},
-    "gs.ebird_key":      {"it": "API Key eBird:",  "en": "eBird API Key:"},
-    "gs.ebird_note": {
-        "it": "API Key eBird gratuita disponibile su ebird.org/api/keygen",
-        "en": "Free eBird API key available at ebird.org/api/keygen",
     },
 
     # Tab Cache
@@ -160,12 +148,6 @@ _STRINGS = {
     "gs.cache_cleared":           {"it": "{n} file rimossi.", "en": "{n} files removed."},
 
     # Tab Parametri
-    "gs.radius_label": {"it": "Raggio ricerca specie sessili (Strategy B):",
-                        "en": "Search radius for sessile species (Strategy B):"},
-    "gs.radius_note": {
-        "it": "Distanza in km dal punto GPS entro cui cercare le specie in GBIF.",
-        "en": "Distance in km from the GPS point within which to search for species in GBIF.",
-    },
     "gs.max_species_label": {"it": "Max specie per taxon:",
                               "en": "Max species per taxon:"},
     "gs.timeout_label":     {"it": "Timeout richieste GBIF:", "en": "GBIF request timeout:"},
@@ -182,24 +164,16 @@ _STRINGS = {
         "it": (
             "Scarica in anticipo le checklist di specie per i paesi di tuo interesse.<br>"
             "Questo consente di classificare le foto offline, senza connessione internet.<br>"
-            "<b>Strategy A</b> (uccelli, mammiferi, rettili): lista per paese.<br>"
-            "<b>Strategy B</b> (piante, funghi, insetti…): generata automaticamente "
-            "su richiesta in base alle coordinate GPS."
+            "Le checklist vengono recuperate da <b>GBIF</b> e salvate in cache locale."
         ),
         "en": (
             "Pre-download species checklists for countries of interest.<br>"
             "This allows classifying photos offline, without internet connection.<br>"
-            "<b>Strategy A</b> (birds, mammals, reptiles): country checklist.<br>"
-            "<b>Strategy B</b> (plants, fungi, insects…): generated automatically "
-            "on demand based on GPS coordinates."
+            "Checklists are fetched from <b>GBIF</b> and saved in local cache."
         ),
     },
     "gs.download_countries":  {"it": "Paesi",    "en": "Countries"},
     "gs.download_taxa":       {"it": "Taxon da scaricare", "en": "Taxa to download"},
-    "gs.download_note_b": {
-        "it": "Strategy B (piante, funghi, insetti, anfibi, aracnidi) non è scaricabile per paese — viene generata on-demand dalle coordinate GPS della foto.",
-        "en": "Strategy B (plants, fungi, insects, amphibians, arachnids) cannot be downloaded by country — it is generated on demand from the photo's GPS coordinates.",
-    },
     "gs.btn_load_countries":  {"it": "Carica",   "en": "Load"},
     "gs.btn_select_all":      {"it": "Tutti",     "en": "All"},
     "gs.btn_select_none":     {"it": "Nessuno",   "en": "None"},

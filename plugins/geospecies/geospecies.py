@@ -2,16 +2,13 @@
 GeoSpecies - Core logic
 Costruisce un sottoinsieme geografico di specie per affinare la classificazione BioCLIP.
 
-Tutte le specie vengono cercate per paese (Strategy A unica).
+Tutte le specie vengono cercate per paese (Strategy A unica) tramite GBIF.
 Il paese viene estratto da geo_hierarchy già presente nel DB — nessuna chiamata API real-time.
 
 Durante l'elaborazione: solo cache locale. Mai fetch HTTP.
 Il fetch HTTP avviene solo esplicitamente dal DownloadDialog.
 
-Fonti:
-- GBIF species/search per paese: tutti i taxon
-- eBird spplist per paese: Aves (più accurata), usata se API key configurata
-  eBird restituisce speciesCode → convertiti in nomi scientifici via taxa endpoint
+Fonte: GBIF species/search per paese (tutti i taxon).
 """
 
 import json
@@ -48,8 +45,6 @@ DEFAULT_TAXA = ['Aves', 'Mammalia', 'Reptilia', 'Plantae', 'Fungi', 'Insecta', '
 
 # ── Endpoint ───────────────────────────────────────────────────────────────
 GBIF_SPECIES_URL  = "https://api.gbif.org/v1/species/search"
-EBIRD_SPPLIST_URL = "https://api.ebird.org/v2/product/spplist/{region}"
-EBIRD_TAXA_URL    = "https://api.ebird.org/v2/ref/taxonomy/ebird?fmt=json&locale=en"
 
 # Schema versione cache
 CACHE_SCHEMA = "1.0"
@@ -113,8 +108,6 @@ def load_config() -> dict:
         "cache_days": DEFAULT_CACHE_DAYS,
         "max_species_per_taxon": DEFAULT_MAX_SPECIES,
         "enabled_taxa": DEFAULT_TAXA,
-        "ebird_api_key": "",
-        "use_ebird_for_aves": False,
         "request_timeout": DEFAULT_TIMEOUT,
     }
     try:
@@ -354,48 +347,6 @@ def _fetch_gbif_country(country_iso2: str, taxon: str,
         return None
 
 
-# ── Fetch eBird per Aves ───────────────────────────────────────────────────
-
-def _fetch_ebird_country(country_iso2: str, api_key: str,
-                         timeout: int) -> Optional[list]:
-    """Scarica lista specie eBird per paese (solo Aves).
-    Converte speciesCode → nome scientifico via endpoint taxa.
-    """
-    logger.info(f"GeoSpecies: fetch eBird country={country_iso2}...")
-    try:
-        # Step 1: lista speciesCode per paese
-        url = EBIRD_SPPLIST_URL.format(region=country_iso2)
-        req = urllib.request.Request(url, headers={"X-eBirdApiToken": api_key})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            codes = json.loads(resp.read().decode("utf-8"))
-
-        if not codes:
-            return None
-
-        # Step 2: tassonomia eBird per convertire codici in nomi scientifici
-        # Scarica solo i codici necessari (max 600 per richiesta)
-        species = []
-        batch_size = 600
-        for i in range(0, len(codes), batch_size):
-            batch = codes[i:i + batch_size]
-            codes_str = ",".join(batch)
-            taxa_url = f"https://api.ebird.org/v2/ref/taxonomy/ebird?fmt=json&species={codes_str}"
-            taxa_req = urllib.request.Request(taxa_url, headers={"X-eBirdApiToken": api_key})
-            with urllib.request.urlopen(taxa_req, timeout=timeout) as resp:
-                taxa = json.loads(resp.read().decode("utf-8"))
-            for t in taxa:
-                sci_name = t.get("sciName", "").strip()
-                if sci_name and sci_name not in species:
-                    species.append(sci_name)
-
-        logger.info(f"GeoSpecies: eBird {country_iso2} → {len(species)} specie")
-        return species if species else None
-
-    except Exception as e:
-        logger.warning(f"GeoSpecies: eBird fetch fallito ({country_iso2}): {e}")
-        return None
-
-
 # ── Download esplicito (usato da DownloadDialog) ───────────────────────────
 
 def download_area(country_iso2: str, taxon: str,
@@ -418,21 +369,8 @@ def download_area(country_iso2: str, taxon: str,
     if status_cb:
         status_cb(f"Download {taxon} per {country_iso2}...")
 
-    species = None
     source = "gbif"
-
-    # Aves: preferisci eBird se configurato
-    if taxon == 'Aves' and config.get('use_ebird_for_aves') and config.get('ebird_api_key'):
-        species = _fetch_ebird_country(country_iso2, config['ebird_api_key'], timeout)
-        if species:
-            source = "ebird"
-        else:
-            if status_cb:
-                status_cb(f"  eBird non disponibile per {country_iso2}, uso GBIF...")
-
-    # Fallback GBIF (o GBIF diretto per tutti gli altri taxon)
-    if species is None:
-        species = _fetch_gbif_country(country_iso2, taxon, max_species, timeout)
+    species = _fetch_gbif_country(country_iso2, taxon, max_species, timeout)
 
     if species is not None:
         _save_cache(cache_dir, cache_key, species, key=country_iso2,
