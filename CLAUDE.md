@@ -55,6 +55,7 @@ Sistema di catalogazione automatica e retrieval di immagini fotografiche (RAW, J
 - **Repo pubblica** (`origin/main`): NON deve contenere NESSUN file di plugin (nessun `manifest.json`, `plugin.py`, `__init__.py` o qualsiasi altro file nelle sottodirectory di `/plugins`). Il `.gitignore` deve sempre escludere tutto il contenuto delle subdirectory plugin.
 - **Repo privata beta** (`beta` → `OffGallery_BETA`): deve contenere SEMPRE l'intera directory `/plugins` con tutti i plugin completi (manifest + codice). Eccezione attuale: `/plugins/bionomen/` è escluso fino a nuovo ordine (distribuzione separata).
 - **Workflow beta**: `git add -f` dei file plugin → commit → `git push --force beta main` → `git reset HEAD~1`. I file plugin restano in locale ma NON sono mai committati sulla storia pubblica.
+- **git pull dopo ogni sessione — CRITICO**: dopo il `git reset HEAD~1` del workflow beta, HEAD locale è indietro rispetto a `origin/main`. L'app usa `git rev-parse --short HEAD` come versione locale e mostrerebbe un falso avviso di aggiornamento. Al termine di ogni sessione eseguire `git fetch origin && git reset --hard origin/main` per riallineare HEAD senza toccare file ignorati.
 - **Verifica prima di ogni push pubblico**: assicurarsi che nessun file `plugin.py` o `__init__.py` di plugin sia staged.
 - **Verifica importazioni**: Prima di modificare un file, verificare che le modifiche non rompano le importazioni degli altri moduli nelle sottocartelle
 - **Test sintassi**: Usare `python -m py_compile <file>` per verificare la sintassi prima del commit
