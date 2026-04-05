@@ -303,64 +303,85 @@ def _save_cache(cache_dir: Path, cache_key: str, species: list,
 def _fetch_gbif_country(country_iso2: str, taxon: str,
                         max_species: int, timeout: int,
                         status_cb=None) -> Optional[list]:
-    """Scarica lista specie GBIF per paese e taxon via occurrence/search.
-    Paginazione con limit 300, early exit dopo 5 pagine senza specie nuove.
+    """Scarica lista specie GBIF per paese e taxon.
+
+    Strategia:
+    1. Raccoglie tutti gli speciesKey via facet (una chiamata per 1500 chiavi,
+       poi facetOffset per le pagine successive). Ogni chiamata è rapida.
+    2. Risolve i nomi scientifici tramite /v1/species/<key> in parallelo (10 thread).
+
+    Questo approccio è molto più veloce di paginare le occorrenze (milioni di record).
     """
+    import concurrent.futures
+
     taxon_key = GBIF_TAXON_KEYS.get(taxon)
     if not taxon_key:
         return None
 
     logger.info(f"GeoSpecies: fetch GBIF country={country_iso2} taxon={taxon}...")
-    seen = set()
-    species = []
-    offset = 0
-    limit = 300
-    empty_pages = 0
-    MAX_EMPTY = 5
+    FACET_LIMIT = 1500  # massimo supportato da GBIF per facetLimit
 
+    # ── Step 1: raccoglie tutti gli speciesKey via facet ──────────────────
+    all_keys = []
+    facet_offset = 0
     try:
         while True:
             params = urllib.parse.urlencode({
-                "country":  country_iso2,
-                "taxonKey": taxon_key,
-                "limit":    limit,
-                "offset":   offset,
+                "country":    country_iso2,
+                "taxonKey":   taxon_key,
+                "limit":      0,
+                "facet":      "speciesKey",
+                "facetLimit": FACET_LIMIT,
+                "facetOffset": facet_offset,
             })
             url = f"{GBIF_OCCURRENCE_URL}?{params}"
             with urllib.request.urlopen(url, timeout=timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
 
-            results = data.get("results", [])
-            if not results:
+            facets = data.get("facets", [])
+            counts = facets[0].get("counts", []) if facets else []
+            if not counts:
                 break
 
-            new_this_page = 0
-            for item in results:
-                name = (item.get("species") or item.get("genericName", "")).strip()
-                if name and name not in seen:
-                    seen.add(name)
-                    species.append(name)
-                    new_this_page += 1
-                    if len(species) >= max_species:
-                        break
-
-            if len(species) >= max_species:
-                break
-
-            if new_this_page == 0:
-                empty_pages += 1
-                if empty_pages >= MAX_EMPTY:
-                    logger.debug(f"GeoSpecies: early exit dopo {MAX_EMPTY} pagine senza specie nuove")
+            for c in counts:
+                all_keys.append(c["name"])
+                if len(all_keys) >= max_species:
                     break
-            else:
-                empty_pages = 0
 
-            if data.get("endOfRecords", False):
+            if len(all_keys) >= max_species or len(counts) < FACET_LIMIT:
                 break
+            facet_offset += FACET_LIMIT
 
-            offset += limit
-            if status_cb:
-                status_cb(f"  {taxon}/{country_iso2}: {len(species)} specie...")
+        if not all_keys:
+            logger.warning(f"GeoSpecies: nessun speciesKey trovato per {country_iso2}/{taxon}")
+            return None
+
+        if status_cb:
+            status_cb(f"  {taxon}/{country_iso2}: {len(all_keys)} chiavi trovate, risolvo nomi...")
+
+        # ── Step 2: risolve speciesKey → nome scientifico in parallelo ────
+        GBIF_SPECIES_LOOKUP = "https://api.gbif.org/v1/species/"
+
+        def lookup_name(key: str) -> Optional[str]:
+            try:
+                url = f"{GBIF_SPECIES_LOOKUP}{key}"
+                with urllib.request.urlopen(url, timeout=timeout) as resp:
+                    d = json.loads(resp.read().decode("utf-8"))
+                return (d.get("canonicalName") or d.get("scientificName", "")).strip() or None
+            except Exception:
+                return None
+
+        species = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(lookup_name, k): k for k in all_keys}
+            done = 0
+            for future in concurrent.futures.as_completed(futures):
+                name = future.result()
+                if name:
+                    species.append(name)
+                done += 1
+                if status_cb and done % 50 == 0:
+                    status_cb(f"  {taxon}/{country_iso2}: {done}/{len(all_keys)} nomi risolti...")
 
         logger.info(f"GeoSpecies: GBIF {country_iso2}/{taxon} → {len(species)} specie")
         return species if species else None
