@@ -45,6 +45,9 @@ class EmbeddingGenerator:
         # Cache immagine LLM: evita estrazione/base64 ripetute per la stessa immagine
         self._llm_image_cache = {'source': None, 'base64': None, 'temp_path': None}
 
+        # Contatore foto elaborate senza GPS (GeoSpecies non attivo)
+        self.geospecies_skipped_no_gps = 0
+
         # Device per-modello (allocazione da config o auto-detect)
         from device_allocator import detect_hardware, resolve_device
         self._hardware = detect_hardware()
@@ -1231,6 +1234,9 @@ class EmbeddingGenerator:
             # Se la cache per il paese non esiste, fallback silenzioso a TreeOfLife.
             active_classifier = self.bioclip_classifier
             self._last_geospecies_meta = None
+
+            if not geo_hierarchy:
+                self.geospecies_skipped_no_gps += 1
 
             if geo_hierarchy:
                 try:

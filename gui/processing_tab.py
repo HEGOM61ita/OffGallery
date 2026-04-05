@@ -231,6 +231,7 @@ class ProcessingWorker(QThread):
                 # Contatori per-modello
                 'clip': 0, 'dinov2': 0, 'aesthetic': 0, 'technical': 0,
                 'bioclip': 0, 'llm_tags': 0, 'llm_desc': 0, 'llm_title': 0,
+                'geospecies_skipped_no_gps': 0,
             }
             start_time = time.time()
 
@@ -431,6 +432,15 @@ class ProcessingWorker(QThread):
             if stats['llm_title']:  model_parts.append(f"Titoli: {stats['llm_title']}")
             if model_parts:
                 self.log_message.emit("  ".join(model_parts), "info")
+
+            # Avviso GeoSpecies non attivo per foto senza GPS
+            geo_skipped = stats.get('geospecies_skipped_no_gps', 0)
+            if geo_skipped > 0 and stats.get('bioclip', 0) > 0:
+                self.log_message.emit(
+                    f"ℹ️ GeoSpecies non attivo per {geo_skipped} foto: GPS assente — "
+                    f"BioCLIP ha usato TreeOfLife globale (450k specie)",
+                    "info"
+                )
 
             self.log_message.emit("═" * 50, "info")
 
@@ -837,6 +847,10 @@ class ProcessingWorker(QThread):
                             stats['bioclip'] += 1
                         self.log_message.emit(
                             f"🌿 BioCLIP {fname}: {len([l for l in bioclip_taxonomy if l])} livelli", "info")
+
+                    # Aggiorna contatore GeoSpecies skipped (foto senza GPS)
+                    with self._stats_lock:
+                        stats['geospecies_skipped_no_gps'] = emb_gen.geospecies_skipped_no_gps
 
                     # Estrai contesto per LLM
                     ctx = EmbeddingGenerator.extract_bioclip_context(bioclip_tags or [])
