@@ -404,7 +404,10 @@ class DownloadDialog:
         )
         layout.addWidget(info)
 
-        taxa_info = QLabel(f"<b>{pt('gs.download_taxa')}:</b> {', '.join(self._dl_taxa)}")
+        taxa_info = QLabel(
+            f"<b>{pt('gs.download_taxa')}:</b> {', '.join(self._dl_taxa)}<br>"
+            f"<i style='color:#808080'>Per aggiungere taxon: chiudi, vai in Config → tab Taxon, spunta e salva.</i>"
+        )
         taxa_info.setWordWrap(True)
         taxa_info.setStyleSheet("font-size: 10px; color: #A0C0A0; margin-bottom: 4px;")
         layout.addWidget(taxa_info)
