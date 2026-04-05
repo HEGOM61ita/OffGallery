@@ -824,7 +824,12 @@ class ProcessingWorker(QThread):
                     self.model_progress.emit('bioclip', i, total)
                     continue
                 try:
-                    bioclip_tags, bioclip_taxonomy = emb_gen.generate_bioclip_tags(thumb)
+                    # Passa le coordinate GPS a generate_bioclip_tags per GeoSpecies
+                    _img_data = prep.get('image_data', {})
+                    _gps_lat = _img_data.get('gps_latitude')
+                    _gps_lon = _img_data.get('gps_longitude')
+                    _gps_coords = (float(_gps_lat), float(_gps_lon)) if _gps_lat is not None and _gps_lon is not None else None
+                    bioclip_tags, bioclip_taxonomy = emb_gen.generate_bioclip_tags(thumb, gps_coords=_gps_coords)
 
                     if bioclip_taxonomy and isinstance(bioclip_taxonomy, list):
                         with self._db_lock:
