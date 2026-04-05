@@ -251,6 +251,11 @@ class PluginCard(QFrame):
         self._build_ui()
         self._refresh_db_status()
 
+        # Plugin config-only: nasconde il bottone Avvia (opera solo tramite pipeline)
+        if self._manifest.get("config_only", False):
+            self.btn_start.hide()
+            self.lbl_mode.hide()
+
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 10)
