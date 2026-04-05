@@ -1151,15 +1151,17 @@ class EmbeddingGenerator:
                 logger.error(f"Errore CLIP immagine: {e}")
                 return None
 
-    def _predict_bioclip(self, image_input, input_type, gps_coords=None):
+    def _predict_bioclip(self, image_input, input_type, geo_hierarchy=None):
         """Esegue predizione BioCLIP usando configurazione da config.yaml.
         OTTIMIZZATO: Usa profilo 'bioclip_classification' per resize alla dimensione ottimale.
 
         Args:
             image_input: path file, PIL Image, o bytes
             input_type: 'path', 'pil', 'bytes'
-            gps_coords: tuple (lat, lon) opzionale — se fornito e GeoSpecies è attivo,
-                        usa un sottoinsieme geografico di specie invece dei 450k globali
+            geo_hierarchy: stringa GeOFF|Continent|Country|Region|City opzionale —
+                           se fornita e GeoSpecies è attivo con cache per quel paese,
+                           usa un sottoinsieme geografico di specie invece dei 450k globali.
+                           Nessuna chiamata API — solo cache locale.
         """
         if self.bioclip_classifier is None:
             return []
@@ -1225,39 +1227,34 @@ class EmbeddingGenerator:
             # ─────────────────────────────────────
             # GeoSpecies: subset geografico specie
             # ─────────────────────────────────────
-            # Se il plugin GeoSpecies è attivo e le coordinate GPS sono disponibili,
-            # usa un CustomLabelsClassifier con le specie attese per quella zona.
-            # Fallback automatico al TreeOfLife standard se il plugin non è disponibile
-            # o non riesce a costruire il subset.
+            # Solo cache locale — nessuna chiamata API durante elaborazione.
+            # Se la cache per il paese non esiste, fallback silenzioso a TreeOfLife.
             active_classifier = self.bioclip_classifier
             self._last_geospecies_meta = None
 
-            if gps_coords is not None:
-                lat, lon = gps_coords
+            if geo_hierarchy:
                 try:
                     from plugins.geospecies.geospecies import get_species_subset
-                    species_subset = get_species_subset(lat, lon)
+                    species_subset = get_species_subset(
+                        lat=0, lon=0,  # non usati — paese da geo_hierarchy
+                        geo_hierarchy=geo_hierarchy
+                    )
                     if species_subset and len(species_subset) >= 10:
-                        # Crea un CustomLabelsClassifier temporaneo con il subset geografico
                         try:
                             from bioclip import CustomLabelsClassifier
                             geo_classifier = CustomLabelsClassifier(cls_ary=species_subset)
                             active_classifier = geo_classifier
-                            self._last_geospecies_meta = {
-                                "species_count": len(species_subset),
-                                "lat": lat,
-                                "lon": lon,
-                            }
+                            self._last_geospecies_meta = {"species_count": len(species_subset)}
                             logger.debug(
                                 f"GeoSpecies: classificatore geografico attivo "
-                                f"({len(species_subset)} specie per {lat:.2f},{lon:.2f})"
+                                f"({len(species_subset)} specie)"
                             )
                         except Exception as e:
                             logger.debug(f"GeoSpecies: CustomLabelsClassifier non disponibile ({e}), uso TreeOfLife")
                     else:
-                        logger.debug(f"GeoSpecies: subset troppo piccolo o assente per ({lat},{lon}), uso TreeOfLife")
+                        logger.debug(f"GeoSpecies: cache assente per {geo_hierarchy}, uso TreeOfLife")
                 except ImportError:
-                    pass  # Plugin GeoSpecies non installato — comportamento normale
+                    pass  # Plugin GeoSpecies non installato
                 except Exception as e:
                     logger.debug(f"GeoSpecies: errore ({e}), uso TreeOfLife standard")
 
@@ -1496,12 +1493,13 @@ class EmbeddingGenerator:
             raise
 
     # ===== BIOCLIP ON-DEMAND METHODS =====
-    def generate_bioclip_tags(self, input_data, gps_coords=None):
+    def generate_bioclip_tags(self, input_data, geo_hierarchy=None):
         """
         Genera tag BioCLIP con tassonomia completa.
         Args:
             input_data: Path/str (filepath), PIL.Image, o lista di predizioni BioCLIP
-            gps_coords: tuple (lat, lon) opzionale — passato a GeoSpecies per subset geografico
+            geo_hierarchy: stringa GeOFF|Continent|Country|Region|City opzionale —
+                           passata a GeoSpecies per subset geografico da cache locale
         Returns:
             tuple: (flat_tags, taxonomy_array) dove:
                 - flat_tags: lista tag display ["Specie: X", "Genere: Y", ...]
@@ -1520,7 +1518,7 @@ class EmbeddingGenerator:
         # Se è un filepath (string o Path), esegui pipeline completa
         if isinstance(input_data, (str, Path)):
             try:
-                predictions = self._predict_bioclip(input_data, 'path', gps_coords=gps_coords)
+                predictions = self._predict_bioclip(input_data, 'path', geo_hierarchy=geo_hierarchy)
             except Exception as e:
                 logger.error(f"Errore BioCLIP da filepath: {e}")
                 return [], None
@@ -1528,7 +1526,7 @@ class EmbeddingGenerator:
         # Se è una PIL Image, usa direttamente
         elif isinstance(input_data, Image.Image):
             try:
-                predictions = self._predict_bioclip(input_data, 'pil', gps_coords=gps_coords)
+                predictions = self._predict_bioclip(input_data, 'pil', geo_hierarchy=geo_hierarchy)
             except Exception as e:
                 logger.error(f"Errore BioCLIP da PIL Image: {e}")
                 return [], None
