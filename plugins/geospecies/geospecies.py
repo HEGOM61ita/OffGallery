@@ -26,19 +26,19 @@ _PLUGIN_DIR  = Path(__file__).parent
 _CONFIG_PATH = _PLUGIN_DIR / "config.json"
 
 # ── Taxon GBIF keys ────────────────────────────────────────────────────────
+# Reptilia non è un taxon valido nel backbone GBIF (gruppo parafiletico).
+# Va scomposta nei suoi ordini principali: Squamata, Testudines, Crocodylia.
+# Per gli altri taxon: chiave singola del backbone GBIF.
 GBIF_TAXON_KEYS = {
     'Aves':       212,
     'Mammalia':   359,
-    'Reptilia':   358,
+    'Reptilia':   [11592253, 11418114, 11538092],  # Squamata, Testudines, Crocodylia
     'Plantae':    6,
     'Fungi':      5,
     'Insecta':    216,
     'Amphibia':   131,
     'Arachnida':  367,
 }
-
-# Tutti i taxon usano Strategy A (per paese)
-TAXON_STRATEGY = {t: 'A' for t in GBIF_TAXON_KEYS}
 
 # Taxon abilitati di default
 DEFAULT_TAXA = ['Aves', 'Mammalia', 'Reptilia', 'Plantae', 'Fungi', 'Insecta', 'Amphibia', 'Arachnida']
@@ -314,43 +314,54 @@ def _fetch_gbif_country(country_iso2: str, taxon: str,
     """
     import concurrent.futures
 
-    taxon_key = GBIF_TAXON_KEYS.get(taxon)
-    if not taxon_key:
+    taxon_keys_raw = GBIF_TAXON_KEYS.get(taxon)
+    if not taxon_keys_raw:
         return None
+    # Normalizza a lista (Reptilia ha più chiavi)
+    taxon_keys = taxon_keys_raw if isinstance(taxon_keys_raw, list) else [taxon_keys_raw]
 
     logger.info(f"GeoSpecies: fetch GBIF country={country_iso2} taxon={taxon}...")
     FACET_LIMIT = 1500  # massimo supportato da GBIF per facetLimit
 
     # ── Step 1: raccoglie tutti gli speciesKey via facet ──────────────────
+    # Per taxon con più chiavi (es. Reptilia) unisce i risultati
+    all_keys_set = set()
     all_keys = []
-    facet_offset = 0
     try:
-        while True:
-            params = urllib.parse.urlencode({
-                "country":    country_iso2,
-                "taxonKey":   taxon_key,
-                "limit":      0,
-                "facet":      "speciesKey",
-                "facetLimit": FACET_LIMIT,
-                "facetOffset": facet_offset,
-            })
-            url = f"{GBIF_OCCURRENCE_URL}?{params}"
-            with urllib.request.urlopen(url, timeout=timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+        for taxon_key in taxon_keys:
+            facet_offset = 0
+            while True:
+                params = urllib.parse.urlencode({
+                    "country":     country_iso2,
+                    "taxonKey":    taxon_key,
+                    "limit":       0,
+                    "facet":       "speciesKey",
+                    "facetLimit":  FACET_LIMIT,
+                    "facetOffset": facet_offset,
+                })
+                url = f"{GBIF_OCCURRENCE_URL}?{params}"
+                with urllib.request.urlopen(url, timeout=timeout) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
 
-            facets = data.get("facets", [])
-            counts = facets[0].get("counts", []) if facets else []
-            if not counts:
-                break
-
-            for c in counts:
-                all_keys.append(c["name"])
-                if len(all_keys) >= max_species:
+                facets = data.get("facets", [])
+                counts = facets[0].get("counts", []) if facets else []
+                if not counts:
                     break
 
-            if len(all_keys) >= max_species or len(counts) < FACET_LIMIT:
+                for c in counts:
+                    k = c["name"]
+                    if k not in all_keys_set:
+                        all_keys_set.add(k)
+                        all_keys.append(k)
+                    if len(all_keys) >= max_species:
+                        break
+
+                if len(all_keys) >= max_species or len(counts) < FACET_LIMIT:
+                    break
+                facet_offset += FACET_LIMIT
+
+            if len(all_keys) >= max_species:
                 break
-            facet_offset += FACET_LIMIT
 
         if not all_keys:
             logger.warning(f"GeoSpecies: nessun speciesKey trovato per {country_iso2}/{taxon}")
@@ -408,7 +419,15 @@ def download_area(country_iso2: str, taxon: str,
     cache_dir = _get_cache_dir(config)
     timeout = int(config.get('request_timeout', DEFAULT_TIMEOUT))
     max_species = int(config.get('max_species_per_taxon', DEFAULT_MAX_SPECIES))
+    cache_days = int(config.get('cache_days', DEFAULT_CACHE_DAYS))
     cache_key = f"checklist_A_{country_iso2}_{taxon}"
+
+    # Skip se cache già valida (non scaduta)
+    existing = _load_cache(cache_dir, cache_key, cache_days)
+    if existing is not None:
+        if status_cb:
+            status_cb(f"✓ {taxon} per {country_iso2}: già in cache ({len(existing)} specie) — saltato")
+        return True
 
     if status_cb:
         status_cb(f"Download {taxon} per {country_iso2}...")

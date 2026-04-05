@@ -410,13 +410,7 @@ class DownloadDialog:
         layout.addWidget(taxa_info)
 
         # ── Albero paesi ─────────────────────────────────────────────────
-        country_header = QHBoxLayout()
-        country_header.addWidget(QLabel(f"<b>{pt('gs.download_countries')}</b>"))
-        btn_load = QPushButton(pt("gs.btn_load_countries"))
-        btn_load.setFixedHeight(24)
-        btn_load.clicked.connect(self._load_countries)
-        country_header.addWidget(btn_load)
-        layout.addLayout(country_header)
+        layout.addWidget(QLabel(f"<b>{pt('gs.download_countries')}</b>"))
 
         self._country_tree = QTreeWidget()
         self._country_tree.setHeaderHidden(True)
