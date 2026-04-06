@@ -1761,6 +1761,18 @@ class EmbeddingGenerator:
         'pt': 'PORTUGUESE',
     }
 
+    # Esempi anchor-lingua per prompt tags singolo.
+    # Parole neutre e generiche — non devono influenzare il contenuto generato,
+    # servono solo ad ancorare il modello alla lingua corretta.
+    LLM_TAGS_LANG_EXAMPLES = {
+        'it': 'albero,montagna,tramonto,persone,strada',
+        'en': 'tree,mountain,sunset,people,road',
+        'fr': 'arbre,montagne,coucher de soleil,personnes,route',
+        'de': 'Baum,Berg,Sonnenuntergang,Menschen,Straße',
+        'es': 'árbol,montaña,atardecer,personas,camino',
+        'pt': 'árvore,montanha,pôr do sol,pessoas,estrada',
+    }
+
     # Mappa classe tassonomica BioCLIP → hint italiano per il prompt LLM
     TAXONOMY_CLASS_HINTS = {
         # Animali - Vertebrati
@@ -2318,11 +2330,14 @@ class EmbeddingGenerator:
                     f"- Concise, informative, max {max_description_words} words\n"
                 )
             elif mode == "tags":
+                tags_example = EmbeddingGenerator.LLM_TAGS_LANG_EXAMPLES.get(lang_code, '')
+                example_line = f"EXAMPLE OUTPUT FORMAT: {tags_example}\n" if tags_example else ""
                 prompt = (
                     "You are a professional photographic tagging system.\n"
                     "Task: observe the scene and generate photo tags, in format \"tag1,tag2,tag3\".\n"
                     "Priority: 1) subjects, 2) scene, 3) actions, 4) objects, 5) weather, 6) mood, 7) colors\n\n"
                     f"{language_rules}"
+                    f"{example_line}"
                     "\nSTRICT RULES:\n"
                     f"- Maximum {max_tags} tags\n"
                     "- singular form, preserve capitalization for proper nouns (place names, etc.)\n"
