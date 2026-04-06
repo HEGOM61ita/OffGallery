@@ -2070,7 +2070,7 @@ class ProcessingTab(QWidget):
             logger.debug(f"Errore auto-scroll: {e}")
     
     def _init_terminal_welcome(self):
-        """Inizializza il terminale con messaggio di benvenuto"""
+        """Inizializza il terminale con messaggio di benvenuto e scarica il log di avvio."""
         try:
             self.log_display.clear()
             welcome_msg = """<span style="color: #00ff00; font-weight: bold;">
@@ -2080,6 +2080,15 @@ class ProcessingTab(QWidget):
 <span style="color: #00cc00;">System initialized and ready for image processing...</span>
 """
             self.log_display.append(welcome_msg)
+
+            # Scarica i messaggi accumulati durante il caricamento modelli (prima che la tab esistesse)
+            if self.embedding_gen and self.embedding_gen.startup_log:
+                self.add_log_message("── Log avvio modelli AI ──────────────────────────", "info")
+                for msg, level in self.embedding_gen.startup_log:
+                    self.add_log_message(msg, level)
+                self.add_log_message("─────────────────────────────────────────────────", "info")
+                self.embedding_gen.startup_log.clear()
+
         except Exception as e:
             logger.debug(f"Errore init terminale: {e}")
     

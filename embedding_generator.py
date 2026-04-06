@@ -48,11 +48,36 @@ class EmbeddingGenerator:
         # Contatore foto elaborate senza GPS (GeoSpecies non attivo)
         self.geospecies_skipped_no_gps = 0
 
+        # Buffer messaggi di avvio — accumulati durante __init__ prima che la tab esista.
+        # La tab li scarica nell'area log al momento della sua creazione.
+        self.startup_log: list[tuple[str, str]] = []  # lista di (messaggio, livello)
+
         # Device per-modello (allocazione da config o auto-detect)
-        from device_allocator import detect_hardware, resolve_device
+        from device_allocator import detect_hardware, resolve_device, MODEL_VRAM_ESTIMATES
         self._hardware = detect_hardware()
         self._hw_backend = self._hardware['backend']
         self._model_devices = {}  # cache device risolti per modello
+
+        # Avviso VRAM: controlla se la somma dei modelli configurati su GPU
+        # supera la VRAM disponibile (solo CUDA/DirectML — MPS è unified memory).
+        if self._hw_backend in ('cuda', 'directml'):
+            vram_total = self._hardware.get('vram_total_gb') or 0.0
+            if vram_total > 0:
+                models_cfg = self.embedding_config.get('models', {})
+                gpu_vram_requested = sum(
+                    MODEL_VRAM_ESTIMATES.get(key, 0)
+                    for key, cfg in models_cfg.items()
+                    if isinstance(cfg, dict) and cfg.get('device', 'gpu') == 'gpu'
+                    and key in MODEL_VRAM_ESTIMATES
+                )
+                if gpu_vram_requested > vram_total * 0.90:
+                    msg = (
+                        f"⚠️ VRAM: i modelli configurati su GPU richiedono ~{gpu_vram_requested:.1f} GB "
+                        f"ma la GPU ha {vram_total:.1f} GB (soglia 90% = {vram_total*0.90:.1f} GB). "
+                        f"Alcuni modelli potrebbero fallire o scalare su CPU automaticamente."
+                    )
+                    logger.warning(msg)
+                    self.startup_log.append((msg, 'warning'))
 
         # CARICAMENTO PROFILI OTTIMIZZAZIONE DA CONFIG
         self.optimization_profiles = self._load_optimization_profiles()
@@ -119,6 +144,7 @@ class EmbeddingGenerator:
             self.llm_plugin.warmup()
         else:
             logger.warning("⚠️ Nessun plugin LLM disponibile — warmup saltato")
+
 
     def _device_for(self, model_key: str) -> str:
         """Restituisce device torch per un modello specifico (con cache)."""
@@ -411,20 +437,40 @@ class EmbeddingGenerator:
         return p if p.is_absolute() else get_app_dir() / p
 
     def _initialize_models(self):
-        """Inizializza modelli abilitati"""
-        models_config = self.embedding_config.get('models', {})
-        if models_config.get('clip', {}).get('enabled', False): 
-            self._init_clip()
-        if models_config.get('dinov2', {}).get('enabled', False): 
-            self._init_dinov2()
-        if models_config.get('aesthetic', {}).get('enabled', False):
-            self._init_aesthetic()
-        # MUSIQ/Technical: valutazione qualità tecnica
-        if models_config.get('technical', {}).get('enabled', False):
-            self._init_musiq()
-        if models_config.get('bioclip', {}).get('enabled', False):
-            self._init_bioclip()
-            self.bioclip_enabled = hasattr(self, 'bioclip_classifier') and self.bioclip_classifier is not None
+        """Inizializza modelli abilitati.
+        Tutti i messaggi logger emessi durante l'init vengono anche accumulati
+        in self.startup_log, così la tab li mostra all'apertura.
+        """
+        import logging as _logging
+
+        class _StartupLogHandler(_logging.Handler):
+            def __init__(self, buf):
+                super().__init__()
+                self._buf = buf
+            def emit(self, record):
+                level = 'warning' if record.levelno >= _logging.WARNING else 'info'
+                self._buf.append((record.getMessage(), level))
+
+        _handler = _StartupLogHandler(self.startup_log)
+        _handler.setLevel(_logging.DEBUG)
+        logger.addHandler(_handler)
+
+        try:
+            models_config = self.embedding_config.get('models', {})
+            if models_config.get('clip', {}).get('enabled', False):
+                self._init_clip()
+            if models_config.get('dinov2', {}).get('enabled', False):
+                self._init_dinov2()
+            if models_config.get('aesthetic', {}).get('enabled', False):
+                self._init_aesthetic()
+            # MUSIQ/Technical: valutazione qualità tecnica
+            if models_config.get('technical', {}).get('enabled', False):
+                self._init_musiq()
+            if models_config.get('bioclip', {}).get('enabled', False):
+                self._init_bioclip()
+                self.bioclip_enabled = hasattr(self, 'bioclip_classifier') and self.bioclip_classifier is not None
+        finally:
+            logger.removeHandler(_handler)
 
     def _init_clip(self):
         """Inizializza CLIP: prima da models_dir locale, poi repo congelato (hf_hub_download), poi fallback ufficiale (snapshot_download)"""
