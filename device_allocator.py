@@ -59,32 +59,25 @@ MODEL_VRAM_ESTIMATES: Dict[str, float] = {
     'dinov2':    0.7,   # DINOv2 base
     'aesthetic': 1.7,   # CLIP backbone + linear head
     'bioclip':   2.0,   # BioCLIP ViT-L-14 + TreeOfLife embeddings
-    'technical': 0.3,   # MUSIQ (pyiqa)
+    'technical': 1.0,   # MUSIQ (pyiqa) — modello 90 MB + attivazioni ViT-H su input 1024px
 }
 
 # Fattore di accelerazione GPU stimato per ogni modello (rispetto a CPU).
-# Usato per calcolare il ROI dell'allocazione GPU: speedup / vram_cost.
-# Nessun modello è hardcoded su CPU — il greedy decide in base allo spazio.
 MODEL_GPU_SPEEDUP: Dict[str, float] = {
     'bioclip':   8.0,   # ~8x più veloce su GPU (inferenza su ~450k specie)
     'clip':      4.0,   # ~4x più veloce su GPU (embedding per ricerca semantica)
     'aesthetic': 3.0,   # ~3x più veloce su GPU (backbone CLIP)
-    'technical': 3.5,   # ~3.5x più veloce su GPU (ma già rapido in assoluto)
+    'technical': 3.5,   # ~3.5x più veloce su GPU (ma già rapido su CPU: 0.28s/foto)
     'dinov2':    2.5,   # ~2.5x più veloce su GPU (leggero, parallelizza bene su CPU)
 }
 
-# Ordine allocazione GPU calcolato per ROI decrescente (speedup / vram_cost):
-#   technical: 3.5/0.3 = 11.7  ← miglior ROI per VRAM spesa
-#   dinov2:    2.5/0.7 =  3.6
-#   bioclip:   8.0/2.0 =  4.0
-#   clip:      4.0/1.7 =  2.4
-#   aesthetic: 3.0/1.7 =  1.8  ← peggior ROI
-# (calcolato dinamicamente in auto_allocate — questa lista è solo documentazione)
-MODEL_GPU_PRIORITY: List[str] = sorted(
-    MODEL_GPU_SPEEDUP.keys(),
-    key=lambda m: MODEL_GPU_SPEEDUP[m] / MODEL_VRAM_ESTIMATES.get(m, 1.0),
-    reverse=True
-)
+# Ordine fisso di allocazione GPU — priorità per impatto sulla qualità/velocità:
+#   1. clip      — cuore della ricerca semantica, deve sempre essere in GPU
+#   2. bioclip   — classificazione specie, lentissimo su CPU (~450k labels)
+#   3. aesthetic — backbone CLIP, beneficio reale su GPU
+#   4. dinov2    — leggero, già rapido su CPU
+#   5. technical — MUSIQ: già veloce su CPU (0.28s/foto), default cpu al primo avvio
+MODEL_GPU_PRIORITY: List[str] = ['clip', 'bioclip', 'aesthetic', 'dinov2', 'technical']
 
 # Tutti i modelli gestiti da questo allocatore
 ALL_MODELS: List[str] = list(MODEL_VRAM_ESTIMATES.keys())
@@ -200,12 +193,13 @@ def auto_allocate(
     vram_total = hardware.get('vram_total_gb') or 4.0
     remaining = vram_total * headroom - llm_vram_gb
 
-    # Ordina i modelli abilitati per ROI GPU decrescente:
-    # ROI = speedup_GPU / vram_cost → chi guadagna di più per GB speso va prima.
+    # Ordina i modelli abilitati per priorità fissa (MODEL_GPU_PRIORITY).
+    # CLIP viene allocato per primo — deve sempre essere in GPU.
+    # I modelli non presenti in MODEL_GPU_PRIORITY vengono aggiunti in fondo.
+    priority_order = {m: i for i, m in enumerate(MODEL_GPU_PRIORITY)}
     candidates = sorted(
         [m for m in enabled_models if m in ALL_MODELS],
-        key=lambda m: MODEL_GPU_SPEEDUP.get(m, 1.0) / MODEL_VRAM_ESTIMATES.get(m, 1.0),
-        reverse=True
+        key=lambda m: priority_order.get(m, len(MODEL_GPU_PRIORITY))
     )
 
     for model in candidates:
