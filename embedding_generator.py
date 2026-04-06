@@ -772,28 +772,6 @@ class EmbeddingGenerator:
                 self.musiq_model = _create_and_load(musiq_device)
                 self.musiq_device = musiq_device
 
-                # Primo avvio: se 'device' non era esplicito nel config, scrivi 'cpu'
-                # come default persistente — dalla seconda volta l'utente lo controlla.
-                technical_cfg = (self.config
-                                 .get('embedding', {})
-                                 .get('models', {})
-                                 .get('technical', {}))
-                if 'device' not in technical_cfg:
-                    try:
-                        import yaml
-                        from pathlib import Path as _Path
-                        _cfg_path = _Path(__file__).parent / 'config_new.yaml'
-                        with open(_cfg_path, 'r', encoding='utf-8') as _f:
-                            _raw = yaml.safe_load(_f)
-                        (_raw.setdefault('embedding', {})
-                              .setdefault('models', {})
-                              .setdefault('technical', {})['device']) = 'cpu'
-                        with open(_cfg_path, 'w', encoding='utf-8') as _f:
-                            yaml.dump(_raw, _f, allow_unicode=True, default_flow_style=False)
-                        logger.info("MUSIQ: device non configurato — impostato 'cpu' come default in config")
-                    except Exception as _e:
-                        logger.debug(f"MUSIQ: impossibile scrivere device default in config ({_e})")
-
             except Exception as vram_err:
                 # Fallback CPU per qualsiasi errore su GPU: OOM, CUDA error, VRAM satura.
                 # Il catch precedente (solo RuntimeError + "out of memory") non intercettava
