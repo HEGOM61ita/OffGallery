@@ -1914,9 +1914,14 @@ class EmbeddingGenerator:
         self._llm_image_cache = {'source': None, 'base64': None, 'temp_path': None}
 
     def generate_llm_description(self, image_input, max_description_words: int = 100, bioclip_context: Optional[str] = None, category_hint: Optional[str] = None, location_hint: Optional[str] = None):
-        """Genera descrizione LLM Vision tramite nucleo analitico unificato."""
+        """Genera descrizione LLM Vision tramite nucleo analitico unificato.
+
+        Aggiunge 'title' come ancora semantica silenziosa: il titolo (pochi token)
+        funge da etichetta concisa che guida la descrizione successiva.
+        """
         result = self.generate_llm_combined(
-            image_input, modes=['description'],
+            image_input, modes=['title', 'description'],
+            max_title_words=5,
             max_description_words=max_description_words,
             bioclip_context=bioclip_context,
             category_hint=category_hint, location_hint=location_hint
@@ -1934,9 +1939,16 @@ class EmbeddingGenerator:
         return result.get('tags', []) if result else []
 
     def generate_llm_title(self, image_input, max_title_words: int = 5, bioclip_context: Optional[str] = None, category_hint: Optional[str] = None, location_hint: Optional[str] = None) -> Optional[str]:
-        """Genera titolo LLM Vision tramite nucleo analitico unificato."""
+        """Genera titolo LLM Vision tramite nucleo analitico unificato.
+
+        Aggiunge 'tags' come ancora semantica silenziosa: i tag (pochi token)
+        forzano il ragionamento visivo profondo prima del titolo, poi vengono scartati.
+        Senza questa ancora, il modello 8B tende al pattern matching superficiale
+        quando genera il titolo da solo.
+        """
         result = self.generate_llm_combined(
-            image_input, modes=['title'],
+            image_input, modes=['title', 'tags'],
+            max_tags=5,  # ancora leggera: bastano 5 tag per ancorare il ragionamento
             max_title_words=max_title_words,
             bioclip_context=bioclip_context,
             category_hint=category_hint, location_hint=location_hint
