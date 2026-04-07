@@ -1920,8 +1920,8 @@ class EmbeddingGenerator:
         funge da etichetta concisa che guida la descrizione successiva.
         """
         result = self.generate_llm_combined(
-            image_input, modes=['title', 'description'],
-            max_title_words=5,
+            image_input, modes=['tags', 'description'],  # TAGS prima: ancora semantica
+            max_tags=5,
             max_description_words=max_description_words,
             bioclip_context=bioclip_context,
             category_hint=category_hint, location_hint=location_hint
@@ -1941,14 +1941,14 @@ class EmbeddingGenerator:
     def generate_llm_title(self, image_input, max_title_words: int = 5, bioclip_context: Optional[str] = None, category_hint: Optional[str] = None, location_hint: Optional[str] = None) -> Optional[str]:
         """Genera titolo LLM Vision tramite nucleo analitico unificato.
 
-        Aggiunge 'tags' come ancora semantica silenziosa: i tag (pochi token)
-        forzano il ragionamento visivo profondo prima del titolo, poi vengono scartati.
-        Senza questa ancora, il modello 8B tende al pattern matching superficiale
-        quando genera il titolo da solo.
+        Aggiunge 'tags' come ancora semantica silenziosa con ordine TAGS→TITLE:
+        il modello genera prima i tag (ragionamento visivo profondo) e poi scrive
+        il titolo coerente con quanto già identificato. I tag vengono scartati.
+        Senza questa ancora il modello 8B tende al pattern matching superficiale.
         """
         result = self.generate_llm_combined(
-            image_input, modes=['title', 'tags'],
-            max_tags=5,  # ancora leggera: bastano 5 tag per ancorare il ragionamento
+            image_input, modes=['tags', 'title'],  # TAGS prima: funge da ancora per TITLE
+            max_tags=5,
             max_title_words=max_title_words,
             bioclip_context=bioclip_context,
             category_hint=category_hint, location_hint=location_hint
@@ -2239,27 +2239,26 @@ class EmbeddingGenerator:
             )
 
             # --- Sezioni output dinamiche in base ai modi richiesti ---
-            # Ordine: TITLE → TAGS → DESCRIPTION
-            # Il titolo viene generato per primo, quando il modello ha massima
-            # attenzione dopo il nucleo analitico. Funge da ancora semantica
-            # per le sezioni successive, evitando derive nei modelli 4B quantizzati.
-            format_lines = []
-            if 'title' in modes:
-                format_lines.append(
+            # L'ordine delle sezioni segue esattamente l'ordine di `modes`:
+            # chi chiama decide quale campo funge da ancora semantica per i successivi.
+            # Regola: il campo più "semplice" (tags) va prima dei campi che ne beneficiano
+            # (title, description) — il modello legge nel contesto già generato.
+            section_specs = {
+                'title': (
                     f"TITLE: ...  "
                     f"(max {max_title_words} words, {lang_name}, factual/descriptive, no quotes, no ending punctuation)"
-                )
-            if 'tags' in modes:
-                format_lines.append(
+                ),
+                'tags': (
                     f"TAGS: tag1,tag2,...  "
                     f"(max {max_tags}, {lang_name}, singular, comma-separated, only what you clearly see)"
-                )
-            if 'description' in modes:
-                format_lines.append(
+                ),
+                'description': (
                     f"DESCRIPTION: ...  "
                     f"(max {max_description_words} words, {lang_name}, single paragraph, "
                     f"subject/environment/colors/composition/atmosphere)"
-                )
+                ),
+            }
+            format_lines = [section_specs[m] for m in modes if m in section_specs]
             format_spec = '\n'.join(format_lines)
 
             # --- Calcolo max_tokens: somma dei modi richiesti ---
