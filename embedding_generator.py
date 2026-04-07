@@ -1914,14 +1914,9 @@ class EmbeddingGenerator:
         self._llm_image_cache = {'source': None, 'base64': None, 'temp_path': None}
 
     def generate_llm_description(self, image_input, max_description_words: int = 100, bioclip_context: Optional[str] = None, category_hint: Optional[str] = None, location_hint: Optional[str] = None):
-        """Genera descrizione LLM Vision tramite nucleo analitico unificato.
-
-        Aggiunge 'title' come ancora semantica silenziosa: il titolo (pochi token)
-        funge da etichetta concisa che guida la descrizione successiva.
-        """
+        """Genera descrizione LLM Vision tramite nucleo analitico unificato."""
         result = self.generate_llm_combined(
-            image_input, modes=['tags', 'description'],  # TAGS prima: ancora semantica
-            max_tags=5,
+            image_input, modes=['description'],
             max_description_words=max_description_words,
             bioclip_context=bioclip_context,
             category_hint=category_hint, location_hint=location_hint
@@ -1939,16 +1934,9 @@ class EmbeddingGenerator:
         return result.get('tags', []) if result else []
 
     def generate_llm_title(self, image_input, max_title_words: int = 5, bioclip_context: Optional[str] = None, category_hint: Optional[str] = None, location_hint: Optional[str] = None) -> Optional[str]:
-        """Genera titolo LLM Vision tramite nucleo analitico unificato.
-
-        Aggiunge 'tags' come ancora semantica silenziosa con ordine TAGS→TITLE:
-        il modello genera prima i tag (ragionamento visivo profondo) e poi scrive
-        il titolo coerente con quanto già identificato. I tag vengono scartati.
-        Senza questa ancora il modello 8B tende al pattern matching superficiale.
-        """
+        """Genera titolo LLM Vision tramite nucleo analitico unificato."""
         result = self.generate_llm_combined(
-            image_input, modes=['tags', 'title'],  # TAGS prima: funge da ancora per TITLE
-            max_tags=5,
+            image_input, modes=['title'],
             max_title_words=max_title_words,
             bioclip_context=bioclip_context,
             category_hint=category_hint, location_hint=location_hint
@@ -1980,10 +1968,25 @@ class EmbeddingGenerator:
             if not image_b64:
                 return {}
 
+            # Ancora semantica: se manca 'tags', lo aggiungiamo silenziosamente
+            # come primo campo — il modello identifica i soggetti prima di scrivere
+            # titolo o descrizione, evitando pattern matching superficiale.
+            # I tag aggiunti come ancora vengono poi rimossi dal risultato finale.
+            anchor_added = False
+            effective_modes = list(modes)
+            if 'tags' not in effective_modes and len(effective_modes) < 3:
+                effective_modes = ['tags'] + effective_modes
+                anchor_added = True
+
             result = self._call_llm_vision_unified(
-                image_b64, modes, max_tags, max_description_words, max_title_words,
+                image_b64, effective_modes, max_tags if not anchor_added else 5,
+                max_description_words, max_title_words,
                 category_hint=category_hint, location_hint=location_hint
             )
+
+            # Rimuovi i tag ancora dal risultato se non erano richiesti
+            if anchor_added:
+                result.pop('tags', None)
             if not result:
                 return {}
 
