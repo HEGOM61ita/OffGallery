@@ -35,15 +35,15 @@ embedding:
       model_name: "musiq"
     llm_vision:
       enabled: true
-      model: "qwen3.5:4b-q4_K_M"
+      model: "qwen3-vl:8b-instruct-q4_K_M"
       endpoint: "http://localhost:11434"
       timeout: 240
       generation:
-        temperature: 0.2
-        top_k: 20
+        temperature: 0.1
+        top_k: 40
         top_p: 0.8
-        num_ctx: 2048
-        num_batch: 1024
+        num_ctx: 4096
+        num_batch: 512
         keep_alive: -1
       auto_import:
         tags:
@@ -162,7 +162,7 @@ Configura la generazione di tag, descrizioni e titoli tramite modello LLM Vision
 | Parametro | Tipo | Descrizione |
 |-----------|------|-------------|
 | `llm_vision.enabled` | bool | Abilita generazione LLM |
-| `llm_vision.model` | string | Modello Ollama da usare (default: `qwen3.5:4b-q4_K_M`) |
+| `llm_vision.model` | string | Modello Ollama da usare. Consigliato per 8 GB VRAM: `qwen3-vl:8b-instruct-q4_K_M` |
 | `llm_vision.endpoint` | string | Indirizzo endpoint Ollama (default: `http://localhost:11434`) |
 | `llm_vision.timeout` | int | Timeout in secondi per risposta LLM (default: 240) |
 
@@ -172,14 +172,14 @@ Parametri avanzati che controllano il comportamento del modello LLM. Accessibili
 
 | Parametro | Tipo | Range | Default | Descrizione |
 |-----------|------|-------|---------|-------------|
-| `temperature` | float | 0.0–2.0 | 0.2 | Creatività LLM. Bassi (0.1-0.3): preciso e deterministico. Alti (0.7+): creativo e vario |
-| `top_k` | int | 1–100 | 20 | Numero token candidati per step di generazione |
+| `temperature` | float | 0.0–2.0 | 0.1 | Creatività LLM. Bassi (0.1-0.3): preciso e deterministico. Alti (0.7+): creativo e vario |
+| `top_k` | int | 1–100 | 40 | Numero token candidati per step di generazione |
 | `top_p` | float | 0.0–1.0 | 0.8 | Nucleus sampling: probabilità cumulativa dei token considerati |
 | `num_ctx` | int | 512–32768 | 4096 | Dimensione finestra di contesto in token. Valori più alti usano più VRAM |
-| `num_batch` | int | 128–4096 | 1024 | Dimensione batch per prompt evaluation. Influisce su velocità e uso VRAM |
+| `num_batch` | int | 128–4096 | 512 | Dimensione batch per prompt evaluation. Influisce su velocità e uso VRAM |
 | `keep_alive` | int | -1, 0+ | -1 | Tempo in minuti per mantenere il modello in VRAM. `-1` = permanente (consigliato) |
 
-> **Nota VRAM**: Con `keep_alive: -1` il modello Ollama resta caricato in VRAM dopo il primo utilizzo, eliminando il tempo di caricamento (~2-3s) per le chiamate successive. Consigliato per GPU con almeno 4 GB liberi. Il modello Qwen3.5 4B occupa circa 2.5-3 GB di VRAM.
+> **Nota VRAM**: Con `keep_alive: -1` il modello Ollama resta caricato in VRAM dopo il primo utilizzo, eliminando il tempo di caricamento (~2-3s) per le chiamate successive. Consigliato per GPU con almeno 4 GB liberi. Il modello `qwen3-vl:8b-instruct-q4_K_M` (consigliato per 8 GB VRAM) occupa circa 5 GB di VRAM.
 
 #### Auto Import
 
