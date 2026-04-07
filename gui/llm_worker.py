@@ -38,22 +38,20 @@ class LLMWorkerThread(QThread):
         
         # Flag di controllo
         self.is_canceled  = False
-        
+
         # Parametri elaborazione (impostati dal caller)
         self.mode = 'tags'
         self.tag_categories = ''
-        self.description_style = ''
         self.user_hints = []
         self.bioclip_context = None
-        
+
         # Risultati accumulati in memoria (rollback-safe)
         self.results = []  # lista di {image_id, tags, description}
-    
-    def set_parameters(self, mode, tag_categories, description_style, user_hints, bioclip_context=None):
+
+    def set_parameters(self, mode, tag_categories, user_hints, bioclip_context=None):
         """Imposta parametri generazione prima di start()"""
         self.mode = mode
         self.tag_categories = tag_categories
-        self.description_style = description_style
         self.user_hints = user_hints
         self.bioclip_context = bioclip_context
     
@@ -75,16 +73,31 @@ class LLMWorkerThread(QThread):
                 # Estrai dati immagine
                 image_id = item.image_id
                 filepath = Path(item.image_data.get('filepath', ''))
-                
+
                 if not filepath.exists():
                     logger.warning(f"File non trovato: {filepath}")
                     continue
-                
-                # Genera contenuto con LLM
+
+                # Leggi parametri LLM dal config (allineati con processing_tab)
+                llm_cfg = self.config.get('auto_import', {}).get('tags', {})
+                max_tags = int(llm_cfg.get('max', 10))
+                max_description_words = int(llm_cfg.get('max_description_words', 100))
+                max_title_words = int(llm_cfg.get('max_title_words', 5))
+
+                # Leggi hint da image_data (BioCLIP e GPS già disponibili in Gallery)
+                category_hint = item.image_data.get('category_hint') or None
+                location_hint = item.image_data.get('location_hint') or None
+
+                # Genera contenuto con LLM tramite nucleo analitico unificato
                 result = self.embedding_gen.generate_llm_content(
                     filepath,
                     mode=self.mode,
-                    bioclip_context=self.bioclip_context
+                    max_tags=max_tags,
+                    max_description_words=max_description_words,
+                    max_title_words=max_title_words,
+                    bioclip_context=self.bioclip_context,
+                    category_hint=category_hint,
+                    location_hint=location_hint,
                 )
                 
                 if result:
