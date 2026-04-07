@@ -1068,23 +1068,27 @@ class GalleryTab(QWidget):
                 progress.setLabelText(t("gallery.progress.llm_generating", filename=item.image_data.get('filename', ''), ctx_info=ctx_info, i=i+1, total=len(items)))
                 QApplication.processEvents()
 
-                # Genera contenuti in base alle selezioni
-                result = {}
-
+                # Genera contenuti in base alle selezioni — una sola chiamata LLM
+                # con nucleo analitico condiviso (qualità uniforme su tutti i modi)
+                modes = []
                 if gen_options.get('title'):
-                    title = embedding_gen.generate_llm_title(llm_input, max_title_words, bioclip_context=bioclip_context, category_hint=category_hint, location_hint=location_hint)
-                    if title:
-                        result['title'] = title
-
+                    modes.append('title')
                 if gen_options.get('tags'):
-                    tags = embedding_gen.generate_llm_tags(llm_input, max_tags, bioclip_context=bioclip_context, category_hint=category_hint, location_hint=location_hint)
-                    if tags:
-                        result['tags'] = tags
-
+                    modes.append('tags')
                 if gen_options.get('description'):
-                    description = embedding_gen.generate_llm_description(llm_input, max_words, bioclip_context=bioclip_context, category_hint=category_hint, location_hint=location_hint)
-                    if description:
-                        result['description'] = description
+                    modes.append('description')
+
+                result = {}
+                if modes:
+                    result = embedding_gen.generate_llm_combined(
+                        llm_input, modes=modes,
+                        max_tags=max_tags,
+                        max_description_words=max_words,
+                        max_title_words=max_title_words,
+                        bioclip_context=bioclip_context,
+                        category_hint=category_hint,
+                        location_hint=location_hint,
+                    ) or {}
                 #-------------------------------------------
                 if not result:
                     continue
