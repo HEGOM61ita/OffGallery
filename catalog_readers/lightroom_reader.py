@@ -103,8 +103,9 @@ class LightroomCatalogReader:
         for (raw_path,) in rows:
             if not raw_path:
                 continue
-            # Normalizza separatori (LR usa / su tutte le piattaforme)
-            file_path = Path(raw_path.replace('/', '\\') if '\\' not in raw_path else raw_path)
+            # Normalizza separatori: Path() gestisce nativamente slash e backslash
+            # su ogni piattaforma (LR usa sempre '/' internamente)
+            file_path = Path(raw_path)
 
             # Filtra per formato supportato
             if file_path.suffix.lower() not in supported_exts:
