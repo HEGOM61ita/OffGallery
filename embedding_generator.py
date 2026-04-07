@@ -2227,7 +2227,16 @@ class EmbeddingGenerator:
             )
 
             # --- Sezioni output dinamiche in base ai modi richiesti ---
+            # Ordine: TITLE → TAGS → DESCRIPTION
+            # Il titolo viene generato per primo, quando il modello ha massima
+            # attenzione dopo il nucleo analitico. Funge da ancora semantica
+            # per le sezioni successive, evitando derive nei modelli 4B quantizzati.
             format_lines = []
+            if 'title' in modes:
+                format_lines.append(
+                    f"TITLE: ...  "
+                    f"(max {max_title_words} words, {lang_name}, factual/descriptive, no quotes, no ending punctuation)"
+                )
             if 'tags' in modes:
                 format_lines.append(
                     f"TAGS: tag1,tag2,...  "
@@ -2238,11 +2247,6 @@ class EmbeddingGenerator:
                     f"DESCRIPTION: ...  "
                     f"(max {max_description_words} words, {lang_name}, single paragraph, "
                     f"subject/environment/colors/composition/atmosphere)"
-                )
-            if 'title' in modes:
-                format_lines.append(
-                    f"TITLE: ...  "
-                    f"(max {max_title_words} words, {lang_name}, factual/descriptive, no quotes, no ending punctuation)"
                 )
             format_spec = '\n'.join(format_lines)
 
