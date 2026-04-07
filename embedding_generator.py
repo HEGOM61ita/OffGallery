@@ -2005,16 +2005,33 @@ class EmbeddingGenerator:
         current_key: Optional[str] = None
         current_lines: list = []
 
+        # Label riconosciute: usate per troncare contenuto spurio che il modello
+        # a volte ripete dentro la descrizione o i tag
+        known_labels = ('TAGS:', 'DESCRIPTION:', 'DESCRIZIONE:', 'TITLE:', 'TITOLO:')
+
         def _flush(key, lines):
             content = ' '.join(lines).strip()
             if not content:
                 return
             if key == 'tags':
+                # Tronca prima di eventuale testo spurio del prompt (es. "- TAGS: comma-separated")
+                # che il modello può copiare dopo l'elenco vero
+                for sep in (' - ', ' — ', '\n'):
+                    if sep in content:
+                        # Tieni solo la parte prima del separatore se dopo c'è testo non-tag
+                        candidate = content.split(sep)[0]
+                        # Valido solo se contiene virgole (= lista tag reale)
+                        if ',' in candidate or len(candidate.split()) <= 3:
+                            content = candidate
+                            break
                 raw = [t.strip().strip('"').strip("'").strip()
                        for t in content.replace(';', ',').split(',')]
                 seen: set = set()
                 tags = []
                 for t in raw:
+                    # Scarta token che sembrano istruzioni del prompt
+                    if any(t.upper().startswith(lbl) for lbl in known_labels):
+                        break
                     if (t and 2 < len(t) < 50
                             and not t.startswith(('http', 'www'))
                             and t.lower() not in seen):
@@ -2022,6 +2039,13 @@ class EmbeddingGenerator:
                         tags.append(t)
                 result['tags'] = tags[:max_tags]
             elif key == 'description':
+                # Tronca appena il modello ricomincia a scrivere label (TAGS:/TITLE:/ecc.)
+                import re as _re
+                label_pattern = _re.compile(
+                    r'\b(TAGS|DESCRIPTION|DESCRIZIONE|TITLE|TITOLO)\s*:', _re.IGNORECASE)
+                match = label_pattern.search(content)
+                if match:
+                    content = content[:match.start()].strip()
                 result['description'] = content
             elif key == 'title':
                 # Solo la prima riga: il modello può aggiungere testo extra su righe successive
@@ -2237,14 +2261,9 @@ class EmbeddingGenerator:
                 f"{language_rules}\n"
                 f"{analysis_kernel}"
                 "STEP 2 — OUTPUT:\n"
-                "Generate ONLY the sections listed below. Use EXACTLY these labels, one per line.\n"
-                "Do NOT write the Step 1 analysis. Do NOT add explanations or extra text.\n\n"
-                f"{format_spec}\n\n"
-                "STRICT RULES:\n"
-                "- Output ONLY the labeled sections, nothing else\n"
-                "- TAGS: comma-separated list only\n"
-                "- DESCRIPTION: single paragraph\n"
-                "- TITLE: single line\n"
+                "Write ONLY the lines below. Start each line with its label exactly as shown.\n"
+                "Stop immediately after the last required line. Do not repeat labels.\n\n"
+                f"{format_spec}\n"
             )
 
             params = {
