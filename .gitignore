@@ -27,7 +27,9 @@
 !plugins/
 !plugins/*.py
 !plugins/*.md
-# Plugin LLM: solo nella repo privata beta, mai nella repo pubblica
+# Sottodirectory plugin: solo nella repo privata beta, mai nella repo pubblica
+plugins/*/
+plugins/*/*
 
 # Configurazione
 !*.yaml
