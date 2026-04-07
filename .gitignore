@@ -30,6 +30,13 @@
 # Sottodirectory plugin: solo nella repo privata beta, mai nella repo pubblica
 plugins/*/
 plugins/*/*
+# Dati runtime plugin (scaricati/generati a runtime, non nel repo)
+plugins/naturarea/*.tif
+plugins/naturarea/data/*.db
+plugins/naturarea/weather_cache.db
+plugins/weather_context/data/*.db
+plugins/bionomen/data/*.db
+plugins/geospecies/cache/*.json
 
 # Configurazione
 !*.yaml
