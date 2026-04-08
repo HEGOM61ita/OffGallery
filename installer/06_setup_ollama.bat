@@ -40,10 +40,10 @@ ollama --version
 echo.
 
 :: Verifica se il modello è già presente
-echo Verifica modello qwen3.5:4b-q4_K_M...
-ollama list 2>nul | findstr /C:"qwen3.5:4b-q4_K_M" >nul 2>&1
+echo Verifica modello qwen3-vl:8b-instruct-q4_K_M...
+ollama list 2>nul | findstr /C:"qwen3-vl:8b-instruct-q4_K_M" >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
-    echo [OK] Modello qwen3.5:4b-q4_K_M già installato
+    echo [OK] Modello qwen3-vl:8b-instruct-q4_K_M già installato
     echo.
     echo ═══════════════════════════════════════════════════════════════
     echo [OK] Ollama configurato correttamente!
@@ -58,7 +58,7 @@ if %ERRORLEVEL% EQU 0 (
 
 :: Download modello
 echo.
-echo Download modello qwen3.5:4b-q4_K_M (~3.4 GB)
+echo Download modello qwen3-vl:8b-instruct-q4_K_M (~5.2 GB)
 echo Questo è il modello LLM Vision per generare descrizioni e tag.
 echo.
 echo ─────────────────────────────────────────────────────────────────
@@ -68,7 +68,7 @@ set /p DOWNLOAD="Vuoi scaricare il modello ora? (S/N): "
 if /i "!DOWNLOAD!" NEQ "S" (
     echo.
     echo Download annullato. Puoi scaricarlo in seguito con:
-    echo   ollama pull qwen3.5:4b-q4_K_M
+    echo   ollama pull qwen3-vl:8b-instruct-q4_K_M
     echo.
     pause
     exit /b 0
@@ -78,13 +78,13 @@ echo.
 echo Download in corso... (potrebbe richiedere 5-15 minuti)
 echo.
 
-ollama pull qwen3.5:4b-q4_K_M
+ollama pull qwen3-vl:8b-instruct-q4_K_M
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [ERRORE] Download modello fallito.
     echo Verifica la connessione internet e riprova con:
-    echo   ollama pull qwen3.5:4b-q4_K_M
+    echo   ollama pull qwen3-vl:8b-instruct-q4_K_M
     echo.
     pause
     exit /b 1
@@ -95,7 +95,7 @@ echo ═════════════════════════
 echo [OK] Ollama configurato con successo!
 echo ═══════════════════════════════════════════════════════════════
 echo.
-echo Modello installato: qwen3.5:4b-q4_K_M (3.4 GB)
+echo Modello installato: qwen3-vl:8b-instruct-q4_K_M (5.2 GB (richiede 8 GB VRAM))
 echo.
 echo Procedi con lo step finale: 07_verify_installation.py
 echo (Esegui: conda activate OffGallery ^&^& python 07_verify_installation.py)
