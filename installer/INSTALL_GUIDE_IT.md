@@ -135,7 +135,7 @@ sudo pacman -S perl-image-exiftool
 
 # 5. Ollama (opzionale)
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull qwen3.5:4b-q4_K_M
+ollama pull qwen3-vl:8b-instruct-q4_K_M
 ```
 
 ### macOS - Installazione manuale
@@ -166,7 +166,7 @@ brew install exiftool
 # 5. Ollama (opzionale)
 brew install ollama
 # oppure: curl -fsSL https://ollama.com/install.sh | sh
-ollama pull qwen3.5:4b-q4_K_M
+ollama pull qwen3-vl:8b-instruct-q4_K_M
 
 # 6. Avvia
 conda run -n OffGallery python gui_launcher.py
@@ -258,15 +258,20 @@ Questo step scarica circa **3 GB** di librerie.
 
 ### Step 4: Installa Ollama (Opzionale)
 
-Ollama è necessario solo se vuoi generare **descrizioni e tag automatici** con LLM.
-Se non ti interessa questa funzionalità, puoi saltare questo step.
+> **Ollama è completamente opzionale.** OffGallery funziona pienamente senza di esso per ricerca semantica (CLIP), tassonomia BioCLIP, score estetico/tecnico, metadati EXIF e geolocalizzazione. Installa Ollama solo se vuoi generare **descrizioni, tag e titoli automatici** con LLM.
+
+**Se l'installazione one-click fallisce su questo step**, non ti preoccupare: concludi comunque l'installazione principale, poi installa Ollama separatamente con `06_setup_ollama.bat` quando vuoi — avrai più controllo sul processo.
+
+**PC con poca RAM o molto lenti?** Considera di non installare Ollama: OffGallery senza LLM resta uno strumento completo per indicizzazione semantica e ricerca per similitudine visiva.
 
 1. **Doppio click** su `06_setup_ollama.bat`
 2. Se Ollama non è installato:
    - Premi `S` per aprire la pagina di download
    - Scarica e installa **Ollama for Windows**
    - Riesegui lo script
-3. Premi `S` per scaricare il modello `qwen3.5:4b-q4_K_M` (~3.3 GB)
+3. Premi `S` per scaricare il modello `qwen3-vl:8b-instruct-q4_K_M` (~5.2 GB, richiede 8 GB VRAM)
+
+**Nota:** Ollama si installa in modo autonomo (`%LOCALAPPDATA%\Programs\Ollama`) e i modelli vengono salvati in `%USERPROFILE%\.ollama\models`. Non dipende da directory OffGallery — puoi installarlo o rimuoverlo in qualsiasi momento senza toccare il resto dell'installazione.
 
 ---
 
@@ -413,10 +418,16 @@ La scheda **Ricerca** consente di salvare e richiamare configurazioni di ricerca
 - Riavvia l'app (i modelli già scaricati non vengono riscaricati)
 - In alternativa, usa `python gui_launcher.py --download-models` per forzare il download
 
+### Problemi con l'installazione di Ollama durante il wizard
+Se l'installer one-click fallisce sullo step Ollama (errori di rete, timeout, ecc.):
+1. **Ignora l'errore e completa l'installazione** — OffGallery funziona senza Ollama
+2. Quando vuoi aggiungere il supporto LLM, esegui `06_setup_ollama.bat` manualmente: avrai più controllo e potrai scegliere il momento migliore
+
 ### Ollama non risponde
 - **Windows**: Assicurati che Ollama sia in esecuzione (icona nella system tray). Riavvia Ollama
 - **Linux**: Verifica con `systemctl status ollama` oppure avvia con `ollama serve`
 - **macOS**: Avvia Ollama dall'app o esegui `ollama serve` dal terminale
+- **Non hai Ollama?** Nessun problema — la ricerca semantica e tutti gli altri modelli AI funzionano normalmente. La generazione di tag/descrizioni/titoli sarà semplicemente disabilitata.
 
 ### Linux: ExifTool non trovato
 - Installa tramite il gestore pacchetti del sistema:

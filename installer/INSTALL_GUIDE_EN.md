@@ -135,7 +135,7 @@ sudo pacman -S perl-image-exiftool
 
 # 5. Ollama (optional)
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull qwen3.5:4b-q4_K_M
+ollama pull qwen3-vl:8b-instruct-q4_K_M
 ```
 
 ### macOS — Manual installation
@@ -166,7 +166,7 @@ brew install exiftool
 # 5. Ollama (optional)
 brew install ollama
 # or: curl -fsSL https://ollama.com/install.sh | sh
-ollama pull qwen3.5:4b-q4_K_M
+ollama pull qwen3-vl:8b-instruct-q4_K_M
 
 # 6. Launch
 conda run -n OffGallery python gui_launcher.py
@@ -258,15 +258,20 @@ This step downloads approximately **3 GB** of libraries.
 
 ### Step 4: Install Ollama (Optional)
 
-Ollama is needed only if you want to generate **automatic descriptions and tags** with an LLM.
-If you are not interested in this feature, you can skip this step.
+> **Ollama is completely optional.** OffGallery works fully without it for semantic search (CLIP), BioCLIP taxonomy, aesthetic/technical scoring, EXIF metadata and geo-enrichment. Install Ollama only if you want to generate **automatic descriptions, tags and titles** with an LLM.
+
+**If the one-click installer fails on this step**, do not worry: finish the main installation anyway, then install Ollama separately with `06_setup_ollama.bat` whenever you like — you will have more control over the process.
+
+**Low-RAM or slow PC?** Consider skipping Ollama altogether: OffGallery without LLM is still a complete tool for semantic indexing and visual-similarity search.
 
 1. **Double-click** `06_setup_ollama.bat`
 2. If Ollama is not installed:
    - Press `Y` to open the download page
    - Download and install **Ollama for Windows**
    - Re-run the script
-3. Press `Y` to download the `qwen3.5:4b-q4_K_M` model (~3.3 GB)
+3. Press `Y` to download the `qwen3-vl:8b-instruct-q4_K_M` model (~5.2 GB, requires 8 GB VRAM)
+
+**Note:** Ollama installs independently (`%LOCALAPPDATA%\Programs\Ollama`) and stores models in `%USERPROFILE%\.ollama\models`. It does not depend on any OffGallery directories — you can install or remove it at any time without affecting the rest of the installation.
 
 ---
 
@@ -405,10 +410,16 @@ The **Search** tab lets you save and recall complete search configurations, so y
 - Restart the app (already-downloaded models are not re-downloaded)
 - Alternatively, use `python gui_launcher.py --download-models` to force the download
 
+### Ollama installation fails during the wizard
+If the one-click installer fails on the Ollama step (network errors, timeouts, etc.):
+1. **Dismiss the error and complete the installation** — OffGallery works without Ollama
+2. When you want to add LLM support, run `06_setup_ollama.bat` manually: you will have more control and can choose the right moment
+
 ### Ollama not responding
 - **Windows**: Make sure Ollama is running (icon in the system tray). Restart Ollama
 - **Linux**: Check with `systemctl status ollama` or start with `ollama serve`
 - **macOS**: Launch Ollama from the app or run `ollama serve` from the terminal
+- **No Ollama installed?** No problem — semantic search and all other AI models work normally. Tag/description/title generation will simply be unavailable.
 
 ### Linux: ExifTool not found
 - Install via the system package manager:

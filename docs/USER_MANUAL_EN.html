@@ -246,7 +246,7 @@
   <li>Generate <strong>CLIP semantic embeddings</strong> (768 dimensions) for natural language search</li>
   <li>Compute <strong>DINOv2 embeddings</strong> (768 dimensions) for visual similarity search</li>
   <li>Automatically classify flora and fauna with <strong>BioCLIP2</strong> (~450,000 species, 7 taxonomic levels)</li>
-  <li>Generate <strong>tags, descriptions and titles</strong> via a local LLM Vision model (Qwen3.5 4B via Ollama)</li>
+  <li>Generate <strong>tags, descriptions and titles</strong> via a local LLM Vision model (via Ollama or LM Studio — <em>optional</em>)</li>
   <li>Evaluate artistic quality with an <strong>aesthetic score</strong> (0–10) and technical quality (sharpness/noise)</li>
   <li>Offline-geocode <strong>GPS coordinates</strong> to a Continent › Country › Region › City hierarchy</li>
   <li>Integrate with <strong>Lightroom</strong> via bidirectional XMP import/export</li>
@@ -270,8 +270,17 @@
   <li><p>Start OffGallery from the shortcut created by the installer.</p></li>
   <li><p>On first launch a splash screen appears while downloading the AI models. An internet connection is needed only at this point.</p></li>
   <li><p>Once the download completes the main interface appears with 7 tabs.</p></li>
-  <li><p>(Optional) Make sure <strong>Ollama</strong> is running if you want to generate LLM tags and descriptions. On Windows start the Ollama app; on macOS/Linux the daemon starts automatically.</p></li>
+  <li><p><strong>(Optional)</strong> If you installed Ollama, make sure it is running to generate LLM tags and descriptions. On Windows start the Ollama app; on macOS/Linux the daemon starts automatically. <em>OffGallery works fully without Ollama</em> — semantic search, BioCLIP, scores and geotagging are always available.</p></li>
 </ol>
+
+<div class="callout note">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>Ollama is optional</strong>
+    <p>OffGallery is fully usable without Ollama. Visual similarity search (CLIP), biological taxonomy (BioCLIP), aesthetic and technical scores, EXIF metadata and geotagging all work independently.<br>
+    Ollama adds only automatic generation of <strong>tags, descriptions and titles</strong> in natural language. If the one-click installer had issues on this step, or if you have a low-RAM or slow PC, you can install Ollama separately at any time by running <code>06_setup_ollama.bat</code>.</p>
+  </div>
+</div>
 
 <div class="callout tip">
   <span class="icon">💡</span>
@@ -769,7 +778,7 @@ Destination (e.g. E:\Backup):
   <tbody>
     <tr><td><strong>Backend</strong></td><td>LLM plugin to use (Ollama, LM Studio)</td><td>Ollama</td></tr>
     <tr><td><strong>Endpoint</strong></td><td>LLM server URL</td><td>Depends on selected plugin</td></tr>
-    <tr><td><strong>Model</strong></td><td>Model name</td><td><code>qwen3.5:4b-q4_K_M</code></td></tr>
+    <tr><td><strong>Model</strong></td><td>Model name</td><td><code>qwen3-vl:8b-instruct-q4_K_M</code></td></tr>
     <tr><td><strong>Timeout</strong></td><td>Maximum seconds to wait for a response</td><td>180</td></tr>
   </tbody>
 </table>
@@ -1100,8 +1109,11 @@ BioNomen: plugin disponibile</pre>
 <!-- ===== FAQ ===== -->
 <h1 id="faq"><span class="section-number">15</span>FAQ — Frequently Asked Questions</h1>
 
+<h3>Ollama is not installed — is that a problem?</h3>
+<p>No. OffGallery works fully without Ollama. Semantic search (CLIP), BioCLIP taxonomy, aesthetic/technical scores, EXIF and geotagging are always available. The only feature that requires Ollama (or LM Studio) is automatic generation of tags, descriptions and titles. You can install Ollama at any time by running <code>06_setup_ollama.bat</code>.</p>
+
 <h3>Ollama is not responding / timeout</h3>
-<p>Check that Ollama is running. On Windows: look for "Ollama" in the system tray. On macOS/Linux: run <code>ollama list</code> in a terminal. Make sure the model <code>qwen3.5:4b-q4_K_M</code> is downloaded (<code>ollama pull qwen3.5:4b-q4_K_M</code>).</p>
+<p>Check that Ollama is running. On Windows: look for "Ollama" in the system tray. On macOS/Linux: run <code>ollama list</code> in a terminal. Make sure the model <code>qwen3-vl:8b-instruct-q4_K_M</code> is downloaded (<code>ollama pull qwen3-vl:8b-instruct-q4_K_M</code>).</p>
 
 <h3>Generated tags are in Italian but I want English</h3>
 <p>Go to <strong>Configuration → LLM output language</strong> and select "English". Then use "AI Gen. Only" to regenerate tags for all photos already in the database.</p>
