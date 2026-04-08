@@ -25,7 +25,7 @@ set "CONDA_BAT=%MINICONDA_DIR%\condabin\conda.bat"
 :: Ollama
 set "OLLAMA_URL=https://ollama.com/download/OllamaSetup.exe"
 set "OLLAMA_INSTALLER=%TEMP%\OllamaSetup.exe"
-set "OLLAMA_MODEL=qwen3.5:4b-q4_K_M"
+set "OLLAMA_MODEL=qwen3-vl:8b-instruct-q4_K_M"
 
 :: LM Studio
 set "LMSTUDIO_URL=https://lmstudio.ai/download/latest/win32/x64"
@@ -638,7 +638,7 @@ if !ERRORLEVEL! EQU 0 (
 
 echo.
 echo   Il modello !OLLAMA_MODEL! non e' installato.
-echo   Dimensione download: ~3.3 GB
+echo   Dimensione download: ~5.2 GB (richiede 8 GB VRAM)
 echo.
 set /p "PULL_MODEL=  Vuoi scaricare il modello ora? (S/N): "
 if /i "!PULL_MODEL!" NEQ "S" (
