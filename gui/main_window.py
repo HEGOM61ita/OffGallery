@@ -773,7 +773,10 @@ class MainWindow(QMainWindow):
 
         # Removed header.set_status call since we removed status widgets
 
-        if index == 2:
+        if index == 1:
+            if hasattr(self.processing_tab, 'on_activated'):
+                self.processing_tab.on_activated()
+        elif index == 2:
             self.search_tab.on_activated()
         elif index == 3:
             self.gallery_tab.on_activated()

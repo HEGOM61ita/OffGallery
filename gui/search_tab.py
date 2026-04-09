@@ -326,6 +326,27 @@ class SearchTab(QWidget):
         # --- GPS ---
         if self.gps_only.isChecked():
             conditions.append("gps_latitude IS NOT NULL")
+
+        # --- POSIZIONE (geo_hierarchy testo libero) ---
+        loc_text = self.location_text_filter.text().strip()
+        if loc_text:
+            conditions.append("geo_hierarchy LIKE ?")
+            params.append(f"%{loc_text}%")
+
+        # --- COORDINATE APPROSSIMATE (raggio ~0.5°) ---
+        try:
+            lat_str = self.location_lat_filter.text().strip()
+            lon_str = self.location_lon_filter.text().strip()
+            if lat_str and lon_str:
+                lat_v = float(lat_str)
+                lon_v = float(lon_str)
+                radius = 0.5
+                conditions.append("gps_latitude BETWEEN ? AND ?")
+                params.extend([lat_v - radius, lat_v + radius])
+                conditions.append("gps_longitude BETWEEN ? AND ?")
+                params.extend([lon_v - radius, lon_v + radius])
+        except (ValueError, AttributeError):
+            pass
             
         # --- BIANCO E NERO ---
         mono_idx = self.monochrome_combo.currentIndex()
@@ -510,6 +531,7 @@ class SearchTab(QWidget):
         row_bottom = QHBoxLayout()
         row_bottom.addWidget(self.create_quality_section())
         row_bottom.addWidget(self.create_gps_section())
+        row_bottom.addWidget(self.create_location_section())
         row_bottom.addWidget(self.create_sync_section())
         _plugin_section = self.create_plugin_filters_section()
         if _plugin_section:
@@ -1005,6 +1027,46 @@ class SearchTab(QWidget):
         group.setLayout(layout)
         return group
     
+    def create_location_section(self):
+        """Filtri geografici: testo libero su geo_hierarchy + coordinate approssimate."""
+        group = QGroupBox(t("search.group.location"))
+        layout = QVBoxLayout()
+        layout.setSpacing(4)
+        layout.setContentsMargins(8, 12, 8, 8)
+
+        # --- Ricerca testo libero in geo_hierarchy ---
+        row_text = QHBoxLayout()
+        row_text.addWidget(QLabel(t("search.label.location_text") + ":"))
+        self.location_text_filter = QLineEdit()
+        self.location_text_filter.setPlaceholderText(t("search.placeholder.location_text"))
+        self.location_text_filter.setToolTip(t("search.tooltip.location_text"))
+        self.location_text_filter.setMinimumWidth(130)
+        self.location_text_filter.returnPressed.connect(self.execute_search)
+        row_text.addWidget(self.location_text_filter)
+        row_text.addStretch()
+        layout.addLayout(row_text)
+
+        # --- Filtro per coordinate approssimate (lat/lon come testo, vuoto = ignora) ---
+        row_coords = QHBoxLayout()
+        row_coords.addWidget(QLabel(t("search.label.coords") + ":"))
+        self.location_lat_filter = QLineEdit()
+        self.location_lat_filter.setPlaceholderText(t("search.placeholder.lat"))
+        self.location_lat_filter.setToolTip(t("search.tooltip.coords"))
+        self.location_lat_filter.setFixedWidth(72)
+        self.location_lat_filter.returnPressed.connect(self.execute_search)
+        row_coords.addWidget(self.location_lat_filter)
+        self.location_lon_filter = QLineEdit()
+        self.location_lon_filter.setPlaceholderText(t("search.placeholder.lon"))
+        self.location_lon_filter.setToolTip(t("search.tooltip.coords"))
+        self.location_lon_filter.setFixedWidth(72)
+        self.location_lon_filter.returnPressed.connect(self.execute_search)
+        row_coords.addWidget(self.location_lon_filter)
+        row_coords.addStretch()
+        layout.addLayout(row_coords)
+
+        group.setLayout(layout)
+        return group
+
     def create_plugin_filters_section(self):
         """Genera un QGroupBox con i filtri dinamici esposti dai plugin installati.
         Ogni plugin che dichiara search_filters nel manifest ottiene la sua sezione.
@@ -1175,6 +1237,9 @@ class SearchTab(QWidget):
             'technical_min': self.technical_min.value(),
             'technical_max': self.technical_max.value(),
             'gps_only': self.gps_only.isChecked(),
+            'location_text': self.location_text_filter.text(),
+            'location_lat': self.location_lat_filter.text(),
+            'location_lon': self.location_lon_filter.text(),
             'monochrome_index': self.monochrome_combo.currentIndex(),
             'sync_filter': self.sync_filter.isChecked(),
             'date_filter_enabled': self.date_filter_enabled.isChecked(),
@@ -1201,7 +1266,8 @@ class SearchTab(QWidget):
             'ev_min', 'ev_max', 'flash_combo', 'exposure_combo',
             'orientation_combo', 'rating_min', 'color_label_filter',
             'aesthetic_min', 'aesthetic_max', 'technical_min', 'technical_max',
-            'gps_only', 'monochrome_combo', 'sync_filter',
+            'gps_only', 'location_text_filter', 'location_lat_filter', 'location_lon_filter',
+            'monochrome_combo', 'sync_filter',
             'date_filter_enabled', 'date_from', 'date_to',
         ]
         widgets = [getattr(self, n, None) for n in widget_names if getattr(self, n, None)]
@@ -1258,6 +1324,9 @@ class SearchTab(QWidget):
 
             # Checkbox
             self.gps_only.setChecked(params.get('gps_only', False))
+            self.location_text_filter.setText(params.get('location_text', ''))
+            self.location_lat_filter.setText(params.get('location_lat', ''))
+            self.location_lon_filter.setText(params.get('location_lon', ''))
             self.sync_filter.setChecked(params.get('sync_filter', False))
             self.date_filter_enabled.setChecked(params.get('date_filter_enabled', False))
 
@@ -1821,6 +1890,32 @@ class SearchTab(QWidget):
                         self.log_message(f"⚠️ Filtro plugin {field}: {e}", "warning")
                 _plugin_conn.close()
 
+            # Completer per location_text_filter: estrae tutti i nodi da geo_hierarchy
+            try:
+                import sqlite3 as _sq3
+                _loc_conn = _sq3.connect(db_path)
+                rows = _loc_conn.execute(
+                    "SELECT DISTINCT geo_hierarchy FROM images "
+                    "WHERE geo_hierarchy IS NOT NULL AND geo_hierarchy != ''"
+                ).fetchall()
+                _loc_conn.close()
+                # Scompone ogni gerarchia nei suoi nodi (es. GeOFF|Europe|Italy|Sardegna|Stintino)
+                _loc_nodes = set()
+                for (hier,) in rows:
+                    for part in hier.split("|"):
+                        p = part.strip()
+                        if p and p != "GeOFF":
+                            _loc_nodes.add(p)
+                if _loc_nodes:
+                    from PyQt6.QtWidgets import QCompleter
+                    from PyQt6.QtCore import Qt as _Qt
+                    _completer = QCompleter(sorted(_loc_nodes), self.location_text_filter)
+                    _completer.setCaseSensitivity(_Qt.CaseSensitivity.CaseInsensitive)
+                    _completer.setFilterMode(_Qt.MatchFlag.MatchContains)
+                    self.location_text_filter.setCompleter(_completer)
+            except Exception as _e:
+                self.log_message(f"⚠️ Completer posizione: {_e}", "warning")
+
             db_manager.close()
             self.log_message("✓ Caricamento filtri completato", "info")
             
@@ -1927,5 +2022,11 @@ class SearchTab(QWidget):
             else:
                 if widget.text().strip():
                     return True
+
+        # Posizione
+        if self.location_text_filter.text().strip():
+            return True
+        if self.location_lat_filter.text().strip() and self.location_lon_filter.text().strip():
+            return True
 
         return False

@@ -9,13 +9,13 @@ embedding:
       returns_score: true
     bioclip:
       description: Classificazione flora/fauna TreeOfLife (~450k specie)
-      device: cpu
+      device: gpu
       enabled: true
       max_tags: 10
       threshold: 0.05
     clip:
       description: Ricerca semantica (query naturali)
-      device: cpu
+      device: gpu
       enabled: true
       model_name: openai/clip-vit-large-patch14
     dinov2:
@@ -27,13 +27,13 @@ embedding:
     llm_vision:
       auto_import:
         description:
-          enabled: true
+          enabled: false
           max_words: 100
-          overwrite: true
+          overwrite: false
         tags:
-          enabled: true
+          enabled: false
           max_tags: 10
-          overwrite: true
+          overwrite: false
         title:
           enabled: false
           max_words: 5
@@ -44,16 +44,16 @@ embedding:
       endpoint: http://localhost:11434
       generation:
         keep_alive: -1
-        num_batch: 1024
+        num_batch: 512
         num_ctx: 4096
-        temperature: 0.2
+        temperature: 0.1
         top_k: 40
         top_p: 0.8
-      model: qwen3.5:4b-q4_K_M
+      model: qwen3-vl:8b-instruct-q4_K_M
       timeout: 240
     technical:
       description: Punteggio tecnico qualità MUSIQ (pyiqa)
-      device: gpu
+      device: cpu
       enabled: true
       model_name: musiq
 export:
@@ -242,7 +242,7 @@ models_repository:
   models_dir: Models
 paths:
   database: database/offgallery.sqlite
-  input_dir: D:\AI\Scripts\Descrittore\INPUT
+  input_dir: INPUT
   log_dir: logs
   temp_cache_dir: temp_cache
 search:

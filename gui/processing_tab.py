@@ -161,6 +161,46 @@ class ProcessingWorker(QThread):
             else:
                 self.log_message.emit("➡️ Embedding disabilitato nel config", "info")
 
+            # === GEO ENRICHER: plugin o builtin ===
+            # Se è presente e abilitato un plugin con plugin_type='geo_enricher',
+            # viene usato al posto del builtin. Nessun flag esplicito: basta controllare
+            # la presenza del manifest e lo stato della checkbox in processing tab.
+            _geo_plugin = None
+            _geo_plugin_cfg = {}
+            try:
+                _plugins_dir = get_app_dir() / 'plugins'
+                for _manifest_path in _plugins_dir.glob('*/manifest.json'):
+                    try:
+                        with open(_manifest_path, 'r', encoding='utf-8') as _f:
+                            _m = json.load(_f)
+                        if _m.get('plugin_type') == 'geo_enricher' and _m.get('replaces_builtin') == 'geo_enricher':
+                            _plugin_id = _m.get('id', '')
+                            _plugin_cfg_path = _manifest_path.parent / 'config.json'
+                            if _plugin_cfg_path.exists():
+                                with open(_plugin_cfg_path, 'r', encoding='utf-8') as _f:
+                                    _geo_plugin_cfg = json.load(_f)
+                            # Carica il plugin tramite importlib
+                            import importlib.util as _ilu
+                            _core_file = _manifest_path.parent / f"{_plugin_id}.py"
+                            if _core_file.exists():
+                                _spec = _ilu.spec_from_file_location(f"{_plugin_id}_geo", str(_core_file))
+                                _mod = _ilu.module_from_spec(_spec)
+                                _spec.loader.exec_module(_mod)
+                                if hasattr(_mod, 'GeoNamesEnricher'):
+                                    _geo_plugin = _mod.GeoNamesEnricher(_geo_plugin_cfg)
+                                    if _geo_plugin.is_ready():
+                                        _only_no_gps = _geo_plugin_cfg.get('only_no_gps', False)
+                                        _mode_label = "Solo no-GPS" if _only_no_gps else "Solo GPS"
+                                        self.log_message.emit(f"🌍 Geo enricher: plugin {_plugin_id} attivo [{_mode_label}]", "info")
+                                    else:
+                                        self.log_message.emit(f"⚠️ Plugin {_plugin_id} non pronto (DB mancante?) — fallback builtin", "warning")
+                                        _geo_plugin = None
+                            break
+                    except Exception as _e:
+                        logger.debug(f"Errore caricamento plugin geo_enricher: {_e}")
+            except Exception as _e:
+                logger.debug(f"Errore scan plugin geo_enricher: {_e}")
+
             # === SCANSIONE IMMAGINI ===
             supported_formats = config.get('image_processing', {}).get('supported_formats', [])
             if not supported_formats:
@@ -502,21 +542,51 @@ class ProcessingWorker(QThread):
             except Exception:
                 pass
 
-            # --- Geo hierarchy da GPS ---
+            # --- Geo hierarchy da GPS (plugin o builtin) ---
             geo_hierarchy = None
             location_hint = None
             gps_lat = image_data.get('gps_latitude')
             gps_lon = image_data.get('gps_longitude')
+
             if gps_lat is not None and gps_lon is not None:
+                # Immagine con GPS: reverse geocoding
                 try:
-                    from geo_enricher import get_geo_hierarchy, get_location_hint
-                    geo_hierarchy = get_geo_hierarchy(float(gps_lat), float(gps_lon))
-                    if geo_hierarchy:
-                        image_data['geo_hierarchy'] = geo_hierarchy
-                        location_hint = get_location_hint(geo_hierarchy)
-                        self.log_message.emit(f"🌍 {fname}: {geo_hierarchy}", "info")
+                    if _geo_plugin is not None:
+                        geo_hierarchy = _geo_plugin.get_hierarchy(float(gps_lat), float(gps_lon))
+                        if geo_hierarchy:
+                            image_data['geo_hierarchy'] = geo_hierarchy
+                            location_hint = _geo_plugin.get_location_hint(geo_hierarchy)
+                            self.log_message.emit(f"🌍 {fname}: {geo_hierarchy}", "info")
+                    else:
+                        from geo_enricher import get_geo_hierarchy, get_location_hint
+                        geo_hierarchy = get_geo_hierarchy(float(gps_lat), float(gps_lon))
+                        if geo_hierarchy:
+                            image_data['geo_hierarchy'] = geo_hierarchy
+                            location_hint = get_location_hint(geo_hierarchy)
+                            self.log_message.emit(f"🌍 {fname}: {geo_hierarchy}", "info")
                 except Exception as geo_err:
                     self.log_message.emit(f"⚠️ Geo enricher {fname}: {geo_err}", "warning")
+
+            elif _geo_plugin is not None and _geo_plugin_cfg.get('only_no_gps', False):
+                # Immagine senza GPS + plugin attivo in modalità only_no_gps:
+                # assegna last_location configurata nel plugin
+                try:
+                    _last = _geo_plugin_cfg.get('last_location', {}) or {}
+                    _lat = _last.get('latitude')
+                    _lon = _last.get('longitude')
+                    _alt = _last.get('altitude')
+                    if _lat is not None and _lon is not None:
+                        _preset = _last.get('preset_hierarchy')
+                        geo_hierarchy = _preset if _preset else _geo_plugin.get_hierarchy(float(_lat), float(_lon))
+                        if geo_hierarchy:
+                            image_data['gps_latitude']  = _lat
+                            image_data['gps_longitude'] = _lon
+                            image_data['gps_altitude']  = _alt
+                            image_data['geo_hierarchy'] = geo_hierarchy
+                            location_hint = _geo_plugin.get_location_hint(geo_hierarchy)
+                            self.log_message.emit(f"📍 {fname}: posizione assegnata → {geo_hierarchy}", "info")
+                except Exception as geo_err:
+                    self.log_message.emit(f"⚠️ Geo no-GPS {fname}: {geo_err}", "warning")
 
             # --- Inserimento/aggiornamento record DB base ---
             image_exists = db_manager.image_exists(fname)
@@ -1029,11 +1099,14 @@ class ProcessingWorker(QThread):
                                 merged.append(t)
                         final_tags = normalize_tags(merged, scientific_name=sci_name)
 
-                    # Aggiungi città geo come tag
+                    # Aggiungi città geo come tag (plugin o builtin)
                     if geo_hierarchy:
                         try:
-                            from geo_enricher import get_geo_leaf
-                            city_tag = get_geo_leaf(geo_hierarchy)
+                            if _geo_plugin is not None:
+                                city_tag = _geo_plugin.get_geo_leaf(geo_hierarchy)
+                            else:
+                                from geo_enricher import get_geo_leaf
+                                city_tag = get_geo_leaf(geo_hierarchy)
                             if city_tag and city_tag.lower() not in {t.lower() for t in final_tags}:
                                 final_tags.append(city_tag)
                         except Exception:
@@ -1297,6 +1370,9 @@ class ProcessingTab(QWidget):
         self._discovered_plugins: list[dict] = []
         # Riferimenti UI per riga plugin: plugin_id → {check, bar, pb_widget}
         self._plugin_rows: dict[str, dict] = {}
+        # Label modalità geo enricher (aggiornata in on_activated)
+        self._geo_mode_label: 'QLabel | None' = None
+        self._geo_mode_manifest: dict | None = None
         # Reader thread attivi durante esecuzione post-import
         self._active_plugin_readers: list[PluginStdoutReader] = []
         # Contatore plugin ancora in esecuzione (per sapere quando sbloccare il tab)
@@ -1370,14 +1446,14 @@ class ProcessingTab(QWidget):
         hdr_lay.setSpacing(4)
         hdr_l = QLabel("")
         hdr_l.setFixedHeight(1)
-        hdr_l.setStyleSheet("background-color: #7c5cbf;")
+        hdr_l.setStyleSheet("background-color: #2563a8;")
         hdr_lay.addWidget(hdr_l, stretch=1)
         hdr_lbl = QLabel("Plugin")
-        hdr_lbl.setStyleSheet("font-size: 10px; font-weight: bold; color: #9b7fd4;")
+        hdr_lbl.setStyleSheet("font-size: 10px; font-weight: bold; color: #4a90d9;")
         hdr_lay.addWidget(hdr_lbl)
         hdr_r = QLabel("")
         hdr_r.setFixedHeight(1)
-        hdr_r.setStyleSheet("background-color: #7c5cbf;")
+        hdr_r.setStyleSheet("background-color: #2563a8;")
         hdr_lay.addWidget(hdr_r, stretch=1)
         parent_layout.addWidget(hdr_w)
 
@@ -1425,24 +1501,81 @@ class ProcessingTab(QWidget):
                 plugin_id   = manifest.get('id', '')
                 plugin_name = manifest.get('name', plugin_id)
                 plugin_desc = manifest.get('description', '')
+                is_geo_enricher = manifest.get('plugin_type') == 'geo_enricher'
                 # Descrizione breve: prima frase, max 40 caratteri
                 short_desc = (plugin_desc[:40] + '…') if len(plugin_desc) > 40 else plugin_desc
 
-                # Riga plugin: [checkbox] [nome] [desc] [progress bar]
+                # Riga plugin: [checkbox] [nome] [desc/modalità] [progress bar]
                 row_w = QWidget()
                 row_lay = QHBoxLayout(row_w)
                 row_lay.setContentsMargins(0, 2, 0, 2)
                 row_lay.setSpacing(4)
 
+                # Contenitore larghezza fissa per checkbox o indicatore — garantisce allineamento
+                chk_container = QWidget()
+                chk_container.setFixedWidth(20)
+                chk_lay = QHBoxLayout(chk_container)
+                chk_lay.setContentsMargins(0, 0, 0, 0)
+                chk_lay.setSpacing(0)
+
                 chk = QCheckBox()
-                chk.setToolTip(f"Esegui {plugin_name} al termine dell'import")
-                row_lay.addWidget(chk)
+                if is_geo_enricher:
+                    # Checkbox sempre attiva e non modificabile — stesso stile degli altri plugin
+                    chk.setChecked(True)
+                    chk.setEnabled(False)
+                    chk.setToolTip("Plugin sempre attivo nella pipeline")
+                    chk.setStyleSheet(
+                        "QCheckBox::indicator:disabled:checked {"
+                        "  background-color: #4a90d9;"
+                        "  border: 1px solid #4a90d9;"
+                        "  image: url(none);"
+                        "}"
+                    )
+                    chk_lay.addWidget(chk)
+                else:
+                    chk.setToolTip(f"Esegui {plugin_name} al termine dell'import")
+                    chk_lay.addWidget(chk)
+                row_lay.addWidget(chk_container)
 
                 lbl = QLabel(plugin_name)
-                lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #c8b4e8;")
+                lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #4a90d9;")
+                lbl.setFixedWidth(120)
                 row_lay.addWidget(lbl)
 
-                if short_desc:
+                if is_geo_enricher:
+                    # Mostra la modalità corrente in ambra (letta dalla config del plugin)
+                    _ui_lang = 'it'
+                    try:
+                        import yaml as _yaml_ui
+                        _app_cfg = _yaml_ui.safe_load(
+                            (get_app_dir() / 'config_new.yaml').read_text(encoding='utf-8')
+                        ) or {}
+                        _ui_lang = _app_cfg.get('ui', {}).get('language', 'it')
+                    except Exception:
+                        pass
+                    _geo_cfg_path = manifest.get('_dir', '') and \
+                        (get_app_dir() / 'plugins' / plugin_id / 'config.json')
+                    _only_no_gps = False
+                    try:
+                        if _geo_cfg_path and Path(_geo_cfg_path).exists():
+                            import json as _json_ui
+                            _only_no_gps = _json_ui.loads(
+                                Path(_geo_cfg_path).read_text(encoding='utf-8')
+                            ).get('only_no_gps', False)
+                    except Exception:
+                        pass
+                    _labels = manifest.get('labels', {}).get(_ui_lang, manifest.get('labels', {}).get('it', {}))
+                    if _only_no_gps:
+                        _mode_str = _labels.get('processing.mode.only_no_gps', 'Solo no-GPS')
+                    else:
+                        _mode_str = _labels.get('processing.mode.all_gps', 'Solo GPS')
+                    mode_lbl = QLabel(_mode_str)
+                    mode_lbl.setStyleSheet("font-size: 9px; color: #C88B2E; font-weight: bold;")
+                    row_lay.addWidget(mode_lbl)
+                    # Salva riferimento per aggiornamento in on_activated()
+                    self._geo_mode_label = mode_lbl
+                    self._geo_mode_manifest = manifest
+                elif short_desc:
                     desc_lbl = QLabel(short_desc)
                     desc_lbl.setStyleSheet("font-size: 9px; color: #7f8c8d;")
                     row_lay.addWidget(desc_lbl)
@@ -1462,6 +1595,39 @@ class ProcessingTab(QWidget):
                 self._plugin_rows[plugin_id] = {'check': chk, 'bar': pb}
 
         parent_layout.addStretch()
+
+    def on_activated(self) -> None:
+        """Chiamato da main_window quando si passa alla processing tab.
+        Rilegge la config del geo enricher e aggiorna la label modalità."""
+        if self._geo_mode_label is None or self._geo_mode_manifest is None:
+            return
+        manifest = self._geo_mode_manifest
+        plugin_id = manifest.get('id', '')
+        _ui_lang = 'it'
+        try:
+            import yaml as _yaml_oa
+            _app_cfg = _yaml_oa.safe_load(
+                (get_app_dir() / 'config_new.yaml').read_text(encoding='utf-8')
+            ) or {}
+            _ui_lang = _app_cfg.get('ui', {}).get('language', 'it')
+        except Exception:
+            pass
+        _only_no_gps = False
+        try:
+            _geo_cfg_path = get_app_dir() / 'plugins' / plugin_id / 'config.json'
+            if _geo_cfg_path.exists():
+                import json as _json_oa
+                _only_no_gps = _json_oa.loads(
+                    _geo_cfg_path.read_text(encoding='utf-8')
+                ).get('only_no_gps', False)
+        except Exception:
+            pass
+        _labels = manifest.get('labels', {}).get(_ui_lang, manifest.get('labels', {}).get('it', {}))
+        if _only_no_gps:
+            _mode_str = _labels.get('processing.mode.only_no_gps', 'Geotag: solo foto senza GPS')
+        else:
+            _mode_str = _labels.get('processing.mode.all_gps', 'Geotag: tutte le foto')
+        self._geo_mode_label.setText(_mode_str)
 
     # ─────────────────────────────────────────────────────────────
     # LANCIO PLUGIN POST-IMPORT
@@ -1520,9 +1686,9 @@ class ProcessingTab(QWidget):
         plugin_dir = manifest.get('_dir', '')
         entry_point = manifest.get('entry_point', '')
 
-        # Plugin config_only (es. GeoSpecies): operano nella pipeline interna,
+        # Plugin config_only o geo_enricher: operano nella pipeline interna,
         # non come subprocess autonomo. Saltiamo silenziosamente.
-        if manifest.get('config_only', False):
+        if manifest.get('config_only', False) or manifest.get('plugin_type') == 'geo_enricher':
             self._on_plugin_finished(plugin_id)
             return
 

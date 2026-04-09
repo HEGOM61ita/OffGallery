@@ -361,7 +361,6 @@
     <li class="sub"><a href="#elab-sorgente">Sorgente Immagini</a></li>
     <li class="sub"><a href="#elab-modalita">Modalità Elaborazione</a></li>
     <li class="sub"><a href="#elab-ai">Opzioni AI</a></li>
-    <li class="sub"><a href="#elab-plugin">Plugin post-import</a></li>
     <li class="sub"><a href="#solo-gen-ai">Solo Gen. AI</a></li>
     <li class="sub"><a href="#elab-avvio">Avvio e Monitoraggio</a></li>
     <li><a href="#ricerca">Tab Ricerca</a></li>
@@ -419,7 +418,7 @@
   <li>Genera <strong>embedding semantici CLIP</strong> (768 dimensioni) per ricerca in linguaggio naturale</li>
   <li>Calcola <strong>embedding DINOv2</strong> per ricerca per similarità visiva</li>
   <li>Classifica automaticamente flora e fauna con <strong>BioCLIP2</strong> (~450.000 specie, 7 livelli tassonomici)</li>
-  <li>Genera <strong>tag, descrizioni e titoli</strong> tramite modello LLM Vision locale (via Ollama o LM Studio — <em>opzionale</em>)</li>
+  <li>Genera <strong>tag, descrizioni e titoli</strong> tramite modello LLM Vision locale (Qwen3.5 4B via Ollama)</li>
   <li>Valuta la qualità artistica con <strong>score estetico</strong> (0–10) e tecnica (nitidezza/rumore)</li>
   <li>Geocodifica offline le <strong>coordinate GPS</strong> in gerarchia Continente › Paese › Regione › Città</li>
   <li>Si integra con <strong>Lightroom</strong> tramite import/export XMP bidirezionale</li>
@@ -443,17 +442,8 @@
   <li><p>Avvia OffGallery dal collegamento creato dall'installer.</p></li>
   <li><p>Al primo avvio appare una splash screen che scarica i modelli AI. Connessione internet necessaria solo in questo momento.</p></li>
   <li><p>Al termine del download l'interfaccia principale appare con 7 tab.</p></li>
-  <li><p><strong>(Opzionale)</strong> Se hai installato Ollama, assicurati che sia in esecuzione per generare tag e descrizioni LLM. Su Windows avvia l'app Ollama; su macOS/Linux il daemon parte automaticamente. <em>OffGallery funziona pienamente senza Ollama</em> — la ricerca semantica, BioCLIP, score e geotag sono sempre attivi.</p></li>
+  <li><p>(Opzionale) Assicurati che <strong>Ollama</strong> sia in esecuzione se vuoi generare tag e descrizioni LLM. Su Windows avvia l'app Ollama; su macOS/Linux il daemon parte automaticamente.</p></li>
 </ol>
-
-<div class="callout note">
-  <span class="icon">ℹ️</span>
-  <div class="body">
-    <strong>Ollama è opzionale</strong>
-    <p>OffGallery è pienamente utilizzabile senza Ollama. La ricerca semantica per similitudine visiva (CLIP), la tassonomia biologica (BioCLIP), gli score estetici e tecnici, i metadati EXIF e la geolocalizzazione funzionano indipendentemente.<br>
-    Ollama aggiunge solo la generazione automatica di <strong>tag, descrizioni e titoli</strong> in linguaggio naturale. Se l'installer one-click ha avuto problemi su questo step, o se hai un PC con poca RAM, puoi installare Ollama separatamente in qualsiasi momento eseguendo <code>06_setup_ollama.bat</code>.</p>
-  </div>
-</div>
 
 <div class="callout tip">
   <span class="icon">💡</span>
@@ -583,46 +573,6 @@
   <div class="body">
     <strong>Merge intelligente dei tag</strong>
     <p>Con "Sovrascrivi" disattivato, il merge è <em>case-insensitive</em>: se il database contiene già "Uccello" e il LLM genera "uccello", il tag non viene duplicato.</p>
-  </div>
-</div>
-
-<h2 id="elab-plugin">4.3b Plugin post-import</h2>
-
-<p>Subito dopo il pannello <strong>Generazione AI</strong>, nel tab Processing appare una sezione <strong>Plugin</strong> (contrassegnata da un bordo viola) che elenca i plugin standalone installati e compatibili con l'esecuzione automatica post-import.</p>
-
-<p>Ogni plugin mostra il proprio nome e un <strong>checkbox</strong> per abilitarlo. I plugin abilitati vengono eseguiti automaticamente in sequenza al termine dell'import, senza nessuna finestra separata.</p>
-
-<h3>Come funziona</h3>
-<ul>
-  <li>Spunta il checkbox accanto al plugin che vuoi eseguire (es. <strong>BioNomen</strong>)</li>
-  <li>Avvia normalmente l'import con il pulsante <strong>Avvia</strong></li>
-  <li>Al termine dell'import delle immagini, i plugin abilitati partono automaticamente in sequenza</li>
-  <li>Una <strong>barra di progresso</strong> appare inline nella sezione Plugin — nessun popup separato</li>
-  <li>Il pulsante <strong>Avvia</strong> rimane disabilitato finché tutti i plugin non completano l'esecuzione</li>
-  <li>Il tab <strong>Plugin</strong> (in Config) viene bloccato durante l'esecuzione per evitare conflitti</li>
-</ul>
-
-<h3>Risultato nel log</h3>
-<p>Al termine di ogni plugin appare nel pannello Log un riepilogo compatto, ad esempio:</p>
-<pre>BioNomen completato: ✓ 42 con nome  ✗ 8 senza  (tot. 50)</pre>
-<p>Questo indica quante immagini hanno ricevuto un nome comune (✓) e quante non hanno trovato corrispondenza nel database offline (✗).</p>
-
-<h3>Plugin BioNomen</h3>
-<p><strong>BioNomen</strong> è il plugin che arricchisce le immagini con i nomi comuni delle specie biologiche riconosciute da BioCLIP. Viene eseguito in modalità <em>headless</em> (senza interfaccia grafica propria) e usa automaticamente la directory selezionata come filtro per limitare le immagini elaborate. Una <strong>cache di sessione</strong> evita ricerche ripetute per la stessa specie nella stessa esecuzione.</p>
-
-<h3>Plugin NaturArea</h3>
-<p><strong>NaturArea</strong> aggiunge a ogni foto con coordinate GPS il nome dell'<strong>area protetta</strong> (tramite l'API pubblica UNEP-WCMC, senza database locale) e il <strong>tipo di habitat</strong> (dalle mappe satellitari ESA WorldCover, incluse nel plugin). Non richiede installazione di librerie aggiuntive né la costruzione di alcun database: funziona subito.</p>
-<p>Campi scritti: <code>protected_area</code> (es. <em>Parco Nazionale del Pollino</em>) e <code>habitat</code> (es. <em>Bosco</em>). Entrambi sono ricercabili dai filtri Plugin nel tab Ricerca e compaiono nel tooltip hover della Gallery. I lookup WDPA vengono salvati in una cache locale per evitare chiamate API ripetute.</p>
-
-<h3>Plugin Weather Context</h3>
-<p><strong>Weather Context</strong> recupera il meteo storico per ogni foto con GPS e data tramite l'<strong>API Open-Meteo</strong> (gratuita, senza chiave). I risultati vengono salvati in una cache locale, quindi le rielaborazioni successive non richiedono connessione internet. Il campo <code>weather_context</code> contiene un JSON con temperatura, condizione, umidità, vento e precipitazioni.</p>
-<p>Il codice condizione (es. <code>drizzle</code>) viene tradotto automaticamente nella lingua dell'interfaccia nei tooltip e nei filtri di ricerca. Le foto senza GPS o senza data vengono silenziosamente saltate.</p>
-
-<div class="callout note">
-  <span class="icon">ℹ️</span>
-  <div class="body">
-    <strong>Plugin disponibili solo nella repo beta</strong>
-    <p>La sezione Plugin appare nel tab Processing solo se sono installati plugin standalone. I plugin sono distribuiti tramite la repo privata <strong>OffGallery_BETA</strong>. Se non hai ancora accesso, la sezione non compare. Vedi <a href="#plugin-llm">§ 9b Plugin LLM</a> per i dettagli di installazione.</p>
   </div>
 </div>
 
@@ -952,7 +902,7 @@ Destinazione (es. E:\Backup):
   <tbody>
     <tr><td><strong>Backend</strong></td><td>Plugin LLM da utilizzare (Ollama, LM Studio)</td><td>Ollama</td></tr>
     <tr><td><strong>Endpoint</strong></td><td>URL del server LLM</td><td>Dipende dal plugin selezionato</td></tr>
-    <tr><td><strong>Modello</strong></td><td>Nome del modello da utilizzare</td><td><code>qwen3-vl:8b-instruct-q4_K_M</code></td></tr>
+    <tr><td><strong>Modello</strong></td><td>Nome del modello da utilizzare</td><td><code>qwen3.5:4b-q4_K_M</code></td></tr>
     <tr><td><strong>Timeout</strong></td><td>Secondi massimi per risposta</td><td>180</td></tr>
   </tbody>
 </table>
@@ -1050,18 +1000,6 @@ Destinazione (es. E:\Backup):
       <td>—</td>
       <td>Nomi comuni e scientifici di specie biologiche (Aves, Mammalia, Insecta, Plantae…). Database offline scaricabile da GBIF. Configurabile da Config → Plugin → BioNomen</td>
     </tr>
-    <tr>
-      <td><strong>NaturArea</strong></td>
-      <td>—</td>
-      <td>—</td>
-      <td>Area protetta (API UNEP-WCMC) e habitat (ESA WorldCover, tile incluse) per foto con GPS. Nessun database locale. Connessione richiesta solo per il lookup WDPA (cache locale dopo il primo accesso).</td>
-    </tr>
-    <tr>
-      <td><strong>Weather Context</strong></td>
-      <td>—</td>
-      <td>open-meteo.com</td>
-      <td>Meteo storico per foto con GPS e data (temperatura, condizione, umidità, vento, precipitazioni). Risultati in cache locale. Connessione richiesta solo al momento dell'elaborazione.</td>
-    </tr>
   </tbody>
 </table>
 
@@ -1111,36 +1049,6 @@ BioNomen: plugin disponibile</pre>
   <li>Seleziona i taxa di interesse (Aves, Mammalia, Reptilia, Amphibia, Insecta, Plantae)</li>
   <li>Clicca <strong>Scarica database</strong></li>
 </ol>
-
-<h3>Plugin NaturArea — utilizzo</h3>
-
-<p>NaturArea non richiede alcuna configurazione preliminare. Le tile ESA WorldCover sono già incluse nel plugin per le aree geografiche supportate; il lookup aree protette avviene tramite l'API pubblica UNEP-WCMC (connessione internet richiesta la prima volta per ogni coordinata, poi i risultati vengono salvati in cache locale).</p>
-
-<ol>
-  <li>Assicurati che le foto abbiano coordinate GPS nell'EXIF</li>
-  <li>Vai in <strong>Config → Plugin → NaturArea → Configura</strong> per verificare/modificare la directory cache tile ESA, la tolleranza GPS e il timeout API</li>
-  <li>Clicca <strong>Avvia</strong> nella card NaturArea per elaborare le foto</li>
-</ol>
-
-<p>I risultati (<em>area protetta</em> e <em>habitat</em>) appaiono nel tooltip della Gallery e sono ricercabili tramite i filtri Plugin nel tab Ricerca.</p>
-
-<h3>Plugin Weather Context — utilizzo</h3>
-
-<p>Weather Context non richiede alcuna configurazione preliminare. Utilizza l'API gratuita Open-Meteo e salva i risultati in cache locale.</p>
-
-<ol>
-  <li>Assicurati che le foto abbiano coordinate GPS e data/ora nell'EXIF</li>
-  <li>Clicca <strong>Avvia</strong> nella card Weather Context (oppure abilita la checkbox per l'esecuzione automatica dopo ogni importazione)</li>
-  <li>I risultati appaiono nel tooltip della Gallery e sono ricercabili tramite il filtro <em>Condizione meteo</em> nel tab Ricerca</li>
-</ol>
-
-<div class="callout note">
-  <span class="icon">ℹ️</span>
-  <div class="body">
-    <strong>Connessione internet richiesta durante l'elaborazione</strong>
-    <p>Weather Context interroga l'API Open-Meteo per ogni combinazione unica di posizione+data. Una volta che un risultato è salvato in cache locale, le elaborazioni successive (anche sulle stesse foto) non richiedono connessione internet.</p>
-  </div>
-</div>
 
 <h3>Come cambiare backend</h3>
 <ol>
@@ -1283,11 +1191,8 @@ BioNomen: plugin disponibile</pre>
 <!-- ===== FAQ ===== -->
 <h1 id="faq"><span class="section-number">15</span>FAQ — Domande Frequenti</h1>
 
-<h3>Non ho installato Ollama — è un problema?</h3>
-<p>No. OffGallery funziona pienamente senza Ollama. Ricerca semantica (CLIP), tassonomia BioCLIP, score estetici/tecnici, EXIF e geolocalizzazione sono sempre disponibili. L'unica funzione che richiede Ollama (o LM Studio) è la generazione automatica di tag, descrizioni e titoli. Puoi installare Ollama in qualsiasi momento eseguendo <code>06_setup_ollama.bat</code>.</p>
-
 <h3>Ollama non risponde / timeout</h3>
-<p>Verifica che Ollama sia in esecuzione. Su Windows: cerca "Ollama" nel system tray. Su macOS/Linux: esegui <code>ollama list</code> nel terminale. Assicurati che il modello <code>qwen3-vl:8b-instruct-q4_K_M</code> sia scaricato (<code>ollama pull qwen3-vl:8b-instruct-q4_K_M</code>).</p>
+<p>Verifica che Ollama sia in esecuzione. Su Windows: cerca "Ollama" nel system tray. Su macOS/Linux: esegui <code>ollama list</code> nel terminale. Assicurati che il modello <code>qwen3.5:4b-q4_K_M</code> sia scaricato (<code>ollama pull qwen3.5:4b-q4_K_M</code>).</p>
 
 <h3>I tag generati sono in inglese ma voglio l'italiano</h3>
 <p>Vai in <strong>Configurazione → Lingua output LLM</strong> e seleziona "Italiano". Usa poi "Solo Gen. AI" per rigenerare i tag su tutte le foto già nel database.</p>

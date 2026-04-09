@@ -1152,6 +1152,12 @@ class ImageCard(QFrame):
                     editor_action.triggered.connect(lambda checked, e=editor: self._open_with_external_editor(e))
                     file_menu.addAction(editor_action)
 
+            # Elimina dal database (sotto File)
+            file_menu.addSeparator()
+            delete_action = QAction(t("widgets.action.delete_db"), self)
+            delete_action.triggered.connect(lambda: self._delete_from_database(target_items))
+            file_menu.addAction(delete_action)
+
             # ═══ MODIFICA (raggruppa tutto) ═══
             edit_menu = menu.addMenu(f"{t('widgets.menu.edit')}{multi_label}")
 
@@ -1201,11 +1207,6 @@ class ImageCard(QFrame):
 
             edit_menu.addSeparator()
 
-            # Elimina (dentro Modifica)
-            delete_action = QAction(t("widgets.action.delete_db"), self)
-            delete_action.triggered.connect(lambda: self._delete_from_database(target_items))
-            edit_menu.addAction(delete_action)
-
             # ═══ GENERA CONTENUTI AI (sottomenu) ═══
             ai_menu = menu.addMenu(f"{t('widgets.menu.ai_generate')}{multi_label}")
 
@@ -1230,8 +1231,38 @@ class ImageCard(QFrame):
                         pass
                 _ga_plugins.sort(key=lambda x: x[1].get('priority', 100))
 
-            if _ga_plugins:
+            # ═══ GEONAMES — carica modulo gallery se disponibile ═══
+            _mod_gng = None
+            _db_path_gn = ''
+            try:
+                import importlib.util as _ilu
+                _gn_gallery_path = get_app_dir() / 'plugins' / 'geonames' / 'geonames_gallery.py'
+                if _gn_gallery_path.exists():
+                    _spec_gng = _ilu.spec_from_file_location("geonames_gallery", str(_gn_gallery_path))
+                    _mod_gng_tmp = _ilu.module_from_spec(_spec_gng)
+                    _spec_gng.loader.exec_module(_mod_gng_tmp)
+                    if _mod_gng_tmp.is_plugin_available():
+                        try:
+                            import yaml as _yaml_gn
+                            _cfg_gn = _yaml_gn.safe_load(
+                                (get_app_dir() / 'config_new.yaml').read_text(encoding='utf-8')
+                            ) or {}
+                            _db_path_gn = _cfg_gn.get('paths', {}).get('database', '')
+                        except Exception:
+                            pass
+                        if _db_path_gn:
+                            _mod_gng = _mod_gng_tmp
+            except Exception as _e_gn:
+                logger.debug(f"GeoNames gallery load: {_e_gn}")
+
+            # ═══ PLUGIN — sottomenu unificato ═══
+            _has_ga_plugins = bool(_ga_plugins)
+            _has_geonames   = _mod_gng is not None
+
+            if _has_ga_plugins or _has_geonames:
                 plugin_menu = menu.addMenu(f"Plugin{multi_label}")
+
+                # Plugin generici da manifest (gallery_action)
                 for _idx, (_pdir, _pm2) in enumerate(_ga_plugins):
                     if _idx > 0:
                         plugin_menu.addSeparator()
@@ -1252,6 +1283,31 @@ class ImageCard(QFrame):
                         (lambda of=_ofields: lambda: self._clear_plugin_fields(target_items, of))()
                     )
                     plugin_menu.addAction(act_del)
+
+                # GeoNames — sottomenu GPS
+                if _has_geonames:
+                    if _has_ga_plugins:
+                        plugin_menu.addSeparator()
+                    gps_menu = plugin_menu.addMenu(f"📍 GeoNames")
+                    act_assign = QAction("Assegna posizione...", self)
+                    act_assign.triggered.connect(
+                        (lambda ti=target_items, db=_db_path_gn:
+                         lambda: _mod_gng.show_assign_dialog(ti, db, self))()
+                    )
+                    gps_menu.addAction(act_assign)
+                    act_recalc = QAction("Ricalcola gerarchia GPS", self)
+                    act_recalc.triggered.connect(
+                        (lambda ti=target_items, db=_db_path_gn:
+                         lambda: _mod_gng.recalc_hierarchy(ti, db, self))()
+                    )
+                    gps_menu.addAction(act_recalc)
+                    gps_menu.addSeparator()
+                    act_clear = QAction("Cancella dati GPS", self)
+                    act_clear.triggered.connect(
+                        (lambda ti=target_items, db=_db_path_gn:
+                         lambda: _mod_gng.clear_gps(ti, db, self))()
+                    )
+                    gps_menu.addAction(act_clear)
 
             # ═══ TROVA SIMILI (singolo, in evidenza) ═══
             similar_action = QAction(t("widgets.action.find_similar"), self)

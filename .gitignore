@@ -51,14 +51,13 @@ plugins/geospecies/cache/*.json
 !installer/*.txt
 !installer/*.json
 
-# Documentazione (manuale utente)
+# Documentazione (manuale utente e pagine web pubbliche)
 !docs/
 !docs/*.txt
 !docs/USER_MANUAL_IT.html
 !docs/USER_MANUAL_EN.html
-# Pagine web pubbliche: escluse fino a nuovo ordine
-docs/index.html
-docs/features.html
+!docs/index.html
+!docs/features.html
 
 # ESSENZIALI PER L'APP - Includere nel repo
 !i18n/

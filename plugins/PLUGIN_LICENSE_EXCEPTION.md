@@ -5,22 +5,27 @@
 Il codice di OffGallery è distribuito sotto **GNU Affero General Public License v3 (AGPLv3)**.
 Il testo completo si trova nel file `LICENSE` nella root del progetto.
 
-## Eccezione per i plugin che usano l'interfaccia LLMVisionPlugin
+## Eccezione per i plugin che usano le interfacce pubbliche di OffGallery
 
-I file `plugins/base.py` e `plugins/loader.py` definiscono l'interfaccia pubblica
-attraverso cui i plugin LLM Vision comunicano con OffGallery.
+Il file `plugins/base.py` definisce le interfacce pubbliche attraverso cui i plugin
+comunicano con OffGallery. Attualmente sono definite due interfacce:
+
+- `LLMVisionPlugin` — per plugin che forniscono un backend LLM Vision alternativo
+- `GeoEnricherPlugin` — per plugin che sostituiscono il motore di geolocalizzazione builtin
+
+Il file `plugins/loader.py` fornisce il meccanismo di caricamento dinamico dei plugin.
 
 Come eccezione speciale, i detentori del copyright concedono il permesso di collegare
-o estendere questi due file con **moduli indipendenti** — inclusi moduli proprietari
+o estendere questi file con **moduli indipendenti** — inclusi moduli proprietari
 o distribuiti sotto licenze diverse dall'AGPLv3 — per produrre un'opera combinata,
 **senza che tali moduli indipendenti siano soggetti all'AGPLv3**, a condizione che:
 
 1. Il modulo indipendente comunichi con OffGallery **esclusivamente** attraverso
-   l'interfaccia `LLMVisionPlugin` definita in `plugins/base.py`, senza modificare
-   nessun'altra parte del codebase di OffGallery.
+   le interfacce `LLMVisionPlugin` o `GeoEnricherPlugin` definite in `plugins/base.py`,
+   senza modificare nessun'altra parte del codebase di OffGallery.
 
 2. Il modulo indipendente non incorpori nessuna parte di OffGallery diversa
-   dall'interfaccia definita in `plugins/base.py` e `plugins/loader.py`.
+   dalle interfacce definite in `plugins/base.py` e dal loader in `plugins/loader.py`.
 
 3. Le distribuzioni dell'opera combinata includano un avviso ben visibile che
    indichi che il modulo indipendente non è coperto dall'AGPLv3, e ne identifichi
@@ -33,13 +38,14 @@ Questa eccezione si ispira alla **GCC Runtime Library Exception** e alla
 
 | Componente | Licenza | Note |
 |---|---|---|
-| OffGallery core | AGPLv3 | Tutti i file tranne i due sotto |
-| `plugins/base.py` | AGPLv3 + eccezione | Interfaccia pubblica plugin |
+| OffGallery core | AGPLv3 | Tutti i file tranne quelli sotto |
+| `plugins/base.py` | AGPLv3 + eccezione | Interfacce pubbliche plugin (`LLMVisionPlugin`, `GeoEnricherPlugin`) |
 | `plugins/loader.py` | AGPLv3 + eccezione | Loader plugin |
 | `plugins/llm_ollama/` | **OffGallery Plugins License v1.0** | Proprietaria, nessuna redistribuzione — vedi `plugins/llm_ollama/LICENSE` |
 | `plugins/llm_lmstudio/` | **OffGallery Plugins License v1.0** | Proprietaria, nessuna redistribuzione — vedi `plugins/llm_lmstudio/LICENSE` |
 | `plugins/bionomen/` | **OffGallery Plugins License v1.0** | Proprietaria, nessuna redistribuzione — vedi `plugins/bionomen/LICENSE` |
-| Plugin di terze parti che implementano `LLMVisionPlugin` | Libera scelta | Purché rispettino le 3 condizioni sopra |
+| `plugins/geonames/` | **OffGallery Plugins License v1.0** | Proprietaria, nessuna redistribuzione |
+| Plugin di terze parti che implementano `LLMVisionPlugin` o `GeoEnricherPlugin` | Libera scelta | Purché rispettino le 3 condizioni sopra |
 
 ## Plugin ufficiali: OffGallery Plugins License
 

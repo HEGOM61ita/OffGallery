@@ -9,6 +9,8 @@
   <meta property="og:title" content="OffGallery — Il tuo archivio. La tua AI. Zero cloud." />
   <meta property="og:description" content="Catalogazione intelligente per fotografi professionisti. AI locale, nessun dato inviato online." />
   <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://offgallery.app/" />
+  <link rel="canonical" href="https://offgallery.app/" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -810,6 +812,30 @@
           <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
         </div>
 
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_geo">Dati geografici</p>
+          <h3>GeoNames</h3>
+          <p data-i18n="plug_geonames_body">Assegna coordinate GPS e gerarchia geografica precisa (Continente › Paese › Regione › Città) a milioni di luoghi tramite il database GeoNames. Sostituisce il motore builtin con precisione superiore su borghi e frazioni.</p>
+          <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
+        </div>
+
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/><path d="M5 17a5 5 0 0 1 5-5h4a4 4 0 0 1 0 8H8a3 3 0 0 1 0-6"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_geo">Dati geografici</p>
+          <h3>NaturArea</h3>
+          <p data-i18n="plug_natura_body">Identifica l'area protetta (WDPA/UNEP) e il tipo di habitat (ESA WorldCover) per ogni foto con GPS. Filtra per habitat o area protetta direttamente dalla ricerca.</p>
+          <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
+        </div>
+
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><path d="M17.5 19a4.5 4.5 0 1 0 0-9H17A7 7 0 1 0 6 17.7"/><path d="M12 13v8M9 18l3 3 3-3"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_geo">Dati geografici</p>
+          <h3>Weather Context</h3>
+          <p data-i18n="plug_weather_body">Recupera le condizioni meteo storiche allo scatto via Open-Meteo (temperatura, vento, pioggia, neve…). Le condizioni sono filtrabili dalla ricerca e visibili nelle imagecard della gallery.</p>
+          <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
+        </div>
+
       </div>
     </div>
   </section>
@@ -822,7 +848,7 @@
       <div class="plugin-access-band">
         <div>
           <h3 data-i18n="access_title">Plugin disponibili su richiesta.</h3>
-          <p data-i18n="access_body">I plugin LLM Vision e BioNomen sono accessibili a chi usa OffGallery e vuole provarli. Scrivi per ricevere le istruzioni di installazione.</p>
+          <p data-i18n="access_body">I plugin (LLM Vision, BioNomen, NaturArea, Weather Context) sono accessibili a chi usa OffGallery e vuole provarli. Scrivi per ricevere le istruzioni di installazione.</p>
         </div>
         <a class="btn btn-secondary" href="mailto:OffGallery.AI.info@gmail.com" data-i18n="access_cta">Scrivi per l'accesso</a>
       </div>
@@ -933,13 +959,16 @@
       ss_title: "L'interfaccia.",
       plug_title: "Estendi OffGallery con moduli specializzati.",
       plug_intro: "Ogni plugin viene riconosciuto automaticamente all'avvio. Scegli il backend LLM, attiva solo quello che usi — gli altri non occupano VRAM.",
-      plug_type_llm: "Backend LLM", plug_type_bio: "Fotografia naturalistica",
+      plug_type_llm: "Backend LLM", plug_type_bio: "Fotografia naturalistica", plug_type_geo: "Dati geografici",
       plug_ollama_body: "Collega OffGallery a Ollama per generare tag, titoli e descrizioni. Supporta modelli vision come Qwen3-VL, LLaVA, Gemma3. Accesso riservato ai beta tester.",
       plug_lmstudio_body: "Usa LM Studio come server LLM locale con interfaccia grafica. Ideale per gestire modelli vision quantizzati. Accesso riservato ai beta tester.",
       plug_bionomen_body: "Un airone cenerino identificato da BioCLIP diventa automaticamente \"grey heron\", \"héron cendré\", \"Graureiher\" — in tutti i sidecar XMP, offline. Dati GBIF bundled, taxa selezionabili dalla configurazione.",
+      plug_geonames_body: "Assegna coordinate GPS e gerarchia geografica precisa (Continente › Paese › Regione › Città) a milioni di luoghi tramite il database GeoNames. Sostituisce il motore builtin con precisione superiore su borghi e frazioni.",
+      plug_natura_body: "Identifica l'area protetta (WDPA/UNEP) e il tipo di habitat (ESA WorldCover) per ogni foto con GPS. Filtra per habitat o area protetta direttamente dalla ricerca.",
+      plug_weather_body: "Recupera le condizioni meteo storiche allo scatto via Open-Meteo (temperatura, vento, pioggia, neve…). Le condizioni sono filtrabili dalla ricerca e visibili nelle imagecard della gallery.",
       plug_badge_beta_access: "Disponibile per beta tester",
       access_title: "Plugin disponibili su richiesta.",
-      access_body: "I plugin LLM Vision e BioNomen sono accessibili a chi usa OffGallery e vuole provarli. Scrivi per ricevere le istruzioni di installazione.",
+      access_body: "I plugin (LLM Vision, BioNomen, GeoNames, NaturArea, Weather Context) sono accessibili a chi usa OffGallery e vuole provarli. Scrivi per ricevere le istruzioni di installazione.",
       access_cta: "Scrivi per l'accesso",
       cta_title: "Vuoi sapere esattamente cosa fa?",
       cta_body: "Una pagina con ogni funzionalità documentata — modelli, formati, filtri di ricerca, metadati.",
@@ -1000,13 +1029,16 @@
       ss_title: "The interface.",
       plug_title: "Extend OffGallery with specialized modules.",
       plug_intro: "Every plugin is auto-discovered at startup. Choose the LLM backend, activate only what you use — the others don't occupy VRAM.",
-      plug_type_llm: "LLM Backend", plug_type_bio: "Nature photography",
+      plug_type_llm: "LLM Backend", plug_type_bio: "Nature photography", plug_type_geo: "Geographic data",
       plug_ollama_body: "Connect OffGallery to Ollama for natural language tag, title and description generation. Supports vision models like Qwen3-VL, LLaVA, Gemma3. Access reserved for beta testers.",
       plug_lmstudio_body: "Use LM Studio as a local LLM server with a GUI. Ideal for managing quantized vision models. Access reserved for beta testers.",
       plug_bionomen_body: "A grey heron identified by BioCLIP automatically becomes \"airone cenerino\", \"héron cendré\", \"Graureiher\" — in all XMP sidecars, offline. GBIF data bundled, taxa selectable from configuration.",
+      plug_geonames_body: "Assigns GPS coordinates and precise geographic hierarchy (Continent › Country › Region › City) to millions of places using the GeoNames database. Replaces the built-in engine with superior accuracy for villages and hamlets.",
+      plug_natura_body: "Identifies the protected area (WDPA/UNEP) and habitat type (ESA WorldCover) for each GPS-tagged photo. Filter by habitat or protected area directly from the search panel.",
+      plug_weather_body: "Retrieves historical weather conditions at the time of the shot via Open-Meteo (temperature, wind, rain, snow…). Conditions are searchable from the search panel and visible on gallery image cards.",
       plug_badge_beta_access: "Available for beta testers",
       access_title: "Plugins available on request.",
-      access_body: "The LLM Vision and BioNomen plugins are available to OffGallery users who want to try them. Write to receive installation instructions.",
+      access_body: "The plugins (LLM Vision, BioNomen, GeoNames, NaturArea, Weather Context) are available to OffGallery users who want to try them. Write to receive installation instructions.",
       access_cta: "Write for access",
       cta_title: "Want to know exactly what it does?",
       cta_body: "A page with every feature documented — models, formats, search filters, metadata.",

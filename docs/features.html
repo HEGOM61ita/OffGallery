@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OffGallery — Tutte le funzionalità</title>
   <meta name="description" content="OffGallery — Tutte le funzionalità. AI locale, ricerca semantica, plugin, integrazione Lightroom e molto altro." />
+  <meta property="og:url" content="https://offgallery.app/features.html" />
+  <link rel="canonical" href="https://offgallery.app/features.html" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -700,6 +702,33 @@
             <p data-i18n="pd_bio_3">Indispensabile per fotografi wildlife, botanici e naturalisti che archiviano grandi volumi di foto con soggetti biologici identificati da BioCLIP.</p>
             <span class="plugin-badge beta" data-i18n="pd_badge_beta_tester">Disponibile per beta tester</span>
           </div>
+          <div class="plugin-detail-card">
+            <div class="plugin-detail-icon"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
+            <p class="plugin-type" data-i18n="pd_type_geo">Dati geografici</p>
+            <h3>GeoNames</h3>
+            <p data-i18n="pd_geo_1">Scarica e indicizza il database geografico GeoNames per le nazioni selezionate. Ricerca per nome o ricava la gerarchia da coordinate GPS con precisione superiore al motore builtin.</p>
+            <p data-i18n="pd_geo_2">Gerarchia prodotta: <code>GeOFF|Continente|Paese|Regione|Città</code>. Il foglio finale viene aggiunto automaticamente come tag. Dati ricercabili e filtrabili dalla Search Tab.</p>
+            <p data-i18n="pd_geo_3">Indispensabile per chi fotografa borghi, frazioni e luoghi minori non coperti dalla geolocalizzazione builtin (~130.000 città). Con GeoNames: milioni di luoghi.</p>
+            <span class="plugin-badge beta" data-i18n="pd_badge_beta_tester">Disponibile per beta tester</span>
+          </div>
+          <div class="plugin-detail-card">
+            <div class="plugin-detail-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/><path d="M5 17a5 5 0 0 1 5-5h4a4 4 0 0 1 0 8H8a3 3 0 0 1 0-6"/></svg></div>
+            <p class="plugin-type" data-i18n="pd_type_geo">Dati geografici</p>
+            <h3>NaturArea</h3>
+            <p data-i18n="pd_natura_1">Identifica l'area protetta (database WDPA/UNEP) e il tipo di habitat (ESA WorldCover) per ogni foto con coordinate GPS. I dati vengono scritti nel DB e nei sidecar XMP.</p>
+            <p data-i18n="pd_natura_2">Habitat riconosciuti: bosco, macchia, prato, coltivato, urbano, zone umide, acqua, neve e altro. Area protetta cercata via API UNEP-WCMC con cache locale.</p>
+            <p data-i18n="pd_natura_3">Permette di filtrare le foto per area protetta o tipo di habitat direttamente dalla ricerca.</p>
+            <span class="plugin-badge beta" data-i18n="pd_badge_beta_tester">Disponibile per beta tester</span>
+          </div>
+          <div class="plugin-detail-card">
+            <div class="plugin-detail-icon"><svg viewBox="0 0 24 24"><path d="M17.5 19a4.5 4.5 0 1 0 0-9H17A7 7 0 1 0 6 17.7"/><path d="M12 13v8M9 18l3 3 3-3"/></svg></div>
+            <p class="plugin-type" data-i18n="pd_type_geo">Dati geografici</p>
+            <h3>Weather Context</h3>
+            <p data-i18n="pd_weather_1">Recupera le condizioni meteo storiche al momento dello scatto tramite Open-Meteo: temperatura, umidità, vento, precipitazioni e condizione generale (sereno, pioggia, neve…).</p>
+            <p data-i18n="pd_weather_2">Le condizioni meteo sono filtrabili dalla Search Tab (es. cerca tutte le foto scattate sotto la pioggia) e visibili nelle imagecard della gallery.</p>
+            <p data-i18n="pd_weather_3">Richiede connessione internet al momento dell'esecuzione per interrogare l'API Open-Meteo (gratuita, no chiave). Cache locale per evitare chiamate ripetute.</p>
+            <span class="plugin-badge beta" data-i18n="pd_badge_beta_tester">Disponibile per beta tester</span>
+          </div>
         </div>
       </div>
 
@@ -807,7 +836,7 @@
       s6_body: "Ogni miniatura mostra fino a 6 badge sovrapposti: punteggio estetico (0-10), qualità tecnica MUSIQ (0-100), rating Lightroom (★), label colore, similarità semantica (nei risultati di ricerca). Un sesto badge indica se il sidecar XMP è aggiornato, obsoleto o mancante — senza aprire nessun dettaglio.",
       g4_eyebrow: "Plugin", g4_title: "Un'architettura pensata per crescere.",
       g4_sub: "Aggiungi e cambia backend LLM, integra nuove sorgenti dati — senza modificare il core dell'applicazione.",
-      pd_type_llm: "Backend LLM", pd_type_bio: "Fotografia naturalistica",
+      pd_type_llm: "Backend LLM", pd_type_bio: "Fotografia naturalistica", pd_type_geo: "Dati geografici",
       pd_ollama_1: "Collega OffGallery a un server Ollama locale per la generazione di tag, titoli e descrizioni fotografiche in linguaggio naturale.",
       pd_ollama_2: "Comunicazione via API REST locale (porta 11434). Auto-discovery all'avvio se il server è attivo.",
       pd_lms_1: "Usa LM Studio come server locale compatibile OpenAI. Ideale per chi preferisce un'interfaccia grafica per la gestione dei modelli e la configurazione della quantizzazione.",
@@ -815,6 +844,15 @@
       pd_bio_1: "Arricchisce i tag di BioCLIP con i nomi comuni delle specie in più lingue. Un airone cenerino identificato da BioCLIP diventa automaticamente \"grey heron\", \"héron cendré\", \"Graureiher\" — nei sidecar XMP, offline.",
       pd_bio_2: "I dati provengono dal database GBIF, bundled localmente. Nessuna connessione internet richiesta dopo l'installazione.",
       pd_bio_3: "Indispensabile per fotografi wildlife, botanici e naturalisti che archiviano grandi volumi di foto con soggetti biologici identificati da BioCLIP.",
+      pd_geo_1: "Scarica e indicizza il database geografico GeoNames per le nazioni selezionate. Ricerca per nome o ricava la gerarchia da coordinate GPS con precisione superiore al motore builtin.",
+      pd_geo_2: "Gerarchia prodotta: GeOFF|Continente|Paese|Regione|Città. Il foglio finale viene aggiunto automaticamente come tag. Dati ricercabili e filtrabili dalla Search Tab.",
+      pd_geo_3: "Indispensabile per chi fotografa borghi, frazioni e luoghi minori non coperti dalla geolocalizzazione builtin (~130.000 città). Con GeoNames: milioni di luoghi.",
+      pd_natura_1: "Identifica l'area protetta (database WDPA/UNEP) e il tipo di habitat (ESA WorldCover) per ogni foto con coordinate GPS. I dati vengono scritti nel DB e nei sidecar XMP.",
+      pd_natura_2: "Habitat riconosciuti: bosco, macchia, prato, coltivato, urbano, zone umide, acqua, neve e altro. Area protetta cercata via API UNEP-WCMC con cache locale.",
+      pd_natura_3: "Permette di filtrare le foto per area protetta o tipo di habitat direttamente dalla ricerca.",
+      pd_weather_1: "Recupera le condizioni meteo storiche al momento dello scatto tramite Open-Meteo: temperatura, umidità, vento, precipitazioni e condizione generale (sereno, pioggia, neve…).",
+      pd_weather_2: "Le condizioni meteo sono filtrabili dalla Search Tab (es. cerca tutte le foto scattate sotto la pioggia) e visibili nelle imagecard della gallery.",
+      pd_weather_3: "Richiede connessione internet al momento dell'esecuzione per interrogare l'API Open-Meteo (gratuita, no chiave). Cache locale per evitare chiamate ripetute.",
       pd_models_label: "Modelli consigliati",
       pd_badge_beta_tester: "Disponibile per beta tester",
       cta_title: "Scarica e inizia.",
@@ -883,7 +921,7 @@
       s6_body: "Every thumbnail shows up to 6 overlay badges: aesthetic score (0-10), MUSIQ technical quality (0-100), Lightroom rating (★), color label, semantic similarity (in search results). A sixth badge indicates whether the XMP sidecar is current, outdated or missing — without opening any detail.",
       g4_eyebrow: "Plugins", g4_title: "An architecture built to grow.",
       g4_sub: "Add and switch LLM backends, integrate new data sources — without modifying the core application.",
-      pd_type_llm: "LLM Backend", pd_type_bio: "Nature photography",
+      pd_type_llm: "LLM Backend", pd_type_bio: "Nature photography", pd_type_geo: "Geographic data",
       pd_ollama_1: "Connect OffGallery to a local Ollama server for natural language tag, title and description generation.",
       pd_ollama_2: "Communication via local REST API (port 11434). Auto-discovered at startup if the server is running.",
       pd_lms_1: "Use LM Studio as a local OpenAI-compatible server. Ideal for those who prefer a GUI for managing downloaded models and configuring quantization.",
@@ -891,6 +929,15 @@
       pd_bio_1: "Enriches BioCLIP tags with common species names in multiple languages. A grey heron identified by BioCLIP automatically becomes \"airone cenerino\", \"héron cendré\", \"Graureiher\" — in XMP sidecars, offline.",
       pd_bio_2: "Data comes from the GBIF database, bundled locally. No internet connection required after installation.",
       pd_bio_3: "Essential for wildlife, botanical and nature photographers archiving large volumes of photos with biological subjects identified by BioCLIP.",
+      pd_geo_1: "Downloads and indexes the GeoNames geographic database for selected countries. Search by name or derive a hierarchy from GPS coordinates with higher accuracy than the built-in engine.",
+      pd_geo_2: "Produced hierarchy: GeOFF|Continent|Country|Region|City. The leaf node is automatically added as a tag. Data is searchable and filterable from the Search Tab.",
+      pd_geo_3: "Essential for photographers shooting villages, hamlets and minor places not covered by the built-in engine (~130,000 cities). With GeoNames: millions of places.",
+      pd_natura_1: "Identifies the protected area (WDPA/UNEP database) and habitat type (ESA WorldCover) for each photo with GPS coordinates. Data is written to the DB and XMP sidecars.",
+      pd_natura_2: "Recognised habitats: forest, shrubland, grassland, cropland, urban, wetlands, water, snow and more. Protected area looked up via UNEP-WCMC API with local cache.",
+      pd_natura_3: "Enables filtering photos by protected area or habitat type directly from the search panel.",
+      pd_weather_1: "Retrieves historical weather conditions at the time of the shot via Open-Meteo: temperature, humidity, wind, precipitation and general condition (clear, rain, snow…).",
+      pd_weather_2: "Conditions are searchable from the Search Tab (e.g. find all photos taken in the rain) and visible on gallery image cards.",
+      pd_weather_3: "Requires an internet connection at runtime to query the Open-Meteo API (free, no key required). Local cache avoids repeated API calls.",
       pd_models_label: "Recommended models",
       pd_badge_beta_tester: "Available for beta testers",
       cta_title: "Download and start.",
