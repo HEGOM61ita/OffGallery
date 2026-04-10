@@ -2199,17 +2199,26 @@ class EmbeddingGenerator:
             lang_name = EmbeddingGenerator.LLM_OUTPUT_LANGUAGES.get(lang_code, 'ITALIAN')
 
             # --- Regole lingua e contesto (invarianti) ---
-            category_line = ""
+            # Traduce category_hint (italiano) in inglese per il prompt (sempre in EN)
+            category_hint_en = category_hint
             if category_hint:
+                try:
+                    import argostranslate.translate as _at
+                    category_hint_en = _at.translate(category_hint, 'it', 'en') or category_hint
+                except Exception:
+                    pass
+
+            category_line = ""
+            if category_hint_en:
                 category_line = (
-                    f"- The main subject is a {category_hint}. The species is already identified externally.\n"
+                    f"- The main subject is a {category_hint_en}. The species is already identified externally.\n"
                     "- DO NOT name the species. NEVER use species or scientific names.\n"
                     "- Focus ONLY on: visual attributes, behavior, environment, colors, composition.\n"
                 )
                 # Per il titolo: il LLM deve tradurre il termine generico, non usare nomi latini
                 if modes == ['title']:
                     category_line = (
-                        f"- The main subject is a {category_hint}. Use the correct {lang_name} translation of this term.\n"
+                        f"- The main subject is a {category_hint_en}. Use the correct {lang_name} translation of this term.\n"
                         "- DO NOT use species names or scientific Latin names.\n"
                     )
 
