@@ -598,6 +598,9 @@ class ProcessingWorker(QThread):
                     ai_fields = db_manager.get_ai_fields_status(fname)
                     db_manager.update_image(fname, image_data)
                     self.log_message.emit(f"🔄 DB aggiornato (reprocess): {fname}", "info")
+                elif image_exists:
+                    # Già nel DB e mode=new_only: skip silenzioso → log esplicito
+                    self.log_message.emit(f"⏭️ Già nel DB, saltato: {fname}", "debug")
                 elif not image_exists:
                     image_id = db_manager.insert_image(image_data)
                     is_new = True
