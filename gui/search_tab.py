@@ -1015,6 +1015,7 @@ class SearchTab(QWidget):
         
         # Filtro GPS (nessun filtro / solo GPS / no GPS)
         row_gps = QHBoxLayout()
+        row_gps.addWidget(QLabel(t("search.label.gps")))
         self.gps_filter_combo = QComboBox()
         self.gps_filter_combo.addItems([
             t("search.combo.gps_filter_none"),
