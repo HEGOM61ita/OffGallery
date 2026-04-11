@@ -2924,6 +2924,12 @@ class ProcessingTab(QWidget):
         if self.worker:
             self.worker.stop()
             self.add_log_message(t("processing.log.stopping"), "info")
+        # Termina i subprocess plugin ancora in esecuzione
+        for reader in list(self._active_plugin_readers):
+            try:
+                reader.process.terminate()
+            except Exception:
+                pass
     
     def _update_model_progress(self, model_key, current, total):
         """Aggiorna progress bar del singolo modello"""
