@@ -391,7 +391,8 @@ class ProcessingWorker(QThread):
                 args=(images_to_process, prep_cache, temp_dir,
                       raw_processor, config, db_manager,
                       processing_mode, emb_flags, llm_gen_config,
-                      stats, total_to_process, llm_queue, llm_active, bioclip_active),
+                      stats, total_to_process, llm_queue, llm_active, bioclip_active,
+                      _geo_plugin, _geo_plugin_cfg),
                 name="model-exiftool", daemon=True
             )
             model_threads.append(exif_thread)
@@ -497,7 +498,7 @@ class ProcessingWorker(QThread):
     # ─────────────────────────────────────────────────────────────
     def _prep_image(self, image_path, raw_processor, config, db_manager,
                     processing_mode, emb_flags, llm_gen_config,
-                    temp_dir=None):
+                    temp_dir=None, geo_plugin=None, geo_plugin_cfg=None):
         """Estrae EXIF + thumbnail + geo + hash, inserisce/aggiorna record DB base.
         Salva work thumbnail su disco (temp_dir) invece di tenerlo in RAM.
         Ritorna dict con dati prep oppure None in caso di errore fatale."""
@@ -551,11 +552,11 @@ class ProcessingWorker(QThread):
             if gps_lat is not None and gps_lon is not None:
                 # Immagine con GPS: reverse geocoding
                 try:
-                    if _geo_plugin is not None:
-                        geo_hierarchy = _geo_plugin.get_hierarchy(float(gps_lat), float(gps_lon))
+                    if geo_plugin is not None:
+                        geo_hierarchy = geo_plugin.get_hierarchy(float(gps_lat), float(gps_lon))
                         if geo_hierarchy:
                             image_data['geo_hierarchy'] = geo_hierarchy
-                            location_hint = _geo_plugin.get_location_hint(geo_hierarchy)
+                            location_hint = geo_plugin.get_location_hint(geo_hierarchy)
                             self.log_message.emit(f"🌍 {fname}: {geo_hierarchy}", "info")
                     else:
                         from geo_enricher import get_geo_hierarchy, get_location_hint
@@ -567,23 +568,23 @@ class ProcessingWorker(QThread):
                 except Exception as geo_err:
                     self.log_message.emit(f"⚠️ Geo enricher {fname}: {geo_err}", "warning")
 
-            elif _geo_plugin is not None and _geo_plugin_cfg.get('only_no_gps', False):
+            elif geo_plugin is not None and (geo_plugin_cfg or {}).get('only_no_gps', False):
                 # Immagine senza GPS + plugin attivo in modalità only_no_gps:
                 # assegna last_location configurata nel plugin
                 try:
-                    _last = _geo_plugin_cfg.get('last_location', {}) or {}
+                    _last = (geo_plugin_cfg or {}).get('last_location', {}) or {}
                     _lat = _last.get('latitude')
                     _lon = _last.get('longitude')
                     _alt = _last.get('altitude')
                     if _lat is not None and _lon is not None:
                         _preset = _last.get('preset_hierarchy')
-                        geo_hierarchy = _preset if _preset else _geo_plugin.get_hierarchy(float(_lat), float(_lon))
+                        geo_hierarchy = _preset if _preset else geo_plugin.get_hierarchy(float(_lat), float(_lon))
                         if geo_hierarchy:
                             image_data['gps_latitude']  = _lat
                             image_data['gps_longitude'] = _lon
                             image_data['gps_altitude']  = _alt
                             image_data['geo_hierarchy'] = geo_hierarchy
-                            location_hint = _geo_plugin.get_location_hint(geo_hierarchy)
+                            location_hint = geo_plugin.get_location_hint(geo_hierarchy)
                             self.log_message.emit(f"📍 {fname}: posizione assegnata → {geo_hierarchy}", "info")
                 except Exception as geo_err:
                     self.log_message.emit(f"⚠️ Geo no-GPS {fname}: {geo_err}", "warning")
@@ -1170,7 +1171,8 @@ class ProcessingWorker(QThread):
     def _thread_exiftool(self, images_to_process, prep_cache, temp_dir,
                          raw_processor, config, db_manager,
                          processing_mode, emb_flags, llm_gen_config,
-                         stats, total_to_process, llm_queue, llm_active, bioclip_active):
+                         stats, total_to_process, llm_queue, llm_active, bioclip_active,
+                         geo_plugin=None, geo_plugin_cfg=None):
         """Thread ExifTool: estrae EXIF + salva work thumbnail su disco per ogni immagine."""
         for i, image_path in enumerate(images_to_process, 1):
             if not self._wait_if_paused():
@@ -1178,7 +1180,8 @@ class ProcessingWorker(QThread):
             prep = self._prep_image(
                 image_path, raw_processor, config, db_manager,
                 processing_mode, emb_flags, llm_gen_config,
-                temp_dir=temp_dir
+                temp_dir=temp_dir,
+                geo_plugin=geo_plugin, geo_plugin_cfg=geo_plugin_cfg
             )
             if prep:
                 prep_cache[image_path.name] = prep
