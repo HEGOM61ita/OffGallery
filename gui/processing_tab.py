@@ -716,6 +716,9 @@ class ProcessingWorker(QThread):
                     return
                 time.sleep(0.05)
             prep = prep_cache[fname]
+            if prep is None:
+                self.model_progress.emit('clip', i, total)
+                continue
             # Skip se overwrite OFF e campo già popolato nel DB
             if not overwrite and not prep.get('is_new', True):
                 if prep.get('ai_fields', {}).get('clip_embedding', False):
@@ -760,6 +763,9 @@ class ProcessingWorker(QThread):
                     return
                 time.sleep(0.05)
             prep = prep_cache[fname]
+            if prep is None:
+                self.model_progress.emit('dinov2', i, total)
+                continue
             if not overwrite and not prep.get('is_new', True):
                 if prep.get('ai_fields', {}).get('dinov2_embedding', False):
                     self.model_progress.emit('dinov2', i, total)
@@ -802,6 +808,9 @@ class ProcessingWorker(QThread):
                     return
                 time.sleep(0.05)
             prep = prep_cache[fname]
+            if prep is None:
+                self.model_progress.emit('aesthetic', i, total)
+                continue
             if not overwrite and not prep.get('is_new', True):
                 if prep.get('ai_fields', {}).get('aesthetic_score', False):
                     self.model_progress.emit('aesthetic', i, total)
@@ -839,6 +848,9 @@ class ProcessingWorker(QThread):
                     return
                 time.sleep(0.05)
             prep = prep_cache[fname]
+            if prep is None:
+                self.model_progress.emit('technical', i, total)
+                continue
             if not overwrite and not prep.get('is_new', True):
                 if prep.get('ai_fields', {}).get('technical_score', False):
                     self.model_progress.emit('technical', i, total)
@@ -887,6 +899,11 @@ class ProcessingWorker(QThread):
                     return
                 time.sleep(0.05)
             prep = prep_cache[fname]
+            if prep is None:
+                if llm_active:
+                    llm_queue.put(image_path)
+                self.model_progress.emit('bioclip', i, total)
+                continue
             is_new = prep.get('is_new', True)
 
             skip_bioclip = (not overwrite and not is_new
@@ -1172,6 +1189,8 @@ class ProcessingWorker(QThread):
                 if llm_active and not bioclip_active:
                     llm_queue.put(image_path)
             else:
+                # Marker None: sblocca i thread modello in attesa su prep_cache
+                prep_cache[image_path.name] = None
                 with self._stats_lock:
                     stats['errors'] += 1
             self.model_progress.emit('exiftool', i, total_to_process)
