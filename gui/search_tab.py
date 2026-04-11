@@ -331,7 +331,7 @@ class SearchTab(QWidget):
             conditions.append("gps_latitude IS NULL")
 
         # --- POSIZIONE (geo_hierarchy testo libero) ---
-        loc_text = self.location_text_filter.text().strip()
+        loc_text = self.location_text_filter.currentText().strip()
         if loc_text:
             conditions.append("geo_hierarchy LIKE ?")
             params.append(f"%{loc_text}%")
@@ -1048,14 +1048,16 @@ class SearchTab(QWidget):
         layout.setSpacing(4)
         layout.setContentsMargins(8, 12, 8, 8)
 
-        # --- Ricerca testo libero in geo_hierarchy ---
+        # --- Ricerca testo/selezione in geo_hierarchy ---
         row_text = QHBoxLayout()
         row_text.addWidget(QLabel(t("search.label.location_text") + ":"))
-        self.location_text_filter = QLineEdit()
-        self.location_text_filter.setPlaceholderText(t("search.placeholder.location_text"))
+        self.location_text_filter = QComboBox()
+        self.location_text_filter.setEditable(True)
+        self.location_text_filter.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.location_text_filter.lineEdit().setPlaceholderText(t("search.placeholder.location_text"))
         self.location_text_filter.setToolTip(t("search.tooltip.location_text"))
         self.location_text_filter.setMinimumWidth(130)
-        self.location_text_filter.returnPressed.connect(self.execute_search)
+        self.location_text_filter.lineEdit().returnPressed.connect(self.execute_search)
         row_text.addWidget(self.location_text_filter)
         row_text.addStretch()
         layout.addLayout(row_text)
@@ -1251,7 +1253,7 @@ class SearchTab(QWidget):
             'technical_min': self.technical_min.value(),
             'technical_max': self.technical_max.value(),
             'gps_filter_index': self.gps_filter_combo.currentIndex(),
-            'location_text': self.location_text_filter.text(),
+            'location_text': self.location_text_filter.currentText(),
             'location_lat': self.location_lat_filter.text(),
             'location_lon': self.location_lon_filter.text(),
             'monochrome_index': self.monochrome_combo.currentIndex(),
@@ -1338,7 +1340,7 @@ class SearchTab(QWidget):
 
             # Checkbox
             self.gps_filter_combo.setCurrentIndex(params.get('gps_filter_index', 0))
-            self.location_text_filter.setText(params.get('location_text', ''))
+            self.location_text_filter.setCurrentText(params.get('location_text', ''))
             self.location_lat_filter.setText(params.get('location_lat', ''))
             self.location_lon_filter.setText(params.get('location_lon', ''))
             self.sync_filter.setChecked(params.get('sync_filter', False))
@@ -1904,31 +1906,38 @@ class SearchTab(QWidget):
                         self.log_message(f"⚠️ Filtro plugin {field}: {e}", "warning")
                 _plugin_conn.close()
 
-            # Completer per location_text_filter: estrae tutti i nodi da geo_hierarchy
+            # Popola location_text_filter con le foglie distinte di geo_hierarchy
             try:
                 import sqlite3 as _sq3
+                from PyQt6.QtCore import Qt as _Qt
                 _loc_conn = _sq3.connect(db_path)
                 rows = _loc_conn.execute(
                     "SELECT DISTINCT geo_hierarchy FROM images "
                     "WHERE geo_hierarchy IS NOT NULL AND geo_hierarchy != ''"
                 ).fetchall()
                 _loc_conn.close()
-                # Scompone ogni gerarchia nei suoi nodi (es. GeOFF|Europe|Italy|Sardegna|Stintino)
-                _loc_nodes = set()
+                # Estrae solo la foglia (ultimo elemento dopo |) da ogni gerarchia
+                _leaves = set()
                 for (hier,) in rows:
-                    for part in hier.split("|"):
-                        p = part.strip()
-                        if p and p != "GeOFF":
-                            _loc_nodes.add(p)
-                if _loc_nodes:
-                    from PyQt6.QtWidgets import QCompleter
-                    from PyQt6.QtCore import Qt as _Qt
-                    _completer = QCompleter(sorted(_loc_nodes), self.location_text_filter)
-                    _completer.setCaseSensitivity(_Qt.CaseSensitivity.CaseInsensitive)
-                    _completer.setFilterMode(_Qt.MatchFlag.MatchContains)
-                    self.location_text_filter.setCompleter(_completer)
+                    parts = [p.strip() for p in hier.split("|") if p.strip() and p.strip() != "GeOFF"]
+                    if parts:
+                        _leaves.add(parts[-1])
+                current_loc = self.location_text_filter.currentText()
+                self.location_text_filter.blockSignals(True)
+                self.location_text_filter.clear()
+                self.location_text_filter.addItem("")  # voce vuota = nessun filtro
+                for leaf in sorted(_leaves):
+                    self.location_text_filter.addItem(leaf)
+                self.location_text_filter.setCurrentText(current_loc)
+                self.location_text_filter.blockSignals(False)
+                # Completer case-insensitive per ricerca libera (es. "Sardegna")
+                from PyQt6.QtWidgets import QCompleter
+                _completer = QCompleter(sorted(_leaves), self.location_text_filter)
+                _completer.setCaseSensitivity(_Qt.CaseSensitivity.CaseInsensitive)
+                _completer.setFilterMode(_Qt.MatchFlag.MatchContains)
+                self.location_text_filter.setCompleter(_completer)
             except Exception as _e:
-                self.log_message(f"⚠️ Completer posizione: {_e}", "warning")
+                self.log_message(f"⚠️ Popolamento posizione: {_e}", "warning")
 
             db_manager.close()
             self.log_message("✓ Caricamento filtri completato", "info")
@@ -2038,7 +2047,7 @@ class SearchTab(QWidget):
                     return True
 
         # Posizione
-        if self.location_text_filter.text().strip():
+        if self.location_text_filter.currentText().strip():
             return True
         if self.location_lat_filter.text().strip() and self.location_lon_filter.text().strip():
             return True
