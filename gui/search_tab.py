@@ -324,8 +324,11 @@ class SearchTab(QWidget):
                 params.append(color_label_value)
 
         # --- GPS ---
-        if self.gps_only.isChecked():
+        gps_idx = self.gps_filter_combo.currentIndex()
+        if gps_idx == 1:
             conditions.append("gps_latitude IS NOT NULL")
+        elif gps_idx == 2:
+            conditions.append("gps_latitude IS NULL")
 
         # --- POSIZIONE (geo_hierarchy testo libero) ---
         loc_text = self.location_text_filter.text().strip()
@@ -1010,8 +1013,18 @@ class SearchTab(QWidget):
         layout = QVBoxLayout()
         layout.setSpacing(3)
         
-        self.gps_only = QCheckBox(t("search.check.gps_only"))
-        layout.addWidget(self.gps_only)
+        # Filtro GPS (nessun filtro / solo GPS / no GPS)
+        row_gps = QHBoxLayout()
+        self.gps_filter_combo = QComboBox()
+        self.gps_filter_combo.addItems([
+            t("search.combo.gps_filter_none"),
+            t("search.combo.gps_only"),
+            t("search.combo.no_gps"),
+        ])
+        self.gps_filter_combo.setFixedWidth(90)
+        row_gps.addWidget(self.gps_filter_combo)
+        row_gps.addStretch()
+        layout.addLayout(row_gps)
         
         # Filtro Bianco/Nero (combo a 3 opzioni)
         row_bn = QHBoxLayout()
@@ -1236,7 +1249,7 @@ class SearchTab(QWidget):
             'aesthetic_max': self.aesthetic_max.value(),
             'technical_min': self.technical_min.value(),
             'technical_max': self.technical_max.value(),
-            'gps_only': self.gps_only.isChecked(),
+            'gps_filter_index': self.gps_filter_combo.currentIndex(),
             'location_text': self.location_text_filter.text(),
             'location_lat': self.location_lat_filter.text(),
             'location_lon': self.location_lon_filter.text(),
@@ -1266,7 +1279,7 @@ class SearchTab(QWidget):
             'ev_min', 'ev_max', 'flash_combo', 'exposure_combo',
             'orientation_combo', 'rating_min', 'color_label_filter',
             'aesthetic_min', 'aesthetic_max', 'technical_min', 'technical_max',
-            'gps_only', 'location_text_filter', 'location_lat_filter', 'location_lon_filter',
+            'gps_filter_combo', 'location_text_filter', 'location_lat_filter', 'location_lon_filter',
             'monochrome_combo', 'sync_filter',
             'date_filter_enabled', 'date_from', 'date_to',
         ]
@@ -1323,7 +1336,7 @@ class SearchTab(QWidget):
             self.technical_max.setValue(params.get('technical_max', 100.0))
 
             # Checkbox
-            self.gps_only.setChecked(params.get('gps_only', False))
+            self.gps_filter_combo.setCurrentIndex(params.get('gps_filter_index', 0))
             self.location_text_filter.setText(params.get('location_text', ''))
             self.location_lat_filter.setText(params.get('location_lat', ''))
             self.location_lon_filter.setText(params.get('location_lon', ''))
@@ -1525,7 +1538,7 @@ class SearchTab(QWidget):
             'aperture_min': 0.0, 'aperture_max': 64.0, 'focal35_min': 0, 'focal35_max': 2000,
             'ev_min': -5.0, 'ev_max': 5.0, 'aesthetic_min': 0.0, 'aesthetic_max': 10.0,
             'technical_min': 0.0, 'technical_max': 100.0,
-            'gps_only': False, 'monochrome_combo': 0, 'sync_filter': False,
+            'gps_filter_combo': 0, 'monochrome_combo': 0, 'sync_filter': False,
             'date_filter_enabled': False
         }
         
@@ -1999,7 +2012,7 @@ class SearchTab(QWidget):
             return True
 
         # GPS
-        if self.gps_only.isChecked():
+        if self.gps_filter_combo.currentIndex() != 0:
             return True
         
         # Filtro B/N
