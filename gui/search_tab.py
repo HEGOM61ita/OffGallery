@@ -327,10 +327,10 @@ class SearchTab(QWidget):
         gps_idx = self.gps_filter_combo.currentIndex()
         if gps_idx == 1:
             # Solo GPS: immagini con GPS nativo negli EXIF originali
-            conditions.append("json_extract(exif_json, '$.GPSLatitude') IS NOT NULL")
+            conditions.append("exif_json LIKE '%EXIF:GPSLatitude%'")
         elif gps_idx == 2:
             # No GPS: immagini senza GPS negli EXIF originali
-            conditions.append("json_extract(exif_json, '$.GPSLatitude') IS NULL")
+            conditions.append("exif_json NOT LIKE '%EXIF:GPSLatitude%'")
         elif gps_idx == 3:
             # GPS modificato manualmente in gallery
             conditions.append("COALESCE(gps_modified, 0) = 1")
