@@ -326,9 +326,14 @@ class SearchTab(QWidget):
         # --- GPS ---
         gps_idx = self.gps_filter_combo.currentIndex()
         if gps_idx == 1:
-            conditions.append("gps_latitude IS NOT NULL")
+            # Solo GPS: immagini con GPS nativo negli EXIF originali
+            conditions.append("json_extract(exif_json, '$.GPSLatitude') IS NOT NULL")
         elif gps_idx == 2:
-            conditions.append("gps_latitude IS NULL")
+            # No GPS: immagini senza GPS negli EXIF originali
+            conditions.append("json_extract(exif_json, '$.GPSLatitude') IS NULL")
+        elif gps_idx == 3:
+            # GPS modificato manualmente in gallery
+            conditions.append("COALESCE(gps_modified, 0) = 1")
 
         # --- POSIZIONE (geo_hierarchy testo libero) ---
         loc_text = self.location_text_filter.currentText().strip()
@@ -1021,8 +1026,9 @@ class SearchTab(QWidget):
             t("search.combo.gps_filter_none"),
             t("search.combo.gps_only"),
             t("search.combo.no_gps"),
+            t("search.combo.gps_modified"),
         ])
-        self.gps_filter_combo.setFixedWidth(90)
+        self.gps_filter_combo.setFixedWidth(100)
         row_gps.addWidget(self.gps_filter_combo)
         row_gps.addStretch()
         layout.addLayout(row_gps)

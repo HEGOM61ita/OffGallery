@@ -179,6 +179,13 @@ class DatabaseManager:
         for index_sql in indices:
             self.cursor.execute(index_sql)
 
+        # Migrazione: aggiunge colonna gps_modified se non presente (plugin geonames)
+        # 0/NULL = GPS nativo EXIF, 1 = coordinate modificate manualmente da gallery
+        try:
+            self.cursor.execute("ALTER TABLE images ADD COLUMN gps_modified INTEGER DEFAULT 0")
+        except Exception:
+            pass  # colonna già presente
+
         self.conn.commit()
         logger.info(f"Database schema completo inizializzato: {self.db_path}")
     

@@ -206,6 +206,7 @@
   "search.combo.gps_filter_none": "Tutti",
   "search.combo.gps_only": "Solo GPS",
   "search.combo.no_gps": "No GPS",
+  "search.combo.gps_modified": "GPS Mod.",
   "search.check.out_of_sync": "Solo out-of-sync",
   "search.check.filter_by_date": "Filtra per data:",
   "search.placeholder.semantic": "Inserisci query semantica...",
