@@ -552,24 +552,12 @@ class SearchTab(QWidget):
         left_col.addLayout(left_bottom)
         left_col.addStretch()
 
-        # --- Colonna destra: Qualità | Sync+Azioni ---
+        # --- Colonna destra: Qualità → Sync → Azioni ---
         right_col = QVBoxLayout()
         right_col.setSpacing(6)
-
-        right_top = QHBoxLayout()
-        right_top.setSpacing(8)
-        right_top.addWidget(self.create_quality_section())
-
-        # Sync + Azioni in verticale, allineati a destra
-        sync_actions_col = QVBoxLayout()
-        sync_actions_col.setSpacing(6)
-        sync_actions_col.addWidget(self.create_sync_section())
-        sync_actions_col.addWidget(self.create_action_buttons())
-        sync_actions_col.addStretch()
-        right_top.addLayout(sync_actions_col)
-
-        right_top.addStretch()
-        right_col.addLayout(right_top)
+        right_col.addWidget(self.create_quality_section())
+        right_col.addWidget(self.create_sync_section())
+        right_col.addWidget(self.create_action_buttons())
         right_col.addStretch()
 
         main_row.addLayout(left_col)
@@ -1192,6 +1180,7 @@ class SearchTab(QWidget):
             row.addWidget(QLabel(label_text + ':'))
             if widget_type == 'combobox':
                 combo = QComboBox()
+                combo.setEditable(True)
                 combo.setMinimumWidth(110)
                 combo.addItem(t("search.combo.all_m"), None)
                 row.addWidget(combo)
@@ -1955,17 +1944,30 @@ class SearchTab(QWidget):
                         codes = [row[0] for row in _plugin_cur.fetchall() if row[0]]
                         codes.sort()
                         current_val = widget.currentData()
+                        current_text = widget.currentText() if widget.isEditable() else None
                         widget.clear()
                         widget.addItem(t("search.combo.all_m"), None)
+                        labels = []
                         for code in codes:
                             label = enum_map.get(code, code) if enum_map else code
                             widget.addItem(label, code)
+                            labels.append(label)
                         self.log_message(f"✓ Filtro plugin '{field}': {len(codes)} valori", "info")
+                        # Applica QCompleter con MatchContains per ricerca mentre si digita
+                        if widget.isEditable():
+                            from PyQt6.QtWidgets import QCompleter
+                            from PyQt6.QtCore import Qt as _Qt2
+                            _completer = QCompleter(labels, widget)
+                            _completer.setCaseSensitivity(_Qt2.CaseSensitivity.CaseInsensitive)
+                            _completer.setFilterMode(_Qt2.MatchFlag.MatchContains)
+                            widget.setCompleter(_completer)
                         # Ripristina selezione precedente
                         if current_val is not None:
                             idx = widget.findData(current_val)
                             if idx >= 0:
                                 widget.setCurrentIndex(idx)
+                        elif current_text:
+                            widget.setCurrentText(current_text)
                     except Exception as e:
                         self.log_message(f"⚠️ Filtro plugin {field}: {e}", "warning")
                 _plugin_conn.close()

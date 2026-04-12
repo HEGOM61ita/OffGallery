@@ -92,6 +92,26 @@ _STRINGS = {
     # ── Bottoni comuni aggiuntivi ─────────────────────────────────────────────
     "btn.close":         {"it": "Chiudi",  "en": "Close"},
 
+    # ── GeoNames gallery ─────────────────────────────────────────────────────
+    "gn.clear.title": {"it": "Cancella dati localizzazione",
+                       "en": "Clear location data"},
+    "gn.clear.body": {
+        "it": (
+            "Cancellare i dati di localizzazione per {n} foto?\n\n"
+            "Verranno rimossi: gerarchia geografica, meteo, area protetta, habitat.\n"
+            "Le coordinate GPS non vengono toccate.\n\n"
+            "Nota: eventuali descrizioni o titoli generati dall'AI in base alla posizione "
+            "non vengono aggiornati automaticamente."
+        ),
+        "en": (
+            "Clear location data for {n} photo{suffix}?\n\n"
+            "The following will be removed: geographic hierarchy, weather, protected area, habitat.\n"
+            "GPS coordinates are not affected.\n\n"
+            "Note: any AI-generated descriptions or titles based on location "
+            "are not automatically updated."
+        ),
+    },
+
     # ── GeoSpecies ────────────────────────────────────────────────────────────
     "gs.config_title":   {"it": "GeoSpecies — Configurazione",
                           "en": "GeoSpecies — Configuration"},
