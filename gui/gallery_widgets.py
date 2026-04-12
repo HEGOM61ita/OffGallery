@@ -1260,7 +1260,7 @@ class ImageCard(QFrame):
             _has_geonames   = _mod_gng is not None
 
             if _has_ga_plugins or _has_geonames:
-                plugin_menu = menu.addMenu(f"Plugin{multi_label}")
+                plugin_menu = menu.addMenu(f"🔌 Plugin{multi_label}")
 
                 # Plugin generici da manifest (gallery_action)
                 for _idx, (_pdir, _pm2) in enumerate(_ga_plugins):
