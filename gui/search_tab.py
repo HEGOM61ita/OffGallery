@@ -532,22 +532,49 @@ class SearchTab(QWidget):
         # Ricerca principale
         layout.addWidget(self.create_search_section())
 
-        # Filtri fotografici (senza groupbox esterno)
-        layout.addWidget(self.create_photo_filters_section())
+        # Layout principale a due colonne
+        main_row = QHBoxLayout()
+        main_row.setSpacing(8)
 
-        # Qualità + GPS + Sync + Plugin + Data + Azioni
-        row_bottom = QHBoxLayout()
-        row_bottom.addWidget(self.create_quality_section())
-        row_bottom.addWidget(self.create_gps_section())
-        row_bottom.addWidget(self.create_location_section())
-        row_bottom.addWidget(self.create_sync_section())
-        _plugin_section = self.create_plugin_filters_section()
-        if _plugin_section:
-            row_bottom.addWidget(_plugin_section)
-        row_bottom.addWidget(self.create_date_section())
-        row_bottom.addStretch()
-        row_bottom.addWidget(self.create_action_buttons())
-        layout.addLayout(row_bottom)
+        # --- Colonna sinistra: Camera EXIF / Data + Posizione + Tassonomia ---
+        left_col = QVBoxLayout()
+        left_col.setSpacing(6)
+        left_col.addWidget(self.create_photo_filters_section())
+
+        left_bottom = QHBoxLayout()
+        left_bottom.setSpacing(6)
+        left_bottom.addWidget(self.create_date_section())
+        left_bottom.addWidget(self.create_location_section())
+        _taxonomy_section = self.create_taxonomy_section()
+        if _taxonomy_section:
+            left_bottom.addWidget(_taxonomy_section)
+        left_bottom.addStretch()
+        left_col.addLayout(left_bottom)
+        left_col.addStretch()
+
+        # --- Colonna destra: Qualità | Sync+Azioni ---
+        right_col = QVBoxLayout()
+        right_col.setSpacing(6)
+
+        right_top = QHBoxLayout()
+        right_top.setSpacing(8)
+        right_top.addWidget(self.create_quality_section())
+
+        # Sync + Azioni in verticale, allineati a destra
+        sync_actions_col = QVBoxLayout()
+        sync_actions_col.setSpacing(6)
+        sync_actions_col.addWidget(self.create_sync_section())
+        sync_actions_col.addWidget(self.create_action_buttons())
+        sync_actions_col.addStretch()
+        right_top.addLayout(sync_actions_col)
+
+        right_top.addStretch()
+        right_col.addLayout(right_top)
+        right_col.addStretch()
+
+        main_row.addLayout(left_col)
+        main_row.addLayout(right_col)
+        layout.addLayout(main_row)
 
         # Risultati con conteggio dinamico e pulsante stop
         results_layout = QHBoxLayout()
@@ -781,11 +808,11 @@ class SearchTab(QWidget):
         self.match_text_container.setEnabled(deep_enabled)
     
     def create_photo_filters_section(self):
-        """Filtri fotografici EXIF - layout compatto senza gruppi nidificati"""
-        container = QWidget()
-        layout = QVBoxLayout(container)
+        """Filtri fotografici EXIF - GroupBox con titolo e icona"""
+        group = QGroupBox("📷 Camera EXIF")
+        layout = QVBoxLayout(group)
         layout.setSpacing(6)
-        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setContentsMargins(8, 12, 8, 8)
 
         # --- Riga 1: Camera e Lens ---
         row1 = QHBoxLayout()
@@ -927,7 +954,31 @@ class SearchTab(QWidget):
         row6.addStretch()
         layout.addLayout(row6)
 
-        return container
+        # --- Riga 7: Bianco/Nero e Colore etichetta ---
+        row7 = QHBoxLayout()
+        row7.setSpacing(12)
+        row7.addWidget(QLabel(t("search.label.photos")))
+        self.monochrome_combo = QComboBox()
+        self.monochrome_combo.addItems([t("search.combo.all_f"), t("search.combo.color_photos"), t("search.combo.bw_photos")])
+        self.monochrome_combo.setToolTip(t("search.tooltip.monochrome"))
+        self.monochrome_combo.setFixedWidth(80)
+        row7.addWidget(self.monochrome_combo)
+        row7.addWidget(QLabel(t("search.label.color_colon")))
+        self.color_label_filter = QComboBox()
+        self.color_label_filter.addItem(t("search.combo.all_m"), None)
+        self.color_label_filter.addItem(t("search.color.red"), "Red")
+        self.color_label_filter.addItem(t("search.color.yellow"), "Yellow")
+        self.color_label_filter.addItem(t("search.color.green"), "Green")
+        self.color_label_filter.addItem(t("search.color.blue"), "Blue")
+        self.color_label_filter.addItem(t("search.color.purple"), "Purple")
+        self.color_label_filter.addItem(t("search.combo.no_color"), "")
+        self.color_label_filter.setToolTip(t("search.tooltip.color_label"))
+        self.color_label_filter.setMinimumWidth(110)
+        row7.addWidget(self.color_label_filter)
+        row7.addStretch()
+        layout.addLayout(row7)
+
+        return group
 
     def create_quality_section(self):
         """Filtri qualità"""
@@ -951,23 +1002,6 @@ class SearchTab(QWidget):
         rating_layout.addWidget(self.rating_min)
         rating_layout.addStretch()
         layout.addLayout(rating_layout)
-
-        # Color Label - riga dedicata separata
-        color_layout = QHBoxLayout()
-        color_layout.addWidget(QLabel(t("search.label.color_colon")))
-        self.color_label_filter = QComboBox()
-        self.color_label_filter.addItem(t("search.combo.all_m"), None)
-        self.color_label_filter.addItem(t("search.color.red"), "Red")
-        self.color_label_filter.addItem(t("search.color.yellow"), "Yellow")
-        self.color_label_filter.addItem(t("search.color.green"), "Green")
-        self.color_label_filter.addItem(t("search.color.blue"), "Blue")
-        self.color_label_filter.addItem(t("search.color.purple"), "Purple")
-        self.color_label_filter.addItem(t("search.combo.no_color"), "")
-        self.color_label_filter.setToolTip(t("search.tooltip.color_label"))
-        self.color_label_filter.setMinimumWidth(110)
-        color_layout.addWidget(self.color_label_filter)
-        color_layout.addStretch()
-        layout.addLayout(color_layout)
 
         # Aesthetic score
         aes_layout = QHBoxLayout()
@@ -1012,13 +1046,14 @@ class SearchTab(QWidget):
         group.setLayout(layout)
         return group
     
-    def create_gps_section(self):
-        """Filtri GPS e Colore"""
-        group = QGroupBox(t("search.group.gps_color"))
+    def create_location_section(self):
+        """Filtri geografici: GPS + testo geo_hierarchy + coordinate + filtri plugin NaturArea/Meteo."""
+        group = QGroupBox(t("search.group.location"))
         layout = QVBoxLayout()
-        layout.setSpacing(3)
-        
-        # Filtro GPS (nessun filtro / solo GPS / no GPS)
+        layout.setSpacing(4)
+        layout.setContentsMargins(8, 12, 8, 8)
+
+        # --- Filtro GPS ---
         row_gps = QHBoxLayout()
         row_gps.addWidget(QLabel(t("search.label.gps")))
         self.gps_filter_combo = QComboBox()
@@ -1032,27 +1067,6 @@ class SearchTab(QWidget):
         row_gps.addWidget(self.gps_filter_combo)
         row_gps.addStretch()
         layout.addLayout(row_gps)
-        
-        # Filtro Bianco/Nero (combo a 3 opzioni)
-        row_bn = QHBoxLayout()
-        row_bn.addWidget(QLabel(t("search.label.photos")))
-        self.monochrome_combo = QComboBox()
-        self.monochrome_combo.addItems([t("search.combo.all_f"), t("search.combo.color_photos"), t("search.combo.bw_photos")])
-        self.monochrome_combo.setToolTip(t("search.tooltip.monochrome"))
-        self.monochrome_combo.setFixedWidth(80)
-        row_bn.addWidget(self.monochrome_combo)
-        row_bn.addStretch()
-        layout.addLayout(row_bn)
-        
-        group.setLayout(layout)
-        return group
-    
-    def create_location_section(self):
-        """Filtri geografici: testo libero su geo_hierarchy + coordinate approssimate."""
-        group = QGroupBox(t("search.group.location"))
-        layout = QVBoxLayout()
-        layout.setSpacing(4)
-        layout.setContentsMargins(8, 12, 8, 8)
 
         # --- Ricerca testo/selezione in geo_hierarchy ---
         row_text = QHBoxLayout()
@@ -1086,17 +1100,9 @@ class SearchTab(QWidget):
         row_coords.addStretch()
         layout.addLayout(row_coords)
 
-        group.setLayout(layout)
-        return group
-
-    def create_plugin_filters_section(self):
-        """Genera un QGroupBox con i filtri dinamici esposti dai plugin installati.
-        Ogni plugin che dichiara search_filters nel manifest ottiene la sua sezione.
-        Ritorna None se non ci sono filtri plugin da mostrare."""
-        if not self._plugin_filter_manifests:
-            return None
-
-        # Determina la lingua corrente per le label
+        # --- Filtri plugin NaturArea (protected_area, habitat) e Meteo (weather_condition) ---
+        # Vengono aggiunti solo se il rispettivo plugin è installato
+        _location_plugin_ids = {"naturarea", "weather_context"}
         try:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 _cfg = yaml.safe_load(f) or {}
@@ -1104,25 +1110,17 @@ class SearchTab(QWidget):
         except Exception:
             _lang = 'it'
 
-        group = QGroupBox("Plugin")
-        layout = QVBoxLayout()
-        layout.setSpacing(4)
-
         for manifest in self._plugin_filter_manifests:
+            if manifest.get('id') not in _location_plugin_ids:
+                continue
             _labels = manifest.get('labels', {}).get(_lang, manifest.get('labels', {}).get('it', {}))
             _enums  = manifest.get('enum_fields', {})
-
             for flt in manifest.get('search_filters', []):
-                field   = flt['field']
+                field       = flt['field']
                 widget_type = flt.get('widget', 'lineedit')
                 label_key   = flt.get('label_key', field)
                 label_text  = _labels.get(label_key, label_key)
 
-                row = QHBoxLayout()
-                row.setSpacing(4)
-                row.addWidget(QLabel(label_text + ':'))
-
-                # Salva metadati per SQL e popolamento DB
                 self._plugin_filter_meta[field] = {
                     'db_column':    flt.get('db_column', field),
                     'json_extract': flt.get('json_extract'),
@@ -1130,10 +1128,12 @@ class SearchTab(QWidget):
                     'lang':         _lang,
                 }
 
+                row = QHBoxLayout()
+                row.setSpacing(4)
+                row.addWidget(QLabel(label_text + ':'))
                 if widget_type == 'combobox':
                     combo = QComboBox()
-                    combo.setMinimumWidth(100)
-                    # Voce vuota = "tutti" — le voci vengono popolate da on_activated()
+                    combo.setMinimumWidth(110)
                     combo.addItem(t("search.combo.all_m"), None)
                     row.addWidget(combo)
                     row.addStretch()
@@ -1141,19 +1141,77 @@ class SearchTab(QWidget):
                 else:
                     le = QLineEdit()
                     le.setPlaceholderText(label_text)
-                    le.setMinimumWidth(100)
+                    le.setMinimumWidth(110)
                     row.addWidget(le)
                     row.addStretch()
                     self._plugin_filter_widgets[field] = le
-
                 layout.addLayout(row)
+
+        group.setLayout(layout)
+        return group
+
+    def create_taxonomy_section(self):
+        """Riquadro Tassonomia con filtri BioNomen. Ritorna None se BioNomen non è installato."""
+        bionomen_manifest = next(
+            (m for m in self._plugin_filter_manifests if m.get('id') == 'bionomen'),
+            None
+        )
+        if not bionomen_manifest or not bionomen_manifest.get('search_filters'):
+            return None
+
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                _cfg = yaml.safe_load(f) or {}
+            _lang = _cfg.get('ui', {}).get('language', 'it')
+        except Exception:
+            _lang = 'it'
+
+        group = QGroupBox("🦎 Tassonomia")
+        layout = QVBoxLayout()
+        layout.setSpacing(4)
+        layout.setContentsMargins(8, 12, 8, 8)
+
+        _labels = bionomen_manifest.get('labels', {}).get(_lang, bionomen_manifest.get('labels', {}).get('it', {}))
+        _enums  = bionomen_manifest.get('enum_fields', {})
+
+        for flt in bionomen_manifest.get('search_filters', []):
+            field       = flt['field']
+            widget_type = flt.get('widget', 'lineedit')
+            label_key   = flt.get('label_key', field)
+            label_text  = _labels.get(label_key, label_key)
+
+            self._plugin_filter_meta[field] = {
+                'db_column':    flt.get('db_column', field),
+                'json_extract': flt.get('json_extract'),
+                'enum_fields':  _enums.get(field, {}),
+                'lang':         _lang,
+            }
+
+            row = QHBoxLayout()
+            row.setSpacing(4)
+            row.addWidget(QLabel(label_text + ':'))
+            if widget_type == 'combobox':
+                combo = QComboBox()
+                combo.setMinimumWidth(110)
+                combo.addItem(t("search.combo.all_m"), None)
+                row.addWidget(combo)
+                row.addStretch()
+                self._plugin_filter_widgets[field] = combo
+            else:
+                le = QLineEdit()
+                le.setPlaceholderText(label_text)
+                le.setMinimumWidth(110)
+                row.addWidget(le)
+                row.addStretch()
+                self._plugin_filter_widgets[field] = le
+            layout.addLayout(row)
 
         group.setLayout(layout)
         return group
 
     def create_sync_section(self):
         """Filtri sync"""
-        group = QGroupBox(t("search.group.sync"))
+        group = QGroupBox(t("search.group.sync_metadata"))
         layout = QVBoxLayout()
         layout.setSpacing(3)
         

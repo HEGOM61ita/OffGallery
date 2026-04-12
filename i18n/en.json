@@ -182,6 +182,7 @@
   "search.tooltip.location_text": "Filter by location (searches geo_hierarchy: continent, country, region, city)",
   "search.tooltip.coords": "Filter by approximate GPS coordinates (radius ~0.5°)",
   "search.group.sync": "🔄 Sync",
+  "search.group.sync_metadata": "🔄 Sync Metadata",
   "search.group.date_filter": "📅 Date",
   "search.label.results": "Results: -",
   "search.label.threshold_short": "Threshold:",
