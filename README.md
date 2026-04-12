@@ -50,14 +50,14 @@
 
 | Data | Cosa | Note |
 |------|------|------|
+| 12 apr 2026 | **Filtro tassonomia con autocompletamento** | Il filtro "Nome comune" nella Search Tab propone i nomi già presenti nel DB mentre si digita (QComboBox editabile con ricerca per contenuto, case-insensitive) |
+| 5 apr 2026 | **Plugin GeoNames** | Geolocalizzazione avanzata: gerarchia geografica completa (continente → nazione → regione → città), filtro Luogo con autocompletamento dal DB, filtro GPS a 4 stati (tutti / solo GPS / GPS modificato / senza GPS) |
+| 5 apr 2026 | **Filtro Luogo con autocompletamento** | Il campo Luogo nella Search Tab suggerisce le città/regioni già presenti nel database mentre si digita |
 | 22 mar 2026 | **Allocazione device per-modello con auto-ottimizzazione** | Ogni modello AI (CLIP, DINOv2, BioCLIP, Aesthetic, MUSIQ) può essere assegnato individualmente a GPU o CPU. L'algoritmo di auto-ottimizzazione rileva hardware (CUDA/MPS/DirectML), calcola il budget VRAM (incluso LLM), e distribuisce i modelli bilanciando velocità GPU e parallelismo CPU. Barra budget VRAM in tempo reale nel tab Configurazione |
 | 21 mar 2026 | **Sistema Plugin LLM** | Plugin per backend LLM alternativi: **Ollama** (default) e **LM Studio**. Auto-discovery all'avvio, backend selezionabile dal tab Configurazione. Il backend viene rilevato automaticamente (`auto`) senza configurazione manuale |
 | 21 mar 2026 | **Indicatori stato modelli migliorati** | Nuovo schema semafori a 4 stati: verde (VRAM), ambra (CPU), rosso (errore), grigio (disabilitato). BioCLIP con fallback automatico su CPU se VRAM insufficiente |
 | 21 mar 2026 | **Gallery più veloce** | Lettura cache disco spostata su thread worker: la gallery non blocca più la GUI anche con centinaia di risultati |
 | 14 mar 2026 | **Splash screen minimizzabile** | La finestra di avvio è ora minimizzabile durante il caricamento dei modelli AI |
-| 10 mar 2026 | **Modalità "Solo Gen. AI"** | Aggiorna solo tag, descrizione e titolo (LLM) su foto già nel database, saltando EXIF ed embedding |
-| 7 mar 2026 | **Supporto multilingua completo** | GUI, LLM output e ricerca tag indipendenti: 6 lingue (IT/EN/FR/DE/ES/PT), traduzione automatica offline |
-| 3 mar 2026 | **Ricerche salvate** | Salva e richiama configurazioni di ricerca complete con un click |
 
 Storico completo nelle [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
@@ -630,14 +630,14 @@ For a full step-by-step guide see **[installer/INSTALL_GUIDE_IT.md](installer/IN
 
 | Date | What | Notes |
 |------|------|-------|
+| 12 Apr 2026 | **Taxonomy filter with autocomplete** | The "Common name" filter in the Search Tab suggests names already in the DB while typing (editable QComboBox with contains-search, case-insensitive) |
+| 5 Apr 2026 | **GeoNames plugin** | Advanced geolocation: full geographic hierarchy (continent → country → region → city), Location filter with DB autocomplete, GPS filter with 4 states (all / GPS only / GPS modified / no GPS) |
+| 5 Apr 2026 | **Location filter with autocomplete** | The Location field in the Search Tab suggests cities/regions already in the database while typing |
 | 22 Mar 2026 | **Per-model device allocation with auto-optimization** | Each AI model (CLIP, DINOv2, BioCLIP, Aesthetic, MUSIQ) can be individually assigned to GPU or CPU. Auto-optimization detects hardware (CUDA/MPS/DirectML), calculates VRAM budget (including LLM), and balances GPU speed vs CPU parallelism. Real-time VRAM budget bar in Configuration tab |
 | 21 Mar 2026 | **LLM Plugin System** | Plugins for alternative LLM backends: **Ollama** (default) and **LM Studio**. Auto-discovery at startup, backend selectable from the Configuration tab. Backend auto-detected (`auto`) with no manual setup needed |
 | 21 Mar 2026 | **Improved model status indicators** | New 4-state semaphore scheme: green (VRAM), amber (CPU), red (error), grey (disabled). BioCLIP with automatic CPU fallback if VRAM is insufficient |
 | 21 Mar 2026 | **Faster Gallery** | Disk cache reads moved to worker threads: gallery no longer blocks the GUI even with hundreds of results |
 | 14 Mar 2026 | **Minimizable splash screen** | Startup loading screen can now be minimized while AI models load |
-| 10 Mar 2026 | **"AI Gen. Only" mode** | Regenerate tags/description/title (LLM) on existing DB photos, skipping EXIF and embeddings |
-| 7 Mar 2026 | **Full multilingual support** | GUI, LLM output and tag search independently configurable: 6 languages, automatic offline translation |
-| 3 Mar 2026 | **Saved searches** | Save and recall complete search configurations in one click |
 
 Full history in [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
