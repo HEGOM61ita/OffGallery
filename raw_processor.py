@@ -28,14 +28,13 @@ logger = logging.getLogger(__name__)
 
 
 class ExifToolStayOpen:
-    """Processo ExifTool persistente in modalità -stay_open.
+    """Processo ExifTool persistente per comandi JSON (metadati).
 
-    Mantiene un unico processo ExifTool attivo per tutta la sessione,
-    evitando il costo di avvio Perl (~100-200ms) per ogni foto.
+    Usato SOLO per output testuale (JSON). I comandi binari (-b)
+    usano subprocess separati perché {ready} non viene emesso
+    dopo output binario.
     Thread-safe tramite lock interno.
     """
-
-    _SENTINEL = b"{ready}\n"  # Marcatore fine risposta ExifTool (opzione -common_args)
 
     def __init__(self):
         self._proc = None
@@ -44,74 +43,71 @@ class ExifToolStayOpen:
     def _start(self):
         """Avvia il processo ExifTool in stay_open mode."""
         if self._proc is not None and self._proc.poll() is None:
-            return  # Già attivo
-
+            return
         kwargs = {}
         if os.name == 'nt':
             kwargs['creationflags'] = 0x08000000  # CREATE_NO_WINDOW
-
         self._proc = subprocess.Popen(
             ['exiftool', '-stay_open', 'True', '-@', '-'],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             **kwargs
         )
         logger.info("ExifTool stay_open: processo avviato")
 
-    def execute(self, *args: str) -> bytes:
-        """Esegue un comando ExifTool e ritorna l'output raw (bytes).
-
-        Args:
-            *args: argomenti ExifTool (es. '-json', '-G', '-a', '-s', '-e', 'file.orf')
-
-        Returns:
-            bytes: output stdout di ExifTool per questo comando
+    def execute_json(self, *args: str) -> list:
+        """Esegue un comando ExifTool e ritorna il risultato come lista JSON.
+        Solo per comandi che producono output testuale (no -b).
         """
         with self._lock:
-            self._start()
+            # Avvia o riavvia se necessario
+            try:
+                self._start()
+            except Exception as e:
+                logger.error(f"ExifTool stay_open: impossibile avviare: {e}")
+                return []
 
-            # Invia argomenti, uno per riga, terminati da -execute
             cmd = '\n'.join(args) + '\n-execute\n'
             try:
                 self._proc.stdin.write(cmd.encode('utf-8'))
                 self._proc.stdin.flush()
             except (BrokenPipeError, OSError):
-                # Processo morto, riavvia e riprova
+                # Processo morto, riavvia e riprova una volta
                 logger.warning("ExifTool stay_open: processo morto, riavvio")
                 self._proc = None
-                self._start()
-                self._proc.stdin.write(cmd.encode('utf-8'))
-                self._proc.stdin.flush()
+                try:
+                    self._start()
+                    self._proc.stdin.write(cmd.encode('utf-8'))
+                    self._proc.stdin.flush()
+                except Exception as e:
+                    logger.error(f"ExifTool stay_open: riavvio fallito: {e}")
+                    return []
 
-            # Leggi risposta fino al sentinella {ready}
-            output = b''
-            while True:
-                line = self._proc.stdout.readline()
-                if not line:
-                    # Processo terminato inaspettatamente
-                    logger.error("ExifTool stay_open: stdout chiuso inaspettatamente")
-                    self._proc = None
-                    return output
-                if line.strip() == b'{ready}':
-                    break
-                output += line
-
-            return output
-
-    def execute_text(self, *args: str) -> str:
-        """Come execute() ma ritorna stringa UTF-8."""
-        return self.execute(*args).decode('utf-8', errors='replace')
-
-    def execute_json(self, *args: str) -> list:
-        """Esegue e parsa il risultato come JSON (per -json)."""
-        text = self.execute_text(*args)
-        if text.strip():
+            # Leggi risposta riga per riga fino a {ready}
+            lines = []
             try:
-                return json.loads(text)
-            except json.JSONDecodeError as e:
-                logger.error(f"ExifTool JSON parse error: {e}")
-        return []
+                while True:
+                    line = self._proc.stdout.readline()
+                    if not line:
+                        logger.error("ExifTool stay_open: stdout chiuso inaspettatamente")
+                        self._proc = None
+                        break
+                    if line.strip() == b'{ready}':
+                        break
+                    lines.append(line.decode('utf-8', errors='replace'))
+            except Exception as e:
+                logger.error(f"ExifTool stay_open: errore lettura: {e}")
+                self._proc = None
+                return []
+
+            text = ''.join(lines).strip()
+            if text:
+                try:
+                    return json.loads(text)
+                except json.JSONDecodeError as e:
+                    logger.error(f"ExifTool stay_open JSON error: {e}")
+            return []
 
     def close(self):
         """Chiude il processo ExifTool."""
@@ -127,10 +123,13 @@ class ExifToolStayOpen:
             self._proc = None
 
     def __del__(self):
-        self.close()
+        try:
+            self.close()
+        except Exception:
+            pass
 
 
-# Istanza globale condivisa — un solo processo ExifTool per tutta l'app
+# Istanza globale — un solo processo ExifTool per tutta l'app
 _exiftool_instance = None
 _exiftool_instance_lock = threading.Lock()
 
@@ -648,7 +647,6 @@ class RAWProcessor:
     def _extract_exiftool_any_preview(self, file_path: Path, target_size: int) -> Optional[Image.Image]:
         """Ultimo tentativo per formati RAW insoliti: prova tag ExifTool alternativi in sequenza.
         Utile per Nikon High-Efficiency NEF, fotocamere recenti non ancora supportate da rawpy."""
-        et = get_exiftool()
         tags_to_try = [
             '-LargePreview',
             '-SubIFD:PreviewImage',
@@ -658,10 +656,14 @@ class RAWProcessor:
         ]
         for tag in tags_to_try:
             try:
-                data = et.execute('-b', tag, str(file_path))
-                if data and len(data) > 1000:
+                result = subprocess.run(
+                    ['exiftool', '-b', tag, str(file_path)],
+                    capture_output=True, timeout=15,
+                    **subprocess_creation_kwargs()
+                )
+                if result.returncode == 0 and result.stdout and len(result.stdout) > 1000:
                     try:
-                        thumbnail = Image.open(BytesIO(data)).convert('RGB')
+                        thumbnail = Image.open(BytesIO(result.stdout)).convert('RGB')
                         if max(thumbnail.size) > target_size:
                             thumbnail.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
                         logger.info(f"✅ ExifTool fallback ({tag}): {file_path.name} → {thumbnail.size}")
@@ -693,40 +695,52 @@ class RAWProcessor:
     # ===== METODI ORIGINALI (mantenuti per compatibilità) =====
     
     def _extract_thumbnail_embedded(self, file_path: Path) -> Optional[Image.Image]:
-        """Estrai thumbnail embedded con ExifTool (stay_open)"""
+        """Estrai thumbnail embedded con ExifTool"""
         try:
-            et = get_exiftool()
-            data = et.execute('-ThumbnailImage', '-b', str(file_path))
-            if data and len(data) > 1000:
-                thumbnail = Image.open(BytesIO(data))
+            result = subprocess.run([
+                'exiftool', '-ThumbnailImage', '-b', str(file_path)
+            ], capture_output=True, timeout=15, **subprocess_creation_kwargs())
+            
+            if result.returncode == 0 and result.stdout and len(result.stdout) > 1000:
+                # Converti bytes in PIL Image
+                thumbnail = Image.open(BytesIO(result.stdout))
                 logger.debug(f"ExifTool thumbnail: {file_path.name} → {thumbnail.size}")
                 return thumbnail
+                
         except Exception as e:
             logger.debug(f"ExifTool thumbnail failed for {file_path.name}: {e}")
+            
         return None
     
     def _extract_preview_image(self, file_path: Path) -> Optional[Image.Image]:
-        """Estrai preview image con ExifTool (stay_open)"""
+        """Estrai preview image con ExifTool (spesso più grande del thumbnail)"""
         try:
-            et = get_exiftool()
-            data = et.execute('-PreviewImage', '-b', str(file_path))
-            if data and len(data) > 1000:
-                thumbnail = Image.open(BytesIO(data))
+            result = subprocess.run([
+                'exiftool', '-PreviewImage', '-b', str(file_path)
+            ], capture_output=True, timeout=15, **subprocess_creation_kwargs())
+            
+            if result.returncode == 0 and result.stdout and len(result.stdout) > 1000:
+                thumbnail = Image.open(BytesIO(result.stdout))
                 logger.debug(f"ExifTool preview: {file_path.name} → {thumbnail.size}")
                 return thumbnail
+                
         except Exception as e:
             logger.debug(f"ExifTool preview failed for {file_path.name}: {e}")
+            
         return None
     
     def _extract_jpeg_from_raw(self, file_path: Path, target_size: int) -> Optional[Image.Image]:
-        """Estrai JPEG completo da RAW usando ExifTool (stay_open)."""
-        et = get_exiftool()
+        """Estrai JPEG completo da RAW usando ExifTool (legge stdout direttamente)."""
         for tag in ('-JpgFromRaw', '-OtherImage'):
             try:
-                data = et.execute('-b', tag, str(file_path))
-                if data and len(data) > 1000:
+                result = subprocess.run(
+                    ['exiftool', '-b', tag, str(file_path)],
+                    capture_output=True, timeout=30,
+                    **subprocess_creation_kwargs()
+                )
+                if result.returncode == 0 and result.stdout and len(result.stdout) > 1000:
                     try:
-                        thumbnail = Image.open(BytesIO(data)).convert('RGB')
+                        thumbnail = Image.open(BytesIO(result.stdout)).convert('RGB')
                         if max(thumbnail.size) > target_size:
                             thumbnail.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
                         logger.debug(f"ExifTool {tag}: {file_path.name} → {thumbnail.size}")
@@ -764,38 +778,47 @@ class RAWProcessor:
     # ===== RESTO DEI METODI ORIGINALI (invariati) =====
     
     def _extract_with_exiftool(self, file_path: Path) -> Dict[str, Any]:
-        """Estrazione EXIF + XMP embedded con ExifTool JSON - VERSIONE RESILIENTE
-        Usa processo stay_open per evitare overhead di avvio Perl per ogni foto."""
+        """Estrazione EXIF + XMP embedded con ExifTool JSON.
+        Usa processo stay_open per eliminare l'overhead di avvio Perl per ogni foto.
+        Fallback a subprocess separato in caso di errore."""
         try:
             et = get_exiftool()
             data_list = et.execute_json('-json', '-G', '-a', '-s', '-e', str(file_path))
             if data_list:
                 return data_list[0]
-
             logger.warning(f"ExifTool extraction failed for {file_path.name}")
             return {}
-
         except Exception as e:
-            logger.error(f"ExifTool error for {file_path.name}: {e}")
+            # Fallback a subprocess classico
+            logger.warning(f"ExifTool stay_open fallback per {file_path.name}: {e}")
+            try:
+                result = subprocess.run([
+                    'exiftool', '-json', '-G', '-a', '-s', '-e', str(file_path)
+                ], capture_output=True, text=True, timeout=30, **subprocess_creation_kwargs())
+                if result.returncode == 0 and result.stdout:
+                    data_list = json.loads(result.stdout)
+                    if data_list:
+                        return data_list[0]
+            except Exception as e2:
+                logger.error(f"ExifTool error for {file_path.name}: {e2}")
             return {}
-    
-    def _extract_xmp_sidecar(self, raw_path: Path) -> Dict[str, Any]:
-        """Estrazione XMP sidecar per file RAW - VERSIONE RESILIENTE"""
-        xmp_path = raw_path.with_suffix('.xmp')
 
+    def _extract_xmp_sidecar(self, raw_path: Path) -> Dict[str, Any]:
+        """Estrazione XMP sidecar per file RAW.
+        Usa processo stay_open per eliminare l'overhead di avvio Perl."""
+        xmp_path = raw_path.with_suffix('.xmp')
         if not xmp_path.exists():
             xmp_path = raw_path.with_suffix('.XMP')
-
-        if xmp_path.exists():
-            try:
-                et = get_exiftool()
-                data_list = et.execute_json('-json', '-G', '-a', '-s', '-e', str(xmp_path))
-                if data_list:
-                    logger.debug(f"XMP sidecar estratto: {xmp_path.name}")
-                    return data_list[0]
-            except Exception as e:
-                logger.debug(f"Errore estrazione XMP sidecar {xmp_path.name}: {e}")
-
+        if not xmp_path.exists():
+            return {}
+        try:
+            et = get_exiftool()
+            data_list = et.execute_json('-json', '-G', '-a', '-s', '-e', str(xmp_path))
+            if data_list:
+                logger.debug(f"XMP sidecar estratto: {xmp_path.name}")
+                return data_list[0]
+        except Exception as e:
+            logger.debug(f"Errore estrazione XMP sidecar {xmp_path.name}: {e}")
         return {}
     
     def _merge_xmp_data(self, exif_data: Dict, xmp_sidecar_data: Dict) -> Dict[str, Any]:
