@@ -513,7 +513,7 @@ class ProcessingWorker(QThread):
         Ritorna dict con dati prep oppure None in caso di errore fatale."""
         try:
             fname = image_path.name
-            self.log_message.emit(f"📂 Prep: {fname}", "info")
+            self.log_message.emit(f"📂 Prep: {fname}", "debug")
             is_raw = raw_processor.is_raw_file(image_path)
 
             # --- Estrazione EXIF metadata ---
@@ -566,14 +566,14 @@ class ProcessingWorker(QThread):
                         if geo_hierarchy:
                             image_data['geo_hierarchy'] = geo_hierarchy
                             location_hint = geo_plugin.get_location_hint(geo_hierarchy)
-                            self.log_message.emit(f"🌍 {fname}: {geo_hierarchy}", "info")
+                            self.log_message.emit(f"🌍 {fname}: {geo_hierarchy}", "debug")
                     else:
                         from geo_enricher import get_geo_hierarchy, get_location_hint
                         geo_hierarchy = get_geo_hierarchy(float(gps_lat), float(gps_lon))
                         if geo_hierarchy:
                             image_data['geo_hierarchy'] = geo_hierarchy
                             location_hint = get_location_hint(geo_hierarchy)
-                            self.log_message.emit(f"🌍 {fname}: {geo_hierarchy}", "info")
+                            self.log_message.emit(f"🌍 {fname}: {geo_hierarchy}", "debug")
                 except Exception as geo_err:
                     self.log_message.emit(f"⚠️ Geo enricher {fname}: {geo_err}", "warning")
 
@@ -594,7 +594,7 @@ class ProcessingWorker(QThread):
                             image_data['gps_altitude']  = _alt
                             image_data['geo_hierarchy'] = geo_hierarchy
                             location_hint = geo_plugin.get_location_hint(geo_hierarchy)
-                            self.log_message.emit(f"📍 {fname}: posizione assegnata → {geo_hierarchy}", "info")
+                            self.log_message.emit(f"📍 {fname}: posizione assegnata → {geo_hierarchy}", "debug")
                 except Exception as geo_err:
                     self.log_message.emit(f"⚠️ Geo no-GPS {fname}: {geo_err}", "warning")
 
@@ -607,7 +607,7 @@ class ProcessingWorker(QThread):
                     # Leggi stato campi AI PRIMA di aggiornare EXIF
                     ai_fields = db_manager.get_ai_fields_status(fname)
                     db_manager.update_image(fname, image_data)
-                    self.log_message.emit(f"🔄 DB aggiornato (reprocess): {fname}", "info")
+                    self.log_message.emit(f"🔄 DB aggiornato (reprocess): {fname}", "debug")
                 elif image_exists:
                     # Già nel DB e mode=new_only: skip silenzioso → log esplicito
                     self.log_message.emit(f"⏭️ Già nel DB, saltato: {fname}", "debug")
@@ -615,7 +615,7 @@ class ProcessingWorker(QThread):
                     image_id = db_manager.insert_image(image_data)
                     is_new = True
                     if image_id:
-                        self.log_message.emit(f"✅ DB inserito: {fname} (ID: {image_id})", "info")
+                        self.log_message.emit(f"✅ DB inserito: {fname} (ID: {image_id})", "debug")
                     else:
                         self.log_message.emit(f"❌ DB inserimento fallito: {fname}", "error")
                         return None
@@ -982,7 +982,7 @@ class ProcessingWorker(QThread):
                         with self._stats_lock:
                             stats['bioclip'] += 1
                         self.log_message.emit(
-                            f"🌿 BioCLIP {fname}: {len([l for l in bioclip_taxonomy if l])} livelli", "info")
+                            f"🌿 BioCLIP {fname}: {len([l for l in bioclip_taxonomy if l])} livelli", "debug")
 
                     # Aggiorna contatore GeoSpecies skipped (foto senza GPS)
                     with self._stats_lock:
@@ -1179,7 +1179,7 @@ class ProcessingWorker(QThread):
                             pass
 
                     update_data['tags'] = json.dumps(final_tags, ensure_ascii=False)
-                    self.log_message.emit(f"🏷️ LLM tags {fname}: {len(final_tags)} tag", "info")
+                    self.log_message.emit(f"🏷️ LLM tags {fname}: {len(final_tags)} tag", "debug")
                     with self._stats_lock:
                         stats['with_tags'] += 1
                         stats['llm_tags'] += 1
@@ -1187,14 +1187,14 @@ class ProcessingWorker(QThread):
                 # Descrizione
                 if llm_results['description']:
                     update_data['description'] = llm_results['description']
-                    self.log_message.emit(f"📝 LLM desc {fname}: {len(llm_results['description'])} car", "info")
+                    self.log_message.emit(f"📝 LLM desc {fname}: {len(llm_results['description'])} car", "debug")
                     with self._stats_lock:
                         stats['llm_desc'] += 1
 
                 # Titolo
                 if llm_results['title']:
                     update_data['title'] = llm_results['title']
-                    self.log_message.emit(f"📌 LLM title {fname}: {llm_results['title']}", "info")
+                    self.log_message.emit(f"📌 LLM title {fname}: {llm_results['title']}", "debug")
                     with self._stats_lock:
                         stats['llm_title'] += 1
 
@@ -1219,6 +1219,10 @@ class ProcessingWorker(QThread):
                          stats, total_to_process, llm_queue, llm_active, bioclip_active,
                          geo_plugin=None, geo_plugin_cfg=None):
         """Thread ExifTool: estrae EXIF + salva work thumbnail su disco per ogni immagine."""
+        # Checkpoint WAL ogni N insert per contenere la dimensione del file WAL.
+        # Con molti thread che scrivono in parallelo, il WAL può crescere e rallentare
+        # le letture successive; il checkpoint forza il merge nel file principale.
+        _WAL_CHECKPOINT_EVERY = 100
         for i, image_path in enumerate(images_to_process, 1):
             if not self._wait_if_paused():
                 break
@@ -1242,6 +1246,15 @@ class ProcessingWorker(QThread):
                 with self._stats_lock:
                     stats['errors'] += 1
             self.model_progress.emit('exiftool', i, total_to_process)
+
+            # Checkpoint WAL periodico: acquisisce db_lock per evitare contesa
+            # con i thread modello che stanno scrivendo i loro campi AI
+            if i % _WAL_CHECKPOINT_EVERY == 0:
+                with self._db_lock:
+                    try:
+                        db_manager.conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
+                    except Exception:
+                        pass
 
         # Fine: se LLM senza BioCLIP, manda sentinella
         if llm_active and not bioclip_active:
@@ -1273,7 +1286,7 @@ class ProcessingWorker(QThread):
         Estrae a risoluzione massima per cache condivisa fra tutti i modelli."""
         try:
             if is_raw:
-                self.log_message.emit(f"🔄 Preparazione RAW: {image_path.name}", "info")
+                self.log_message.emit(f"🔄 Preparazione RAW: {image_path.name}", "debug")
                 pil_image = raw_processor.extract_thumbnail(image_path, target_size=target_size)
                 if pil_image:
                     return pil_image
@@ -1329,7 +1342,10 @@ class ProcessingWorker(QThread):
         """Carica work thumbnail da disco come PIL Image."""
         try:
             from PIL import Image
-            return Image.open(work_thumb_path).convert('RGB')
+            # Context manager esplicito: chiude il file handle prima di convert()
+            # evitando accumulo di handle aperti su filesystem Windows/NTFS via WSL2
+            with Image.open(work_thumb_path) as img:
+                return img.convert('RGB')
         except Exception as e:
             logger.warning(f"Errore caricamento work thumb {work_thumb_path}: {e}")
             return None
@@ -2999,7 +3015,13 @@ class ProcessingTab(QWidget):
         pass
     
     def add_log_message(self, message, level):
-        """Aggiunge messaggio al log terminale"""
+        """Aggiunge messaggio al log terminale.
+        I messaggi debug vengono soppressi durante il processing attivo per ridurre
+        il carico sulla coda eventi Qt (migliaia di emit per-foto da thread concorrenti)."""
+        # Filtra i messaggi debug durante il processing: le progress bar già mostrano
+        # l'avanzamento per-modello e per-foto — il dettaglio verboso non è necessario
+        if level == 'debug' and self.worker is not None and self.worker.isRunning():
+            return
         timestamp = datetime.now().strftime("%H:%M:%S")
         
         # Colori terminale: diverse tonalità di verde per i diversi livelli
