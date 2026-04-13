@@ -736,7 +736,7 @@ class ProcessingWorker(QThread):
             _t_total = time.monotonic() - _t0
 
             # Diagnostica temporale: logga ogni foto con tempo > 2s o ogni 50 foto
-            if _t_total > 2.0 or (hasattr(self, '_prep_diag_count') and self._prep_diag_count % 50 == 0):
+            if _t_total > 2.0 or (hasattr(self, '_prep_diag_count') and self._prep_diag_count % 20 == 0):
                 self.log_message.emit(
                     f"⏱ DIAG {fname}: tot={_t_total:.1f}s "
                     f"(exif={_t_exif:.1f}s hash={_t_hash:.1f}s geo={_t_geo:.1f}s "
@@ -775,10 +775,12 @@ class ProcessingWorker(QThread):
                 break
             fname = image_path.name
             # Attendi che ExifTool abbia preparato questa foto
+            _t_wait = time.monotonic()
             while fname not in prep_cache:
                 if not self.is_running:
                     return
                 time.sleep(0.05)
+            _t_wait_dur = time.monotonic() - _t_wait
             prep = prep_cache[fname]
             if prep is None:
                 self._emit_progress_throttled('clip', i, total)
@@ -792,7 +794,9 @@ class ProcessingWorker(QThread):
             if work_thumb_path is None:
                 self._emit_progress_throttled('clip', i, total)
                 continue
+            _t_load = time.monotonic()
             thumb = self._load_work_thumb(work_thumb_path)
+            _t_load_dur = time.monotonic() - _t_load
             if thumb is None:
                 self._emit_progress_throttled('clip', i, total)
                 continue
@@ -821,10 +825,11 @@ class ProcessingWorker(QThread):
                         with self._stats_lock:
                             stats['with_embedding'] += 1
                             stats['clip'] += 1
-                        # Diagnostica CLIP: logga se tempo totale > 2s o ogni 100 foto
-                        if (_t_lock_wait + _t_inf_dur + _t_dbw_dur) > 2.0 or i % 100 == 0:
+                        # Diagnostica CLIP: logga se tempo totale > 1s o ogni 20 foto
+                        _t_clip_total = _t_wait_dur + _t_load_dur + _t_lock_wait + _t_inf_dur + _t_dbw_dur
+                        if _t_clip_total > 1.0 or i % 20 == 0:
                             self.log_message.emit(
-                                f"⏱ CLIP {fname}: lock={_t_lock_wait:.1f}s inf={_t_inf_dur:.1f}s db={_t_dbw_dur:.1f}s", "info")
+                                f"⏱ CLIP {fname}: wait={_t_wait_dur:.1f}s load={_t_load_dur:.1f}s lock={_t_lock_wait:.1f}s inf={_t_inf_dur:.1f}s db={_t_dbw_dur:.1f}s", "info")
             except Exception as e:
                 self.log_message.emit(f"❌ CLIP {fname}: {e}", "error")
             self._emit_progress_throttled('clip', i, total)
@@ -840,10 +845,12 @@ class ProcessingWorker(QThread):
                 break
             fname = image_path.name
             # Attendi che ExifTool abbia preparato questa foto
+            _t_wait = time.monotonic()
             while fname not in prep_cache:
                 if not self.is_running:
                     return
                 time.sleep(0.05)
+            _t_wait_dur = time.monotonic() - _t_wait
             prep = prep_cache[fname]
             if prep is None:
                 self._emit_progress_throttled('dinov2', i, total)
@@ -856,7 +863,9 @@ class ProcessingWorker(QThread):
             if work_thumb_path is None:
                 self._emit_progress_throttled('dinov2', i, total)
                 continue
+            _t_load = time.monotonic()
             thumb = self._load_work_thumb(work_thumb_path)
+            _t_load_dur = time.monotonic() - _t_load
             if thumb is None:
                 self._emit_progress_throttled('dinov2', i, total)
                 continue
@@ -884,9 +893,10 @@ class ProcessingWorker(QThread):
                         with self._stats_lock:
                             stats['with_embedding'] += 1
                             stats['dinov2'] += 1
-                        if (_t_lock_wait + _t_inf_dur + _t_dbw_dur) > 2.0 or i % 100 == 0:
+                        _t_dino_total = _t_wait_dur + _t_load_dur + _t_lock_wait + _t_inf_dur + _t_dbw_dur
+                        if _t_dino_total > 1.0 or i % 20 == 0:
                             self.log_message.emit(
-                                f"⏱ DINO {fname}: lock={_t_lock_wait:.1f}s inf={_t_inf_dur:.1f}s db={_t_dbw_dur:.1f}s", "info")
+                                f"⏱ DINO {fname}: wait={_t_wait_dur:.1f}s load={_t_load_dur:.1f}s lock={_t_lock_wait:.1f}s inf={_t_inf_dur:.1f}s db={_t_dbw_dur:.1f}s", "info")
             except Exception as e:
                 self.log_message.emit(f"❌ DINOv2 {fname}: {e}", "error")
             self._emit_progress_throttled('dinov2', i, total)
