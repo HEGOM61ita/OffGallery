@@ -1001,7 +1001,14 @@ class MainWindow(QMainWindow):
         # Cleanup log tab
         if hasattr(self, 'log_tab'):
             self.log_tab.cleanup()
-            
+
+        # Chiudi processo ExifTool stay_open
+        try:
+            from raw_processor import get_exiftool
+            get_exiftool().close()
+        except Exception:
+            pass
+
         self.settings.setValue('geometry', self.saveGeometry())
         self.settings.setValue('current_tab', self.tabs.currentIndex())
         event.accept()
