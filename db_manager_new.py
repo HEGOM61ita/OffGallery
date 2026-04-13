@@ -33,6 +33,7 @@ class DatabaseManager:
             # a self.cursor ottiene il proprio cursore, evitando ProgrammingError.
             self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA synchronous=NORMAL")
             self.create_tables()
             
         except Exception as e:

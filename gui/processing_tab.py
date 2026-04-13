@@ -76,7 +76,7 @@ class ProcessingWorker(QThread):
         # Evita di inondare la coda eventi Qt con migliaia di segnali per-foto
         self._progress_last_emit = {}
         self._progress_throttle_lock = threading.Lock()
-        self._PROGRESS_INTERVAL = 0.4  # secondi minimi tra un emit e il successivo per modello
+        self._PROGRESS_INTERVAL = 0.2  # secondi minimi tra un emit e il successivo per modello
 
     def _wait_if_paused(self):
         """Attende se in pausa. Ritorna True se si può continuare, False se stoppato."""
