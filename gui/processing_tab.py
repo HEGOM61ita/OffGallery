@@ -483,6 +483,12 @@ class ProcessingWorker(QThread):
             # Libera VRAM al termine di tutti i modelli
             self._cleanup_gpu_memory()
 
+            # Checkpoint WAL finale — tutti i thread sono terminati, nessuna contesa
+            try:
+                db_manager.conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            except Exception:
+                pass
+
             # === STATISTICHE FINALI ===
             total_time = time.time() - start_time
             stats['processing_time'] = total_time
@@ -1241,10 +1247,6 @@ class ProcessingWorker(QThread):
                          stats, total_to_process, llm_queue, llm_active, bioclip_active,
                          geo_plugin=None, geo_plugin_cfg=None):
         """Thread ExifTool: estrae EXIF + salva work thumbnail su disco per ogni immagine."""
-        # Checkpoint WAL ogni N insert per contenere la dimensione del file WAL.
-        # Con molti thread che scrivono in parallelo, il WAL può crescere e rallentare
-        # le letture successive; il checkpoint forza il merge nel file principale.
-        _WAL_CHECKPOINT_EVERY = 100
         for i, image_path in enumerate(images_to_process, 1):
             if not self._wait_if_paused():
                 break
@@ -1268,15 +1270,6 @@ class ProcessingWorker(QThread):
                 with self._stats_lock:
                     stats['errors'] += 1
             self._emit_progress_throttled('exiftool', i, total_to_process)
-
-            # Checkpoint WAL periodico: acquisisce db_lock per evitare contesa
-            # con i thread modello che stanno scrivendo i loro campi AI
-            if i % _WAL_CHECKPOINT_EVERY == 0:
-                with self._db_lock:
-                    try:
-                        db_manager.conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
-                    except Exception:
-                        pass
 
         # Fine: se LLM senza BioCLIP, manda sentinella
         if llm_active and not bioclip_active:

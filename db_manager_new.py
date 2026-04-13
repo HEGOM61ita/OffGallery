@@ -34,6 +34,7 @@ class DatabaseManager:
             self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self.conn.execute("PRAGMA journal_mode=WAL")
             self.conn.execute("PRAGMA synchronous=NORMAL")
+            self.conn.execute("PRAGMA wal_autocheckpoint=0")  # disabilita checkpoint automatico
             self.create_tables()
             
         except Exception as e:
