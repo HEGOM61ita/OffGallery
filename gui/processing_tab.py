@@ -70,6 +70,7 @@ class ProcessingWorker(QThread):
         # Sincronizzazione multi-thread
         self._db_lock = threading.Lock()
         self._stats_lock = threading.Lock()
+        self._gpu_lock = threading.Lock()  # serializza inferenza GPU tra thread
         self._model_threads = []  # riferimenti ai thread modello attivi
 
     def _wait_if_paused(self):
@@ -77,6 +78,14 @@ class ProcessingWorker(QThread):
         while self.is_paused and self.is_running:
             time.sleep(0.1)
         return self.is_running
+
+    def _is_model_on_gpu(self, emb_gen, model_key):
+        """Verifica se un modello è allocato su GPU (qualsiasi backend: cuda, mps, directml)."""
+        try:
+            device = emb_gen._device_for(model_key)
+            return str(device) != 'cpu'
+        except Exception:
+            return False
 
     # ─────────────────────────────────────────────────────────────
     # RUN — Orchestratore principale
@@ -707,6 +716,7 @@ class ProcessingWorker(QThread):
         """Thread CLIP: genera embedding 768-dim per tutte le immagini."""
         import numpy as np
         overwrite = flags.get('overwrite', False)
+        use_gpu = self._is_model_on_gpu(emb_gen, 'clip')
         for i, image_path in enumerate(images, 1):
             if not self._wait_if_paused():
                 break
@@ -734,7 +744,14 @@ class ProcessingWorker(QThread):
                 self.model_progress.emit('clip', i, total)
                 continue
             try:
-                clip_emb = emb_gen._generate_clip_embedding(thumb, 'pil')
+                # Serializza inferenza GPU per evitare contesa tra thread
+                if use_gpu:
+                    self._gpu_lock.acquire()
+                try:
+                    clip_emb = emb_gen._generate_clip_embedding(thumb, 'pil')
+                finally:
+                    if use_gpu:
+                        self._gpu_lock.release()
                 if clip_emb is not None and isinstance(clip_emb, np.ndarray):
                     if np.any(np.isnan(clip_emb)):
                         self.log_message.emit(f"🚨 CLIP NaN: {fname}", "error")
@@ -754,6 +771,7 @@ class ProcessingWorker(QThread):
         """Thread DINOv2: genera embedding 768-dim per tutte le immagini."""
         import numpy as np
         overwrite = flags.get('overwrite', False)
+        use_gpu = self._is_model_on_gpu(emb_gen, 'dinov2')
         for i, image_path in enumerate(images, 1):
             if not self._wait_if_paused():
                 break
@@ -780,7 +798,13 @@ class ProcessingWorker(QThread):
                 self.model_progress.emit('dinov2', i, total)
                 continue
             try:
-                dinov2_emb = emb_gen._generate_dinov2_embedding(thumb, 'pil')
+                if use_gpu:
+                    self._gpu_lock.acquire()
+                try:
+                    dinov2_emb = emb_gen._generate_dinov2_embedding(thumb, 'pil')
+                finally:
+                    if use_gpu:
+                        self._gpu_lock.release()
                 if dinov2_emb is not None and isinstance(dinov2_emb, np.ndarray):
                     if np.any(np.isnan(dinov2_emb)):
                         self.log_message.emit(f"🚨 DINOv2 NaN: {fname}", "error")
@@ -799,6 +823,7 @@ class ProcessingWorker(QThread):
                           processing_mode='new_only'):
         """Thread Aesthetic: calcola punteggio estetico 0-10."""
         overwrite = flags.get('overwrite', False)
+        use_gpu = self._is_model_on_gpu(emb_gen, 'aesthetic')
         for i, image_path in enumerate(images, 1):
             if not self._wait_if_paused():
                 break
@@ -825,7 +850,13 @@ class ProcessingWorker(QThread):
                 self.model_progress.emit('aesthetic', i, total)
                 continue
             try:
-                score = emb_gen._generate_aesthetic_score(thumb, 'pil')
+                if use_gpu:
+                    self._gpu_lock.acquire()
+                try:
+                    score = emb_gen._generate_aesthetic_score(thumb, 'pil')
+                finally:
+                    if use_gpu:
+                        self._gpu_lock.release()
                 if score is not None:
                     with self._db_lock:
                         db_manager.update_image(fname, {'aesthetic_score': score})
@@ -839,6 +870,7 @@ class ProcessingWorker(QThread):
                       processing_mode='new_only'):
         """Thread MUSIQ/Technical: calcola punteggio qualità tecnica ~0-100."""
         overwrite = flags.get('overwrite', False)
+        use_gpu = self._is_model_on_gpu(emb_gen, 'technical')
         for i, image_path in enumerate(images, 1):
             if not self._wait_if_paused():
                 break
@@ -865,7 +897,13 @@ class ProcessingWorker(QThread):
                 self.model_progress.emit('technical', i, total)
                 continue
             try:
-                score = emb_gen._generate_musiq_score(thumb)
+                if use_gpu:
+                    self._gpu_lock.acquire()
+                try:
+                    score = emb_gen._generate_musiq_score(thumb)
+                finally:
+                    if use_gpu:
+                        self._gpu_lock.release()
                 if score is not None:
                     with self._db_lock:
                         db_manager.update_image(fname, {'technical_score': score})
@@ -884,6 +922,7 @@ class ProcessingWorker(QThread):
         """Thread BioCLIP: tassonomia + alimenta coda LLM."""
         from embedding_generator import EmbeddingGenerator
         overwrite = flags.get('overwrite', False)
+        use_gpu = self._is_model_on_gpu(emb_gen, 'bioclip')
 
         for i, image_path in enumerate(images, 1):
             if not self._wait_if_paused():
@@ -927,7 +966,13 @@ class ProcessingWorker(QThread):
                 try:
                     # Passa geo_hierarchy a generate_bioclip_tags per GeoSpecies (solo cache locale)
                     _geo_hierarchy = prep.get('geo_hierarchy')
-                    bioclip_tags, bioclip_taxonomy = emb_gen.generate_bioclip_tags(thumb, geo_hierarchy=_geo_hierarchy)
+                    if use_gpu:
+                        self._gpu_lock.acquire()
+                    try:
+                        bioclip_tags, bioclip_taxonomy = emb_gen.generate_bioclip_tags(thumb, geo_hierarchy=_geo_hierarchy)
+                    finally:
+                        if use_gpu:
+                            self._gpu_lock.release()
 
                     if bioclip_taxonomy and isinstance(bioclip_taxonomy, list):
                         with self._db_lock:

@@ -32,6 +32,7 @@ class DatabaseManager:
             # Il cursore è thread-local (property 'cursor'): ogni thread che accede
             # a self.cursor ottiene il proprio cursore, evitando ProgrammingError.
             self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            self.conn.execute("PRAGMA journal_mode=WAL")
             self.create_tables()
             
         except Exception as e:
