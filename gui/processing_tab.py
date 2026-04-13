@@ -2993,7 +2993,7 @@ class ProcessingTab(QWidget):
                 pass
     
     def _update_model_progress(self, model_key, current, total):
-        """Aggiorna progress bar del singolo modello"""
+        """Aggiorna progress bar del singolo modello e il contatore live in scan_label"""
         _bar_map = {
             'exiftool': self.pt_exif_bar,
             'clip': self.pt_clip_bar,
@@ -3008,10 +3008,16 @@ class ProcessingTab(QWidget):
             bar.setRange(0, total)
             bar.setValue(current)
 
+        # Aggiorna contatore live in scan_label usando il progresso ExifTool
+        # (è il thread produttore: riflette quante foto sono state indicizzate finora)
+        if model_key == 'exiftool' and total > 0:
+            pct = int(current * 100 / total)
+            self.scan_label.setText(
+                f"⏳ Elaborazione: {current:,} / {total:,}  ({pct}%)"
+            )
+
     def update_progress(self, current, total):
-        """Aggiorna progresso generale (le barre per-modello sono già visibili)"""
-        # Il conteggio nel titolo terminale è stato rimosso:
-        # le progress bar per-modello mostrano già lo stato di ogni componente
+        """Aggiorna progresso generale (legacy — non utilizzato nel flusso multi-thread)"""
         pass
     
     def add_log_message(self, message, level):
