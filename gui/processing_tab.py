@@ -72,12 +72,34 @@ class ProcessingWorker(QThread):
         self._stats_lock = threading.Lock()
         self._gpu_lock = threading.Lock()  # serializza inferenza GPU tra thread
         self._model_threads = []  # riferimenti ai thread modello attivi
+        # Throttle segnali progresso: dizionario model_key → timestamp ultimo emit
+        # Evita di inondare la coda eventi Qt con migliaia di segnali per-foto
+        self._progress_last_emit = {}
+        self._progress_throttle_lock = threading.Lock()
+        self._PROGRESS_INTERVAL = 0.4  # secondi minimi tra un emit e il successivo per modello
 
     def _wait_if_paused(self):
         """Attende se in pausa. Ritorna True se si può continuare, False se stoppato."""
         while self.is_paused and self.is_running:
             time.sleep(0.1)
         return self.is_running
+
+    def _emit_progress_throttled(self, model_key, current, total):
+        """Emette model_progress con throttle temporale per ridurre il carico sulla GUI.
+
+        Emette sempre al primo e all'ultimo elemento; negli altri casi solo se
+        sono trascorsi almeno _PROGRESS_INTERVAL secondi dall'emit precedente.
+        Questo riduce i segnali Qt da decine di migliaia a poche decine per modello.
+        """
+        is_last = (current >= total)
+        now = time.monotonic()
+        with self._progress_throttle_lock:
+            last = self._progress_last_emit.get(model_key, 0.0)
+            should_emit = is_last or (now - last >= self._PROGRESS_INTERVAL)
+            if should_emit:
+                self._progress_last_emit[model_key] = now
+        if should_emit:
+            self.model_progress.emit(model_key, current, total)
 
     def _is_model_on_gpu(self, emb_gen, model_key):
         """Verifica se un modello è allocato su GPU (qualsiasi backend: cuda, mps, directml)."""
@@ -728,20 +750,20 @@ class ProcessingWorker(QThread):
                 time.sleep(0.05)
             prep = prep_cache[fname]
             if prep is None:
-                self.model_progress.emit('clip', i, total)
+                self._emit_progress_throttled('clip', i, total)
                 continue
             # Skip se overwrite OFF e campo già popolato nel DB
             if not overwrite and not prep.get('is_new', True):
                 if prep.get('ai_fields', {}).get('clip_embedding', False):
-                    self.model_progress.emit('clip', i, total)
+                    self._emit_progress_throttled('clip', i, total)
                     continue
             work_thumb_path = prep.get('work_thumb_path')
             if work_thumb_path is None:
-                self.model_progress.emit('clip', i, total)
+                self._emit_progress_throttled('clip', i, total)
                 continue
             thumb = self._load_work_thumb(work_thumb_path)
             if thumb is None:
-                self.model_progress.emit('clip', i, total)
+                self._emit_progress_throttled('clip', i, total)
                 continue
             try:
                 # Serializza inferenza GPU per evitare contesa tra thread
@@ -764,7 +786,7 @@ class ProcessingWorker(QThread):
                             stats['clip'] += 1
             except Exception as e:
                 self.log_message.emit(f"❌ CLIP {fname}: {e}", "error")
-            self.model_progress.emit('clip', i, total)
+            self._emit_progress_throttled('clip', i, total)
 
     def _thread_dinov2(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
                        processing_mode='new_only'):
@@ -783,19 +805,19 @@ class ProcessingWorker(QThread):
                 time.sleep(0.05)
             prep = prep_cache[fname]
             if prep is None:
-                self.model_progress.emit('dinov2', i, total)
+                self._emit_progress_throttled('dinov2', i, total)
                 continue
             if not overwrite and not prep.get('is_new', True):
                 if prep.get('ai_fields', {}).get('dinov2_embedding', False):
-                    self.model_progress.emit('dinov2', i, total)
+                    self._emit_progress_throttled('dinov2', i, total)
                     continue
             work_thumb_path = prep.get('work_thumb_path')
             if work_thumb_path is None:
-                self.model_progress.emit('dinov2', i, total)
+                self._emit_progress_throttled('dinov2', i, total)
                 continue
             thumb = self._load_work_thumb(work_thumb_path)
             if thumb is None:
-                self.model_progress.emit('dinov2', i, total)
+                self._emit_progress_throttled('dinov2', i, total)
                 continue
             try:
                 if use_gpu:
@@ -817,7 +839,7 @@ class ProcessingWorker(QThread):
                             stats['dinov2'] += 1
             except Exception as e:
                 self.log_message.emit(f"❌ DINOv2 {fname}: {e}", "error")
-            self.model_progress.emit('dinov2', i, total)
+            self._emit_progress_throttled('dinov2', i, total)
 
     def _thread_aesthetic(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
                           processing_mode='new_only'):
@@ -835,19 +857,19 @@ class ProcessingWorker(QThread):
                 time.sleep(0.05)
             prep = prep_cache[fname]
             if prep is None:
-                self.model_progress.emit('aesthetic', i, total)
+                self._emit_progress_throttled('aesthetic', i, total)
                 continue
             if not overwrite and not prep.get('is_new', True):
                 if prep.get('ai_fields', {}).get('aesthetic_score', False):
-                    self.model_progress.emit('aesthetic', i, total)
+                    self._emit_progress_throttled('aesthetic', i, total)
                     continue
             work_thumb_path = prep.get('work_thumb_path')
             if work_thumb_path is None:
-                self.model_progress.emit('aesthetic', i, total)
+                self._emit_progress_throttled('aesthetic', i, total)
                 continue
             thumb = self._load_work_thumb(work_thumb_path)
             if thumb is None:
-                self.model_progress.emit('aesthetic', i, total)
+                self._emit_progress_throttled('aesthetic', i, total)
                 continue
             try:
                 if use_gpu:
@@ -864,7 +886,7 @@ class ProcessingWorker(QThread):
                         stats['aesthetic'] += 1
             except Exception as e:
                 self.log_message.emit(f"❌ Aesthetic {fname}: {e}", "error")
-            self.model_progress.emit('aesthetic', i, total)
+            self._emit_progress_throttled('aesthetic', i, total)
 
     def _thread_musiq(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
                       processing_mode='new_only'):
@@ -882,19 +904,19 @@ class ProcessingWorker(QThread):
                 time.sleep(0.05)
             prep = prep_cache[fname]
             if prep is None:
-                self.model_progress.emit('technical', i, total)
+                self._emit_progress_throttled('technical', i, total)
                 continue
             if not overwrite and not prep.get('is_new', True):
                 if prep.get('ai_fields', {}).get('technical_score', False):
-                    self.model_progress.emit('technical', i, total)
+                    self._emit_progress_throttled('technical', i, total)
                     continue
             work_thumb_path = prep.get('work_thumb_path')
             if work_thumb_path is None:
-                self.model_progress.emit('technical', i, total)
+                self._emit_progress_throttled('technical', i, total)
                 continue
             thumb = self._load_work_thumb(work_thumb_path)
             if thumb is None:
-                self.model_progress.emit('technical', i, total)
+                self._emit_progress_throttled('technical', i, total)
                 continue
             try:
                 if use_gpu:
@@ -911,7 +933,7 @@ class ProcessingWorker(QThread):
                         stats['technical'] += 1
             except Exception as e:
                 self.log_message.emit(f"❌ Technical {fname}: {e}", "error")
-            self.model_progress.emit('technical', i, total)
+            self._emit_progress_throttled('technical', i, total)
 
     # ─────────────────────────────────────────────────────────────
     # THREAD BIOCLIP (produce per LLM)
@@ -942,7 +964,7 @@ class ProcessingWorker(QThread):
             if prep is None:
                 if llm_active:
                     llm_queue.put(image_path)
-                self.model_progress.emit('bioclip', i, total)
+                self._emit_progress_throttled('bioclip', i, total)
                 continue
             is_new = prep.get('is_new', True)
 
@@ -955,13 +977,13 @@ class ProcessingWorker(QThread):
                     # Nessuna immagine disponibile: accoda per LLM e passa al prossimo
                     if llm_active:
                         llm_queue.put(image_path)
-                    self.model_progress.emit('bioclip', i, total)
+                    self._emit_progress_throttled('bioclip', i, total)
                     continue
                 thumb = self._load_work_thumb(work_thumb_path)
                 if thumb is None:
                     if llm_active:
                         llm_queue.put(image_path)
-                    self.model_progress.emit('bioclip', i, total)
+                    self._emit_progress_throttled('bioclip', i, total)
                     continue
                 try:
                     # Passa geo_hierarchy a generate_bioclip_tags per GeoSpecies (solo cache locale)
@@ -1001,7 +1023,7 @@ class ProcessingWorker(QThread):
             if llm_active:
                 llm_queue.put(image_path)
 
-            self.model_progress.emit('bioclip', i, total)
+            self._emit_progress_throttled('bioclip', i, total)
 
         # Sentinella fine coda per LLM
         if llm_active:
@@ -1045,14 +1067,14 @@ class ProcessingWorker(QThread):
             work_thumb_path = prep.get('work_thumb_path') if prep else None
             if not prep or work_thumb_path is None:
                 processed += 1
-                self.model_progress.emit('llm', processed, total)
+                self._emit_progress_throttled('llm', processed, total)
                 continue
 
             thumb = self._load_work_thumb(work_thumb_path)
             t_thumb_load = time.time()
             if thumb is None:
                 processed += 1
-                self.model_progress.emit('llm', processed, total)
+                self._emit_progress_throttled('llm', processed, total)
                 continue
 
             # Contesto BioCLIP (potrebbe non esserci se BioCLIP disabilitato)
@@ -1097,7 +1119,7 @@ class ProcessingWorker(QThread):
 
                 if not (should_gen_tags or should_gen_desc or should_gen_title):
                     processed += 1
-                    self.model_progress.emit('llm', processed, total)
+                    self._emit_progress_throttled('llm', processed, total)
                     continue
 
                 self.log_message.emit(f"🤖 LLM: {fname}", "info")
@@ -1208,7 +1230,7 @@ class ProcessingWorker(QThread):
                 self.log_message.emit(f"Traceback: {traceback.format_exc()}", "error")
 
             processed += 1
-            self.model_progress.emit('llm', processed, total)
+            self._emit_progress_throttled('llm', processed, total)
 
     # ─────────────────────────────────────────────────────────────
     # THREAD EXIFTOOL (produttore — estrae EXIF + salva work thumb)
@@ -1245,7 +1267,7 @@ class ProcessingWorker(QThread):
                 prep_cache[image_path.name] = None
                 with self._stats_lock:
                     stats['errors'] += 1
-            self.model_progress.emit('exiftool', i, total_to_process)
+            self._emit_progress_throttled('exiftool', i, total_to_process)
 
             # Checkpoint WAL periodico: acquisisce db_lock per evitare contesa
             # con i thread modello che stanno scrivendo i loro campi AI
