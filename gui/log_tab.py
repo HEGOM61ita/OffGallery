@@ -338,7 +338,24 @@ class LogTab(QWidget):
         
     def log_error(self, message):
         logging.error(message)
-        
+
+    def refresh_debug_filter(self):
+        """Rilegge la config e aggiorna lo stato del filtro DEBUG.
+        Chiamato da config_tab quando la checkbox debug viene modificata."""
+        try:
+            cb = self.level_filters.get("DEBUG")
+            if cb is None:
+                return
+            # Leggi impostazione debug dal parent (config_tab)
+            debug_enabled = True
+            if self.parent_window and hasattr(self.parent_window, 'config_tab'):
+                ct = self.parent_window.config_tab
+                if hasattr(ct, 'debug_checkbox'):
+                    debug_enabled = ct.debug_checkbox.isChecked()
+            cb.setChecked(debug_enabled)
+        except Exception:
+            pass
+
     def cleanup(self):
         """Cleanup risorse quando si chiude"""
         if self.log_handler:
