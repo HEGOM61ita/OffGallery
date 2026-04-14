@@ -39,6 +39,21 @@ class ExifToolStayOpen:
     def __init__(self):
         self._proc = None
         self._lock = threading.Lock()
+        self._call_count = 0  # contatore comandi eseguiti
+
+    def restart(self):
+        """Riavvia il processo ExifTool — azzera eventuale stato accumulato."""
+        with self._lock:
+            if self._proc is not None and self._proc.poll() is None:
+                try:
+                    self._proc.stdin.write(b'-stay_open\nFalse\n')
+                    self._proc.stdin.flush()
+                    self._proc.wait(timeout=5)
+                except Exception:
+                    self._proc.terminate()
+            self._proc = None
+            self._call_count = 0
+            logger.info("ExifTool stay_open: processo riavviato (reset periodico)")
 
     def _start(self):
         """Avvia il processo ExifTool in stay_open mode."""
@@ -101,6 +116,7 @@ class ExifToolStayOpen:
                 self._proc = None
                 return []
 
+            self._call_count += 1
             text = ''.join(lines).strip()
             if text:
                 try:

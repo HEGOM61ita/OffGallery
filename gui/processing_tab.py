@@ -542,17 +542,14 @@ class ProcessingWorker(QThread):
         try:
             fname = image_path.name
             self.log_message.emit(f"📂 Prep: {fname}", "debug")
-            _t0 = time.monotonic()
             is_raw = raw_processor.is_raw_file(image_path)
 
             # --- Estrazione EXIF metadata ---
-            _t1 = time.monotonic()
             try:
                 extracted_metadata = raw_processor.extract_raw_metadata(image_path)
             except Exception as e:
                 self.log_message.emit(f"⚠️ Errore EXIF {fname}: {e}", "warning")
                 extracted_metadata = {}
-            _t_exif = time.monotonic() - _t1
 
             image_data = {
                 'filename': fname,
@@ -573,7 +570,6 @@ class ProcessingWorker(QThread):
                         image_data[key] = value
 
             # --- Hash file ---
-            _t1 = time.monotonic()
             try:
                 import hashlib
                 md5 = hashlib.md5()
@@ -583,10 +579,8 @@ class ProcessingWorker(QThread):
                 image_data['file_hash'] = md5.hexdigest()
             except Exception:
                 pass
-            _t_hash = time.monotonic() - _t1
 
             # --- Geo hierarchy da GPS (plugin o builtin) ---
-            _t1 = time.monotonic()
             geo_hierarchy = None
             location_hint = None
             gps_lat = image_data.get('gps_latitude')
@@ -632,10 +626,7 @@ class ProcessingWorker(QThread):
                 except Exception as geo_err:
                     self.log_message.emit(f"⚠️ Geo no-GPS {fname}: {geo_err}", "warning")
 
-            _t_geo = time.monotonic() - _t1
-
             # --- Inserimento/aggiornamento record DB base ---
-            _t1 = time.monotonic()
             image_exists = db_manager.image_exists(fname)
             is_new = False
             ai_fields = {}  # stato campi AI già popolati (per logica overwrite)
@@ -657,10 +648,7 @@ class ProcessingWorker(QThread):
                         self.log_message.emit(f"❌ DB inserimento fallito: {fname}", "error")
                         return None
 
-            _t_db = time.monotonic() - _t1
-
             # --- Thumbnail per modelli AI ---
-            _t1 = time.monotonic()
             thumbnail = None
             any_model_active = any(
                 emb_flags.get(k, {}).get('active', False)
@@ -732,19 +720,6 @@ class ProcessingWorker(QThread):
             else:
                 work_thumb_path = None
 
-            _t_thumb = time.monotonic() - _t1
-            _t_total = time.monotonic() - _t0
-
-            # Diagnostica temporale: logga ogni foto con tempo > 2s o ogni 50 foto
-            if _t_total > 2.0 or (hasattr(self, '_prep_diag_count') and self._prep_diag_count % 20 == 0):
-                self.log_message.emit(
-                    f"⏱ DIAG {fname}: tot={_t_total:.1f}s "
-                    f"(exif={_t_exif:.1f}s hash={_t_hash:.1f}s geo={_t_geo:.1f}s "
-                    f"db={_t_db:.1f}s thumb={_t_thumb:.1f}s)", "info")
-            if not hasattr(self, '_prep_diag_count'):
-                self._prep_diag_count = 0
-            self._prep_diag_count += 1
-
             return {
                 'image_path': image_path,
                 'work_thumb_path': work_thumb_path,
@@ -775,12 +750,10 @@ class ProcessingWorker(QThread):
                 break
             fname = image_path.name
             # Attendi che ExifTool abbia preparato questa foto
-            _t_wait = time.monotonic()
             while fname not in prep_cache:
                 if not self.is_running:
                     return
                 time.sleep(0.05)
-            _t_wait_dur = time.monotonic() - _t_wait
             prep = prep_cache[fname]
             if prep is None:
                 self._emit_progress_throttled('clip', i, total)
@@ -794,42 +767,29 @@ class ProcessingWorker(QThread):
             if work_thumb_path is None:
                 self._emit_progress_throttled('clip', i, total)
                 continue
-            _t_load = time.monotonic()
             thumb = self._load_work_thumb(work_thumb_path)
-            _t_load_dur = time.monotonic() - _t_load
             if thumb is None:
                 self._emit_progress_throttled('clip', i, total)
                 continue
             try:
                 # Serializza inferenza GPU per evitare contesa tra thread
-                _t_lock = time.monotonic()
                 if use_gpu:
                     self._gpu_lock.acquire()
-                _t_lock_wait = time.monotonic() - _t_lock
-                _t_inf = time.monotonic()
                 try:
                     clip_emb = emb_gen._generate_clip_embedding(thumb, 'pil')
                 finally:
                     if use_gpu:
                         self._gpu_lock.release()
-                _t_inf_dur = time.monotonic() - _t_inf
                 if clip_emb is not None and isinstance(clip_emb, np.ndarray):
                     if np.any(np.isnan(clip_emb)):
                         self.log_message.emit(f"🚨 CLIP NaN: {fname}", "error")
                     else:
-                        _t_dbw = time.monotonic()
                         with self._db_lock:
                             db_manager.update_image(fname, {
                                 'clip_embedding': clip_emb, 'embedding_generated': True})
-                        _t_dbw_dur = time.monotonic() - _t_dbw
                         with self._stats_lock:
                             stats['with_embedding'] += 1
                             stats['clip'] += 1
-                        # Diagnostica CLIP: logga se tempo totale > 1s o ogni 20 foto
-                        _t_clip_total = _t_wait_dur + _t_load_dur + _t_lock_wait + _t_inf_dur + _t_dbw_dur
-                        if _t_clip_total > 1.0 or i % 20 == 0:
-                            self.log_message.emit(
-                                f"⏱ CLIP {fname}: wait={_t_wait_dur:.1f}s load={_t_load_dur:.1f}s lock={_t_lock_wait:.1f}s inf={_t_inf_dur:.1f}s db={_t_dbw_dur:.1f}s", "info")
             except Exception as e:
                 self.log_message.emit(f"❌ CLIP {fname}: {e}", "error")
             self._emit_progress_throttled('clip', i, total)
@@ -845,12 +805,10 @@ class ProcessingWorker(QThread):
                 break
             fname = image_path.name
             # Attendi che ExifTool abbia preparato questa foto
-            _t_wait = time.monotonic()
             while fname not in prep_cache:
                 if not self.is_running:
                     return
                 time.sleep(0.05)
-            _t_wait_dur = time.monotonic() - _t_wait
             prep = prep_cache[fname]
             if prep is None:
                 self._emit_progress_throttled('dinov2', i, total)
@@ -863,40 +821,28 @@ class ProcessingWorker(QThread):
             if work_thumb_path is None:
                 self._emit_progress_throttled('dinov2', i, total)
                 continue
-            _t_load = time.monotonic()
             thumb = self._load_work_thumb(work_thumb_path)
-            _t_load_dur = time.monotonic() - _t_load
             if thumb is None:
                 self._emit_progress_throttled('dinov2', i, total)
                 continue
             try:
-                _t_lock = time.monotonic()
                 if use_gpu:
                     self._gpu_lock.acquire()
-                _t_lock_wait = time.monotonic() - _t_lock
-                _t_inf = time.monotonic()
                 try:
                     dinov2_emb = emb_gen._generate_dinov2_embedding(thumb, 'pil')
                 finally:
                     if use_gpu:
                         self._gpu_lock.release()
-                _t_inf_dur = time.monotonic() - _t_inf
                 if dinov2_emb is not None and isinstance(dinov2_emb, np.ndarray):
                     if np.any(np.isnan(dinov2_emb)):
                         self.log_message.emit(f"🚨 DINOv2 NaN: {fname}", "error")
                     else:
-                        _t_dbw = time.monotonic()
                         with self._db_lock:
                             db_manager.update_image(fname, {
                                 'dinov2_embedding': dinov2_emb, 'embedding_generated': True})
-                        _t_dbw_dur = time.monotonic() - _t_dbw
                         with self._stats_lock:
                             stats['with_embedding'] += 1
                             stats['dinov2'] += 1
-                        _t_dino_total = _t_wait_dur + _t_load_dur + _t_lock_wait + _t_inf_dur + _t_dbw_dur
-                        if _t_dino_total > 1.0 or i % 20 == 0:
-                            self.log_message.emit(
-                                f"⏱ DINO {fname}: wait={_t_wait_dur:.1f}s load={_t_load_dur:.1f}s lock={_t_lock_wait:.1f}s inf={_t_inf_dur:.1f}s db={_t_dbw_dur:.1f}s", "info")
             except Exception as e:
                 self.log_message.emit(f"❌ DINOv2 {fname}: {e}", "error")
             self._emit_progress_throttled('dinov2', i, total)
@@ -1301,9 +1247,19 @@ class ProcessingWorker(QThread):
                          stats, total_to_process, llm_queue, llm_active, bioclip_active,
                          geo_plugin=None, geo_plugin_cfg=None):
         """Thread ExifTool: estrae EXIF + salva work thumbnail su disco per ogni immagine."""
+        _EXIFTOOL_RESTART_EVERY = 500  # riavvia il processo stay_open ogni N foto
         for i, image_path in enumerate(images_to_process, 1):
             if not self._wait_if_paused():
                 break
+            # Reset periodico ExifTool stay_open per evitare accumulo stato interno
+            if i > 1 and i % _EXIFTOOL_RESTART_EVERY == 0:
+                try:
+                    from raw_processor import get_exiftool
+                    get_exiftool().restart()
+                    self.log_message.emit(
+                        f"🔄 ExifTool stay_open riavviato (foto {i})", "info")
+                except Exception:
+                    pass
             prep = self._prep_image(
                 image_path, raw_processor, config, db_manager,
                 processing_mode, emb_flags, llm_gen_config,
