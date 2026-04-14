@@ -737,241 +737,270 @@ class ProcessingWorker(QThread):
             return None
 
     # ─────────────────────────────────────────────────────────────
-    # THREAD MODELLI EMBEDDING  (architettura batch)
+    # THREAD MODELLI EMBEDDING  (architettura batch + prefetch)
     # ─────────────────────────────────────────────────────────────
-    # Ogni thread accumula le immagini pronte nella prep_cache e le
-    # processa in batch GPU. Batch size differenziato per modello:
-    # DINOv2 usa input 518x518 (9x più grande di 224x224) quindi
-    # il batch è ridotto per contenere il picco di VRAM.
-    _BATCH_SIZE_CLIP      = 16   # ViT-L/14 224x224 — ~9MB attivazioni/batch
-    _BATCH_SIZE_DINOV2    = 4    # ViT-G/14 518x518 — ~100MB attivazioni/batch
+    # Pipeline a due stadi sovrapposti:
+    #   Stadio 1 — _ThumbPrefetcher: legge thumbnail da disco in un
+    #              thread separato e li accoda in RAM (queue).
+    #   Stadio 2 — thread modello: consuma dalla coda e fa forward
+    #              pass GPU su batch interi.
+    # Mentre la GPU processa il batch N, il disco sta già caricando
+    # le immagini del batch N+1 → latenza disco nascosta.
+    #
+    # Batch size differenziato per VRAM:
+    # DINOv2 usa input 518x518 (9x più grande di 224x224).
+    _BATCH_SIZE_CLIP      = 16   # ViT-L/14 224x224
+    _BATCH_SIZE_DINOV2    = 4    # DINOv2 518x518
     _BATCH_SIZE_AESTHETIC = 16   # CLIP-based 224x224
     _BATCH_TIMEOUT        = 0.5  # secondi — flush batch parziale
 
-    def _collect_batch(self, images, start_idx, prep_cache, model_key, ai_field,
-                       overwrite, model_progress_key, total, batch_size=None):
-        """Raccoglie fino a batch_size immagini pronte dalla prep_cache
-        partendo da start_idx. Gestisce attesa con timeout.
+    class _ThumbPrefetcher:
+        """Thread di prefetch thumbnail: legge da disco in anticipo rispetto
+        alla GPU. Produce tuple (i_global, fname, thumb_or_None) nella coda.
+        Sentinel None segnala la fine della sequenza."""
 
-        Restituisce (batch_items, next_idx) dove batch_items è lista di
-        (i_globale, fname, thumb) e next_idx è l'indice da cui riprendere."""
-        if batch_size is None:
-            batch_size = self._BATCH_SIZE_CLIP
-        batch_items = []
-        idx = start_idx
-        deadline = time.monotonic() + self._BATCH_TIMEOUT
+        def __init__(self, images, prep_cache, ai_field, overwrite,
+                     batch_size, worker_ref):
+            self._images     = images
+            self._prep_cache = prep_cache
+            self._ai_field   = ai_field
+            self._overwrite  = overwrite
+            self._worker     = worker_ref
+            # Coda con capacità 2× batch_size: mantiene in RAM al massimo
+            # due batch futuri per non esaurire la memoria
+            self._queue      = queue.Queue(maxsize=batch_size * 2)
+            self._thread     = threading.Thread(target=self._run, daemon=True)
+            self._thread.start()
 
-        while idx < len(images) and len(batch_items) < batch_size:
-            if not self.is_running:
-                break
-            image_path = images[idx]
-            fname = image_path.name
-            i_global = idx + 1  # 1-based per progress
+        def _run(self):
+            for idx, image_path in enumerate(self._images):
+                if not self._worker.is_running:
+                    break
+                fname    = image_path.name
+                i_global = idx + 1
 
-            # Attesa prep con deadline: se scade flush il batch parziale
-            while fname not in prep_cache:
-                if not self.is_running:
-                    return batch_items, idx
-                if time.monotonic() > deadline:
-                    # Timeout: restituisce batch accumulato finora (anche vuoto)
-                    return batch_items, idx
-                time.sleep(0.02)
+                # Attendi che ExifTool abbia preparato questa foto
+                while fname not in self._prep_cache:
+                    if not self._worker.is_running:
+                        self._queue.put(None)
+                        return
+                    time.sleep(0.02)
 
-            prep = prep_cache[fname]
-            if prep is None:
-                self._emit_progress_throttled(model_progress_key, i_global, total)
-                idx += 1
-                continue
-
-            # Skip se campo già presente e overwrite OFF
-            if not overwrite and not prep.get('is_new', True):
-                if prep.get('ai_fields', {}).get(ai_field, False):
-                    self._emit_progress_throttled(model_progress_key, i_global, total)
-                    idx += 1
+                prep = self._prep_cache[fname]
+                if prep is None:
+                    self._queue.put((i_global, fname, None))
                     continue
 
-            work_thumb_path = prep.get('work_thumb_path')
-            if work_thumb_path is None:
-                self._emit_progress_throttled(model_progress_key, i_global, total)
-                idx += 1
-                continue
+                # Skip se campo già presente e overwrite OFF
+                if not self._overwrite and not prep.get('is_new', True):
+                    if prep.get('ai_fields', {}).get(self._ai_field, False):
+                        self._queue.put((i_global, fname, None))
+                        continue
 
-            thumb = self._load_work_thumb(work_thumb_path)
-            if thumb is None:
-                self._emit_progress_throttled(model_progress_key, i_global, total)
-                idx += 1
-                continue
+                work_thumb_path = prep.get('work_thumb_path')
+                if work_thumb_path is None:
+                    self._queue.put((i_global, fname, None))
+                    continue
 
-            batch_items.append((i_global, fname, thumb))
-            idx += 1
-            # Rinnova deadline ad ogni immagine trovata: il timeout è
-            # relativo all'ultima immagine vista, non all'inizio del batch
-            deadline = time.monotonic() + self._BATCH_TIMEOUT
+                thumb = self._worker._load_work_thumb(work_thumb_path)
+                # thumb può essere None se il file è corrotto
+                self._queue.put((i_global, fname, thumb))
 
-        return batch_items, idx
+            self._queue.put(None)  # sentinel fine sequenza
+
+        def next_batch(self, batch_size, timeout=0.5):
+            """Preleva dalla coda fino a batch_size immagini valide.
+            Restituisce (batch, skipped, done):
+              batch   — lista (i_global, fname, thumb) con thumb valido
+              skipped — lista (i_global, fname) da segnalare come progress
+              done    — True se la sequenza è terminata (sentinel ricevuto)"""
+            batch    = []
+            skipped  = []
+            deadline = time.monotonic() + timeout
+
+            while len(batch) < batch_size:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                try:
+                    item = self._queue.get(timeout=min(remaining, 0.05))
+                except queue.Empty:
+                    break
+
+                if item is None:
+                    # Sentinel: rimettilo così next_batch successivi escono subito
+                    self._queue.put(None)
+                    return batch, skipped, True
+
+                i_global, fname, thumb = item
+                if thumb is None:
+                    skipped.append((i_global, fname))
+                else:
+                    batch.append((i_global, fname, thumb))
+
+            return batch, skipped, False
 
     def _thread_clip(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
                      processing_mode='new_only'):
-        """Thread CLIP: genera embedding 768-dim per tutte le immagini (batch GPU)."""
+        """Thread CLIP: genera embedding 768-dim (batch GPU + prefetch disco)."""
         import numpy as np
         overwrite = flags.get('overwrite', False)
-        use_gpu = self._is_model_on_gpu(emb_gen, 'clip')
-        idx = 0
-        while idx < len(images):
+        use_gpu   = self._is_model_on_gpu(emb_gen, 'clip')
+        pf = self._ThumbPrefetcher(images, prep_cache, 'clip_embedding',
+                                   overwrite, self._BATCH_SIZE_CLIP, self)
+        while True:
             if not self._wait_if_paused():
                 break
-            batch_items, idx = self._collect_batch(
-                images, idx, prep_cache, 'clip', 'clip_embedding',
-                overwrite, 'clip', total, self._BATCH_SIZE_CLIP)
-            if not batch_items:
-                # Nessuna immagine pronta ancora, breve attesa
-                if self.is_running:
-                    time.sleep(0.05)
-                continue
-            thumbs = [item[2] for item in batch_items]
-            try:
-                if use_gpu:
-                    self._gpu_lock.acquire()
+            batch, skipped, done = pf.next_batch(self._BATCH_SIZE_CLIP, self._BATCH_TIMEOUT)
+            for (i_global, fname) in skipped:
+                self._emit_progress_throttled('clip', i_global, total)
+            if batch:
+                thumbs = [item[2] for item in batch]
                 try:
-                    embeddings = emb_gen._generate_clip_embedding_batch(thumbs)
-                finally:
                     if use_gpu:
-                        self._gpu_lock.release()
-                for (i_global, fname, _), emb in zip(batch_items, embeddings):
-                    if emb is not None and isinstance(emb, np.ndarray):
-                        if np.any(np.isnan(emb)):
-                            self.log_message.emit(f"🚨 CLIP NaN: {fname}", "error")
-                        else:
-                            with self._db_lock:
-                                db_manager.update_image(fname, {
-                                    'clip_embedding': emb, 'embedding_generated': True})
-                            with self._stats_lock:
-                                stats['with_embedding'] += 1
-                                stats['clip'] += 1
-                    self._emit_progress_throttled('clip', i_global, total)
-            except Exception as e:
-                self.log_message.emit(f"❌ CLIP batch: {e}", "error")
-                for (i_global, fname, _) in batch_items:
-                    self._emit_progress_throttled('clip', i_global, total)
+                        self._gpu_lock.acquire()
+                    try:
+                        embeddings = emb_gen._generate_clip_embedding_batch(thumbs)
+                    finally:
+                        if use_gpu:
+                            self._gpu_lock.release()
+                    for (i_global, fname, _), emb in zip(batch, embeddings):
+                        if emb is not None and isinstance(emb, np.ndarray):
+                            if np.any(np.isnan(emb)):
+                                self.log_message.emit(f"🚨 CLIP NaN: {fname}", "error")
+                            else:
+                                with self._db_lock:
+                                    db_manager.update_image(fname, {
+                                        'clip_embedding': emb, 'embedding_generated': True})
+                                with self._stats_lock:
+                                    stats['with_embedding'] += 1
+                                    stats['clip'] += 1
+                        self._emit_progress_throttled('clip', i_global, total)
+                except Exception as e:
+                    self.log_message.emit(f"❌ CLIP batch: {e}", "error")
+                    for (i_global, fname, _) in batch:
+                        self._emit_progress_throttled('clip', i_global, total)
+            if done:
+                break
 
     def _thread_dinov2(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
                        processing_mode='new_only'):
-        """Thread DINOv2: genera embedding 768-dim per tutte le immagini (batch GPU)."""
+        """Thread DINOv2: genera embedding 768-dim (batch GPU + prefetch disco)."""
         import numpy as np
         overwrite = flags.get('overwrite', False)
-        use_gpu = self._is_model_on_gpu(emb_gen, 'dinov2')
-        idx = 0
-        while idx < len(images):
+        use_gpu   = self._is_model_on_gpu(emb_gen, 'dinov2')
+        pf = self._ThumbPrefetcher(images, prep_cache, 'dinov2_embedding',
+                                   overwrite, self._BATCH_SIZE_DINOV2, self)
+        while True:
             if not self._wait_if_paused():
                 break
-            batch_items, idx = self._collect_batch(
-                images, idx, prep_cache, 'dinov2', 'dinov2_embedding',
-                overwrite, 'dinov2', total, self._BATCH_SIZE_DINOV2)
-            if not batch_items:
-                if self.is_running:
-                    time.sleep(0.05)
-                continue
-            thumbs = [item[2] for item in batch_items]
-            try:
-                if use_gpu:
-                    self._gpu_lock.acquire()
+            batch, skipped, done = pf.next_batch(self._BATCH_SIZE_DINOV2, self._BATCH_TIMEOUT)
+            for (i_global, fname) in skipped:
+                self._emit_progress_throttled('dinov2', i_global, total)
+            if batch:
+                thumbs = [item[2] for item in batch]
                 try:
-                    embeddings = emb_gen._generate_dinov2_embedding_batch(thumbs)
-                finally:
                     if use_gpu:
-                        self._gpu_lock.release()
-                for (i_global, fname, _), emb in zip(batch_items, embeddings):
-                    if emb is not None and isinstance(emb, np.ndarray):
-                        if np.any(np.isnan(emb)):
-                            self.log_message.emit(f"🚨 DINOv2 NaN: {fname}", "error")
-                        else:
-                            with self._db_lock:
-                                db_manager.update_image(fname, {
-                                    'dinov2_embedding': emb, 'embedding_generated': True})
-                            with self._stats_lock:
-                                stats['with_embedding'] += 1
-                                stats['dinov2'] += 1
-                    self._emit_progress_throttled('dinov2', i_global, total)
-            except Exception as e:
-                self.log_message.emit(f"❌ DINOv2 batch: {e}", "error")
-                for (i_global, fname, _) in batch_items:
-                    self._emit_progress_throttled('dinov2', i_global, total)
+                        self._gpu_lock.acquire()
+                    try:
+                        embeddings = emb_gen._generate_dinov2_embedding_batch(thumbs)
+                    finally:
+                        if use_gpu:
+                            self._gpu_lock.release()
+                    for (i_global, fname, _), emb in zip(batch, embeddings):
+                        if emb is not None and isinstance(emb, np.ndarray):
+                            if np.any(np.isnan(emb)):
+                                self.log_message.emit(f"🚨 DINOv2 NaN: {fname}", "error")
+                            else:
+                                with self._db_lock:
+                                    db_manager.update_image(fname, {
+                                        'dinov2_embedding': emb, 'embedding_generated': True})
+                                with self._stats_lock:
+                                    stats['with_embedding'] += 1
+                                    stats['dinov2'] += 1
+                        self._emit_progress_throttled('dinov2', i_global, total)
+                except Exception as e:
+                    self.log_message.emit(f"❌ DINOv2 batch: {e}", "error")
+                    for (i_global, fname, _) in batch:
+                        self._emit_progress_throttled('dinov2', i_global, total)
+            if done:
+                break
 
     def _thread_aesthetic(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
                           processing_mode='new_only'):
-        """Thread Aesthetic: calcola punteggio estetico 0-10 (batch GPU)."""
+        """Thread Aesthetic: calcola punteggio estetico 0-10 (batch GPU + prefetch disco)."""
         overwrite = flags.get('overwrite', False)
-        use_gpu = self._is_model_on_gpu(emb_gen, 'aesthetic')
-        idx = 0
-        while idx < len(images):
+        use_gpu   = self._is_model_on_gpu(emb_gen, 'aesthetic')
+        pf = self._ThumbPrefetcher(images, prep_cache, 'aesthetic_score',
+                                   overwrite, self._BATCH_SIZE_AESTHETIC, self)
+        while True:
             if not self._wait_if_paused():
                 break
-            batch_items, idx = self._collect_batch(
-                images, idx, prep_cache, 'aesthetic', 'aesthetic_score',
-                overwrite, 'aesthetic', total, self._BATCH_SIZE_AESTHETIC)
-            if not batch_items:
-                if self.is_running:
-                    time.sleep(0.05)
-                continue
-            thumbs = [item[2] for item in batch_items]
-            try:
-                if use_gpu:
-                    self._gpu_lock.acquire()
+            batch, skipped, done = pf.next_batch(self._BATCH_SIZE_AESTHETIC, self._BATCH_TIMEOUT)
+            for (i_global, fname) in skipped:
+                self._emit_progress_throttled('aesthetic', i_global, total)
+            if batch:
+                thumbs = [item[2] for item in batch]
                 try:
-                    scores = emb_gen._generate_aesthetic_score_batch(thumbs)
-                finally:
                     if use_gpu:
-                        self._gpu_lock.release()
-                for (i_global, fname, _), score in zip(batch_items, scores):
-                    if score is not None:
-                        with self._db_lock:
-                            db_manager.update_image(fname, {'aesthetic_score': score})
-                        with self._stats_lock:
-                            stats['aesthetic'] += 1
-                    self._emit_progress_throttled('aesthetic', i_global, total)
-            except Exception as e:
-                self.log_message.emit(f"❌ Aesthetic batch: {e}", "error")
-                for (i_global, fname, _) in batch_items:
-                    self._emit_progress_throttled('aesthetic', i_global, total)
+                        self._gpu_lock.acquire()
+                    try:
+                        scores = emb_gen._generate_aesthetic_score_batch(thumbs)
+                    finally:
+                        if use_gpu:
+                            self._gpu_lock.release()
+                    for (i_global, fname, _), score in zip(batch, scores):
+                        if score is not None:
+                            with self._db_lock:
+                                db_manager.update_image(fname, {'aesthetic_score': score})
+                            with self._stats_lock:
+                                stats['aesthetic'] += 1
+                        self._emit_progress_throttled('aesthetic', i_global, total)
+                except Exception as e:
+                    self.log_message.emit(f"❌ Aesthetic batch: {e}", "error")
+                    for (i_global, fname, _) in batch:
+                        self._emit_progress_throttled('aesthetic', i_global, total)
+            if done:
+                break
 
     def _thread_musiq(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
                       processing_mode='new_only'):
-        """Thread MUSIQ/Technical: calcola punteggio qualità tecnica ~0-100 (batch).
-        MUSIQ via pyiqa non ha API batch nativa — il batch riusa il modello
-        già caricato senza re-init per ogni foto."""
+        """Thread MUSIQ: calcola punteggio qualità tecnica ~0-100 (prefetch disco).
+        MUSIQ via pyiqa non ha API batch nativa — processa sequenzialmente
+        ma il prefetcher nasconde la latenza di lettura disco."""
         overwrite = flags.get('overwrite', False)
-        use_gpu = self._is_model_on_gpu(emb_gen, 'technical')
-        idx = 0
-        while idx < len(images):
+        use_gpu   = self._is_model_on_gpu(emb_gen, 'technical')
+        pf = self._ThumbPrefetcher(images, prep_cache, 'technical_score',
+                                   overwrite, self._BATCH_SIZE_CLIP, self)
+        while True:
             if not self._wait_if_paused():
                 break
-            batch_items, idx = self._collect_batch(
-                images, idx, prep_cache, 'technical', 'technical_score',
-                overwrite, 'technical', total, self._BATCH_SIZE_CLIP)
-            if not batch_items:
-                if self.is_running:
-                    time.sleep(0.05)
-                continue
-            thumbs = [item[2] for item in batch_items]
-            try:
-                if use_gpu:
-                    self._gpu_lock.acquire()
+            batch, skipped, done = pf.next_batch(self._BATCH_SIZE_CLIP, self._BATCH_TIMEOUT)
+            for (i_global, fname) in skipped:
+                self._emit_progress_throttled('technical', i_global, total)
+            if batch:
+                thumbs = [item[2] for item in batch]
                 try:
-                    scores = emb_gen._generate_musiq_score_batch(thumbs)
-                finally:
                     if use_gpu:
-                        self._gpu_lock.release()
-                for (i_global, fname, _), score in zip(batch_items, scores):
-                    if score is not None:
-                        with self._db_lock:
-                            db_manager.update_image(fname, {'technical_score': score})
-                        with self._stats_lock:
-                            stats['technical'] += 1
-                    self._emit_progress_throttled('technical', i_global, total)
-            except Exception as e:
-                self.log_message.emit(f"❌ Technical batch: {e}", "error")
-                for (i_global, fname, _) in batch_items:
-                    self._emit_progress_throttled('technical', i_global, total)
+                        self._gpu_lock.acquire()
+                    try:
+                        scores = emb_gen._generate_musiq_score_batch(thumbs)
+                    finally:
+                        if use_gpu:
+                            self._gpu_lock.release()
+                    for (i_global, fname, _), score in zip(batch, scores):
+                        if score is not None:
+                            with self._db_lock:
+                                db_manager.update_image(fname, {'technical_score': score})
+                            with self._stats_lock:
+                                stats['technical'] += 1
+                        self._emit_progress_throttled('technical', i_global, total)
+                except Exception as e:
+                    self.log_message.emit(f"❌ Technical batch: {e}", "error")
+                    for (i_global, fname, _) in batch:
+                        self._emit_progress_throttled('technical', i_global, total)
+            if done:
+                break
 
     # ─────────────────────────────────────────────────────────────
     # THREAD BIOCLIP (produce per LLM)
