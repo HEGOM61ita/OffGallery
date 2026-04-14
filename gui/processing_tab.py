@@ -737,209 +737,238 @@ class ProcessingWorker(QThread):
             return None
 
     # ─────────────────────────────────────────────────────────────
-    # THREAD MODELLI EMBEDDING
+    # THREAD MODELLI EMBEDDING  (architettura batch)
     # ─────────────────────────────────────────────────────────────
+    # Ogni thread accumula fino a EMBED_BATCH_SIZE immagini già pronte
+    # nella prep_cache, poi esegue una singola forward pass GPU per
+    # tutto il batch. Se la finestra non si riempie entro BATCH_TIMEOUT
+    # secondi, la forward viene comunque eseguita (evita stalli quando
+    # il thread ExifTool è più lento dei thread modello).
+    _EMBED_BATCH_SIZE = 32
+    _BATCH_TIMEOUT    = 0.5   # secondi — flush batch parziale
+
+    def _collect_batch(self, images, start_idx, prep_cache, model_key, ai_field,
+                       overwrite, model_progress_key, total):
+        """Raccoglie fino a _EMBED_BATCH_SIZE immagini pronte dalla prep_cache
+        partendo da start_idx. Gestisce attesa con timeout.
+
+        Restituisce (batch_items, next_idx) dove batch_items è lista di
+        (i_globale, fname, thumb) e next_idx è l'indice da cui riprendere."""
+        batch_items = []
+        idx = start_idx
+        deadline = time.monotonic() + self._BATCH_TIMEOUT
+
+        while idx < len(images) and len(batch_items) < self._EMBED_BATCH_SIZE:
+            if not self.is_running:
+                break
+            image_path = images[idx]
+            fname = image_path.name
+            i_global = idx + 1  # 1-based per progress
+
+            # Attesa prep con deadline: se scade flush il batch parziale
+            while fname not in prep_cache:
+                if not self.is_running:
+                    return batch_items, idx
+                if time.monotonic() > deadline:
+                    # Timeout: restituisce batch accumulato finora (anche vuoto)
+                    return batch_items, idx
+                time.sleep(0.02)
+
+            prep = prep_cache[fname]
+            if prep is None:
+                self._emit_progress_throttled(model_progress_key, i_global, total)
+                idx += 1
+                continue
+
+            # Skip se campo già presente e overwrite OFF
+            if not overwrite and not prep.get('is_new', True):
+                if prep.get('ai_fields', {}).get(ai_field, False):
+                    self._emit_progress_throttled(model_progress_key, i_global, total)
+                    idx += 1
+                    continue
+
+            work_thumb_path = prep.get('work_thumb_path')
+            if work_thumb_path is None:
+                self._emit_progress_throttled(model_progress_key, i_global, total)
+                idx += 1
+                continue
+
+            thumb = self._load_work_thumb(work_thumb_path)
+            if thumb is None:
+                self._emit_progress_throttled(model_progress_key, i_global, total)
+                idx += 1
+                continue
+
+            batch_items.append((i_global, fname, thumb))
+            idx += 1
+            # Rinnova deadline ad ogni immagine trovata: il timeout è
+            # relativo all'ultima immagine vista, non all'inizio del batch
+            deadline = time.monotonic() + self._BATCH_TIMEOUT
+
+        return batch_items, idx
+
     def _thread_clip(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
                      processing_mode='new_only'):
-        """Thread CLIP: genera embedding 768-dim per tutte le immagini."""
+        """Thread CLIP: genera embedding 768-dim per tutte le immagini (batch GPU)."""
         import numpy as np
         overwrite = flags.get('overwrite', False)
         use_gpu = self._is_model_on_gpu(emb_gen, 'clip')
-        for i, image_path in enumerate(images, 1):
+        idx = 0
+        while idx < len(images):
             if not self._wait_if_paused():
                 break
-            fname = image_path.name
-            # Attendi che ExifTool abbia preparato questa foto
-            while fname not in prep_cache:
-                if not self.is_running:
-                    return
-                time.sleep(0.05)
-            prep = prep_cache[fname]
-            if prep is None:
-                self._emit_progress_throttled('clip', i, total)
+            batch_items, idx = self._collect_batch(
+                images, idx, prep_cache, 'clip', 'clip_embedding',
+                overwrite, 'clip', total)
+            if not batch_items:
+                # Nessuna immagine pronta ancora, breve attesa
+                if self.is_running:
+                    time.sleep(0.05)
                 continue
-            # Skip se overwrite OFF e campo già popolato nel DB
-            if not overwrite and not prep.get('is_new', True):
-                if prep.get('ai_fields', {}).get('clip_embedding', False):
-                    self._emit_progress_throttled('clip', i, total)
-                    continue
-            work_thumb_path = prep.get('work_thumb_path')
-            if work_thumb_path is None:
-                self._emit_progress_throttled('clip', i, total)
-                continue
-            thumb = self._load_work_thumb(work_thumb_path)
-            if thumb is None:
-                self._emit_progress_throttled('clip', i, total)
-                continue
+            thumbs = [item[2] for item in batch_items]
             try:
-                # Serializza inferenza GPU per evitare contesa tra thread
                 if use_gpu:
                     self._gpu_lock.acquire()
                 try:
-                    clip_emb = emb_gen._generate_clip_embedding(thumb, 'pil')
+                    embeddings = emb_gen._generate_clip_embedding_batch(thumbs)
                 finally:
                     if use_gpu:
                         self._gpu_lock.release()
-                if clip_emb is not None and isinstance(clip_emb, np.ndarray):
-                    if np.any(np.isnan(clip_emb)):
-                        self.log_message.emit(f"🚨 CLIP NaN: {fname}", "error")
-                    else:
-                        with self._db_lock:
-                            db_manager.update_image(fname, {
-                                'clip_embedding': clip_emb, 'embedding_generated': True})
-                        with self._stats_lock:
-                            stats['with_embedding'] += 1
-                            stats['clip'] += 1
+                for (i_global, fname, _), emb in zip(batch_items, embeddings):
+                    if emb is not None and isinstance(emb, np.ndarray):
+                        if np.any(np.isnan(emb)):
+                            self.log_message.emit(f"🚨 CLIP NaN: {fname}", "error")
+                        else:
+                            with self._db_lock:
+                                db_manager.update_image(fname, {
+                                    'clip_embedding': emb, 'embedding_generated': True})
+                            with self._stats_lock:
+                                stats['with_embedding'] += 1
+                                stats['clip'] += 1
+                    self._emit_progress_throttled('clip', i_global, total)
             except Exception as e:
-                self.log_message.emit(f"❌ CLIP {fname}: {e}", "error")
-            self._emit_progress_throttled('clip', i, total)
+                self.log_message.emit(f"❌ CLIP batch: {e}", "error")
+                for (i_global, fname, _) in batch_items:
+                    self._emit_progress_throttled('clip', i_global, total)
 
     def _thread_dinov2(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
                        processing_mode='new_only'):
-        """Thread DINOv2: genera embedding 768-dim per tutte le immagini."""
+        """Thread DINOv2: genera embedding 768-dim per tutte le immagini (batch GPU)."""
         import numpy as np
         overwrite = flags.get('overwrite', False)
         use_gpu = self._is_model_on_gpu(emb_gen, 'dinov2')
-        for i, image_path in enumerate(images, 1):
+        idx = 0
+        while idx < len(images):
             if not self._wait_if_paused():
                 break
-            fname = image_path.name
-            # Attendi che ExifTool abbia preparato questa foto
-            while fname not in prep_cache:
-                if not self.is_running:
-                    return
-                time.sleep(0.05)
-            prep = prep_cache[fname]
-            if prep is None:
-                self._emit_progress_throttled('dinov2', i, total)
+            batch_items, idx = self._collect_batch(
+                images, idx, prep_cache, 'dinov2', 'dinov2_embedding',
+                overwrite, 'dinov2', total)
+            if not batch_items:
+                if self.is_running:
+                    time.sleep(0.05)
                 continue
-            if not overwrite and not prep.get('is_new', True):
-                if prep.get('ai_fields', {}).get('dinov2_embedding', False):
-                    self._emit_progress_throttled('dinov2', i, total)
-                    continue
-            work_thumb_path = prep.get('work_thumb_path')
-            if work_thumb_path is None:
-                self._emit_progress_throttled('dinov2', i, total)
-                continue
-            thumb = self._load_work_thumb(work_thumb_path)
-            if thumb is None:
-                self._emit_progress_throttled('dinov2', i, total)
-                continue
+            thumbs = [item[2] for item in batch_items]
             try:
                 if use_gpu:
                     self._gpu_lock.acquire()
                 try:
-                    dinov2_emb = emb_gen._generate_dinov2_embedding(thumb, 'pil')
+                    embeddings = emb_gen._generate_dinov2_embedding_batch(thumbs)
                 finally:
                     if use_gpu:
                         self._gpu_lock.release()
-                if dinov2_emb is not None and isinstance(dinov2_emb, np.ndarray):
-                    if np.any(np.isnan(dinov2_emb)):
-                        self.log_message.emit(f"🚨 DINOv2 NaN: {fname}", "error")
-                    else:
-                        with self._db_lock:
-                            db_manager.update_image(fname, {
-                                'dinov2_embedding': dinov2_emb, 'embedding_generated': True})
-                        with self._stats_lock:
-                            stats['with_embedding'] += 1
-                            stats['dinov2'] += 1
+                for (i_global, fname, _), emb in zip(batch_items, embeddings):
+                    if emb is not None and isinstance(emb, np.ndarray):
+                        if np.any(np.isnan(emb)):
+                            self.log_message.emit(f"🚨 DINOv2 NaN: {fname}", "error")
+                        else:
+                            with self._db_lock:
+                                db_manager.update_image(fname, {
+                                    'dinov2_embedding': emb, 'embedding_generated': True})
+                            with self._stats_lock:
+                                stats['with_embedding'] += 1
+                                stats['dinov2'] += 1
+                    self._emit_progress_throttled('dinov2', i_global, total)
             except Exception as e:
-                self.log_message.emit(f"❌ DINOv2 {fname}: {e}", "error")
-            self._emit_progress_throttled('dinov2', i, total)
+                self.log_message.emit(f"❌ DINOv2 batch: {e}", "error")
+                for (i_global, fname, _) in batch_items:
+                    self._emit_progress_throttled('dinov2', i_global, total)
 
     def _thread_aesthetic(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
                           processing_mode='new_only'):
-        """Thread Aesthetic: calcola punteggio estetico 0-10."""
+        """Thread Aesthetic: calcola punteggio estetico 0-10 (batch GPU)."""
         overwrite = flags.get('overwrite', False)
         use_gpu = self._is_model_on_gpu(emb_gen, 'aesthetic')
-        for i, image_path in enumerate(images, 1):
+        idx = 0
+        while idx < len(images):
             if not self._wait_if_paused():
                 break
-            fname = image_path.name
-            # Attendi che ExifTool abbia preparato questa foto
-            while fname not in prep_cache:
-                if not self.is_running:
-                    return
-                time.sleep(0.05)
-            prep = prep_cache[fname]
-            if prep is None:
-                self._emit_progress_throttled('aesthetic', i, total)
+            batch_items, idx = self._collect_batch(
+                images, idx, prep_cache, 'aesthetic', 'aesthetic_score',
+                overwrite, 'aesthetic', total)
+            if not batch_items:
+                if self.is_running:
+                    time.sleep(0.05)
                 continue
-            if not overwrite and not prep.get('is_new', True):
-                if prep.get('ai_fields', {}).get('aesthetic_score', False):
-                    self._emit_progress_throttled('aesthetic', i, total)
-                    continue
-            work_thumb_path = prep.get('work_thumb_path')
-            if work_thumb_path is None:
-                self._emit_progress_throttled('aesthetic', i, total)
-                continue
-            thumb = self._load_work_thumb(work_thumb_path)
-            if thumb is None:
-                self._emit_progress_throttled('aesthetic', i, total)
-                continue
+            thumbs = [item[2] for item in batch_items]
             try:
                 if use_gpu:
                     self._gpu_lock.acquire()
                 try:
-                    score = emb_gen._generate_aesthetic_score(thumb, 'pil')
+                    scores = emb_gen._generate_aesthetic_score_batch(thumbs)
                 finally:
                     if use_gpu:
                         self._gpu_lock.release()
-                if score is not None:
-                    with self._db_lock:
-                        db_manager.update_image(fname, {'aesthetic_score': score})
-                    with self._stats_lock:
-                        stats['aesthetic'] += 1
+                for (i_global, fname, _), score in zip(batch_items, scores):
+                    if score is not None:
+                        with self._db_lock:
+                            db_manager.update_image(fname, {'aesthetic_score': score})
+                        with self._stats_lock:
+                            stats['aesthetic'] += 1
+                    self._emit_progress_throttled('aesthetic', i_global, total)
             except Exception as e:
-                self.log_message.emit(f"❌ Aesthetic {fname}: {e}", "error")
-            self._emit_progress_throttled('aesthetic', i, total)
+                self.log_message.emit(f"❌ Aesthetic batch: {e}", "error")
+                for (i_global, fname, _) in batch_items:
+                    self._emit_progress_throttled('aesthetic', i_global, total)
 
     def _thread_musiq(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
                       processing_mode='new_only'):
-        """Thread MUSIQ/Technical: calcola punteggio qualità tecnica ~0-100."""
+        """Thread MUSIQ/Technical: calcola punteggio qualità tecnica ~0-100 (batch).
+        MUSIQ via pyiqa non ha API batch nativa — il batch riusa il modello
+        già caricato senza re-init per ogni foto."""
         overwrite = flags.get('overwrite', False)
         use_gpu = self._is_model_on_gpu(emb_gen, 'technical')
-        for i, image_path in enumerate(images, 1):
+        idx = 0
+        while idx < len(images):
             if not self._wait_if_paused():
                 break
-            fname = image_path.name
-            # Attendi che ExifTool abbia preparato questa foto
-            while fname not in prep_cache:
-                if not self.is_running:
-                    return
-                time.sleep(0.05)
-            prep = prep_cache[fname]
-            if prep is None:
-                self._emit_progress_throttled('technical', i, total)
+            batch_items, idx = self._collect_batch(
+                images, idx, prep_cache, 'technical', 'technical_score',
+                overwrite, 'technical', total)
+            if not batch_items:
+                if self.is_running:
+                    time.sleep(0.05)
                 continue
-            if not overwrite and not prep.get('is_new', True):
-                if prep.get('ai_fields', {}).get('technical_score', False):
-                    self._emit_progress_throttled('technical', i, total)
-                    continue
-            work_thumb_path = prep.get('work_thumb_path')
-            if work_thumb_path is None:
-                self._emit_progress_throttled('technical', i, total)
-                continue
-            thumb = self._load_work_thumb(work_thumb_path)
-            if thumb is None:
-                self._emit_progress_throttled('technical', i, total)
-                continue
+            thumbs = [item[2] for item in batch_items]
             try:
                 if use_gpu:
                     self._gpu_lock.acquire()
                 try:
-                    score = emb_gen._generate_musiq_score(thumb)
+                    scores = emb_gen._generate_musiq_score_batch(thumbs)
                 finally:
                     if use_gpu:
                         self._gpu_lock.release()
-                if score is not None:
-                    with self._db_lock:
-                        db_manager.update_image(fname, {'technical_score': score})
-                    with self._stats_lock:
-                        stats['technical'] += 1
+                for (i_global, fname, _), score in zip(batch_items, scores):
+                    if score is not None:
+                        with self._db_lock:
+                            db_manager.update_image(fname, {'technical_score': score})
+                        with self._stats_lock:
+                            stats['technical'] += 1
+                    self._emit_progress_throttled('technical', i_global, total)
             except Exception as e:
-                self.log_message.emit(f"❌ Technical {fname}: {e}", "error")
-            self._emit_progress_throttled('technical', i, total)
+                self.log_message.emit(f"❌ Technical batch: {e}", "error")
+                for (i_global, fname, _) in batch_items:
+                    self._emit_progress_throttled('technical', i_global, total)
 
     # ─────────────────────────────────────────────────────────────
     # THREAD BIOCLIP (produce per LLM)

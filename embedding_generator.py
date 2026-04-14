@@ -1363,6 +1363,34 @@ class EmbeddingGenerator:
             logger.error(f"CLIP embedding: {e}")
             return None
 
+    def _generate_clip_embedding_batch(self, images: list) -> list:
+        """Genera embedding CLIP per una lista di PIL Image in una singola forward pass.
+        Restituisce lista di np.ndarray float32 normalizzati (None per immagini fallite).
+        images: lista di PIL Image già in RGB (pre-caricati dal thread chiamante)."""
+        if not images:
+            return []
+        try:
+            import torch
+            # Prepara tutte le immagini con il profilo clip_embedding (resize 224x224)
+            prepared = [self._prepare_image_for_model(img, 'clip_embedding') for img in images]
+            # clip_processor accetta lista di immagini → pixel_values shape (N, 3, 224, 224)
+            inputs = self.clip_processor(images=prepared, return_tensors="pt").to(self._device_for('clip'))
+            with torch.no_grad():
+                vision_out = self.clip_model.vision_model(pixel_values=inputs['pixel_values'])
+                cls_tokens = vision_out.last_hidden_state[:, 0, :]  # (N, hidden_size)
+                if hasattr(self.clip_model.vision_model, 'post_layernorm'):
+                    cls_tokens = self.clip_model.vision_model.post_layernorm(cls_tokens)
+                features = self.clip_model.visual_projection(cls_tokens)  # (N, 768)
+            embeddings_np = features.cpu().numpy()  # (N, 768)
+            results = []
+            for emb in embeddings_np:
+                norm = np.linalg.norm(emb)
+                results.append((emb / norm).astype(np.float32) if norm > 0 else None)
+            return results
+        except Exception as e:
+            logger.error(f"CLIP batch embedding: {e}")
+            return [None] * len(images)
+
     def _generate_dinov2_embedding(self, image_input, input_type):
         """Genera embedding DINOv2 per similarita visiva.
         OTTIMIZZATO: Usa profilo 'dinov2_embedding' per resize alla dimensione ottimale."""
@@ -1382,6 +1410,30 @@ class EmbeddingGenerator:
             logger.error(f"DINOv2 embedding: {e}")
             return None
 
+    def _generate_dinov2_embedding_batch(self, images: list) -> list:
+        """Genera embedding DINOv2 per una lista di PIL Image in una singola forward pass.
+        Restituisce lista di np.ndarray float32 normalizzati (None per immagini fallite).
+        images: lista di PIL Image già in RGB (pre-caricati dal thread chiamante)."""
+        if not images:
+            return []
+        try:
+            import torch
+            # DINOv2 usa input 518x518: prepara tutte con profilo dinov2_embedding
+            prepared = [self._prepare_image_for_model(img, 'dinov2_embedding') for img in images]
+            inputs = self.dinov2_processor(images=prepared, return_tensors="pt").to(self._device_for('dinov2'))
+            with torch.no_grad():
+                outputs = self.dinov2_model(**inputs)
+                features = outputs.last_hidden_state[:, 0, :]  # (N, hidden_size)
+            embeddings_np = features.cpu().numpy()
+            results = []
+            for emb in embeddings_np:
+                norm = np.linalg.norm(emb)
+                results.append((emb / norm).astype(np.float32) if norm > 0 else None)
+            return results
+        except Exception as e:
+            logger.error(f"DINOv2 batch embedding: {e}")
+            return [None] * len(images)
+
     def _generate_aesthetic_score(self, image_input, input_type):
         """Genera score estetico con normalizzazione 0-10 dinamica.
         OTTIMIZZATO: Usa profilo 'aesthetic_score' per resize alla dimensione ottimale."""
@@ -1392,20 +1444,55 @@ class EmbeddingGenerator:
             # Prepara con profilo ottimizzazione (target_size e resampling da config)
             image = self._prepare_image_for_model(image, 'aesthetic_score')
             inputs = self.aesthetic_processor(images=image, return_tensors="pt").to(self._device_for('aesthetic'))
-            
+
             with torch.no_grad():
                 vision_outputs = self.aesthetic_model(**inputs)
                 image_embeds = vision_outputs.pooler_output
                 raw_score = self.aesthetic_head(image_embeds).item()
-                
+
                 # Normalizzazione Sigmoide per mappare lo score in 0.0 - 10.0
                 # Impedisce al valore di restare bloccato a 10
                 score = 10 / (1 + np.exp(-raw_score))
-            
+
             return round(score, 2)
         except Exception as e:
             logger.error(f"Errore aesthetic score: {e}")
             return None
+
+    def _generate_aesthetic_score_batch(self, images: list) -> list:
+        """Genera aesthetic score per una lista di PIL Image in una singola forward pass.
+        Restituisce lista di float (None per immagini fallite).
+        images: lista di PIL Image già in RGB (pre-caricati dal thread chiamante)."""
+        if not images:
+            return []
+        try:
+            import torch
+            prepared = [self._prepare_image_for_model(img, 'aesthetic_score') for img in images]
+            inputs = self.aesthetic_processor(images=prepared, return_tensors="pt").to(self._device_for('aesthetic'))
+            with torch.no_grad():
+                vision_outputs = self.aesthetic_model(**inputs)
+                image_embeds = vision_outputs.pooler_output       # (N, hidden_size)
+                raw_scores = self.aesthetic_head(image_embeds)    # (N, 1)
+                raw_scores_np = raw_scores.cpu().numpy().flatten()
+            results = []
+            for raw in raw_scores_np:
+                results.append(round(float(10 / (1 + np.exp(-raw))), 2))
+            return results
+        except Exception as e:
+            logger.error(f"Aesthetic batch score: {e}")
+            return [None] * len(images)
+
+    def _generate_musiq_score_batch(self, images: list) -> list:
+        """Genera MUSIQ score per una lista di PIL Image.
+        MUSIQ (pyiqa) non ha una API batch nativa: elabora una foto alla volta
+        ma riusa il modello già caricato evitando re-init. Restituisce lista di float.
+        images: lista di PIL Image già in RGB (pre-caricati dal thread chiamante)."""
+        if not images:
+            return []
+        results = []
+        for img in images:
+            results.append(self._generate_musiq_score(img))
+        return results
 
     def _generate_musiq_score(self, input_data) -> Optional[float]:
         """
