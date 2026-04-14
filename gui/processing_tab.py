@@ -536,24 +536,97 @@ class ProcessingWorker(QThread):
     def _prep_image(self, image_path, raw_processor, config, db_manager,
                     processing_mode, emb_flags, llm_gen_config,
                     temp_dir=None, geo_plugin=None, geo_plugin_cfg=None):
-        """Estrae EXIF + thumbnail + geo + hash, inserisce/aggiorna record DB base.
-        Salva work thumbnail su disco (temp_dir) invece di tenerlo in RAM.
+        """Estrae EXIF + thumbnail in parallelo, poi geo + hash + DB insert.
+        Le due operazioni più lente (exif e thumb) vengono sovrapposte con
+        due thread interni sincronizzati tramite threading.Event.
         Ritorna dict con dati prep oppure None in caso di errore fatale."""
         try:
-            fname = image_path.name
-            _t0 = time.monotonic()
-            self.log_message.emit(f"📂 Prep: {fname}", "debug")
+            fname  = image_path.name
+            _t0    = time.monotonic()
             is_raw = raw_processor.is_raw_file(image_path)
+            self.log_message.emit(f"📂 Prep: {fname}", "debug")
 
-            # --- Estrazione EXIF metadata ---
-            _t_exif = time.monotonic()
-            try:
-                extracted_metadata = raw_processor.extract_raw_metadata(image_path)
-            except Exception as e:
-                self.log_message.emit(f"⚠️ Errore EXIF {fname}: {e}", "warning")
-                extracted_metadata = {}
-            _t_exif_dur = time.monotonic() - _t_exif
+            # Calcola target size thumbnail prima di avviare i thread
+            any_model_active = any(
+                emb_flags.get(k, {}).get('active', False)
+                for k in ('clip', 'dinov2', 'bioclip', 'aesthetic', 'technical')
+            )
+            llm_active = (llm_gen_config.get('tags', {}).get('enabled') or
+                          llm_gen_config.get('description', {}).get('enabled') or
+                          llm_gen_config.get('title', {}).get('enabled'))
 
+            need_thumb = any_model_active or llm_active
+            if need_thumb:
+                active_profiles = []
+                _profile_map = {
+                    'clip': 'clip_embedding', 'dinov2': 'dinov2_embedding',
+                    'bioclip': 'bioclip_classification', 'aesthetic': 'aesthetic_score',
+                    'technical': 'technical_score',
+                }
+                for mk, prof in _profile_map.items():
+                    if emb_flags.get(mk, {}).get('active', False):
+                        active_profiles.append(prof)
+                if llm_active:
+                    active_profiles.append('llm_vision')
+                max_size = raw_processor.get_max_target_size(active_profiles) if active_profiles else 1024
+            else:
+                max_size = 0
+
+            # ── Thread A: EXIF + hash ────────────────────────────────
+            exif_result  = {}   # {'metadata': dict, 'dur': float, 'hash_dur': float}
+            exif_done    = threading.Event()
+
+            def _do_exif():
+                _t = time.monotonic()
+                try:
+                    md = raw_processor.extract_raw_metadata(image_path)
+                except Exception as e:
+                    self.log_message.emit(f"⚠️ Errore EXIF {fname}: {e}", "warning")
+                    md = {}
+                exif_result['metadata'] = md
+                exif_result['exif_dur'] = time.monotonic() - _t
+                # Hash
+                _th = time.monotonic()
+                try:
+                    import hashlib
+                    md5 = hashlib.md5()
+                    with open(image_path, 'rb') as f:
+                        for chunk in iter(lambda: f.read(8192), b''):
+                            md5.update(chunk)
+                    exif_result['file_hash'] = md5.hexdigest()
+                except Exception:
+                    exif_result['file_hash'] = None
+                exif_result['hash_dur'] = time.monotonic() - _th
+                exif_done.set()
+
+            # ── Thread B: thumbnail ──────────────────────────────────
+            thumb_result = {}   # {'thumbnail': PIL|None, 'dur': float}
+            thumb_done   = threading.Event()
+
+            def _do_thumb():
+                if not need_thumb:
+                    thumb_result['thumbnail'] = None
+                    thumb_result['thumb_dur'] = 0.0
+                    thumb_done.set()
+                    return
+                _t = time.monotonic()
+                thumb_result['thumbnail'] = self._prepare_image_for_ai_corrected(
+                    image_path, raw_processor, is_raw, target_size=max_size)
+                thumb_result['thumb_dur'] = time.monotonic() - _t
+                thumb_done.set()
+
+            # Avvia entrambi i thread in parallelo
+            t_exif  = threading.Thread(target=_do_exif,  daemon=True)
+            t_thumb = threading.Thread(target=_do_thumb, daemon=True)
+            t_exif.start()
+            t_thumb.start()
+
+            # Aspetta EXIF (serve per geo + DB insert)
+            exif_done.wait()
+            _t_exif_dur = exif_result['exif_dur']
+            _t_hash_dur = exif_result['hash_dur']
+
+            # Assembla image_data con i metadati EXIF
             image_data = {
                 'filename': fname,
                 'filepath': str(image_path),
@@ -567,32 +640,22 @@ class ProcessingWorker(QThread):
                 'app_version': '1.0',
                 'tags': json.dumps([], ensure_ascii=False),
             }
+            extracted_metadata = exif_result.get('metadata', {})
             if extracted_metadata:
                 for key, value in extracted_metadata.items():
                     if key not in ['is_raw', 'raw_info']:
                         image_data[key] = value
+            if exif_result.get('file_hash'):
+                image_data['file_hash'] = exif_result['file_hash']
 
-            # --- Hash file ---
-            _t_hash = time.monotonic()
-            try:
-                import hashlib
-                md5 = hashlib.md5()
-                with open(image_path, 'rb') as f:
-                    for chunk in iter(lambda: f.read(8192), b''):
-                        md5.update(chunk)
-                image_data['file_hash'] = md5.hexdigest()
-            except Exception:
-                pass
-            _t_hash_dur = time.monotonic() - _t_hash
-
-            # --- Geo hierarchy da GPS (plugin o builtin) ---
-            geo_hierarchy = None
-            location_hint = None
+            # --- Geo hierarchy (dopo EXIF, GPS disponibile) ---
+            _t_geo = time.monotonic()
+            geo_hierarchy  = None
+            location_hint  = None
             gps_lat = image_data.get('gps_latitude')
             gps_lon = image_data.get('gps_longitude')
 
             if gps_lat is not None and gps_lon is not None:
-                # Immagine con GPS: reverse geocoding
                 try:
                     if geo_plugin is not None:
                         geo_hierarchy = geo_plugin.get_hierarchy(float(gps_lat), float(gps_lon))
@@ -609,15 +672,12 @@ class ProcessingWorker(QThread):
                             self.log_message.emit(f"🌍 {fname}: {geo_hierarchy}", "debug")
                 except Exception as geo_err:
                     self.log_message.emit(f"⚠️ Geo enricher {fname}: {geo_err}", "warning")
-
             elif geo_plugin is not None and (geo_plugin_cfg or {}).get('only_no_gps', False):
-                # Immagine senza GPS + plugin attivo in modalità only_no_gps:
-                # assegna last_location configurata nel plugin
                 try:
                     _last = (geo_plugin_cfg or {}).get('last_location', {}) or {}
-                    _lat = _last.get('latitude')
-                    _lon = _last.get('longitude')
-                    _alt = _last.get('altitude')
+                    _lat  = _last.get('latitude')
+                    _lon  = _last.get('longitude')
+                    _alt  = _last.get('altitude')
                     if _lat is not None and _lon is not None:
                         _preset = _last.get('preset_hierarchy')
                         geo_hierarchy = _preset if _preset else geo_plugin.get_hierarchy(float(_lat), float(_lon))
@@ -630,108 +690,73 @@ class ProcessingWorker(QThread):
                             self.log_message.emit(f"📍 {fname}: posizione assegnata → {geo_hierarchy}", "debug")
                 except Exception as geo_err:
                     self.log_message.emit(f"⚠️ Geo no-GPS {fname}: {geo_err}", "warning")
+            _t_geo_dur = time.monotonic() - _t_geo
 
-            _t_geo_dur = time.monotonic() - (_t_hash + _t_hash_dur)
-
-            # --- Inserimento/aggiornamento record DB base ---
+            # --- DB insert (dopo EXIF+geo, thumb ancora in corso) ---
             _t_db = time.monotonic()
             image_exists = db_manager.image_exists(fname)
-            is_new = False
-            ai_fields = {}  # stato campi AI già popolati (per logica overwrite)
+            is_new    = False
+            ai_fields = {}
             with self._db_lock:
                 if image_exists and processing_mode in ['reprocess_all', 'new_plus_errors']:
-                    # Leggi stato campi AI PRIMA di aggiornare EXIF
                     ai_fields = db_manager.get_ai_fields_status(fname)
                     db_manager.update_image(fname, image_data)
                     self.log_message.emit(f"🔄 DB aggiornato (reprocess): {fname}", "debug")
                 elif image_exists:
-                    # Già nel DB e mode=new_only: skip silenzioso → log esplicito
                     self.log_message.emit(f"⏭️ Già nel DB, saltato: {fname}", "debug")
-                elif not image_exists:
+                else:
                     image_id = db_manager.insert_image(image_data)
                     is_new = True
                     if image_id:
                         self.log_message.emit(f"✅ DB inserito: {fname} (ID: {image_id})", "debug")
                     else:
                         self.log_message.emit(f"❌ DB inserimento fallito: {fname}", "error")
+                        thumb_done.wait()   # aspetta thumb prima di uscire
                         return None
-
             _t_db_dur = time.monotonic() - _t_db
 
-            # --- Thumbnail per modelli AI ---
-            _t_thumb = time.monotonic()
-            thumbnail = None
-            any_model_active = any(
-                emb_flags.get(k, {}).get('active', False)
-                for k in ('clip', 'dinov2', 'bioclip', 'aesthetic', 'technical')
-            )
-            llm_active = (llm_gen_config.get('tags', {}).get('enabled') or
-                          llm_gen_config.get('description', {}).get('enabled') or
-                          llm_gen_config.get('title', {}).get('enabled'))
+            # --- Aspetta thumbnail (potrebbe essere già pronto) ---
+            thumb_done.wait()
+            _t_thumb_dur = thumb_result['thumb_dur']
+            thumbnail    = thumb_result.get('thumbnail')
 
-            if any_model_active or llm_active:
-                # Calcola MAX target size dai profili attivi
-                active_profiles = []
-                models_cfg = config.get('embedding', {}).get('models', {})
-                _profile_map = {
-                    'clip': 'clip_embedding', 'dinov2': 'dinov2_embedding',
-                    'bioclip': 'bioclip_classification', 'aesthetic': 'aesthetic_score',
-                    'technical': 'technical_score',
-                }
-                for mk, prof in _profile_map.items():
-                    if emb_flags.get(mk, {}).get('active', False):
-                        active_profiles.append(prof)
-                if llm_active:
-                    active_profiles.append('llm_vision')
+            # Salva thumbnail cache gallery + work thumb su disco
+            work_thumb_path = None
+            if thumbnail and hasattr(thumbnail, 'size'):
+                try:
+                    from utils.thumb_cache import save_gallery_thumb
+                    from PIL import Image as _PILImage
+                    _ORIENT_OPS = {
+                        2: [_PILImage.Transpose.FLIP_LEFT_RIGHT],
+                        3: [_PILImage.Transpose.ROTATE_180],
+                        4: [_PILImage.Transpose.FLIP_TOP_BOTTOM],
+                        5: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_90],
+                        6: [_PILImage.Transpose.ROTATE_270],
+                        7: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_270],
+                        8: [_PILImage.Transpose.ROTATE_90],
+                    }
+                    orientation = image_data.get('orientation')
+                    ops = _ORIENT_OPS.get(int(orientation), []) if orientation and orientation != 1 else []
+                    if ops:
+                        thumb_oriented = thumbnail.copy()
+                        for op in ops:
+                            thumb_oriented = thumb_oriented.transpose(op)
+                        save_gallery_thumb(image_path, thumb_oriented)
+                    else:
+                        save_gallery_thumb(image_path, thumbnail)
+                except Exception as _e:
+                    logger.warning(f"Errore thumbnail cache gallery: {_e}")
 
-                max_size = raw_processor.get_max_target_size(active_profiles) if active_profiles else 1024
-                thumbnail = self._prepare_image_for_ai_corrected(
-                    image_path, raw_processor, is_raw, target_size=max_size)
+                if temp_dir:
+                    wtp = self._get_work_thumb_path(image_path, temp_dir)
+                    if self._save_work_thumb(thumbnail, wtp):
+                        work_thumb_path = wtp
+                thumbnail = None  # libera dalla RAM
+            elif need_thumb and is_raw:
+                self.log_message.emit(
+                    f"⚠️ {fname}: nessuna immagine estraibile dal RAW — "
+                    f"embedding e LLM saltati", "warning")
 
-                if thumbnail and hasattr(thumbnail, 'size'):
-                    # Salva thumbnail cache gallery con correzione orientazione
-                    try:
-                        from utils.thumb_cache import save_gallery_thumb
-                        from PIL import Image as _PILImage
-                        _ORIENT_OPS = {
-                            2: [_PILImage.Transpose.FLIP_LEFT_RIGHT],
-                            3: [_PILImage.Transpose.ROTATE_180],
-                            4: [_PILImage.Transpose.FLIP_TOP_BOTTOM],
-                            5: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_90],
-                            6: [_PILImage.Transpose.ROTATE_270],
-                            7: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_270],
-                            8: [_PILImage.Transpose.ROTATE_90],
-                        }
-                        orientation = image_data.get('orientation')
-                        ops = _ORIENT_OPS.get(int(orientation), []) if orientation and orientation != 1 else []
-                        if ops:
-                            thumb_oriented = thumbnail.copy()
-                            for op in ops:
-                                thumb_oriented = thumb_oriented.transpose(op)
-                            save_gallery_thumb(image_path, thumb_oriented)
-                        else:
-                            save_gallery_thumb(image_path, thumbnail)
-                    except Exception as _e:
-                        logger.warning(f"Errore thumbnail cache gallery: {_e}")
-
-                    # Salva work thumbnail su disco (rilascia PIL dalla RAM)
-                    work_thumb_path = None
-                    if temp_dir:
-                        wtp = self._get_work_thumb_path(image_path, temp_dir)
-                        if self._save_work_thumb(thumbnail, wtp):
-                            work_thumb_path = wtp
-                    thumbnail = None  # libera dalla RAM
-                else:
-                    work_thumb_path = None
-                    if is_raw:
-                        self.log_message.emit(
-                            f"⚠️ {fname}: nessuna immagine estraibile dal RAW — "
-                            f"embedding e LLM saltati", "warning")
-
-            else:
-                work_thumb_path = None
-
-            _t_thumb_dur = time.monotonic() - _t_thumb
             _t_total = time.monotonic() - _t0
             self.log_message.emit(
                 f"⏱ prep {fname}: exif={_t_exif_dur:.2f}s hash={_t_hash_dur:.2f}s "
@@ -739,13 +764,13 @@ class ProcessingWorker(QThread):
                 f"tot={_t_total:.2f}s", "debug")
 
             return {
-                'image_path': image_path,
+                'image_path':     image_path,
                 'work_thumb_path': work_thumb_path,
-                'image_data': image_data,
-                'geo_hierarchy': geo_hierarchy,
-                'location_hint': location_hint,
-                'is_new': is_new,
-                'ai_fields': ai_fields,  # campi AI già popolati nel DB
+                'image_data':     image_data,
+                'geo_hierarchy':  geo_hierarchy,
+                'location_hint':  location_hint,
+                'is_new':         is_new,
+                'ai_fields':      ai_fields,
             }
 
         except Exception as e:
