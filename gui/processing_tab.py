@@ -541,15 +541,18 @@ class ProcessingWorker(QThread):
         Ritorna dict con dati prep oppure None in caso di errore fatale."""
         try:
             fname = image_path.name
+            _t0 = time.monotonic()
             self.log_message.emit(f"📂 Prep: {fname}", "debug")
             is_raw = raw_processor.is_raw_file(image_path)
 
             # --- Estrazione EXIF metadata ---
+            _t_exif = time.monotonic()
             try:
                 extracted_metadata = raw_processor.extract_raw_metadata(image_path)
             except Exception as e:
                 self.log_message.emit(f"⚠️ Errore EXIF {fname}: {e}", "warning")
                 extracted_metadata = {}
+            _t_exif_dur = time.monotonic() - _t_exif
 
             image_data = {
                 'filename': fname,
@@ -570,6 +573,7 @@ class ProcessingWorker(QThread):
                         image_data[key] = value
 
             # --- Hash file ---
+            _t_hash = time.monotonic()
             try:
                 import hashlib
                 md5 = hashlib.md5()
@@ -579,6 +583,7 @@ class ProcessingWorker(QThread):
                 image_data['file_hash'] = md5.hexdigest()
             except Exception:
                 pass
+            _t_hash_dur = time.monotonic() - _t_hash
 
             # --- Geo hierarchy da GPS (plugin o builtin) ---
             geo_hierarchy = None
@@ -626,7 +631,10 @@ class ProcessingWorker(QThread):
                 except Exception as geo_err:
                     self.log_message.emit(f"⚠️ Geo no-GPS {fname}: {geo_err}", "warning")
 
+            _t_geo_dur = time.monotonic() - (_t_hash + _t_hash_dur)
+
             # --- Inserimento/aggiornamento record DB base ---
+            _t_db = time.monotonic()
             image_exists = db_manager.image_exists(fname)
             is_new = False
             ai_fields = {}  # stato campi AI già popolati (per logica overwrite)
@@ -648,7 +656,10 @@ class ProcessingWorker(QThread):
                         self.log_message.emit(f"❌ DB inserimento fallito: {fname}", "error")
                         return None
 
+            _t_db_dur = time.monotonic() - _t_db
+
             # --- Thumbnail per modelli AI ---
+            _t_thumb = time.monotonic()
             thumbnail = None
             any_model_active = any(
                 emb_flags.get(k, {}).get('active', False)
@@ -720,6 +731,13 @@ class ProcessingWorker(QThread):
             else:
                 work_thumb_path = None
 
+            _t_thumb_dur = time.monotonic() - _t_thumb
+            _t_total = time.monotonic() - _t0
+            self.log_message.emit(
+                f"⏱ prep {fname}: exif={_t_exif_dur:.2f}s hash={_t_hash_dur:.2f}s "
+                f"geo={_t_geo_dur:.2f}s db={_t_db_dur:.2f}s thumb={_t_thumb_dur:.2f}s "
+                f"tot={_t_total:.2f}s", "debug")
+
             return {
                 'image_path': image_path,
                 'work_thumb_path': work_thumb_path,
@@ -780,38 +798,42 @@ class ProcessingWorker(QThread):
                 i_global = idx + 1
 
                 # Attendi che ExifTool abbia preparato questa foto
+                _t_wait = time.monotonic()
                 while fname not in self._prep_cache:
                     if not self._worker.is_running:
                         self._queue.put(None)
                         return
                     time.sleep(0.02)
+                _t_wait_dur = time.monotonic() - _t_wait
 
                 prep = self._prep_cache[fname]
                 if prep is None:
-                    self._queue.put((i_global, fname, None))
+                    self._queue.put((i_global, fname, None, _t_wait_dur, 0.0))
                     continue
 
                 # Skip se campo già presente e overwrite OFF
                 if not self._overwrite and not prep.get('is_new', True):
                     if prep.get('ai_fields', {}).get(self._ai_field, False):
-                        self._queue.put((i_global, fname, None))
+                        self._queue.put((i_global, fname, None, _t_wait_dur, 0.0))
                         continue
 
                 work_thumb_path = prep.get('work_thumb_path')
                 if work_thumb_path is None:
-                    self._queue.put((i_global, fname, None))
+                    self._queue.put((i_global, fname, None, _t_wait_dur, 0.0))
                     continue
 
+                _t_load = time.monotonic()
                 thumb = self._worker._load_work_thumb(work_thumb_path)
+                _t_load_dur = time.monotonic() - _t_load
                 # thumb può essere None se il file è corrotto
-                self._queue.put((i_global, fname, thumb))
+                self._queue.put((i_global, fname, thumb, _t_wait_dur, _t_load_dur))
 
             self._queue.put(None)  # sentinel fine sequenza
 
         def next_batch(self, batch_size, timeout=0.5):
             """Preleva dalla coda fino a batch_size immagini valide.
             Restituisce (batch, skipped, done):
-              batch   — lista (i_global, fname, thumb) con thumb valido
+              batch   — lista (i_global, fname, thumb, wait_s, load_s) con thumb valido
               skipped — lista (i_global, fname) da segnalare come progress
               done    — True se la sequenza è terminata (sentinel ricevuto)"""
             batch    = []
@@ -832,11 +854,11 @@ class ProcessingWorker(QThread):
                     self._queue.put(None)
                     return batch, skipped, True
 
-                i_global, fname, thumb = item
+                i_global, fname, thumb, wait_s, load_s = item
                 if thumb is None:
                     skipped.append((i_global, fname))
                 else:
-                    batch.append((i_global, fname, thumb))
+                    batch.append((i_global, fname, thumb, wait_s, load_s))
 
             return batch, skipped, False
 
@@ -851,12 +873,17 @@ class ProcessingWorker(QThread):
         while True:
             if not self._wait_if_paused():
                 break
+            _t_qwait = time.monotonic()
             batch, skipped, done = pf.next_batch(self._BATCH_SIZE_CLIP, self._BATCH_TIMEOUT)
+            _t_qwait_dur = time.monotonic() - _t_qwait
             for (i_global, fname) in skipped:
                 self._emit_progress_throttled('clip', i_global, total)
             if batch:
                 thumbs = [item[2] for item in batch]
+                avg_wait = sum(item[3] for item in batch) / len(batch)
+                avg_load = sum(item[4] for item in batch) / len(batch)
                 try:
+                    _t_inf = time.monotonic()
                     if use_gpu:
                         self._gpu_lock.acquire()
                     try:
@@ -864,7 +891,9 @@ class ProcessingWorker(QThread):
                     finally:
                         if use_gpu:
                             self._gpu_lock.release()
-                    for (i_global, fname, _), emb in zip(batch, embeddings):
+                    _t_inf_dur = time.monotonic() - _t_inf
+                    _t_db = time.monotonic()
+                    for (i_global, fname, _, _, _), emb in zip(batch, embeddings):
                         if emb is not None and isinstance(emb, np.ndarray):
                             if np.any(np.isnan(emb)):
                                 self.log_message.emit(f"🚨 CLIP NaN: {fname}", "error")
@@ -876,9 +905,14 @@ class ProcessingWorker(QThread):
                                     stats['with_embedding'] += 1
                                     stats['clip'] += 1
                         self._emit_progress_throttled('clip', i_global, total)
+                    _t_db_dur = time.monotonic() - _t_db
+                    self.log_message.emit(
+                        f"⏱ CLIP batch={len(batch)} qwait={_t_qwait_dur:.2f}s "
+                        f"pf_wait={avg_wait:.2f}s pf_load={avg_load:.2f}s "
+                        f"inf={_t_inf_dur:.2f}s db={_t_db_dur:.2f}s", "debug")
                 except Exception as e:
                     self.log_message.emit(f"❌ CLIP batch: {e}", "error")
-                    for (i_global, fname, _) in batch:
+                    for (i_global, fname, _, _, _) in batch:
                         self._emit_progress_throttled('clip', i_global, total)
             if done:
                 break
@@ -894,12 +928,17 @@ class ProcessingWorker(QThread):
         while True:
             if not self._wait_if_paused():
                 break
+            _t_qwait = time.monotonic()
             batch, skipped, done = pf.next_batch(self._BATCH_SIZE_DINOV2, self._BATCH_TIMEOUT)
+            _t_qwait_dur = time.monotonic() - _t_qwait
             for (i_global, fname) in skipped:
                 self._emit_progress_throttled('dinov2', i_global, total)
             if batch:
                 thumbs = [item[2] for item in batch]
+                avg_wait = sum(item[3] for item in batch) / len(batch)
+                avg_load = sum(item[4] for item in batch) / len(batch)
                 try:
+                    _t_inf = time.monotonic()
                     if use_gpu:
                         self._gpu_lock.acquire()
                     try:
@@ -907,7 +946,9 @@ class ProcessingWorker(QThread):
                     finally:
                         if use_gpu:
                             self._gpu_lock.release()
-                    for (i_global, fname, _), emb in zip(batch, embeddings):
+                    _t_inf_dur = time.monotonic() - _t_inf
+                    _t_db = time.monotonic()
+                    for (i_global, fname, _, _, _), emb in zip(batch, embeddings):
                         if emb is not None and isinstance(emb, np.ndarray):
                             if np.any(np.isnan(emb)):
                                 self.log_message.emit(f"🚨 DINOv2 NaN: {fname}", "error")
@@ -919,9 +960,14 @@ class ProcessingWorker(QThread):
                                     stats['with_embedding'] += 1
                                     stats['dinov2'] += 1
                         self._emit_progress_throttled('dinov2', i_global, total)
+                    _t_db_dur = time.monotonic() - _t_db
+                    self.log_message.emit(
+                        f"⏱ DINO batch={len(batch)} qwait={_t_qwait_dur:.2f}s "
+                        f"pf_wait={avg_wait:.2f}s pf_load={avg_load:.2f}s "
+                        f"inf={_t_inf_dur:.2f}s db={_t_db_dur:.2f}s", "debug")
                 except Exception as e:
                     self.log_message.emit(f"❌ DINOv2 batch: {e}", "error")
-                    for (i_global, fname, _) in batch:
+                    for (i_global, fname, _, _, _) in batch:
                         self._emit_progress_throttled('dinov2', i_global, total)
             if done:
                 break
@@ -936,12 +982,17 @@ class ProcessingWorker(QThread):
         while True:
             if not self._wait_if_paused():
                 break
+            _t_qwait = time.monotonic()
             batch, skipped, done = pf.next_batch(self._BATCH_SIZE_AESTHETIC, self._BATCH_TIMEOUT)
+            _t_qwait_dur = time.monotonic() - _t_qwait
             for (i_global, fname) in skipped:
                 self._emit_progress_throttled('aesthetic', i_global, total)
             if batch:
                 thumbs = [item[2] for item in batch]
+                avg_wait = sum(item[3] for item in batch) / len(batch)
+                avg_load = sum(item[4] for item in batch) / len(batch)
                 try:
+                    _t_inf = time.monotonic()
                     if use_gpu:
                         self._gpu_lock.acquire()
                     try:
@@ -949,25 +1000,30 @@ class ProcessingWorker(QThread):
                     finally:
                         if use_gpu:
                             self._gpu_lock.release()
-                    for (i_global, fname, _), score in zip(batch, scores):
+                    _t_inf_dur = time.monotonic() - _t_inf
+                    _t_db = time.monotonic()
+                    for (i_global, fname, _, _, _), score in zip(batch, scores):
                         if score is not None:
                             with self._db_lock:
                                 db_manager.update_image(fname, {'aesthetic_score': score})
                             with self._stats_lock:
                                 stats['aesthetic'] += 1
                         self._emit_progress_throttled('aesthetic', i_global, total)
+                    _t_db_dur = time.monotonic() - _t_db
+                    self.log_message.emit(
+                        f"⏱ AEST batch={len(batch)} qwait={_t_qwait_dur:.2f}s "
+                        f"pf_wait={avg_wait:.2f}s pf_load={avg_load:.2f}s "
+                        f"inf={_t_inf_dur:.2f}s db={_t_db_dur:.2f}s", "debug")
                 except Exception as e:
                     self.log_message.emit(f"❌ Aesthetic batch: {e}", "error")
-                    for (i_global, fname, _) in batch:
+                    for (i_global, fname, _, _, _) in batch:
                         self._emit_progress_throttled('aesthetic', i_global, total)
             if done:
                 break
 
     def _thread_musiq(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
                       processing_mode='new_only'):
-        """Thread MUSIQ: calcola punteggio qualità tecnica ~0-100 (prefetch disco).
-        MUSIQ via pyiqa non ha API batch nativa — processa sequenzialmente
-        ma il prefetcher nasconde la latenza di lettura disco."""
+        """Thread MUSIQ: calcola punteggio qualità tecnica ~0-100 (prefetch disco)."""
         overwrite = flags.get('overwrite', False)
         use_gpu   = self._is_model_on_gpu(emb_gen, 'technical')
         pf = self._ThumbPrefetcher(images, prep_cache, 'technical_score',
@@ -975,12 +1031,17 @@ class ProcessingWorker(QThread):
         while True:
             if not self._wait_if_paused():
                 break
+            _t_qwait = time.monotonic()
             batch, skipped, done = pf.next_batch(self._BATCH_SIZE_CLIP, self._BATCH_TIMEOUT)
+            _t_qwait_dur = time.monotonic() - _t_qwait
             for (i_global, fname) in skipped:
                 self._emit_progress_throttled('technical', i_global, total)
             if batch:
                 thumbs = [item[2] for item in batch]
+                avg_wait = sum(item[3] for item in batch) / len(batch)
+                avg_load = sum(item[4] for item in batch) / len(batch)
                 try:
+                    _t_inf = time.monotonic()
                     if use_gpu:
                         self._gpu_lock.acquire()
                     try:
@@ -988,16 +1049,23 @@ class ProcessingWorker(QThread):
                     finally:
                         if use_gpu:
                             self._gpu_lock.release()
-                    for (i_global, fname, _), score in zip(batch, scores):
+                    _t_inf_dur = time.monotonic() - _t_inf
+                    _t_db = time.monotonic()
+                    for (i_global, fname, _, _, _), score in zip(batch, scores):
                         if score is not None:
                             with self._db_lock:
                                 db_manager.update_image(fname, {'technical_score': score})
                             with self._stats_lock:
                                 stats['technical'] += 1
                         self._emit_progress_throttled('technical', i_global, total)
+                    _t_db_dur = time.monotonic() - _t_db
+                    self.log_message.emit(
+                        f"⏱ MUSIQ batch={len(batch)} qwait={_t_qwait_dur:.2f}s "
+                        f"pf_wait={avg_wait:.2f}s pf_load={avg_load:.2f}s "
+                        f"inf={_t_inf_dur:.2f}s db={_t_db_dur:.2f}s", "debug")
                 except Exception as e:
                     self.log_message.emit(f"❌ Technical batch: {e}", "error")
-                    for (i_global, fname, _) in batch:
+                    for (i_global, fname, _, _, _) in batch:
                         self._emit_progress_throttled('technical', i_global, total)
             if done:
                 break
