@@ -572,8 +572,8 @@ class ProcessingWorker(QThread):
             else:
                 max_size = 0
 
-            # ── Thread A: EXIF + hash ────────────────────────────────
-            exif_result  = {}   # {'metadata': dict, 'dur': float, 'hash_dur': float}
+            # ── Thread A: EXIF ───────────────────────────────────────
+            exif_result  = {}   # {'metadata': dict, 'exif_dur': float}
             exif_done    = threading.Event()
 
             def _do_exif():
@@ -585,22 +585,10 @@ class ProcessingWorker(QThread):
                     md = {}
                 exif_result['metadata'] = md
                 exif_result['exif_dur'] = time.monotonic() - _t
-                # Hash
-                _th = time.monotonic()
-                try:
-                    import hashlib
-                    md5 = hashlib.md5()
-                    with open(image_path, 'rb') as f:
-                        for chunk in iter(lambda: f.read(8192), b''):
-                            md5.update(chunk)
-                    exif_result['file_hash'] = md5.hexdigest()
-                except Exception:
-                    exif_result['file_hash'] = None
-                exif_result['hash_dur'] = time.monotonic() - _th
                 exif_done.set()
 
             # ── Thread B: thumbnail ──────────────────────────────────
-            thumb_result = {}   # {'thumbnail': PIL|None, 'dur': float}
+            thumb_result = {}   # {'thumbnail': PIL|None, 'thumb_dur': float}
             thumb_done   = threading.Event()
 
             def _do_thumb():
@@ -615,16 +603,35 @@ class ProcessingWorker(QThread):
                 thumb_result['thumb_dur'] = time.monotonic() - _t
                 thumb_done.set()
 
-            # Avvia entrambi i thread in parallelo
+            # ── Thread C: hash MD5 ───────────────────────────────────
+            hash_result  = {}   # {'file_hash': str|None, 'hash_dur': float}
+            hash_done    = threading.Event()
+
+            def _do_hash():
+                import hashlib
+                _th = time.monotonic()
+                try:
+                    md5 = hashlib.md5()
+                    with open(image_path, 'rb') as f:
+                        for chunk in iter(lambda: f.read(65536), b''):
+                            md5.update(chunk)
+                    hash_result['file_hash'] = md5.hexdigest()
+                except Exception:
+                    hash_result['file_hash'] = None
+                hash_result['hash_dur'] = time.monotonic() - _th
+                hash_done.set()
+
+            # Avvia tutti e tre i thread in parallelo
             t_exif  = threading.Thread(target=_do_exif,  daemon=True)
             t_thumb = threading.Thread(target=_do_thumb, daemon=True)
+            t_hash  = threading.Thread(target=_do_hash,  daemon=True)
             t_exif.start()
             t_thumb.start()
+            t_hash.start()
 
             # Aspetta EXIF (serve per geo + DB insert)
             exif_done.wait()
             _t_exif_dur = exif_result['exif_dur']
-            _t_hash_dur = exif_result['hash_dur']
 
             # Assembla image_data con i metadati EXIF
             image_data = {
@@ -645,8 +652,7 @@ class ProcessingWorker(QThread):
                 for key, value in extracted_metadata.items():
                     if key not in ['is_raw', 'raw_info']:
                         image_data[key] = value
-            if exif_result.get('file_hash'):
-                image_data['file_hash'] = exif_result['file_hash']
+            # file_hash aggiunto dopo hash_done.wait() (thread C in parallelo)
 
             # --- Geo hierarchy (dopo EXIF, GPS disponibile) ---
             _t_geo = time.monotonic()
@@ -712,13 +718,20 @@ class ProcessingWorker(QThread):
                     else:
                         self.log_message.emit(f"❌ DB inserimento fallito: {fname}", "error")
                         thumb_done.wait()   # aspetta thumb prima di uscire
+                        hash_done.wait()    # aspetta hash prima di uscire
                         return None
             _t_db_dur = time.monotonic() - _t_db
 
-            # --- Aspetta thumbnail (potrebbe essere già pronto) ---
+            # --- Aspetta thumbnail e hash (in parallelo, potrebbe essere già pronti) ---
             thumb_done.wait()
+            hash_done.wait()
             _t_thumb_dur = thumb_result['thumb_dur']
+            _t_hash_dur  = hash_result['hash_dur']
             thumbnail    = thumb_result.get('thumbnail')
+
+            # Aggiunge file_hash a image_data (calcolato in parallelo con thumb)
+            if hash_result.get('file_hash'):
+                image_data['file_hash'] = hash_result['file_hash']
 
             # Salva thumbnail cache gallery + work thumb su disco
             work_thumb_path = None
