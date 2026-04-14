@@ -598,16 +598,16 @@ class ProcessingWorker(QThread):
             finally:
                 _tmp_file.close()
 
-            # ── Thread A: EXIF (dal file temporaneo locale) ──────────
+            # ── Thread A: EXIF (path originale — stay_open + sidecar XMP) ──
+            # Usa image_path originale: ExifTool stay_open è già ottimizzato
+            # e il sidecar .xmp deve trovarsi accanto al file originale.
             exif_result  = {}   # {'metadata': dict, 'exif_dur': float}
             exif_done    = threading.Event()
 
             def _do_exif():
                 _t = time.monotonic()
                 try:
-                    md = raw_processor.extract_raw_metadata(_tmp_path)
-                    # Ripristina il path originale nei metadati
-                    md['filepath_original'] = str(image_path)
+                    md = raw_processor.extract_raw_metadata(image_path)
                 except Exception as e:
                     self.log_message.emit(f"⚠️ Errore EXIF {fname}: {e}", "warning")
                     md = {}
@@ -615,7 +615,8 @@ class ProcessingWorker(QThread):
                 exif_result['exif_dur'] = time.monotonic() - _t
                 exif_done.set()
 
-            # ── Thread B: thumbnail (dal file temporaneo locale) ─────
+            # ── Thread B: thumbnail (dal file temporaneo su SSD locale) ──
+            # rawpy e PIL beneficiano del file su SSD invece che USB.
             thumb_result = {}   # {'thumbnail': PIL|None, 'thumb_dur': float}
             thumb_done   = threading.Event()
 
