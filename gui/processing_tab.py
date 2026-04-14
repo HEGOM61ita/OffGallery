@@ -739,26 +739,29 @@ class ProcessingWorker(QThread):
     # ─────────────────────────────────────────────────────────────
     # THREAD MODELLI EMBEDDING  (architettura batch)
     # ─────────────────────────────────────────────────────────────
-    # Ogni thread accumula fino a EMBED_BATCH_SIZE immagini già pronte
-    # nella prep_cache, poi esegue una singola forward pass GPU per
-    # tutto il batch. Se la finestra non si riempie entro BATCH_TIMEOUT
-    # secondi, la forward viene comunque eseguita (evita stalli quando
-    # il thread ExifTool è più lento dei thread modello).
-    _EMBED_BATCH_SIZE = 32
-    _BATCH_TIMEOUT    = 0.5   # secondi — flush batch parziale
+    # Ogni thread accumula le immagini pronte nella prep_cache e le
+    # processa in batch GPU. Batch size differenziato per modello:
+    # DINOv2 usa input 518x518 (9x più grande di 224x224) quindi
+    # il batch è ridotto per contenere il picco di VRAM.
+    _BATCH_SIZE_CLIP      = 16   # ViT-L/14 224x224 — ~9MB attivazioni/batch
+    _BATCH_SIZE_DINOV2    = 4    # ViT-G/14 518x518 — ~100MB attivazioni/batch
+    _BATCH_SIZE_AESTHETIC = 16   # CLIP-based 224x224
+    _BATCH_TIMEOUT        = 0.5  # secondi — flush batch parziale
 
     def _collect_batch(self, images, start_idx, prep_cache, model_key, ai_field,
-                       overwrite, model_progress_key, total):
-        """Raccoglie fino a _EMBED_BATCH_SIZE immagini pronte dalla prep_cache
+                       overwrite, model_progress_key, total, batch_size=None):
+        """Raccoglie fino a batch_size immagini pronte dalla prep_cache
         partendo da start_idx. Gestisce attesa con timeout.
 
         Restituisce (batch_items, next_idx) dove batch_items è lista di
         (i_globale, fname, thumb) e next_idx è l'indice da cui riprendere."""
+        if batch_size is None:
+            batch_size = self._BATCH_SIZE_CLIP
         batch_items = []
         idx = start_idx
         deadline = time.monotonic() + self._BATCH_TIMEOUT
 
-        while idx < len(images) and len(batch_items) < self._EMBED_BATCH_SIZE:
+        while idx < len(images) and len(batch_items) < batch_size:
             if not self.is_running:
                 break
             image_path = images[idx]
@@ -819,7 +822,7 @@ class ProcessingWorker(QThread):
                 break
             batch_items, idx = self._collect_batch(
                 images, idx, prep_cache, 'clip', 'clip_embedding',
-                overwrite, 'clip', total)
+                overwrite, 'clip', total, self._BATCH_SIZE_CLIP)
             if not batch_items:
                 # Nessuna immagine pronta ancora, breve attesa
                 if self.is_running:
@@ -863,7 +866,7 @@ class ProcessingWorker(QThread):
                 break
             batch_items, idx = self._collect_batch(
                 images, idx, prep_cache, 'dinov2', 'dinov2_embedding',
-                overwrite, 'dinov2', total)
+                overwrite, 'dinov2', total, self._BATCH_SIZE_DINOV2)
             if not batch_items:
                 if self.is_running:
                     time.sleep(0.05)
@@ -905,7 +908,7 @@ class ProcessingWorker(QThread):
                 break
             batch_items, idx = self._collect_batch(
                 images, idx, prep_cache, 'aesthetic', 'aesthetic_score',
-                overwrite, 'aesthetic', total)
+                overwrite, 'aesthetic', total, self._BATCH_SIZE_AESTHETIC)
             if not batch_items:
                 if self.is_running:
                     time.sleep(0.05)
@@ -944,7 +947,7 @@ class ProcessingWorker(QThread):
                 break
             batch_items, idx = self._collect_batch(
                 images, idx, prep_cache, 'technical', 'technical_score',
-                overwrite, 'technical', total)
+                overwrite, 'technical', total, self._BATCH_SIZE_CLIP)
             if not batch_items:
                 if self.is_running:
                     time.sleep(0.05)
