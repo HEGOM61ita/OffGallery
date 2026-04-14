@@ -766,9 +766,9 @@ class ProcessingWorker(QThread):
             self._ai_field   = ai_field
             self._overwrite  = overwrite
             self._worker     = worker_ref
-            # Coda con capacità 2× batch_size: mantiene in RAM al massimo
-            # due batch futuri per non esaurire la memoria
-            self._queue      = queue.Queue(maxsize=batch_size * 2)
+            # Coda con capacità batch_size: tiene in RAM esattamente il
+            # prossimo batch mentre la GPU processa quello corrente
+            self._queue      = queue.Queue(maxsize=batch_size)
             self._thread     = threading.Thread(target=self._run, daemon=True)
             self._thread.start()
 
