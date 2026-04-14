@@ -540,6 +540,7 @@ class ProcessingWorker(QThread):
         Le due operazioni più lente (exif e thumb) vengono sovrapposte con
         due thread interni sincronizzati tramite threading.Event.
         Ritorna dict con dati prep oppure None in caso di errore fatale."""
+        _tmp_path = None  # file temporaneo su SSD locale — pulito nel finally
         try:
             fname  = image_path.name
             _t0    = time.monotonic()
@@ -572,14 +573,41 @@ class ProcessingWorker(QThread):
             else:
                 max_size = 0
 
-            # ── Thread A: EXIF ───────────────────────────────────────
+            # ── Lettura unica del file in RAM ────────────────────────
+            # Su HDD USB meccanico (13MB/s), 3 thread che leggono lo stesso
+            # file in parallelo causano seek multipli devastanti. Leggiamo
+            # il file una volta sola in RAM, poi i thread lavorano dalla cache.
+            _t_read = time.monotonic()
+            try:
+                _file_bytes = image_path.read_bytes()
+            except Exception as _re:
+                self.log_message.emit(f"⚠️ Impossibile leggere {fname}: {_re}", "error")
+                return None
+            _read_dur = time.monotonic() - _t_read
+
+            # File temporaneo su disco locale (SSD) per ExifTool e rawpy
+            # (entrambi richiedono un path, non accettano bytes direttamente)
+            import tempfile
+            _suffix = image_path.suffix
+            _tmp_file = tempfile.NamedTemporaryFile(
+                suffix=_suffix, delete=False, dir=None)  # dir=None → temp di sistema (SSD)
+            _tmp_path = Path(_tmp_file.name)
+            try:
+                _tmp_file.write(_file_bytes)
+                _tmp_file.flush()
+            finally:
+                _tmp_file.close()
+
+            # ── Thread A: EXIF (dal file temporaneo locale) ──────────
             exif_result  = {}   # {'metadata': dict, 'exif_dur': float}
             exif_done    = threading.Event()
 
             def _do_exif():
                 _t = time.monotonic()
                 try:
-                    md = raw_processor.extract_raw_metadata(image_path)
+                    md = raw_processor.extract_raw_metadata(_tmp_path)
+                    # Ripristina il path originale nei metadati
+                    md['filepath_original'] = str(image_path)
                 except Exception as e:
                     self.log_message.emit(f"⚠️ Errore EXIF {fname}: {e}", "warning")
                     md = {}
@@ -587,7 +615,7 @@ class ProcessingWorker(QThread):
                 exif_result['exif_dur'] = time.monotonic() - _t
                 exif_done.set()
 
-            # ── Thread B: thumbnail ──────────────────────────────────
+            # ── Thread B: thumbnail (dal file temporaneo locale) ─────
             thumb_result = {}   # {'thumbnail': PIL|None, 'thumb_dur': float}
             thumb_done   = threading.Event()
 
@@ -599,11 +627,11 @@ class ProcessingWorker(QThread):
                     return
                 _t = time.monotonic()
                 thumb_result['thumbnail'] = self._prepare_image_for_ai_corrected(
-                    image_path, raw_processor, is_raw, target_size=max_size)
+                    _tmp_path, raw_processor, is_raw, target_size=max_size)
                 thumb_result['thumb_dur'] = time.monotonic() - _t
                 thumb_done.set()
 
-            # ── Thread C: hash MD5 ───────────────────────────────────
+            # ── Thread C: hash MD5 (dai bytes già in RAM) ────────────
             hash_result  = {}   # {'file_hash': str|None, 'hash_dur': float}
             hash_done    = threading.Event()
 
@@ -611,11 +639,7 @@ class ProcessingWorker(QThread):
                 import hashlib
                 _th = time.monotonic()
                 try:
-                    md5 = hashlib.md5()
-                    with open(image_path, 'rb') as f:
-                        for chunk in iter(lambda: f.read(65536), b''):
-                            md5.update(chunk)
-                    hash_result['file_hash'] = md5.hexdigest()
+                    hash_result['file_hash'] = hashlib.md5(_file_bytes).hexdigest()
                 except Exception:
                     hash_result['file_hash'] = None
                 hash_result['hash_dur'] = time.monotonic() - _th
@@ -719,6 +743,7 @@ class ProcessingWorker(QThread):
                         self.log_message.emit(f"❌ DB inserimento fallito: {fname}", "error")
                         thumb_done.wait()   # aspetta thumb prima di uscire
                         hash_done.wait()    # aspetta hash prima di uscire
+                        _file_bytes = None
                         return None
             _t_db_dur = time.monotonic() - _t_db
 
@@ -728,6 +753,9 @@ class ProcessingWorker(QThread):
             _t_thumb_dur = thumb_result['thumb_dur']
             _t_hash_dur  = hash_result['hash_dur']
             thumbnail    = thumb_result.get('thumbnail')
+
+            # Libera bytes in RAM (il file temporaneo viene pulito nel finally)
+            _file_bytes = None
 
             # Aggiunge file_hash a image_data (calcolato in parallelo con thumb)
             if hash_result.get('file_hash'):
@@ -772,9 +800,9 @@ class ProcessingWorker(QThread):
 
             _t_total = time.monotonic() - _t0
             self.log_message.emit(
-                f"⏱ prep {fname}: exif={_t_exif_dur:.2f}s hash={_t_hash_dur:.2f}s "
-                f"geo={_t_geo_dur:.2f}s db={_t_db_dur:.2f}s thumb={_t_thumb_dur:.2f}s "
-                f"tot={_t_total:.2f}s", "debug")
+                f"⏱ prep {fname}: read={_read_dur:.2f}s exif={_t_exif_dur:.2f}s "
+                f"hash={_t_hash_dur:.2f}s geo={_t_geo_dur:.2f}s db={_t_db_dur:.2f}s "
+                f"thumb={_t_thumb_dur:.2f}s tot={_t_total:.2f}s", "debug")
 
             return {
                 'image_path':     image_path,
@@ -791,6 +819,13 @@ class ProcessingWorker(QThread):
             import traceback
             self.log_message.emit(f"Traceback: {traceback.format_exc()}", "error")
             return None
+        finally:
+            # Pulizia file temporaneo su SSD locale in ogni caso
+            if _tmp_path is not None:
+                try:
+                    _tmp_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
 
     # ─────────────────────────────────────────────────────────────
     # THREAD MODELLI EMBEDDING  (architettura batch + prefetch)
