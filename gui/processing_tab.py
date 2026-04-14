@@ -3107,15 +3107,25 @@ class ProcessingTab(QWidget):
         pass
     
     def add_log_message(self, message, level):
-        """Aggiunge messaggio al log terminale.
-        I messaggi debug vengono soppressi durante il processing attivo per ridurre
-        il carico sulla coda eventi Qt (migliaia di emit per-foto da thread concorrenti)."""
-        # Filtra i messaggi debug durante il processing: le progress bar già mostrano
-        # l'avanzamento per-modello e per-foto — il dettaglio verboso non è necessario
+        """Aggiunge messaggio al log terminale e, se attivo, al file log.
+        I messaggi debug vengono soppressi dalla GUI durante il processing attivo
+        per ridurre il carico sulla coda eventi Qt, ma vengono sempre scritti
+        sul file log se abilitato."""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+
+        # Scrivi su file log se attivo — sempre, anche i debug (è il punto del file log)
+        if self.processing_log_file:
+            try:
+                self.processing_log_file.write(f"[{timestamp}] [{level.upper()}] {message}\n")
+                self.processing_log_file.flush()
+            except Exception:
+                pass
+
+        # Filtra i messaggi debug dalla GUI durante il processing: le progress bar già
+        # mostrano l'avanzamento — il dettaglio verboso causerebbe flood della coda eventi Qt
         if level == 'debug' and self.worker is not None and self.worker.isRunning():
             return
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        
+
         # Colori terminale: diverse tonalità di verde per i diversi livelli
         color_map = {
             'info': '#00ff00',      # Verde brillante per info
@@ -3124,21 +3134,13 @@ class ProcessingTab(QWidget):
             'success': '#00ff88',   # Verde acqua per successi
             'debug': '#88ff88'      # Verde chiaro per debug
         }
-        
+
         color = color_map.get(level, '#00ff00')
-        
+
         # Formato terminale classico
         formatted = f'<span style="color: #00cc00;">[{timestamp}]</span> <span style="color: {color};">{message}</span>'
-        
-        self.log_display.append(formatted)
 
-        # Scrivi su file log se attivo (log completo, senza cap)
-        if self.processing_log_file:
-            try:
-                self.processing_log_file.write(f"[{timestamp}] [{level.upper()}] {message}\n")
-                self.processing_log_file.flush()
-            except Exception:
-                pass
+        self.log_display.append(formatted)
 
         # Limita buffer terminale a 500 righe per evitare degrado GUI
         max_lines = 500
