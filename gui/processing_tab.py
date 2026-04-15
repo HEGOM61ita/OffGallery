@@ -919,6 +919,7 @@ class ProcessingWorker(QThread):
 
         overwrite   = emb_flags.get(model_key, {}).get('overwrite', False)
         _db_pending = 0
+        i = 0  # contatore foto elaborate da questo thread
 
         self.log_message.emit(f"🧠 Thread {model_key.upper()} avviato", "info")
 
@@ -934,6 +935,7 @@ class ProcessingWorker(QThread):
             if not self._wait_if_paused():
                 break
 
+            i += 1
             image_path, barrier = item
             fname = image_path.name
 
@@ -953,7 +955,7 @@ class ProcessingWorker(QThread):
             prep = prep_cache.get(fname)
             if prep is None:
                 barrier.done(model_key)
-                self._emit_progress_throttled(model_key, 0, total)
+                self._emit_progress_throttled(model_key, i, total)
                 continue
 
             is_new    = prep.get('is_new', True)
@@ -1008,7 +1010,7 @@ class ProcessingWorker(QThread):
 
             # Segnala alla barrier che questo modello ha finito la foto
             barrier.done(model_key)
-            self._emit_progress_throttled(model_key, 0, total)
+            self._emit_progress_throttled(model_key, i, total)
 
         # Commit finale residui
         if _db_pending > 0:
@@ -1037,6 +1039,7 @@ class ProcessingWorker(QThread):
 
         overwrite   = emb_flags.get('bioclip', {}).get('overwrite', False)
         _db_pending = 0
+        i = 0  # contatore foto elaborate da questo thread
 
         self.log_message.emit("🌿 Thread BioCLIP avviato", "info")
 
@@ -1052,6 +1055,7 @@ class ProcessingWorker(QThread):
             if not self._wait_if_paused():
                 break
 
+            i += 1
             image_path, barrier = item
             fname = image_path.name
 
@@ -1069,7 +1073,7 @@ class ProcessingWorker(QThread):
             prep = prep_cache.get(fname)
             if prep is None:
                 barrier.done('bioclip')
-                self._emit_progress_throttled('bioclip', 0, total)
+                self._emit_progress_throttled('bioclip', i, total)
                 continue
 
             is_new    = prep.get('is_new', True)
@@ -1121,7 +1125,7 @@ class ProcessingWorker(QThread):
                     _db_pending = 0
 
             barrier.done('bioclip')
-            self._emit_progress_throttled('bioclip', 0, total)
+            self._emit_progress_throttled('bioclip', i, total)
 
         if _db_pending > 0:
             with self._db_lock:
@@ -3142,12 +3146,16 @@ class ProcessingTab(QWidget):
                 bar.setValue(current)
 
         # Aggiorna contatore live in scan_label
-        if model_key in ('exiftool', 'models') and total > 0:
+        if total > 0:
             pct = int(current * 100 / total)
-            label = "Prep" if model_key == 'exiftool' else "AI"
-            self.scan_label.setText(
-                f"⏳ {label}: {current:,} / {total:,}  ({pct}%)"
-            )
+            if model_key == 'exiftool':
+                self.scan_label.setText(f"⏳ Prep: {current:,} / {total:,}  ({pct}%)")
+            elif model_key == 'models':
+                self.scan_label.setText(f"⏳ AI: {current:,} / {total:,}  ({pct}%)")
+            elif model_key in ('clip', 'dinov2', 'aesthetic', 'technical', 'bioclip'):
+                # Usa il primo modello per-thread per aggiornare il counter AI visibile
+                # (tutti i modelli avanzano in sincrono, basta uno come riferimento)
+                self.scan_label.setText(f"⏳ AI [{model_key.upper()}]: {current:,} / {total:,}  ({pct}%)")
 
     def update_progress(self, current, total):
         """Aggiorna progresso generale (legacy — non utilizzato nel flusso multi-thread)"""
