@@ -34,19 +34,21 @@ logger = logging.getLogger(__name__)
 
 
 class ProcessingWorker(QThread):
-    """Worker thread per processing immagini — ARCHITETTURA MULTI-THREAD
+    """Worker thread per processing immagini — ARCHITETTURA THREAD UNIFICATO
 
     Flusso:
-      Fase 0 (prep, sequenziale): EXIF + thumbnail + geo + hash → inserimento DB record base
-      Fase 1 (parallela): 6 thread indipendenti (CLIP, DINOv2, BioCLIP, Aesthetic, MUSIQ, LLM)
-      Ogni thread processa tutte le immagini col proprio modello e aggiorna il DB campo per campo.
-      BioCLIP→LLM: coda (queue.Queue) per passare contesto tassonomico appena disponibile.
+      Fase 0 (ExifTool thread): EXIF + thumbnail + geo + hash → DB record base
+        Thumbnail PIL resta in RAM (prep_cache), nessun file su disco.
+      Fase 1 (thread unificato modelli): per ogni immagine esegue TUTTI i modelli
+        attivi in sequenza (CLIP, DINOv2, Aesthetic, MUSIQ, BioCLIP).
+        Batch DB commit ogni N immagini. Alimenta coda LLM.
+      Fase 2 (LLM thread): consuma dalla coda, genera tags/descrizione/titolo.
 
     Sincronizzazione:
-      - db_lock: un solo Lock per serializzare scritture DB (SQLite non è thread-safe)
-      - llm_queue: Queue per dipendenza BioCLIP→LLM (nessun lock necessario)
-      - bioclip_results + bioclip_lock: contesto per LLM (lock separato, mai annidato)
-      - is_running / is_paused: controllati da TUTTI i thread
+      - db_lock: Lock per serializzare scritture DB
+      - llm_queue: Queue per dipendenza modelli→LLM
+      - bioclip_results + bioclip_lock: contesto BioCLIP per LLM
+      - is_running / is_paused: controllati da tutti i thread
     """
 
     # Segnali (emessi solo dal QThread principale o con Qt.QueuedConnection implicita)
@@ -70,7 +72,6 @@ class ProcessingWorker(QThread):
         # Sincronizzazione multi-thread
         self._db_lock = threading.Lock()
         self._stats_lock = threading.Lock()
-        self._gpu_lock = threading.Lock()  # serializza inferenza GPU tra thread
         self._model_threads = []  # riferimenti ai thread modello attivi
         # Throttle segnali progresso: dizionario model_key → timestamp ultimo emit
         # Evita di inondare la coda eventi Qt con migliaia di segnali per-foto
@@ -311,14 +312,9 @@ class ProcessingWorker(QThread):
             # Dizionario condiviso: filename → dict con metadata (NO PIL, work thumb su disco)
             prep_cache = {}
 
-            # Directory cache temporanea work thumbnail
-            temp_dir = self._resolve_temp_dir(config)
-            temp_dir.mkdir(parents=True, exist_ok=True)
-            self._cleanup_temp_cache(temp_dir)  # pulizia run precedente
-
-            # ─── AVVIO THREAD PARALLELI (ExifTool produttore + modelli consumatori) ───
+            # ─── AVVIO THREAD (ExifTool produttore + modelli unificato + LLM) ───
             self.log_message.emit("═" * 50, "info")
-            self.log_message.emit("Avvio thread paralleli (ExifTool + modelli AI)", "info")
+            self.log_message.emit("Avvio thread (ExifTool + modelli AI unificato + LLM)", "info")
             self.log_message.emit("═" * 50, "info")
 
             # Strutture condivise per dipendenza BioCLIP→LLM
@@ -353,59 +349,44 @@ class ProcessingWorker(QThread):
                     self.log_message.emit("🧠 Inizializzazione EmbeddingGenerator per LLM...", "info")
                     llm_generator = EmbeddingGenerator(config, initialization_mode='llm_only')
 
-            # Tutti le immagini — ogni thread attende ExifTool tramite polling
+            # Tutte le immagini
             model_images = images_to_process
             model_total = len(model_images)
 
             model_threads = []
 
-            # Thread embedding indipendenti (CLIP, DINOv2, Aesthetic, MUSIQ)
-            _emb_thread_defs = [
-                ('clip', self._thread_clip),
-                ('dinov2', self._thread_dinov2),
-                ('aesthetic', self._thread_aesthetic),
-                ('technical', self._thread_musiq),
-            ]
-            for model_key, thread_func in _emb_thread_defs:
-                if not emb_flags.get(model_key, {}).get('active', False):
-                    continue
-                if not (embedding_enabled and embedding_generator is not None):
-                    continue
-                if not _avail_map.get(model_key, False):
+            # Verifica modelli non disponibili
+            for _mk in ('clip', 'dinov2', 'aesthetic', 'technical', 'bioclip'):
+                if emb_flags.get(_mk, {}).get('active', False) and not _avail_map.get(_mk, False):
                     self.log_message.emit(
-                        f"⚠️ {model_key.upper()} selezionato ma non caricato — thread saltato", "warning")
-                    continue
-                t = threading.Thread(
-                    target=thread_func,
-                    args=(model_images, prep_cache, embedding_generator, db_manager,
-                          emb_flags.get(model_key, {}), stats, model_total,
-                          processing_mode),
-                    name=f"model-{model_key}", daemon=True
-                )
-                model_threads.append(t)
-                self.log_message.emit(f"🚀 Thread {model_key.upper()} pronto ({model_total} immagini)", "info")
+                        f"⚠️ {_mk.upper()} selezionato ma non caricato — saltato", "warning")
 
-            # Thread BioCLIP (produce risultati per LLM via queue)
-            if (emb_flags.get('bioclip', {}).get('active', False)
-                    and not _avail_map.get('bioclip', False)):
-                self.log_message.emit(
-                    "⚠️ BIOCLIP selezionato ma non caricato — thread saltato", "warning")
-            if bioclip_active:
+            # Thread unificato modelli embedding + BioCLIP
+            _any_emb_active = any(
+                emb_flags.get(k, {}).get('active', False) and _avail_map.get(k, False)
+                for k in ('clip', 'dinov2', 'aesthetic', 'technical')
+            )
+            if (_any_emb_active or bioclip_active) and embedding_enabled and embedding_generator is not None:
                 t = threading.Thread(
-                    target=self._thread_bioclip,
+                    target=self._thread_unified_models,
                     args=(model_images, prep_cache, embedding_generator, db_manager,
-                          emb_flags.get('bioclip', {}), stats, model_total,
-                          bioclip_results, bioclip_lock, llm_queue, llm_active,
+                          emb_flags, stats, model_total,
+                          bioclip_results, bioclip_lock, llm_queue,
+                          llm_active, bioclip_active, _avail_map,
                           processing_mode),
-                    name="model-bioclip", daemon=True
+                    name="model-unified", daemon=True
                 )
                 model_threads.append(t)
-                self.log_message.emit(f"🚀 Thread BIOCLIP pronto ({model_total} immagini)", "info")
+                self.log_message.emit(f"🚀 Thread modelli unificato pronto ({model_total} immagini)", "info")
+            elif llm_active:
+                # Nessun modello embedding attivo ma LLM sì:
+                # la coda LLM sarà alimentata direttamente da ExifTool
+                pass
 
             # Thread LLM Vision
             if llm_active and llm_generator is not None:
-                # Nota: la coda llm_queue viene alimentata da _thread_exiftool (se bioclip_active=False)
-                # oppure da _thread_bioclip (se bioclip_active=True) — NON pre-riempita qui
+                # La coda llm_queue viene alimentata dal thread unificato (se presente)
+                # oppure da _thread_exiftool (se nessun modello embedding attivo)
                 t = threading.Thread(
                     target=self._thread_llm,
                     args=(prep_cache, llm_generator, db_manager,
@@ -416,14 +397,18 @@ class ProcessingWorker(QThread):
                 model_threads.append(t)
                 self.log_message.emit(f"🚀 Thread LLM pronto ({model_total} immagini)", "info")
 
+            # Il thread unificato gestisce la coda LLM se è attivo
+            _unified_active = any(t.name == "model-unified" for t in model_threads)
+
             # Thread ExifTool (produttore — avvia insieme ai modelli)
             exif_thread = threading.Thread(
                 target=self._thread_exiftool,
-                args=(images_to_process, prep_cache, temp_dir,
+                args=(images_to_process, prep_cache,
                       raw_processor, config, db_manager,
                       processing_mode, emb_flags, llm_gen_config,
-                      stats, total_to_process, llm_queue, llm_active, bioclip_active,
-                      _geo_plugin, _geo_plugin_cfg),
+                      stats, total_to_process, llm_queue, llm_active),
+                kwargs={'unified_feeds_llm': _unified_active,
+                        'geo_plugin': _geo_plugin, 'geo_plugin_cfg': _geo_plugin_cfg},
                 name="model-exiftool", daemon=True
             )
             model_threads.append(exif_thread)
@@ -476,9 +461,6 @@ class ProcessingWorker(QThread):
                     self.log_message.emit(f"⚠️ Thread {t.name} non terminato in tempo", "warning")
 
             self._model_threads = []
-
-            # Pulizia work thumbnail temporanei
-            self._cleanup_temp_cache(temp_dir)
 
             # Libera VRAM al termine di tutti i modelli
             self._cleanup_gpu_memory()
@@ -535,7 +517,7 @@ class ProcessingWorker(QThread):
     # ─────────────────────────────────────────────────────────────
     def _prep_image(self, image_path, raw_processor, config, db_manager,
                     processing_mode, emb_flags, llm_gen_config,
-                    temp_dir=None, geo_plugin=None, geo_plugin_cfg=None):
+                    geo_plugin=None, geo_plugin_cfg=None):
         """Estrae EXIF + thumbnail in parallelo, poi geo + hash + DB insert.
         Le due operazioni più lente (exif e thumb) vengono sovrapposte con
         due thread interni sincronizzati tramite threading.Event.
@@ -762,8 +744,8 @@ class ProcessingWorker(QThread):
             if hash_result.get('file_hash'):
                 image_data['file_hash'] = hash_result['file_hash']
 
-            # Salva thumbnail cache gallery + work thumb su disco
-            work_thumb_path = None
+            # Salva thumbnail cache gallery (per UI) — il thumbnail PIL
+            # resta in RAM nel prep_cache per i thread modello (no disco)
             if thumbnail and hasattr(thumbnail, 'size'):
                 try:
                     from utils.thumb_cache import save_gallery_thumb
@@ -788,12 +770,6 @@ class ProcessingWorker(QThread):
                         save_gallery_thumb(image_path, thumbnail)
                 except Exception as _e:
                     logger.warning(f"Errore thumbnail cache gallery: {_e}")
-
-                if temp_dir:
-                    wtp = self._get_work_thumb_path(image_path, temp_dir)
-                    if self._save_work_thumb(thumbnail, wtp):
-                        work_thumb_path = wtp
-                thumbnail = None  # libera dalla RAM
             elif need_thumb and is_raw:
                 self.log_message.emit(
                     f"⚠️ {fname}: nessuna immagine estraibile dal RAW — "
@@ -807,7 +783,7 @@ class ProcessingWorker(QThread):
 
             return {
                 'image_path':     image_path,
-                'work_thumb_path': work_thumb_path,
+                'thumbnail':      thumbnail,   # PIL Image in RAM (no disco)
                 'image_data':     image_data,
                 'geo_hierarchy':  geo_hierarchy,
                 'location_hint':  location_hint,
@@ -829,414 +805,214 @@ class ProcessingWorker(QThread):
                     pass
 
     # ─────────────────────────────────────────────────────────────
-    # THREAD MODELLI EMBEDDING  (architettura batch + prefetch)
+    # THREAD UNIFICATO MODELLI EMBEDDING
     # ─────────────────────────────────────────────────────────────
-    # Pipeline a due stadi sovrapposti:
-    #   Stadio 1 — _ThumbPrefetcher: legge thumbnail da disco in un
-    #              thread separato e li accoda in RAM (queue).
-    #   Stadio 2 — thread modello: consuma dalla coda e fa forward
-    #              pass GPU su batch interi.
-    # Mentre la GPU processa il batch N, il disco sta già caricando
-    # le immagini del batch N+1 → latenza disco nascosta.
-    #
-    # Batch size differenziato per VRAM:
-    # DINOv2 usa input 518x518 (9x più grande di 224x224).
-    _BATCH_SIZE_CLIP      = 16   # ViT-L/14 224x224
-    _BATCH_SIZE_DINOV2    = 4    # DINOv2 518x518
-    _BATCH_SIZE_AESTHETIC = 16   # CLIP-based 224x224
-    _BATCH_TIMEOUT        = 0.5  # secondi — flush batch parziale
+    # Architettura a thread dinamici: i modelli vengono raggruppati
+    # per device (GPU vs CPU). Un thread per device esegue tutti i
+    # modelli assegnati in sequenza per ogni immagine.
+    # Se tutti i modelli sono sullo stesso device → un solo thread.
+    # Se misto CPU+GPU → due thread paralleli, sync per immagine.
+    # Il thumbnail PIL è in RAM (prep_cache), nessun I/O disco.
+    # Batch DB commit ogni N immagini per ridurre I/O SQLite.
 
-    class _ThumbPrefetcher:
-        """Thread di prefetch thumbnail: legge da disco in anticipo rispetto
-        alla GPU. Produce tuple (i_global, fname, thumb_or_None) nella coda.
-        Sentinel None segnala la fine della sequenza."""
+    # Dimensione batch DB commit — accumula risultati per N immagini
+    # prima di fare un singolo commit, riducendo I/O SQLite del 80-90%
+    _DB_COMMIT_BATCH = 10
 
-        def __init__(self, images, prep_cache, ai_field, overwrite,
-                     batch_size, worker_ref):
-            self._images     = images
-            self._prep_cache = prep_cache
-            self._ai_field   = ai_field
-            self._overwrite  = overwrite
-            self._worker     = worker_ref
-            # Coda con capacità batch_size: tiene in RAM esattamente il
-            # prossimo batch mentre la GPU processa quello corrente
-            self._queue      = queue.Queue(maxsize=batch_size)
-            self._thread     = threading.Thread(target=self._run, daemon=True)
-            self._thread.start()
-
-        def _run(self):
-            for idx, image_path in enumerate(self._images):
-                if not self._worker.is_running:
-                    break
-                fname    = image_path.name
-                i_global = idx + 1
-
-                # Attendi che ExifTool abbia preparato questa foto
-                _t_wait = time.monotonic()
-                while fname not in self._prep_cache:
-                    if not self._worker.is_running:
-                        self._queue.put(None)
-                        return
-                    time.sleep(0.02)
-                _t_wait_dur = time.monotonic() - _t_wait
-
-                prep = self._prep_cache[fname]
-                if prep is None:
-                    self._queue.put((i_global, fname, None, _t_wait_dur, 0.0))
-                    continue
-
-                # Skip se campo già presente e overwrite OFF
-                if not self._overwrite and not prep.get('is_new', True):
-                    if prep.get('ai_fields', {}).get(self._ai_field, False):
-                        self._queue.put((i_global, fname, None, _t_wait_dur, 0.0))
-                        continue
-
-                work_thumb_path = prep.get('work_thumb_path')
-                if work_thumb_path is None:
-                    self._queue.put((i_global, fname, None, _t_wait_dur, 0.0))
-                    continue
-
-                _t_load = time.monotonic()
-                thumb = self._worker._load_work_thumb(work_thumb_path)
-                _t_load_dur = time.monotonic() - _t_load
-                # thumb può essere None se il file è corrotto
-                self._queue.put((i_global, fname, thumb, _t_wait_dur, _t_load_dur))
-
-            self._queue.put(None)  # sentinel fine sequenza
-
-        def next_batch(self, batch_size, timeout=0.5):
-            """Preleva dalla coda fino a batch_size immagini valide.
-            Restituisce (batch, skipped, done):
-              batch   — lista (i_global, fname, thumb, wait_s, load_s) con thumb valido
-              skipped — lista (i_global, fname) da segnalare come progress
-              done    — True se la sequenza è terminata (sentinel ricevuto)"""
-            batch    = []
-            skipped  = []
-            deadline = time.monotonic() + timeout
-
-            while len(batch) < batch_size:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    break
-                try:
-                    item = self._queue.get(timeout=min(remaining, 0.05))
-                except queue.Empty:
-                    break
-
-                if item is None:
-                    # Sentinel: rimettilo così next_batch successivi escono subito
-                    self._queue.put(None)
-                    return batch, skipped, True
-
-                i_global, fname, thumb, wait_s, load_s = item
-                if thumb is None:
-                    skipped.append((i_global, fname))
-                else:
-                    batch.append((i_global, fname, thumb, wait_s, load_s))
-
-            return batch, skipped, False
-
-    def _thread_clip(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
-                     processing_mode='new_only'):
-        """Thread CLIP: genera embedding 768-dim (batch GPU + prefetch disco)."""
+    def _thread_unified_models(self, images, prep_cache, emb_gen, db_manager,
+                               emb_flags, stats, total,
+                               bioclip_results, bioclip_lock, llm_queue,
+                               llm_active, bioclip_active,
+                               models_avail, processing_mode='new_only'):
+        """Thread unificato modelli embedding: esegue tutti i modelli attivi
+        per ogni immagine in sequenza. Il thumbnail è in RAM (prep_cache).
+        BioCLIP integrato: produce contesto per LLM via queue.
+        Batch DB commit ogni _DB_COMMIT_BATCH immagini."""
         import numpy as np
-        overwrite = flags.get('overwrite', False)
-        use_gpu   = self._is_model_on_gpu(emb_gen, 'clip')
-        pf = self._ThumbPrefetcher(images, prep_cache, 'clip_embedding',
-                                   overwrite, self._BATCH_SIZE_CLIP, self)
-        while True:
-            if not self._wait_if_paused():
-                break
-            _t_qwait = time.monotonic()
-            batch, skipped, done = pf.next_batch(self._BATCH_SIZE_CLIP, self._BATCH_TIMEOUT)
-            _t_qwait_dur = time.monotonic() - _t_qwait
-            for (i_global, fname) in skipped:
-                self._emit_progress_throttled('clip', i_global, total)
-            if batch:
-                thumbs = [item[2] for item in batch]
-                avg_wait = sum(item[3] for item in batch) / len(batch)
-                avg_load = sum(item[4] for item in batch) / len(batch)
-                try:
-                    _t_inf = time.monotonic()
-                    if use_gpu:
-                        self._gpu_lock.acquire()
-                    try:
-                        embeddings = emb_gen._generate_clip_embedding_batch(thumbs)
-                    finally:
-                        if use_gpu:
-                            self._gpu_lock.release()
-                    _t_inf_dur = time.monotonic() - _t_inf
-                    _t_db = time.monotonic()
-                    for (i_global, fname, _, _, _), emb in zip(batch, embeddings):
-                        if emb is not None and isinstance(emb, np.ndarray):
-                            if np.any(np.isnan(emb)):
-                                self.log_message.emit(f"🚨 CLIP NaN: {fname}", "error")
-                            else:
-                                with self._db_lock:
-                                    db_manager.update_image(fname, {
-                                        'clip_embedding': emb, 'embedding_generated': True})
-                                with self._stats_lock:
-                                    stats['with_embedding'] += 1
-                                    stats['clip'] += 1
-                        self._emit_progress_throttled('clip', i_global, total)
-                    _t_db_dur = time.monotonic() - _t_db
-                    self.log_message.emit(
-                        f"⏱ CLIP batch={len(batch)} qwait={_t_qwait_dur:.2f}s "
-                        f"pf_wait={avg_wait:.2f}s pf_load={avg_load:.2f}s "
-                        f"inf={_t_inf_dur:.2f}s db={_t_db_dur:.2f}s", "debug")
-                except Exception as e:
-                    self.log_message.emit(f"❌ CLIP batch: {e}", "error")
-                    for (i_global, fname, _, _, _) in batch:
-                        self._emit_progress_throttled('clip', i_global, total)
-            if done:
-                break
-
-    def _thread_dinov2(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
-                       processing_mode='new_only'):
-        """Thread DINOv2: genera embedding 768-dim (batch GPU + prefetch disco)."""
-        import numpy as np
-        overwrite = flags.get('overwrite', False)
-        use_gpu   = self._is_model_on_gpu(emb_gen, 'dinov2')
-        pf = self._ThumbPrefetcher(images, prep_cache, 'dinov2_embedding',
-                                   overwrite, self._BATCH_SIZE_DINOV2, self)
-        while True:
-            if not self._wait_if_paused():
-                break
-            _t_qwait = time.monotonic()
-            batch, skipped, done = pf.next_batch(self._BATCH_SIZE_DINOV2, self._BATCH_TIMEOUT)
-            _t_qwait_dur = time.monotonic() - _t_qwait
-            for (i_global, fname) in skipped:
-                self._emit_progress_throttled('dinov2', i_global, total)
-            if batch:
-                thumbs = [item[2] for item in batch]
-                avg_wait = sum(item[3] for item in batch) / len(batch)
-                avg_load = sum(item[4] for item in batch) / len(batch)
-                try:
-                    _t_inf = time.monotonic()
-                    if use_gpu:
-                        self._gpu_lock.acquire()
-                    try:
-                        embeddings = emb_gen._generate_dinov2_embedding_batch(thumbs)
-                    finally:
-                        if use_gpu:
-                            self._gpu_lock.release()
-                    _t_inf_dur = time.monotonic() - _t_inf
-                    _t_db = time.monotonic()
-                    for (i_global, fname, _, _, _), emb in zip(batch, embeddings):
-                        if emb is not None and isinstance(emb, np.ndarray):
-                            if np.any(np.isnan(emb)):
-                                self.log_message.emit(f"🚨 DINOv2 NaN: {fname}", "error")
-                            else:
-                                with self._db_lock:
-                                    db_manager.update_image(fname, {
-                                        'dinov2_embedding': emb, 'embedding_generated': True})
-                                with self._stats_lock:
-                                    stats['with_embedding'] += 1
-                                    stats['dinov2'] += 1
-                        self._emit_progress_throttled('dinov2', i_global, total)
-                    _t_db_dur = time.monotonic() - _t_db
-                    self.log_message.emit(
-                        f"⏱ DINO batch={len(batch)} qwait={_t_qwait_dur:.2f}s "
-                        f"pf_wait={avg_wait:.2f}s pf_load={avg_load:.2f}s "
-                        f"inf={_t_inf_dur:.2f}s db={_t_db_dur:.2f}s", "debug")
-                except Exception as e:
-                    self.log_message.emit(f"❌ DINOv2 batch: {e}", "error")
-                    for (i_global, fname, _, _, _) in batch:
-                        self._emit_progress_throttled('dinov2', i_global, total)
-            if done:
-                break
-
-    def _thread_aesthetic(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
-                          processing_mode='new_only'):
-        """Thread Aesthetic: calcola punteggio estetico 0-10 (batch GPU + prefetch disco)."""
-        overwrite = flags.get('overwrite', False)
-        use_gpu   = self._is_model_on_gpu(emb_gen, 'aesthetic')
-        pf = self._ThumbPrefetcher(images, prep_cache, 'aesthetic_score',
-                                   overwrite, self._BATCH_SIZE_AESTHETIC, self)
-        while True:
-            if not self._wait_if_paused():
-                break
-            _t_qwait = time.monotonic()
-            batch, skipped, done = pf.next_batch(self._BATCH_SIZE_AESTHETIC, self._BATCH_TIMEOUT)
-            _t_qwait_dur = time.monotonic() - _t_qwait
-            for (i_global, fname) in skipped:
-                self._emit_progress_throttled('aesthetic', i_global, total)
-            if batch:
-                thumbs = [item[2] for item in batch]
-                avg_wait = sum(item[3] for item in batch) / len(batch)
-                avg_load = sum(item[4] for item in batch) / len(batch)
-                try:
-                    _t_inf = time.monotonic()
-                    if use_gpu:
-                        self._gpu_lock.acquire()
-                    try:
-                        scores = emb_gen._generate_aesthetic_score_batch(thumbs)
-                    finally:
-                        if use_gpu:
-                            self._gpu_lock.release()
-                    _t_inf_dur = time.monotonic() - _t_inf
-                    _t_db = time.monotonic()
-                    for (i_global, fname, _, _, _), score in zip(batch, scores):
-                        if score is not None:
-                            with self._db_lock:
-                                db_manager.update_image(fname, {'aesthetic_score': score})
-                            with self._stats_lock:
-                                stats['aesthetic'] += 1
-                        self._emit_progress_throttled('aesthetic', i_global, total)
-                    _t_db_dur = time.monotonic() - _t_db
-                    self.log_message.emit(
-                        f"⏱ AEST batch={len(batch)} qwait={_t_qwait_dur:.2f}s "
-                        f"pf_wait={avg_wait:.2f}s pf_load={avg_load:.2f}s "
-                        f"inf={_t_inf_dur:.2f}s db={_t_db_dur:.2f}s", "debug")
-                except Exception as e:
-                    self.log_message.emit(f"❌ Aesthetic batch: {e}", "error")
-                    for (i_global, fname, _, _, _) in batch:
-                        self._emit_progress_throttled('aesthetic', i_global, total)
-            if done:
-                break
-
-    def _thread_musiq(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
-                      processing_mode='new_only'):
-        """Thread MUSIQ: calcola punteggio qualità tecnica ~0-100 (prefetch disco)."""
-        overwrite = flags.get('overwrite', False)
-        use_gpu   = self._is_model_on_gpu(emb_gen, 'technical')
-        pf = self._ThumbPrefetcher(images, prep_cache, 'technical_score',
-                                   overwrite, self._BATCH_SIZE_CLIP, self)
-        while True:
-            if not self._wait_if_paused():
-                break
-            _t_qwait = time.monotonic()
-            batch, skipped, done = pf.next_batch(self._BATCH_SIZE_CLIP, self._BATCH_TIMEOUT)
-            _t_qwait_dur = time.monotonic() - _t_qwait
-            for (i_global, fname) in skipped:
-                self._emit_progress_throttled('technical', i_global, total)
-            if batch:
-                thumbs = [item[2] for item in batch]
-                avg_wait = sum(item[3] for item in batch) / len(batch)
-                avg_load = sum(item[4] for item in batch) / len(batch)
-                try:
-                    _t_inf = time.monotonic()
-                    if use_gpu:
-                        self._gpu_lock.acquire()
-                    try:
-                        scores = emb_gen._generate_musiq_score_batch(thumbs)
-                    finally:
-                        if use_gpu:
-                            self._gpu_lock.release()
-                    _t_inf_dur = time.monotonic() - _t_inf
-                    _t_db = time.monotonic()
-                    for (i_global, fname, _, _, _), score in zip(batch, scores):
-                        if score is not None:
-                            with self._db_lock:
-                                db_manager.update_image(fname, {'technical_score': score})
-                            with self._stats_lock:
-                                stats['technical'] += 1
-                        self._emit_progress_throttled('technical', i_global, total)
-                    _t_db_dur = time.monotonic() - _t_db
-                    self.log_message.emit(
-                        f"⏱ MUSIQ batch={len(batch)} qwait={_t_qwait_dur:.2f}s "
-                        f"pf_wait={avg_wait:.2f}s pf_load={avg_load:.2f}s "
-                        f"inf={_t_inf_dur:.2f}s db={_t_db_dur:.2f}s", "debug")
-                except Exception as e:
-                    self.log_message.emit(f"❌ Technical batch: {e}", "error")
-                    for (i_global, fname, _, _, _) in batch:
-                        self._emit_progress_throttled('technical', i_global, total)
-            if done:
-                break
-
-    # ─────────────────────────────────────────────────────────────
-    # THREAD BIOCLIP (produce per LLM)
-    # ─────────────────────────────────────────────────────────────
-    def _thread_bioclip(self, images, prep_cache, emb_gen, db_manager, flags, stats, total,
-                        bioclip_results, bioclip_lock, llm_queue, llm_active,
-                        processing_mode='new_only'):
-        """Thread BioCLIP: tassonomia + alimenta coda LLM."""
         from embedding_generator import EmbeddingGenerator
-        overwrite = flags.get('overwrite', False)
-        use_gpu = self._is_model_on_gpu(emb_gen, 'bioclip')
+
+        # Costruisci lista modelli attivi con le loro funzioni di inferenza
+        # Formato: (model_key, db_field, infer_func, is_embedding, overwrite)
+        active_models = []
+
+        if emb_flags.get('clip', {}).get('active', False) and models_avail.get('clip', False):
+            active_models.append(('clip', 'clip_embedding',
+                                  lambda thumbs: emb_gen._generate_clip_embedding_batch(thumbs),
+                                  True, emb_flags['clip'].get('overwrite', False)))
+
+        if emb_flags.get('dinov2', {}).get('active', False) and models_avail.get('dinov2', False):
+            active_models.append(('dinov2', 'dinov2_embedding',
+                                  lambda thumbs: emb_gen._generate_dinov2_embedding_batch(thumbs),
+                                  True, emb_flags['dinov2'].get('overwrite', False)))
+
+        if emb_flags.get('aesthetic', {}).get('active', False) and models_avail.get('aesthetic', False):
+            active_models.append(('aesthetic', 'aesthetic_score',
+                                  lambda thumbs: emb_gen._generate_aesthetic_score_batch(thumbs),
+                                  False, emb_flags['aesthetic'].get('overwrite', False)))
+
+        if emb_flags.get('technical', {}).get('active', False) and models_avail.get('technical', False):
+            active_models.append(('technical', 'technical_score',
+                                  lambda thumbs: emb_gen._generate_musiq_score_batch(thumbs),
+                                  False, emb_flags['technical'].get('overwrite', False)))
+
+        bioclip_overwrite = emb_flags.get('bioclip', {}).get('overwrite', False)
+
+        if not active_models and not bioclip_active:
+            # Nessun modello attivo — accoda tutto per LLM e esci
+            if llm_active:
+                for image_path in images:
+                    llm_queue.put(image_path)
+                llm_queue.put(None)
+            return
+
+        self.log_message.emit(
+            f"🧠 Thread unificato: {len(active_models)} modelli embedding"
+            + (f" + BioCLIP" if bioclip_active else "")
+            + f" ({total} immagini)", "info")
+
+        # Contatore DB commit pendenti
+        _db_pending = 0
 
         for i, image_path in enumerate(images, 1):
             if not self._wait_if_paused():
-                # Stop: metti sentinella per sbloccare LLM
                 if llm_active:
                     llm_queue.put(None)
                 break
+
             fname = image_path.name
+
             # Attendi che ExifTool abbia preparato questa foto
             while fname not in prep_cache:
                 if not self.is_running:
                     if llm_active:
                         llm_queue.put(None)
                     return
-                time.sleep(0.05)
+                time.sleep(0.02)
+
             prep = prep_cache[fname]
             if prep is None:
                 if llm_active:
                     llm_queue.put(image_path)
-                self._emit_progress_throttled('bioclip', i, total)
+                self._emit_progress_throttled('models', i, total)
                 continue
+
             is_new = prep.get('is_new', True)
+            ai_fields = prep.get('ai_fields', {})
+            thumb = prep.get('thumbnail')  # PIL Image già in RAM
 
-            skip_bioclip = (not overwrite and not is_new
-                            and prep.get('ai_fields', {}).get('bioclip_taxonomy', False))
+            # Accumula tutti gli update DB per questa immagine
+            update_data = {}
 
-            if not skip_bioclip:
-                work_thumb_path = prep.get('work_thumb_path')
-                if work_thumb_path is None:
-                    # Nessuna immagine disponibile: accoda per LLM e passa al prossimo
-                    if llm_active:
-                        llm_queue.put(image_path)
-                    self._emit_progress_throttled('bioclip', i, total)
-                    continue
-                thumb = self._load_work_thumb(work_thumb_path)
-                if thumb is None:
-                    if llm_active:
-                        llm_queue.put(image_path)
-                    self._emit_progress_throttled('bioclip', i, total)
-                    continue
-                try:
-                    # Passa geo_hierarchy a generate_bioclip_tags per GeoSpecies (solo cache locale)
-                    _geo_hierarchy = prep.get('geo_hierarchy')
-                    if use_gpu:
-                        self._gpu_lock.acquire()
+            # ── Modelli embedding (CLIP, DINOv2, Aesthetic, MUSIQ) ──
+            if thumb is not None:
+                for model_key, db_field, infer_func, is_embedding, overwrite in active_models:
+                    # Skip se campo già presente e overwrite OFF
+                    if not overwrite and not is_new:
+                        if ai_fields.get(db_field, False):
+                            continue
+
                     try:
-                        bioclip_tags, bioclip_taxonomy = emb_gen.generate_bioclip_tags(thumb, geo_hierarchy=_geo_hierarchy)
-                    finally:
-                        if use_gpu:
-                            self._gpu_lock.release()
+                        _t_inf = time.monotonic()
+                        results = infer_func([thumb])
+                        _t_inf_dur = time.monotonic() - _t_inf
 
-                    if bioclip_taxonomy and isinstance(bioclip_taxonomy, list):
-                        with self._db_lock:
-                            db_manager.update_image(fname, {
-                                'bioclip_taxonomy': json.dumps(bioclip_taxonomy, ensure_ascii=False)
-                            })
-                        with self._stats_lock:
-                            stats['bioclip'] += 1
+                        if results and results[0] is not None:
+                            result = results[0]
+                            if is_embedding:
+                                if isinstance(result, np.ndarray):
+                                    if np.any(np.isnan(result)):
+                                        self.log_message.emit(
+                                            f"🚨 {model_key.upper()} NaN: {fname}", "error")
+                                        continue
+                                    update_data[db_field] = result
+                                    update_data['embedding_generated'] = True
+                                    with self._stats_lock:
+                                        stats['with_embedding'] += 1
+                                        stats[model_key] += 1
+                            else:
+                                # Score (aesthetic, technical)
+                                update_data[db_field] = result
+                                with self._stats_lock:
+                                    stats[model_key] += 1
+
+                            self.log_message.emit(
+                                f"⏱ {model_key.upper()} {fname}: {_t_inf_dur:.2f}s", "debug")
+
+                    except Exception as e:
                         self.log_message.emit(
-                            f"🌿 BioCLIP {fname}: {len([l for l in bioclip_taxonomy if l])} livelli", "debug")
+                            f"❌ {model_key.upper()} {fname}: {e}", "error")
 
-                    # Aggiorna contatore GeoSpecies skipped (foto senza GPS)
-                    with self._stats_lock:
-                        stats['geospecies_skipped_no_gps'] = emb_gen.geospecies_skipped_no_gps
+            # ── BioCLIP (se attivo) ──
+            if bioclip_active and thumb is not None:
+                skip_bioclip = (not bioclip_overwrite and not is_new
+                                and ai_fields.get('bioclip_taxonomy', False))
 
-                    # Estrai contesto per LLM
-                    ctx = EmbeddingGenerator.extract_bioclip_context(bioclip_tags or [])
-                    cat = EmbeddingGenerator.extract_category_hint(bioclip_taxonomy or [])
-                    with bioclip_lock:
-                        bioclip_results[fname] = {'context': ctx, 'category_hint': cat}
+                if not skip_bioclip:
+                    try:
+                        _geo_hierarchy = prep.get('geo_hierarchy')
+                        bioclip_tags, bioclip_taxonomy = emb_gen.generate_bioclip_tags(
+                            thumb, geo_hierarchy=_geo_hierarchy)
 
-                except Exception as e:
-                    self.log_message.emit(f"❌ BioCLIP {fname}: {e}", "error")
+                        if bioclip_taxonomy and isinstance(bioclip_taxonomy, list):
+                            update_data['bioclip_taxonomy'] = json.dumps(
+                                bioclip_taxonomy, ensure_ascii=False)
+                            with self._stats_lock:
+                                stats['bioclip'] += 1
+                            self.log_message.emit(
+                                f"🌿 BioCLIP {fname}: "
+                                f"{len([l for l in bioclip_taxonomy if l])} livelli", "debug")
 
-            # Accoda per LLM (anche se BioCLIP è stato saltato)
+                        # Contatore GeoSpecies skipped
+                        with self._stats_lock:
+                            stats['geospecies_skipped_no_gps'] = emb_gen.geospecies_skipped_no_gps
+
+                        # Contesto per LLM
+                        ctx = EmbeddingGenerator.extract_bioclip_context(bioclip_tags or [])
+                        cat = EmbeddingGenerator.extract_category_hint(bioclip_taxonomy or [])
+                        with bioclip_lock:
+                            bioclip_results[fname] = {'context': ctx, 'category_hint': cat}
+
+                    except Exception as e:
+                        self.log_message.emit(f"❌ BioCLIP {fname}: {e}", "error")
+
+            # ── Scrivi tutti i risultati nel DB in un unico update ──
+            if update_data:
+                with self._db_lock:
+                    db_manager.update_image(fname, update_data)
+                _db_pending += 1
+
+                # Batch commit ogni N immagini
+                if _db_pending >= self._DB_COMMIT_BATCH:
+                    with self._db_lock:
+                        try:
+                            db_manager.conn.commit()
+                        except Exception:
+                            pass
+                    _db_pending = 0
+
+            # Accoda per LLM (anche se nessun modello ha prodotto risultati)
             if llm_active:
                 llm_queue.put(image_path)
+                # NON liberare il thumbnail: LLM lo leggerà da prep_cache
+            else:
+                # Nessun LLM: libera subito la RAM
+                prep['thumbnail'] = None
 
-            self._emit_progress_throttled('bioclip', i, total)
+            self._emit_progress_throttled('models', i, total)
+
+        # Commit finale per i residui
+        if _db_pending > 0:
+            with self._db_lock:
+                try:
+                    db_manager.conn.commit()
+                except Exception:
+                    pass
 
         # Sentinella fine coda per LLM
         if llm_active:
             llm_queue.put(None)
+
+        self.log_message.emit("✅ Thread modelli unificato completato", "info")
 
     # ─────────────────────────────────────────────────────────────
     # THREAD LLM VISION
@@ -1273,13 +1049,13 @@ class ProcessingWorker(QThread):
             t_prep_wait = time.time()
 
             prep = prep_cache.get(fname)
-            work_thumb_path = prep.get('work_thumb_path') if prep else None
-            if not prep or work_thumb_path is None:
+            if not prep:
                 processed += 1
                 self._emit_progress_throttled('llm', processed, total)
                 continue
 
-            thumb = self._load_work_thumb(work_thumb_path)
+            # Thumbnail PIL dalla RAM (prep_cache), non da disco
+            thumb = prep.get('thumbnail')
             t_thumb_load = time.time()
             if thumb is None:
                 processed += 1
@@ -1327,6 +1103,8 @@ class ProcessingWorker(QThread):
                         existing_tags = []
 
                 if not (should_gen_tags or should_gen_desc or should_gen_title):
+                    if prep:
+                        prep['thumbnail'] = None  # libera RAM
                     processed += 1
                     self._emit_progress_throttled('llm', processed, total)
                     continue
@@ -1438,18 +1216,26 @@ class ProcessingWorker(QThread):
                 import traceback
                 self.log_message.emit(f"Traceback: {traceback.format_exc()}", "error")
 
+            # Libera thumbnail dalla RAM (ultimo consumatore)
+            if prep:
+                prep['thumbnail'] = None
+
             processed += 1
             self._emit_progress_throttled('llm', processed, total)
 
     # ─────────────────────────────────────────────────────────────
     # THREAD EXIFTOOL (produttore — estrae EXIF + salva work thumb)
     # ─────────────────────────────────────────────────────────────
-    def _thread_exiftool(self, images_to_process, prep_cache, temp_dir,
+    def _thread_exiftool(self, images_to_process, prep_cache,
                          raw_processor, config, db_manager,
                          processing_mode, emb_flags, llm_gen_config,
-                         stats, total_to_process, llm_queue, llm_active, bioclip_active,
+                         stats, total_to_process, llm_queue, llm_active,
+                         unified_feeds_llm=False,
                          geo_plugin=None, geo_plugin_cfg=None):
-        """Thread ExifTool: estrae EXIF + salva work thumbnail su disco per ogni immagine."""
+        """Thread ExifTool: estrae EXIF + thumbnail in RAM per ogni immagine.
+        Se unified_feeds_llm=True, la coda LLM è gestita dal thread unificato."""
+        # ExifTool alimenta LLM solo se il thread unificato NON lo fa
+        _feed_llm = llm_active and not unified_feeds_llm
         _EXIFTOOL_RESTART_EVERY = 500  # riavvia il processo stay_open ogni N foto
         for i, image_path in enumerate(images_to_process, 1):
             if not self._wait_if_paused():
@@ -1466,7 +1252,6 @@ class ProcessingWorker(QThread):
             prep = self._prep_image(
                 image_path, raw_processor, config, db_manager,
                 processing_mode, emb_flags, llm_gen_config,
-                temp_dir=temp_dir,
                 geo_plugin=geo_plugin, geo_plugin_cfg=geo_plugin_cfg
             )
             if prep:
@@ -1474,8 +1259,8 @@ class ProcessingWorker(QThread):
                 with self._stats_lock:
                     stats['success'] += 1
                     stats['processed'] += 1
-                # Se LLM attivo e BioCLIP non attivo: accoda subito per LLM
-                if llm_active and not bioclip_active:
+                # Accoda per LLM solo se il thread unificato non lo fa
+                if _feed_llm:
                     llm_queue.put(image_path)
             else:
                 # Marker None: sblocca i thread modello in attesa su prep_cache
@@ -1484,8 +1269,8 @@ class ProcessingWorker(QThread):
                     stats['errors'] += 1
             self._emit_progress_throttled('exiftool', i, total_to_process)
 
-        # Fine: se LLM senza BioCLIP, manda sentinella
-        if llm_active and not bioclip_active:
+        # Fine: sentinella LLM solo se ExifTool gestisce la coda
+        if _feed_llm:
             llm_queue.put(None)
 
         self.log_message.emit(
@@ -1538,58 +1323,6 @@ class ProcessingWorker(QThread):
             self.log_message.emit(f"❌ Errore prepare_image {image_path.name}: {e}", "error")
             return None
 
-    # ─────────────────────────────────────────────────────────────
-    # UTILITY — Disk cache work thumbnail
-    # ─────────────────────────────────────────────────────────────
-    def _resolve_temp_dir(self, config) -> 'Path':
-        """Risolve la directory cache temporanea per i work thumbnail."""
-        from utils.paths import get_app_dir
-        temp_rel = config.get('paths', {}).get('temp_cache_dir', 'temp_cache')
-        p = Path(temp_rel)
-        if not p.is_absolute():
-            p = get_app_dir() / p
-        return p
-
-    def _get_work_thumb_path(self, image_path: 'Path', temp_dir: 'Path') -> 'Path':
-        """Genera il percorso del work thumbnail su disco."""
-        import hashlib
-        stem = image_path.stem[:40]
-        suffix_hash = hashlib.md5(str(image_path).encode()).hexdigest()[:8]
-        return temp_dir / f"{stem}_{suffix_hash}.jpg"
-
-    def _save_work_thumb(self, thumbnail, work_thumb_path: 'Path') -> bool:
-        """Salva work thumbnail su disco come JPEG qualità 85."""
-        try:
-            thumbnail.save(work_thumb_path, 'JPEG', quality=85)
-            return True
-        except Exception as e:
-            logger.warning(f"Errore salvataggio work thumb: {e}")
-            return False
-
-    def _load_work_thumb(self, work_thumb_path: 'Path'):
-        """Carica work thumbnail da disco come PIL Image."""
-        try:
-            from PIL import Image
-            # Context manager esplicito: chiude il file handle prima di convert()
-            # evitando accumulo di handle aperti su filesystem Windows/NTFS via WSL2
-            with Image.open(work_thumb_path) as img:
-                return img.convert('RGB')
-        except Exception as e:
-            logger.warning(f"Errore caricamento work thumb {work_thumb_path}: {e}")
-            return None
-
-    def _cleanup_temp_cache(self, temp_dir: 'Path'):
-        """Cancella tutti i work thumbnail dalla directory temp."""
-        try:
-            if temp_dir.exists():
-                for f in temp_dir.glob('*.jpg'):
-                    try:
-                        f.unlink()
-                    except Exception:
-                        pass
-                logger.info(f"Cache temporanea svuotata: {temp_dir}")
-        except Exception as e:
-            logger.warning(f"Errore cleanup cache temp: {e}")
 
     def stop(self):
         """Ferma processing — tutti i thread controllano is_running e si fermano."""
@@ -3221,27 +2954,36 @@ class ProcessingTab(QWidget):
                 pass
     
     def _update_model_progress(self, model_key, current, total):
-        """Aggiorna progress bar del singolo modello e il contatore live in scan_label"""
-        _bar_map = {
-            'exiftool': self.pt_exif_bar,
-            'clip': self.pt_clip_bar,
-            'dinov2': self.pt_dinov2_bar,
-            'bioclip': self.pt_bioclip_bar,
-            'aesthetic': self.pt_aesthetic_bar,
-            'technical': self.pt_musiq_bar,
-            'llm': self.pt_llm_bar,
-        }
-        bar = _bar_map.get(model_key)
-        if bar and total > 0:
-            bar.setRange(0, total)
-            bar.setValue(current)
+        """Aggiorna progress bar del singolo modello e il contatore live in scan_label.
+        Il thread unificato emette 'models' come key → aggiorna tutte le barre embedding."""
+        if model_key == 'models':
+            # Thread unificato: aggiorna tutte le barre embedding in sincrono
+            for bar in (self.pt_clip_bar, self.pt_dinov2_bar, self.pt_bioclip_bar,
+                        self.pt_aesthetic_bar, self.pt_musiq_bar):
+                if total > 0:
+                    bar.setRange(0, total)
+                    bar.setValue(current)
+        else:
+            _bar_map = {
+                'exiftool': self.pt_exif_bar,
+                'clip': self.pt_clip_bar,
+                'dinov2': self.pt_dinov2_bar,
+                'bioclip': self.pt_bioclip_bar,
+                'aesthetic': self.pt_aesthetic_bar,
+                'technical': self.pt_musiq_bar,
+                'llm': self.pt_llm_bar,
+            }
+            bar = _bar_map.get(model_key)
+            if bar and total > 0:
+                bar.setRange(0, total)
+                bar.setValue(current)
 
-        # Aggiorna contatore live in scan_label usando il progresso ExifTool
-        # (è il thread produttore: riflette quante foto sono state indicizzate finora)
-        if model_key == 'exiftool' and total > 0:
+        # Aggiorna contatore live in scan_label
+        if model_key in ('exiftool', 'models') and total > 0:
             pct = int(current * 100 / total)
+            label = "Prep" if model_key == 'exiftool' else "AI"
             self.scan_label.setText(
-                f"⏳ Elaborazione: {current:,} / {total:,}  ({pct}%)"
+                f"⏳ {label}: {current:,} / {total:,}  ({pct}%)"
             )
 
     def update_progress(self, current, total):
