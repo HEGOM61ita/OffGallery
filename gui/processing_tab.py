@@ -33,21 +33,53 @@ from i18n import t
 logger = logging.getLogger(__name__)
 
 
+class PhotoBarrier:
+    """Barriera per-foto: raccoglie i done() dei thread modello attivi.
+    Quando tutti i modelli non-LLM hanno finito una foto, la accoda in llm_queue.
+
+    Ogni foto ha la sua istanza PhotoBarrier, creata da ExifTool e
+    passata alle code insieme al path immagine.
+    """
+
+    __slots__ = ('_pending', '_lock', '_llm_queue', '_image_path')
+
+    def __init__(self, modelli_attivi, llm_queue, image_path):
+        self._pending    = set(modelli_attivi)   # modelli che devono ancora chiamare done()
+        self._lock       = threading.Lock()
+        self._llm_queue  = llm_queue             # None se LLM non attivo
+        self._image_path = image_path
+
+    def done(self, modello):
+        """Chiamato da un thread modello al termine dell'elaborazione della foto."""
+        with self._lock:
+            self._pending.discard(modello)
+            if not self._pending and self._llm_queue is not None:
+                self._llm_queue.put(self._image_path)
+
+
 class ProcessingWorker(QThread):
-    """Worker thread per processing immagini — ARCHITETTURA THREAD UNIFICATO
+    """Worker thread per processing immagini — ARCHITETTURA THREAD PER MODELLO
 
     Flusso:
-      Fase 0 (ExifTool thread): EXIF + thumbnail + geo + hash → DB record base
-        Thumbnail PIL resta in RAM (prep_cache), nessun file su disco.
-      Fase 1 (thread unificato modelli): per ogni immagine esegue TUTTI i modelli
-        attivi in sequenza (CLIP, DINOv2, Aesthetic, MUSIQ, BioCLIP).
-        Batch DB commit ogni N immagini. Alimenta coda LLM.
-      Fase 2 (LLM thread): consuma dalla coda, genera tags/descrizione/titolo.
+      Fase 0 (ExifTool thread): lettura unica da USB in RAM → file temp su SSD locale →
+        EXIF + geo + hash + thumbnail in parallelo → DB INSERT → distribuisce
+        (image_path, PhotoBarrier) nella coda di ogni modello attivo.
+
+      Fase 1 (thread per-modello): ogni modello attivo ha il proprio thread e Queue
+        con backpressure (maxsize calcolato su budget RAM 1 GB).
+        Thread attivi: CLIP, DINOv2, Aesthetic, MUSIQ, BioCLIP (solo se abilitati).
+        Ogni thread chiama barrier.done() al termine → quando tutti i thread hanno
+        finito una foto, la foto viene accodata automaticamente per LLM.
+
+      Fase 2 (LLM thread): consuma dalla llm_queue, genera tags/descrizione/titolo.
+        Attivato solo se almeno uno tra tags/descrizione/titolo è abilitato.
+        LLM legge bioclip_taxonomy dal DB — nessuna dipendenza in memoria con BioCLIP.
 
     Sincronizzazione:
       - db_lock: Lock per serializzare scritture DB
-      - llm_queue: Queue per dipendenza modelli→LLM
-      - bioclip_results + bioclip_lock: contesto BioCLIP per LLM
+      - model_queues: dict model_key → Queue(maxsize=M) con backpressure naturale
+      - llm_queue: Queue alimentata da PhotoBarrier quando tutti i modelli sono done
+      - bioclip_results + bioclip_lock: contesto BioCLIP per LLM (in memoria)
       - is_running / is_paused: controllati da tutti i thread
     """
 
@@ -309,39 +341,60 @@ class ProcessingWorker(QThread):
 
             emb_flags = self.options.get('embedding_model_flags', {})
 
-            # Dizionario condiviso: filename → dict con metadata (NO PIL, work thumb su disco)
+            # Dizionario condiviso: filename → dict prep (thumbnail PIL in RAM)
             prep_cache = {}
 
-            # ─── AVVIO THREAD (ExifTool produttore + modelli unificato + LLM) ───
-            self.log_message.emit("═" * 50, "info")
-            self.log_message.emit("Avvio thread (ExifTool + modelli AI unificato + LLM)", "info")
-            self.log_message.emit("═" * 50, "info")
+            # Directory temp per file temporanei (SSD locale, configurabile)
+            _temp_cache_dir_cfg = config.get('paths', {}).get('temp_cache_dir', None)
+            if _temp_cache_dir_cfg:
+                _temp_dir = Path(_temp_cache_dir_cfg)
+                if not _temp_dir.is_absolute():
+                    _temp_dir = get_app_dir() / _temp_dir
+                _temp_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                _temp_dir = None  # tempfile usa cartella di sistema
 
-            # Strutture condivise per dipendenza BioCLIP→LLM
-            llm_queue = queue.Queue()
-            bioclip_results = {}  # filename → {'context': str, 'category_hint': str}
-            bioclip_lock = threading.Lock()
-
-            # Mappa disponibilità reale modelli (test_models usa 'musiq', UI usa 'technical')
+            # ─── CONFIGURAZIONE MODELLI ATTIVI ───
             _models_avail = models_status if embedding_enabled else {}
             _avail_map = {
-                'clip': _models_avail.get('clip', False),
-                'dinov2': _models_avail.get('dinov2', False),
+                'clip':      _models_avail.get('clip', False),
+                'dinov2':    _models_avail.get('dinov2', False),
                 'aesthetic': _models_avail.get('aesthetic', False),
                 'technical': _models_avail.get('musiq', False),
-                'bioclip': _models_avail.get('bioclip', False),
+                'bioclip':   _models_avail.get('bioclip', False),
             }
+
+            # Avvisa modelli selezionati ma non disponibili
+            for _mk in ('clip', 'dinov2', 'aesthetic', 'technical', 'bioclip'):
+                if emb_flags.get(_mk, {}).get('active', False) and not _avail_map.get(_mk, False):
+                    self.log_message.emit(
+                        f"⚠️ {_mk.upper()} selezionato ma non caricato — saltato", "warning")
+
+            # Modelli embedding attivi (escluso BioCLIP che ha thread dedicato)
+            _EMB_MODELS = [
+                ('clip',      'clip_embedding',   lambda t, eg=embedding_generator: eg._generate_clip_embedding_batch(t),    True),
+                ('dinov2',    'dinov2_embedding',  lambda t, eg=embedding_generator: eg._generate_dinov2_embedding_batch(t),  True),
+                ('aesthetic', 'aesthetic_score',   lambda t, eg=embedding_generator: eg._generate_aesthetic_score_batch(t),  False),
+                ('technical', 'technical_score',   lambda t, eg=embedding_generator: eg._generate_musiq_score_batch(t),      False),
+            ]
+            active_emb_models = [
+                (mk, db_field, fn, is_emb)
+                for mk, db_field, fn, is_emb in _EMB_MODELS
+                if (emb_flags.get(mk, {}).get('active', False)
+                    and _avail_map.get(mk, False)
+                    and embedding_enabled
+                    and embedding_generator is not None)
+            ]
 
             bioclip_active = (emb_flags.get('bioclip', {}).get('active', False)
                               and embedding_enabled and embedding_generator is not None
                               and _avail_map.get('bioclip', False))
-            llm_active = (llm_gen_config.get('tags', {}).get('enabled') or
-                          llm_gen_config.get('description', {}).get('enabled') or
-                          llm_gen_config.get('title', {}).get('enabled'))
 
-            # Generatore per LLM: indipendente dai modelli embedding.
-            # embedding_generator può essere None se tutti i modelli sono disabilitati,
-            # ma LLM usa solo Ollama e non richiede modelli locali.
+            llm_active = bool(llm_gen_config.get('tags', {}).get('enabled') or
+                              llm_gen_config.get('description', {}).get('enabled') or
+                              llm_gen_config.get('title', {}).get('enabled'))
+
+            # Generatore per LLM (può essere indipendente dai modelli embedding)
             llm_generator = None
             if llm_active:
                 llm_generator = embedding_generator or self.embedding_gen
@@ -349,44 +402,85 @@ class ProcessingWorker(QThread):
                     self.log_message.emit("🧠 Inizializzazione EmbeddingGenerator per LLM...", "info")
                     llm_generator = EmbeddingGenerator(config, initialization_mode='llm_only')
 
-            # Tutte le immagini
-            model_images = images_to_process
-            model_total = len(model_images)
+            model_total = len(images_to_process)
+
+            # ─── CALCOLO BACKPRESSURE QUEUE ───
+            # Budget: 1 GB di preview in volo contemporaneamente.
+            # Ogni immagine in coda occupa circa max_preview_mb MB.
+            _PREVIEW_MB = {
+                'clip': 0.6, 'dinov2': 0.6, 'aesthetic': 0.25,
+                'technical': 0.6, 'bioclip': 0.33, 'llm': 2.4,
+            }
+            _modelli_queued = (
+                [mk for mk, *_ in active_emb_models]
+                + (['bioclip'] if bioclip_active else [])
+            )
+            if _modelli_queued:
+                _max_preview_mb = max(_PREVIEW_MB.get(m, 0.6) for m in _modelli_queued)
+                _n_code = len(_modelli_queued)
+                import math
+                _QUEUE_MAXSIZE = max(4, math.floor(1024 / (_max_preview_mb * _n_code)))
+            else:
+                _QUEUE_MAXSIZE = 32  # solo LLM o nessun modello
+
+            # ─── CODE PER OGNI MODELLO ───
+            # model_queues: dict model_key → Queue(maxsize)
+            # Ogni elemento: (image_path, PhotoBarrier) oppure None (sentinella)
+            model_queues = {}
+            for mk, *_ in active_emb_models:
+                model_queues[mk] = queue.Queue(maxsize=_QUEUE_MAXSIZE)
+            if bioclip_active:
+                model_queues['bioclip'] = queue.Queue(maxsize=_QUEUE_MAXSIZE)
+
+            # Coda LLM: alimentata da PhotoBarrier quando tutti i modelli attivi
+            # hanno finito la foto. Se nessun modello attivo → ExifTool accoda direttamente.
+            llm_queue = queue.Queue()
+
+            # Contesto BioCLIP per LLM (in memoria)
+            bioclip_results = {}
+            bioclip_lock    = threading.Lock()
+
+            # Modelli che partecipano alla barrier (tutti eccetto LLM)
+            _barrier_modelli = list(model_queues.keys())  # es. ['clip','dinov2','bioclip']
+
+            # ─── AVVIO THREAD ───
+            self.log_message.emit("═" * 50, "info")
+            _thread_labels = [mk.upper() for mk in _barrier_modelli] + (['LLM'] if llm_active else [])
+            self.log_message.emit(
+                f"Avvio thread: ExifTool + {', '.join(_thread_labels) if _thread_labels else 'nessun modello'}",
+                "info")
+            self.log_message.emit("═" * 50, "info")
 
             model_threads = []
 
-            # Verifica modelli non disponibili
-            for _mk in ('clip', 'dinov2', 'aesthetic', 'technical', 'bioclip'):
-                if emb_flags.get(_mk, {}).get('active', False) and not _avail_map.get(_mk, False):
-                    self.log_message.emit(
-                        f"⚠️ {_mk.upper()} selezionato ma non caricato — saltato", "warning")
-
-            # Thread unificato modelli embedding + BioCLIP
-            _any_emb_active = any(
-                emb_flags.get(k, {}).get('active', False) and _avail_map.get(k, False)
-                for k in ('clip', 'dinov2', 'aesthetic', 'technical')
-            )
-            if (_any_emb_active or bioclip_active) and embedding_enabled and embedding_generator is not None:
+            # Thread per ogni modello embedding (CLIP, DINOv2, Aesthetic, MUSIQ)
+            for mk, db_field, infer_fn, is_emb in active_emb_models:
                 t = threading.Thread(
-                    target=self._thread_unified_models,
-                    args=(model_images, prep_cache, embedding_generator, db_manager,
-                          emb_flags, stats, model_total,
-                          bioclip_results, bioclip_lock, llm_queue,
-                          llm_active, bioclip_active, _avail_map,
-                          processing_mode),
-                    name="model-unified", daemon=True
+                    target=self._thread_model_worker,
+                    args=(mk, db_field, infer_fn, is_emb,
+                          model_queues[mk], prep_cache,
+                          embedding_generator, db_manager,
+                          emb_flags, stats, model_total, processing_mode),
+                    name=f"model-{mk}", daemon=True
                 )
                 model_threads.append(t)
-                self.log_message.emit(f"🚀 Thread modelli unificato pronto ({model_total} immagini)", "info")
-            elif llm_active:
-                # Nessun modello embedding attivo ma LLM sì:
-                # la coda LLM sarà alimentata direttamente da ExifTool
-                pass
+                self.log_message.emit(f"🚀 Thread {mk.upper()} pronto", "info")
+
+            # Thread BioCLIP (separato — produce anche contesto per LLM)
+            if bioclip_active:
+                t = threading.Thread(
+                    target=self._thread_bioclip_worker,
+                    args=(model_queues['bioclip'], prep_cache,
+                          embedding_generator, db_manager,
+                          emb_flags, stats, model_total, processing_mode,
+                          bioclip_results, bioclip_lock),
+                    name="model-bioclip", daemon=True
+                )
+                model_threads.append(t)
+                self.log_message.emit("🚀 Thread BioCLIP pronto", "info")
 
             # Thread LLM Vision
             if llm_active and llm_generator is not None:
-                # La coda llm_queue viene alimentata dal thread unificato (se presente)
-                # oppure da _thread_exiftool (se nessun modello embedding attivo)
                 t = threading.Thread(
                     target=self._thread_llm,
                     args=(prep_cache, llm_generator, db_manager,
@@ -395,20 +489,18 @@ class ProcessingWorker(QThread):
                     name="model-llm", daemon=True
                 )
                 model_threads.append(t)
-                self.log_message.emit(f"🚀 Thread LLM pronto ({model_total} immagini)", "info")
+                self.log_message.emit("🚀 Thread LLM pronto", "info")
 
-            # Il thread unificato gestisce la coda LLM se è attivo
-            _unified_active = any(t.name == "model-unified" for t in model_threads)
-
-            # Thread ExifTool (produttore — avvia insieme ai modelli)
+            # Thread ExifTool (produttore — ultimo perché usa model_queues e llm_queue)
             exif_thread = threading.Thread(
                 target=self._thread_exiftool,
                 args=(images_to_process, prep_cache,
                       raw_processor, config, db_manager,
                       processing_mode, emb_flags, llm_gen_config,
-                      stats, total_to_process, llm_queue, llm_active),
-                kwargs={'unified_feeds_llm': _unified_active,
-                        'geo_plugin': _geo_plugin, 'geo_plugin_cfg': _geo_plugin_cfg},
+                      stats, total_to_process,
+                      model_queues, _barrier_modelli, llm_queue, llm_active,
+                      _temp_dir),
+                kwargs={'geo_plugin': _geo_plugin, 'geo_plugin_cfg': _geo_plugin_cfg},
                 name="model-exiftool", daemon=True
             )
             model_threads.append(exif_thread)
@@ -416,39 +508,39 @@ class ProcessingWorker(QThread):
 
             self._model_threads = model_threads
 
-            # Avvia ExifTool per primo con head start di 50 foto (o meno se batch piccolo)
-            exif_thread.start()
-            head_start = min(50, total_to_process)
-            if head_start > 0:
-                self.log_message.emit(f"⏳ Head start ExifTool: attendo {head_start} foto prima di avviare i modelli...", "info")
-                while self.is_running and len(prep_cache) < head_start:
-                    time.sleep(0.1)
-                if self.is_running:
-                    self.log_message.emit(f"🚀 Buffer pronto ({len(prep_cache)} foto) — avvio modelli AI", "info")
-
-            # Avvia i thread modello (ExifTool è già in esecuzione)
+            # Avvia i thread modello prima di ExifTool (si bloccheranno sulla Queue vuota)
             for t in model_threads:
                 if t.name != "model-exiftool":
                     t.start()
+
+            # ExifTool parte per primo e alimenta le code con backpressure naturale
+            exif_thread.start()
 
             # Attendi completamento con check is_running (permette stop reattivo)
             for t in model_threads:
                 while t.is_alive():
                     t.join(timeout=0.5)
                     if not self.is_running:
-                        # Stop richiesto: i thread controllano is_running e si fermeranno
-                        # Svuota llm_queue per sbloccare il thread LLM se in attesa
-                        # (incluso se ExifTool sta ancora accodando)
+                        # Stop richiesto: svuota code e invia sentinelle
+                        for _q in model_queues.values():
+                            try:
+                                while not _q.empty():
+                                    _q.get_nowait()
+                            except queue.Empty:
+                                pass
+                            try:
+                                _q.put_nowait(None)
+                            except queue.Full:
+                                pass
                         try:
                             while not llm_queue.empty():
                                 llm_queue.get_nowait()
                         except queue.Empty:
                             pass
-                        llm_queue.put(None)  # sentinella per sbloccare get()
+                        llm_queue.put(None)
                         break
 
             # Attendi termine effettivo di tutti i thread
-            # LLM può avere una chiamata HTTP in corso (fino a ~30s), timeout generoso
             for t in model_threads:
                 if 'llm' in t.name:
                     _timeout = 60
@@ -517,10 +609,11 @@ class ProcessingWorker(QThread):
     # ─────────────────────────────────────────────────────────────
     def _prep_image(self, image_path, raw_processor, config, db_manager,
                     processing_mode, emb_flags, llm_gen_config,
-                    geo_plugin=None, geo_plugin_cfg=None):
+                    temp_dir=None, geo_plugin=None, geo_plugin_cfg=None):
         """Estrae EXIF + thumbnail in parallelo, poi geo + hash + DB insert.
         Le due operazioni più lente (exif e thumb) vengono sovrapposte con
         due thread interni sincronizzati tramite threading.Event.
+        temp_dir: directory SSD per file temporanei (None → temp di sistema).
         Ritorna dict con dati prep oppure None in caso di errore fatale."""
         _tmp_path = None  # file temporaneo su SSD locale — pulito nel finally
         try:
@@ -572,7 +665,8 @@ class ProcessingWorker(QThread):
             import tempfile
             _suffix = image_path.suffix
             _tmp_file = tempfile.NamedTemporaryFile(
-                suffix=_suffix, delete=False, dir=None)  # dir=None → temp di sistema (SSD)
+                suffix=_suffix, delete=False,
+                dir=str(temp_dir) if temp_dir else None)  # temp_dir configurabile via config
             _tmp_path = Path(_tmp_file.name)
             try:
                 _tmp_file.write(_file_bytes)
@@ -804,117 +898,77 @@ class ProcessingWorker(QThread):
                 except Exception:
                     pass
 
-    # ─────────────────────────────────────────────────────────────
-    # THREAD UNIFICATO MODELLI EMBEDDING
-    # ─────────────────────────────────────────────────────────────
-    # Architettura a thread dinamici: i modelli vengono raggruppati
-    # per device (GPU vs CPU). Un thread per device esegue tutti i
-    # modelli assegnati in sequenza per ogni immagine.
-    # Se tutti i modelli sono sullo stesso device → un solo thread.
-    # Se misto CPU+GPU → due thread paralleli, sync per immagine.
-    # Il thumbnail PIL è in RAM (prep_cache), nessun I/O disco.
-    # Batch DB commit ogni N immagini per ridurre I/O SQLite.
-
     # Dimensione batch DB commit — accumula risultati per N immagini
     # prima di fare un singolo commit, riducendo I/O SQLite del 80-90%
     _DB_COMMIT_BATCH = 10
 
-    def _thread_unified_models(self, images, prep_cache, emb_gen, db_manager,
-                               emb_flags, stats, total,
-                               bioclip_results, bioclip_lock, llm_queue,
-                               llm_active, bioclip_active,
-                               models_avail, processing_mode='new_only'):
-        """Thread unificato modelli embedding: esegue tutti i modelli attivi
-        per ogni immagine in sequenza. Il thumbnail è in RAM (prep_cache).
-        BioCLIP integrato: produce contesto per LLM via queue.
-        Batch DB commit ogni _DB_COMMIT_BATCH immagini."""
+    # ─────────────────────────────────────────────────────────────
+    # THREAD MODELLO GENERICO (CLIP / DINOv2 / Aesthetic / MUSIQ)
+    # ─────────────────────────────────────────────────────────────
+    def _thread_model_worker(self, model_key, db_field, infer_fn, is_embedding,
+                             model_queue, prep_cache,
+                             emb_gen, db_manager,
+                             emb_flags, stats, total, processing_mode):
+        """Thread dedicato a un singolo modello embedding.
+
+        Consuma (image_path, barrier) dalla propria Queue con backpressure.
+        Al termine di ogni foto chiama barrier.done(model_key) per segnalare
+        al PhotoBarrier che questo modello ha completato.
+        """
         import numpy as np
-        from embedding_generator import EmbeddingGenerator
 
-        # Costruisci lista modelli attivi con le loro funzioni di inferenza
-        # Formato: (model_key, db_field, infer_func, is_embedding, overwrite)
-        active_models = []
-
-        if emb_flags.get('clip', {}).get('active', False) and models_avail.get('clip', False):
-            active_models.append(('clip', 'clip_embedding',
-                                  lambda thumbs: emb_gen._generate_clip_embedding_batch(thumbs),
-                                  True, emb_flags['clip'].get('overwrite', False)))
-
-        if emb_flags.get('dinov2', {}).get('active', False) and models_avail.get('dinov2', False):
-            active_models.append(('dinov2', 'dinov2_embedding',
-                                  lambda thumbs: emb_gen._generate_dinov2_embedding_batch(thumbs),
-                                  True, emb_flags['dinov2'].get('overwrite', False)))
-
-        if emb_flags.get('aesthetic', {}).get('active', False) and models_avail.get('aesthetic', False):
-            active_models.append(('aesthetic', 'aesthetic_score',
-                                  lambda thumbs: emb_gen._generate_aesthetic_score_batch(thumbs),
-                                  False, emb_flags['aesthetic'].get('overwrite', False)))
-
-        if emb_flags.get('technical', {}).get('active', False) and models_avail.get('technical', False):
-            active_models.append(('technical', 'technical_score',
-                                  lambda thumbs: emb_gen._generate_musiq_score_batch(thumbs),
-                                  False, emb_flags['technical'].get('overwrite', False)))
-
-        bioclip_overwrite = emb_flags.get('bioclip', {}).get('overwrite', False)
-
-        if not active_models and not bioclip_active:
-            # Nessun modello attivo — accoda tutto per LLM e esci
-            if llm_active:
-                for image_path in images:
-                    llm_queue.put(image_path)
-                llm_queue.put(None)
-            return
-
-        self.log_message.emit(
-            f"🧠 Thread unificato: {len(active_models)} modelli embedding"
-            + (f" + BioCLIP" if bioclip_active else "")
-            + f" ({total} immagini)", "info")
-
-        # Contatore DB commit pendenti
+        overwrite   = emb_flags.get(model_key, {}).get('overwrite', False)
         _db_pending = 0
 
-        for i, image_path in enumerate(images, 1):
-            if not self._wait_if_paused():
-                if llm_active:
-                    llm_queue.put(None)
-                break
+        self.log_message.emit(f"🧠 Thread {model_key.upper()} avviato", "info")
 
-            fname = image_path.name
-
-            # Attendi che ExifTool abbia preparato questa foto
-            while fname not in prep_cache:
-                if not self.is_running:
-                    if llm_active:
-                        llm_queue.put(None)
-                    return
-                time.sleep(0.02)
-
-            prep = prep_cache[fname]
-            if prep is None:
-                if llm_active:
-                    llm_queue.put(image_path)
-                self._emit_progress_throttled('models', i, total)
+        while self.is_running:
+            try:
+                item = model_queue.get(timeout=2.0)
+            except queue.Empty:
                 continue
 
-            is_new = prep.get('is_new', True)
-            ai_fields = prep.get('ai_fields', {})
-            thumb = prep.get('thumbnail')  # PIL Image già in RAM
+            if item is None:
+                break  # sentinella
 
-            # Accumula tutti gli update DB per questa immagine
+            if not self._wait_if_paused():
+                break
+
+            image_path, barrier = item
+            fname = image_path.name
+
+            # Attendi che ExifTool abbia scritto il prep (raramente necessario:
+            # ExifTool mette la foto in coda solo dopo aver scritto il prep)
+            _waited = 0
+            while fname not in prep_cache:
+                if not self.is_running:
+                    barrier.done(model_key)
+                    return
+                time.sleep(0.01)
+                _waited += 1
+                if _waited > 500:
+                    self.log_message.emit(f"⚠️ {model_key.upper()} timeout attesa prep {fname}", "warning")
+                    break
+
+            prep = prep_cache.get(fname)
+            if prep is None:
+                barrier.done(model_key)
+                self._emit_progress_throttled(model_key, 0, total)
+                continue
+
+            is_new    = prep.get('is_new', True)
+            ai_fields = prep.get('ai_fields', {})
+            thumb     = prep.get('thumbnail')
+
             update_data = {}
 
-            # ── Modelli embedding (CLIP, DINOv2, Aesthetic, MUSIQ) ──
             if thumb is not None:
-                for model_key, db_field, infer_func, is_embedding, overwrite in active_models:
-                    # Skip se campo già presente e overwrite OFF
-                    if not overwrite and not is_new:
-                        if ai_fields.get(db_field, False):
-                            continue
-
+                # Skip se campo già presente e overwrite OFF
+                if overwrite or is_new or not ai_fields.get(db_field, False):
                     try:
-                        _t_inf = time.monotonic()
-                        results = infer_func([thumb])
-                        _t_inf_dur = time.monotonic() - _t_inf
+                        _t = time.monotonic()
+                        results = infer_fn([thumb])
+                        _dur = time.monotonic() - _t
 
                         if results and results[0] is not None:
                             result = results[0]
@@ -923,31 +977,111 @@ class ProcessingWorker(QThread):
                                     if np.any(np.isnan(result)):
                                         self.log_message.emit(
                                             f"🚨 {model_key.upper()} NaN: {fname}", "error")
-                                        continue
-                                    update_data[db_field] = result
-                                    update_data['embedding_generated'] = True
-                                    with self._stats_lock:
-                                        stats['with_embedding'] += 1
-                                        stats[model_key] += 1
+                                    else:
+                                        update_data[db_field] = result
+                                        update_data['embedding_generated'] = True
+                                        with self._stats_lock:
+                                            stats['with_embedding'] += 1
+                                            stats[model_key] += 1
                             else:
-                                # Score (aesthetic, technical)
                                 update_data[db_field] = result
                                 with self._stats_lock:
                                     stats[model_key] += 1
 
                             self.log_message.emit(
-                                f"⏱ {model_key.upper()} {fname}: {_t_inf_dur:.2f}s", "debug")
+                                f"⏱ {model_key.upper()} {fname}: {_dur:.2f}s", "debug")
 
                     except Exception as e:
-                        self.log_message.emit(
-                            f"❌ {model_key.upper()} {fname}: {e}", "error")
+                        self.log_message.emit(f"❌ {model_key.upper()} {fname}: {e}", "error")
 
-            # ── BioCLIP (se attivo) ──
-            if bioclip_active and thumb is not None:
-                skip_bioclip = (not bioclip_overwrite and not is_new
-                                and ai_fields.get('bioclip_taxonomy', False))
+            if update_data:
+                with self._db_lock:
+                    db_manager.update_image(fname, update_data)
+                _db_pending += 1
+                if _db_pending >= self._DB_COMMIT_BATCH:
+                    with self._db_lock:
+                        try:
+                            db_manager.conn.commit()
+                        except Exception:
+                            pass
+                    _db_pending = 0
 
-                if not skip_bioclip:
+            # Segnala alla barrier che questo modello ha finito la foto
+            barrier.done(model_key)
+            self._emit_progress_throttled(model_key, 0, total)
+
+        # Commit finale residui
+        if _db_pending > 0:
+            with self._db_lock:
+                try:
+                    db_manager.conn.commit()
+                except Exception:
+                    pass
+
+        self.log_message.emit(f"✅ Thread {model_key.upper()} completato", "info")
+
+    # ─────────────────────────────────────────────────────────────
+    # THREAD BIOCLIP (separato — produce contesto per LLM)
+    # ─────────────────────────────────────────────────────────────
+    def _thread_bioclip_worker(self, model_queue, prep_cache,
+                               emb_gen, db_manager,
+                               emb_flags, stats, total, processing_mode,
+                               bioclip_results, bioclip_lock):
+        """Thread dedicato a BioCLIP.
+
+        Come _thread_model_worker ma in più salva il contesto
+        tassonomico in bioclip_results per il thread LLM.
+        Chiama barrier.done('bioclip') al termine di ogni foto.
+        """
+        from embedding_generator import EmbeddingGenerator
+
+        overwrite   = emb_flags.get('bioclip', {}).get('overwrite', False)
+        _db_pending = 0
+
+        self.log_message.emit("🌿 Thread BioCLIP avviato", "info")
+
+        while self.is_running:
+            try:
+                item = model_queue.get(timeout=2.0)
+            except queue.Empty:
+                continue
+
+            if item is None:
+                break
+
+            if not self._wait_if_paused():
+                break
+
+            image_path, barrier = item
+            fname = image_path.name
+
+            _waited = 0
+            while fname not in prep_cache:
+                if not self.is_running:
+                    barrier.done('bioclip')
+                    return
+                time.sleep(0.01)
+                _waited += 1
+                if _waited > 500:
+                    self.log_message.emit(f"⚠️ BioCLIP timeout attesa prep {fname}", "warning")
+                    break
+
+            prep = prep_cache.get(fname)
+            if prep is None:
+                barrier.done('bioclip')
+                self._emit_progress_throttled('bioclip', 0, total)
+                continue
+
+            is_new    = prep.get('is_new', True)
+            ai_fields = prep.get('ai_fields', {})
+            thumb     = prep.get('thumbnail')
+
+            update_data = {}
+
+            if thumb is not None:
+                skip = (not overwrite and not is_new
+                        and ai_fields.get('bioclip_taxonomy', False))
+                if not skip:
                     try:
                         _geo_hierarchy = prep.get('geo_hierarchy')
                         bioclip_tags, bioclip_taxonomy = emb_gen.generate_bioclip_tags(
@@ -962,11 +1096,10 @@ class ProcessingWorker(QThread):
                                 f"🌿 BioCLIP {fname}: "
                                 f"{len([l for l in bioclip_taxonomy if l])} livelli", "debug")
 
-                        # Contatore GeoSpecies skipped
                         with self._stats_lock:
                             stats['geospecies_skipped_no_gps'] = emb_gen.geospecies_skipped_no_gps
 
-                        # Contesto per LLM
+                        # Contesto tassonomico per LLM (in memoria)
                         ctx = EmbeddingGenerator.extract_bioclip_context(bioclip_tags or [])
                         cat = EmbeddingGenerator.extract_category_hint(bioclip_taxonomy or [])
                         with bioclip_lock:
@@ -975,13 +1108,10 @@ class ProcessingWorker(QThread):
                     except Exception as e:
                         self.log_message.emit(f"❌ BioCLIP {fname}: {e}", "error")
 
-            # ── Scrivi tutti i risultati nel DB in un unico update ──
             if update_data:
                 with self._db_lock:
                     db_manager.update_image(fname, update_data)
                 _db_pending += 1
-
-                # Batch commit ogni N immagini
                 if _db_pending >= self._DB_COMMIT_BATCH:
                     with self._db_lock:
                         try:
@@ -990,17 +1120,9 @@ class ProcessingWorker(QThread):
                             pass
                     _db_pending = 0
 
-            # Accoda per LLM (anche se nessun modello ha prodotto risultati)
-            if llm_active:
-                llm_queue.put(image_path)
-                # NON liberare il thumbnail: LLM lo leggerà da prep_cache
-            else:
-                # Nessun LLM: libera subito la RAM
-                prep['thumbnail'] = None
+            barrier.done('bioclip')
+            self._emit_progress_throttled('bioclip', 0, total)
 
-            self._emit_progress_throttled('models', i, total)
-
-        # Commit finale per i residui
         if _db_pending > 0:
             with self._db_lock:
                 try:
@@ -1008,11 +1130,7 @@ class ProcessingWorker(QThread):
                 except Exception:
                     pass
 
-        # Sentinella fine coda per LLM
-        if llm_active:
-            llm_queue.put(None)
-
-        self.log_message.emit("✅ Thread modelli unificato completato", "info")
+        self.log_message.emit("✅ Thread BioCLIP completato", "info")
 
     # ─────────────────────────────────────────────────────────────
     # THREAD LLM VISION
@@ -1224,23 +1342,38 @@ class ProcessingWorker(QThread):
             self._emit_progress_throttled('llm', processed, total)
 
     # ─────────────────────────────────────────────────────────────
-    # THREAD EXIFTOOL (produttore — estrae EXIF + salva work thumb)
+    # THREAD EXIFTOOL (produttore — estrae EXIF + distribuisce su code)
     # ─────────────────────────────────────────────────────────────
     def _thread_exiftool(self, images_to_process, prep_cache,
                          raw_processor, config, db_manager,
                          processing_mode, emb_flags, llm_gen_config,
-                         stats, total_to_process, llm_queue, llm_active,
-                         unified_feeds_llm=False,
+                         stats, total_to_process,
+                         model_queues, barrier_modelli, llm_queue, llm_active,
+                         temp_dir=None,
                          geo_plugin=None, geo_plugin_cfg=None):
-        """Thread ExifTool: estrae EXIF + thumbnail in RAM per ogni immagine.
-        Se unified_feeds_llm=True, la coda LLM è gestita dal thread unificato."""
-        # ExifTool alimenta LLM solo se il thread unificato NON lo fa
-        _feed_llm = llm_active and not unified_feeds_llm
-        _EXIFTOOL_RESTART_EVERY = 500  # riavvia il processo stay_open ogni N foto
+        """Thread ExifTool (produttore).
+
+        Per ogni immagine:
+          1. Lettura unica da USB in RAM
+          2. File temp su SSD (temp_dir configurabile)
+          3. EXIF + geo + hash + thumbnail in parallelo
+          4. DB INSERT
+          5. Crea PhotoBarrier per questa foto
+          6. Distribuisce (image_path, barrier) su tutte le code modello attive
+             → la backpressure di Queue(maxsize) blocca ExifTool se un modello è lento
+          7. Se nessun modello attivo, accoda direttamente in llm_queue
+
+        Al termine invia sentinella None a ogni coda modello e alla llm_queue.
+        """
+        _has_model_queues = bool(model_queues)
+        _feed_llm_direct  = llm_active and not _has_model_queues
+        _EXIFTOOL_RESTART_EVERY = 500
+
         for i, image_path in enumerate(images_to_process, 1):
             if not self._wait_if_paused():
                 break
-            # Reset periodico ExifTool stay_open per evitare accumulo stato interno
+
+            # Reset periodico ExifTool stay_open
             if i > 1 and i % _EXIFTOOL_RESTART_EVERY == 0:
                 try:
                     from raw_processor import get_exiftool
@@ -1249,28 +1382,58 @@ class ProcessingWorker(QThread):
                         f"🔄 ExifTool stay_open riavviato (foto {i})", "info")
                 except Exception:
                     pass
+
             prep = self._prep_image(
                 image_path, raw_processor, config, db_manager,
                 processing_mode, emb_flags, llm_gen_config,
+                temp_dir=temp_dir,
                 geo_plugin=geo_plugin, geo_plugin_cfg=geo_plugin_cfg
             )
+
             if prep:
                 prep_cache[image_path.name] = prep
                 with self._stats_lock:
                     stats['success'] += 1
                     stats['processed'] += 1
-                # Accoda per LLM solo se il thread unificato non lo fa
-                if _feed_llm:
+
+                if _has_model_queues:
+                    # Crea una barrier per questa foto: si sblocca quando tutti i
+                    # thread modello hanno chiamato done() → accoda in llm_queue
+                    _llm_q = llm_queue if llm_active else None
+                    barrier = PhotoBarrier(barrier_modelli, _llm_q, image_path)
+                    # Distribuisce su ogni coda modello (blocking con backpressure)
+                    for mk, q in model_queues.items():
+                        q.put((image_path, barrier))
+                elif _feed_llm_direct:
+                    # Nessun modello attivo: LLM riceve direttamente
                     llm_queue.put(image_path)
             else:
-                # Marker None: sblocca i thread modello in attesa su prep_cache
+                # Prep fallita: marker None in prep_cache per sbloccare eventuali attese
                 prep_cache[image_path.name] = None
                 with self._stats_lock:
                     stats['errors'] += 1
+
+                if _has_model_queues:
+                    # Barrier vuota (nessun modello da aspettare): accoda subito in LLM se attivo
+                    _llm_q = llm_queue if llm_active else None
+                    barrier = PhotoBarrier([], _llm_q, image_path)
+                    # barrier con pending vuoto → done() non viene mai chiamata,
+                    # ma LLM vedrà prep=None e salterà la foto
+                    # Alternativa più robusta: accodiamo None nei modelli per saltare,
+                    # oppure accendiamo llm_queue direttamente se llm_active
+                    if llm_active:
+                        llm_queue.put(image_path)
+                elif _feed_llm_direct and llm_active:
+                    llm_queue.put(image_path)
+
             self._emit_progress_throttled('exiftool', i, total_to_process)
 
-        # Fine: sentinella LLM solo se ExifTool gestisce la coda
-        if _feed_llm:
+        # Sentinelle di fine per ogni coda modello
+        for mk, q in model_queues.items():
+            q.put(None)
+
+        # Sentinella LLM solo se ExifTool la gestisce direttamente (nessun modello attivo)
+        if _feed_llm_direct:
             llm_queue.put(None)
 
         self.log_message.emit(
