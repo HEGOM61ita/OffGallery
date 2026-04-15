@@ -3145,17 +3145,10 @@ class ProcessingTab(QWidget):
                 bar.setRange(0, total)
                 bar.setValue(current)
 
-        # Aggiorna contatore live in scan_label
-        if total > 0:
+        # Aggiorna contatore live in scan_label — solo ExifTool conta le foto scritte in DB
+        if model_key == 'exiftool' and total > 0:
             pct = int(current * 100 / total)
-            if model_key == 'exiftool':
-                self.scan_label.setText(f"⏳ Prep: {current:,} / {total:,}  ({pct}%)")
-            elif model_key == 'models':
-                self.scan_label.setText(f"⏳ AI: {current:,} / {total:,}  ({pct}%)")
-            elif model_key in ('clip', 'dinov2', 'aesthetic', 'technical', 'bioclip'):
-                # Usa il primo modello per-thread per aggiornare il counter AI visibile
-                # (tutti i modelli avanzano in sincrono, basta uno come riferimento)
-                self.scan_label.setText(f"⏳ AI [{model_key.upper()}]: {current:,} / {total:,}  ({pct}%)")
+            self.scan_label.setText(f"⏳ {current:,} / {total:,}  ({pct}%)")
 
     def update_progress(self, current, total):
         """Aggiorna progresso generale (legacy — non utilizzato nel flusso multi-thread)"""
