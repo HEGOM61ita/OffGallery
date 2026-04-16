@@ -686,7 +686,7 @@ class ProcessingWorker(QThread):
             def _do_exif():
                 _t = time.monotonic()
                 try:
-                    md = raw_processor.extract_raw_metadata(image_path)
+                    md = raw_processor.extract_raw_metadata(image_path, local_path=_tmp_path)
                 except Exception as e:
                     self.log_message.emit(f"⚠️ Errore EXIF {fname}: {e}", "warning")
                     md = {}

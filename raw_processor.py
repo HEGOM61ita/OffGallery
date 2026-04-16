@@ -388,44 +388,49 @@ class RAWProcessor:
         """
         return self.optimization_profiles.get(profile_name, self.optimization_profiles['default'])
         
-    def extract_raw_metadata(self, raw_path: Path) -> Dict[str, Any]:
+    def extract_raw_metadata(self, raw_path: Path, local_path: Path = None) -> Dict[str, Any]:
         """
-        Estrazione unificata EXIF + XMP completi per tutti i formati
-        
+        Estrazione unificata EXIF + XMP completi per tutti i formati.
+
+        raw_path:   path originale (USB/rete) — usato per EXIF stay_open e sidecar XMP
+        local_path: path copia locale su SSD (opzionale) — usato per analisi B/N su file
+                    non-RAW (evita lettura PIL da USB). Se None usa raw_path.
+
         Strategia:
         - RAW (ORF, CR2, etc.): EXIF embedded + XMP sidecar (.xmp)
-        - JPEG/TIFF: EXIF + XMP embedded  
+        - JPEG/TIFF: EXIF + XMP embedded
         - DNG: EXIF + XMP embedded + XMP sidecar merge
-        
-        Returns:
-            Dict con metadati completi estratti
         """
         metadata = {
             'is_raw': self.is_raw_file(raw_path),
             'raw_format': raw_path.suffix.lower()[1:] if raw_path.suffix else None,  # → 'orf'
             'raw_info': self.get_raw_info(raw_path)
         }
-        
+
         try:
             # ===== ESTRAZIONE EXIF + XMP EMBEDDED =====
+            # Usa raw_path originale: ExifTool stay_open e sidecar XMP
+            # devono puntare al file sorgente (il sidecar è accanto all'originale)
             exif_data = self._extract_with_exiftool(raw_path)
-            
+
             # ===== ESTRAZIONE XMP SIDECAR (solo per RAW) =====
             xmp_sidecar_data = {}
             if self.is_raw_file(raw_path):
                 xmp_sidecar_data = self._extract_xmp_sidecar(raw_path)
-            
+
             # ===== MERGE INTELLIGENTE =====
             # Priorità: Sidecar > Embedded > Default
             final_data = self._merge_xmp_data(exif_data, xmp_sidecar_data)
-            
+
             # ===== MAPPING CAMPI STANDARDIZZATO =====
             metadata.update(self._map_all_fields(final_data))
-            
+
             # ===== ANALISI BIANCO/NERO (ottimizzata) =====
+            # Per file non-RAW usa local_path (SSD) se disponibile: PIL evita USB
+            _bw_path = local_path if (local_path is not None and not self.is_raw_file(raw_path)) else raw_path
             try:
                 # Estrazione veloce dedicata per analisi B/N
-                bw_image = self._extract_for_bw_analysis(raw_path)
+                bw_image = self._extract_for_bw_analysis(_bw_path)
                 if bw_image:
                     is_mono = self._is_monochrome_image(bw_image)
                     metadata['is_monochrome'] = 1 if is_mono else 0
