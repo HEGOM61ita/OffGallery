@@ -109,7 +109,8 @@ class ProcessingWorker(QThread):
         # Evita di inondare la coda eventi Qt con migliaia di segnali per-foto
         self._progress_last_emit = {}
         self._progress_throttle_lock = threading.Lock()
-        self._PROGRESS_INTERVAL = 0.2  # secondi minimi tra un emit e il successivo per modello
+        self._PROGRESS_INTERVAL_EXIFTOOL = 0.5   # ExifTool: aggiorna counter visibile
+        self._PROGRESS_INTERVAL_MODEL    = 1.0   # modelli AI: aggiorna solo barre (meno urgente)
 
     def _wait_if_paused(self):
         """Attende se in pausa. Ritorna True se si può continuare, False se stoppato."""
@@ -120,15 +121,17 @@ class ProcessingWorker(QThread):
     def _emit_progress_throttled(self, model_key, current, total):
         """Emette model_progress con throttle temporale per ridurre il carico sulla GUI.
 
-        Emette sempre al primo e all'ultimo elemento; negli altri casi solo se
-        sono trascorsi almeno _PROGRESS_INTERVAL secondi dall'emit precedente.
-        Questo riduce i segnali Qt da decine di migliaia a poche decine per modello.
+        ExifTool: 0.5s di intervallo (aggiorna counter visibile).
+        Modelli AI: 1.0s di intervallo (aggiorna solo barre, meno urgente).
+        Emette sempre all'ultimo elemento.
         """
-        is_last = (current >= total)
+        is_last = (current >= total and total > 0)
+        interval = (self._PROGRESS_INTERVAL_EXIFTOOL if model_key == 'exiftool'
+                    else self._PROGRESS_INTERVAL_MODEL)
         now = time.monotonic()
         with self._progress_throttle_lock:
             last = self._progress_last_emit.get(model_key, 0.0)
-            should_emit = is_last or (now - last >= self._PROGRESS_INTERVAL)
+            should_emit = is_last or (now - last >= interval)
             if should_emit:
                 self._progress_last_emit[model_key] = now
         if should_emit:
@@ -1405,9 +1408,16 @@ class ProcessingWorker(QThread):
                     # thread modello hanno chiamato done() → accoda in llm_queue
                     _llm_q = llm_queue if llm_active else None
                     barrier = PhotoBarrier(barrier_modelli, _llm_q, image_path)
-                    # Distribuisce su ogni coda modello (blocking con backpressure)
+                    # Distribuisce su ogni coda modello con timeout per rispondere a stop/pausa
                     for mk, q in model_queues.items():
-                        q.put((image_path, barrier))
+                        while self.is_running:
+                            try:
+                                q.put((image_path, barrier), timeout=0.2)
+                                break
+                            except queue.Full:
+                                continue  # riprova dopo aver controllato is_running
+                        if not self.is_running:
+                            break
                 elif _feed_llm_direct:
                     # Nessun modello attivo: LLM riceve direttamente
                     llm_queue.put(image_path)
@@ -1429,6 +1439,9 @@ class ProcessingWorker(QThread):
                         llm_queue.put(image_path)
                 elif _feed_llm_direct and llm_active:
                     llm_queue.put(image_path)
+
+            if not self.is_running:
+                break
 
             self._emit_progress_throttled('exiftool', i, total_to_process)
 
@@ -1591,6 +1604,10 @@ class ProcessingTab(QWidget):
         self._active_plugin_readers: list[PluginStdoutReader] = []
         # Contatore plugin ancora in esecuzione (per sapere quando sbloccare il tab)
         self._plugins_running = 0
+        # Cache model_key per cui setRange è già stato chiamato in questa sessione
+        self._progress_range_set: set = set()
+        # Contatore messaggi log per throttling trim documento
+        self._log_msg_count = 0
 
         self.init_ui()
     
@@ -3029,7 +3046,8 @@ class ProcessingTab(QWidget):
             self.worker.stats_update.connect(self.update_stats)
             self.worker.finished.connect(self.processing_finished)
 
-            # Reset progress bar per-modello
+            # Reset progress bar per-modello e cache setRange
+            self._progress_range_set.clear()
             for _bar in (self.pt_exif_bar, self.pt_clip_bar, self.pt_dinov2_bar,
                          self.pt_bioclip_bar, self.pt_aesthetic_bar, self.pt_musiq_bar,
                          self.pt_llm_bar):
@@ -3122,28 +3140,23 @@ class ProcessingTab(QWidget):
     
     def _update_model_progress(self, model_key, current, total):
         """Aggiorna progress bar del singolo modello e il contatore live in scan_label.
-        Il thread unificato emette 'models' come key → aggiorna tutte le barre embedding."""
-        if model_key == 'models':
-            # Thread unificato: aggiorna tutte le barre embedding in sincrono
-            for bar in (self.pt_clip_bar, self.pt_dinov2_bar, self.pt_bioclip_bar,
-                        self.pt_aesthetic_bar, self.pt_musiq_bar):
-                if total > 0:
-                    bar.setRange(0, total)
-                    bar.setValue(current)
-        else:
-            _bar_map = {
-                'exiftool': self.pt_exif_bar,
-                'clip': self.pt_clip_bar,
-                'dinov2': self.pt_dinov2_bar,
-                'bioclip': self.pt_bioclip_bar,
-                'aesthetic': self.pt_aesthetic_bar,
-                'technical': self.pt_musiq_bar,
-                'llm': self.pt_llm_bar,
-            }
-            bar = _bar_map.get(model_key)
-            if bar and total > 0:
+        setRange viene chiamato solo al primo emit per ogni model_key (invariante)."""
+        _bar_map = {
+            'exiftool':  self.pt_exif_bar,
+            'clip':      self.pt_clip_bar,
+            'dinov2':    self.pt_dinov2_bar,
+            'bioclip':   self.pt_bioclip_bar,
+            'aesthetic': self.pt_aesthetic_bar,
+            'technical': self.pt_musiq_bar,
+            'llm':       self.pt_llm_bar,
+        }
+        bar = _bar_map.get(model_key)
+        if bar and total > 0:
+            # setRange è invariante per tutta la sessione — farlo solo una volta
+            if model_key not in self._progress_range_set:
                 bar.setRange(0, total)
-                bar.setValue(current)
+                self._progress_range_set.add(model_key)
+            bar.setValue(current)
 
         # Aggiorna contatore live in scan_label — solo ExifTool conta le foto scritte in DB
         if model_key == 'exiftool' and total > 0:
@@ -3190,16 +3203,18 @@ class ProcessingTab(QWidget):
 
         self.log_display.append(formatted)
 
-        # Limita buffer terminale a 500 righe per evitare degrado GUI
-        max_lines = 500
-        doc = self.log_display.document()
-        if doc.blockCount() > max_lines:
-            cursor = self.log_display.textCursor()
-            cursor.movePosition(cursor.MoveOperation.Start)
-            cursor.movePosition(cursor.MoveOperation.Down, cursor.MoveMode.KeepAnchor,
-                                doc.blockCount() - max_lines)
-            cursor.removeSelectedText()
-            cursor.deleteChar()  # Rimuove newline residuo
+        # Limita buffer terminale a 500 righe — operazione costosa, eseguita ogni 50 messaggi
+        self._log_msg_count += 1
+        if self._log_msg_count % 50 == 0:
+            max_lines = 500
+            doc = self.log_display.document()
+            if doc.blockCount() > max_lines:
+                cursor = self.log_display.textCursor()
+                cursor.movePosition(cursor.MoveOperation.Start)
+                cursor.movePosition(cursor.MoveOperation.Down, cursor.MoveMode.KeepAnchor,
+                                    doc.blockCount() - max_lines)
+                cursor.removeSelectedText()
+                cursor.deleteChar()  # Rimuove newline residuo
 
         # Auto-scroll gestito dal signal textChanged
     
