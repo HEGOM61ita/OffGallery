@@ -804,10 +804,12 @@ class ProcessingWorker(QThread):
 
             # --- DB insert (dopo EXIF+geo, thumb ancora in corso) ---
             _t_db = time.monotonic()
-            image_exists = db_manager.image_exists(fname)
             is_new    = False
             ai_fields = {}
             with self._db_lock:
+                # image_exists va chiamata dentro il lock: evita race condition
+                # tra check e INSERT (snapshot WAL vecchio su cursore thread-local)
+                image_exists = db_manager.image_exists(fname)
                 if image_exists and processing_mode in ['reprocess_all', 'new_plus_errors']:
                     ai_fields = db_manager.get_ai_fields_status(fname)
                     db_manager.update_image(fname, image_data)

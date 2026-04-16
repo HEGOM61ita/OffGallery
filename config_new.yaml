@@ -3,7 +3,7 @@ embedding:
   models:
     aesthetic:
       description: Punteggio estetico (qualità artistica)
-      device: cpu
+      device: gpu
       enabled: true
       model_name: aesthetic-predictor
       returns_score: true
@@ -226,7 +226,7 @@ image_processing:
   - .iiq
   - .x3f
 logging:
-  show_debug: true
+  show_debug: false
 models_repository:
   auto_download: true
   download_on_first_run: true
