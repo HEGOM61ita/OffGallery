@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
     QGridLayout, QTextEdit, QComboBox, QRadioButton, QButtonGroup,
     QProgressBar, QFrame, QStackedLayout
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 
 # Classi custom per prevenire cambi accidentali con scroll wheel
 class NoWheelSpinBox(QSpinBox):
@@ -62,6 +62,41 @@ class NoWheelComboBox(QComboBox):
             # Passa l'evento al widget padre (scroll area)
             if self.parent():
                 self.parent().wheelEvent(event)
+
+class _LlmModelsLoader(QObject):
+    """Worker che interroga Ollama o LM Studio in background e restituisce la lista modelli."""
+    finished = pyqtSignal(list)   # lista di stringhe (nomi modelli)
+    failed   = pyqtSignal()       # endpoint non raggiungibile o lista vuota
+
+    def __init__(self, endpoint: str, is_ollama: bool):
+        super().__init__()
+        self.endpoint  = endpoint.rstrip('/')
+        self.is_ollama = is_ollama
+
+    def run(self):
+        import requests
+        try:
+            if self.is_ollama:
+                url = f"{self.endpoint}/api/tags"
+                r   = requests.get(url, timeout=5)
+                if r.status_code == 200:
+                    names = [m.get('name', '') for m in r.json().get('models', []) if m.get('name')]
+                else:
+                    names = []
+            else:
+                url = f"{self.endpoint}/v1/models"
+                r   = requests.get(url, timeout=5)
+                if r.status_code == 200:
+                    names = [m.get('id', '') for m in r.json().get('data', []) if m.get('id')]
+                else:
+                    names = []
+            if names:
+                self.finished.emit(names)
+            else:
+                self.failed.emit()
+        except Exception:
+            self.failed.emit()
+
 
 # Palette colori (definizione completa per lo styling)
 COLORS = {
@@ -874,6 +909,7 @@ class ConfigTab(QWidget):
         conn_layout.addWidget(QLabel(t("config.label.llm_endpoint")), 0, 0)
         endpoint_row = QHBoxLayout()
         self.llm_vision_endpoint = QLineEdit()
+        self.llm_vision_endpoint.editingFinished.connect(self._load_llm_models)
         endpoint_row.addWidget(self.llm_vision_endpoint)
         self.test_endpoint_btn = QPushButton("🔍 Test")
         self.test_endpoint_btn.setFixedWidth(60)
@@ -891,7 +927,10 @@ class ConfigTab(QWidget):
         conn_layout.addWidget(endpoint_widget, 0, 1)
 
         conn_layout.addWidget(QLabel(t("config.label.llm_model")), 1, 0)
-        self.llm_vision_model = QLineEdit()
+        self.llm_vision_model = NoWheelComboBox()
+        self.llm_vision_model.setEditable(True)
+        self.llm_vision_model.setMaxVisibleItems(4)
+        self.llm_vision_model.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
         conn_layout.addWidget(self.llm_vision_model, 1, 1)
 
         conn_layout.addWidget(QLabel(t("config.label.llm_timeout")), 2, 0)
@@ -985,6 +1024,79 @@ class ConfigTab(QWidget):
         else:            # LM Studio
             if current == _OLLAMA_DEFAULT:
                 self.llm_vision_endpoint.setText(_LMSTUDIO_DEFAULT)
+        # Ricarica modelli automaticamente al cambio backend
+        self._load_llm_models()
+
+    def _load_llm_models(self):
+        """Interroga il backend LLM in background e popola il combobox modelli.
+
+        Chiamata automaticamente all'apertura della tab (se endpoint configurato),
+        al cambio endpoint e al cambio backend. Silenziosa in caso di errore.
+        Usa un contatore di richiesta per ignorare risposte di thread obsoleti.
+        """
+        endpoint = self.llm_vision_endpoint.text().strip()
+        if not endpoint:
+            return
+        is_ollama = self.llm_radio_ollama.isChecked()
+
+        # Incrementa il contatore: le risposte con ID diverso da quello corrente vengono scartate
+        if not hasattr(self, '_llm_load_request_id'):
+            self._llm_load_request_id = 0
+        self._llm_load_request_id += 1
+        request_id = self._llm_load_request_id
+
+        # Mantieni il valore attuale per riselezionarlo dopo il caricamento
+        current_model = self.llm_vision_model.currentText().strip()
+
+        thread = QThread()
+        worker = _LlmModelsLoader(endpoint, is_ollama)
+        worker.moveToThread(thread)
+
+        thread.started.connect(worker.run)
+        worker.finished.connect(
+            lambda names: self._on_llm_models_loaded(names, current_model, request_id))
+        worker.failed.connect(
+            lambda: self._on_llm_models_failed(request_id))
+        worker.finished.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        thread.finished.connect(thread.deleteLater)
+
+        # Mantieni riferimento per evitare garbage collection prematura
+        self._llm_loader_thread = thread
+        self._llm_loader_worker = worker
+        thread.start()
+
+    def _on_llm_models_loaded(self, names: list, previous_model: str, request_id: int):
+        """Popola il combobox con i modelli ricevuti dal backend.
+
+        Scarta la risposta se nel frattempo è partita una richiesta più recente.
+        """
+        if request_id != getattr(self, '_llm_load_request_id', request_id):
+            return  # Risposta obsoleta: ignorata
+        self.llm_vision_model.blockSignals(True)
+        self.llm_vision_model.clear()
+        for name in names:
+            self.llm_vision_model.addItem(name)
+        # Ripristina il modello precedente se ancora presente, altrimenti lascia il testo
+        idx = self.llm_vision_model.findText(previous_model)
+        if idx >= 0:
+            self.llm_vision_model.setCurrentIndex(idx)
+        else:
+            self.llm_vision_model.setCurrentText(previous_model)
+        self.llm_vision_model.blockSignals(False)
+        # Rimuovi eventuale placeholder di errore precedente
+        self.llm_vision_model.lineEdit().setPlaceholderText('')
+
+    def _on_llm_models_failed(self, request_id: int):
+        """Svuota il combobox e mostra placeholder quando il backend non è raggiungibile."""
+        if request_id != getattr(self, '_llm_load_request_id', request_id):
+            return  # Risposta obsoleta: ignorata
+        backend = "Ollama" if self.llm_radio_ollama.isChecked() else "LM Studio"
+        self.llm_vision_model.blockSignals(True)
+        self.llm_vision_model.clear()
+        self.llm_vision_model.lineEdit().setPlaceholderText(
+            f"{backend} non raggiungibile — digita il modello manualmente")
+        self.llm_vision_model.blockSignals(False)
 
     def _build_llm_vision_with_overlay(self) -> QWidget:
         """
@@ -1417,8 +1529,10 @@ class ConfigTab(QWidget):
             else:
                 self.llm_radio_ollama.setChecked(True)
             self.llm_vision_endpoint.setText(llm['endpoint'])
-            self.llm_vision_model.setText(llm['model'])
+            self.llm_vision_model.setCurrentText(llm['model'])
             self.llm_vision_timeout.setValue(llm['timeout'])
+            # Carica automaticamente la lista modelli dal backend configurato
+            self._load_llm_models()
 
             # Lingua output LLM
             llm_lang = self.config.get('ui', {}).get('llm_output_language', 'it')
@@ -1559,7 +1673,7 @@ class ConfigTab(QWidget):
             
             # LLM Vision
             self.llm_vision_endpoint.setText('http://localhost:11434')
-            self.llm_vision_model.setText('qwen3.5:4b-q4_K_M')
+            self.llm_vision_model.setCurrentText('qwen3.5:4b-q4_K_M')
             self.llm_vision_timeout.setValue(240)
 
             # Parametri generation LLM
@@ -1694,7 +1808,7 @@ class ConfigTab(QWidget):
                 'enabled': True,  # Sempre true per gallery on-demand
                 'backend': _llm_backend,
                 'endpoint': self.llm_vision_endpoint.text(),
-                'model': self.llm_vision_model.text(),
+                'model': self.llm_vision_model.currentText(),
                 'timeout': self.llm_vision_timeout.value(),
                 'generation': {
                     'temperature': self.llm_temperature.value(),
