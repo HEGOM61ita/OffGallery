@@ -63,6 +63,38 @@ class NoWheelComboBox(QComboBox):
             if self.parent():
                 self.parent().wheelEvent(event)
 
+class _LlmVramDetector(QObject):
+    """Worker che rileva VRAM LLM in background e restituisce info + etichetta."""
+    result_ready = pyqtSignal(dict, str)  # info_dict, label_text
+
+    def __init__(self, endpoint: str, model: str, backend: str):
+        super().__init__()
+        self.endpoint = endpoint
+        self.model    = model
+        self.backend  = backend
+
+    def run(self):
+        try:
+            from device_allocator import detect_llm_vram
+            cfg = {'embedding': {'models': {'llm_vision': {
+                'backend': self.backend, 'endpoint': self.endpoint,
+                'model': self.model, 'enabled': True,
+            }}}}
+            info = detect_llm_vram(cfg)
+            vram = info.get('vram_gb', 0.0)
+            src  = info.get('source', 'none')
+            if vram > 0:
+                src_label = 'API' if src == 'ollama_api' else 'stima'
+                lbl = f"~{vram:.1f} GB ({src_label})"
+                self.result_ready.emit(info, lbl)
+            else:
+                empty = {'vram_gb': 0.0, 'source': 'none', 'model_name': self.model}
+                self.result_ready.emit(empty, "— (non raggiungibile)")
+        except Exception:
+            empty = {'vram_gb': 0.0, 'source': 'none', 'model_name': self.model}
+            self.result_ready.emit(empty, "— (errore)")
+
+
 class _LlmModelsLoader(QObject):
     """Worker che interroga Ollama o LM Studio in background e restituisce la lista modelli."""
     finished = pyqtSignal(list)   # lista di stringhe (nomi modelli)
@@ -829,7 +861,6 @@ class ConfigTab(QWidget):
             return
         if self.llm_enabled_combo.currentData() != 'on':
             return
-        import threading
         model    = self.llm_vision_model.currentText().strip()
         backend  = 'ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio'
         endpoint = self.llm_vision_endpoint.text().strip()
@@ -843,36 +874,31 @@ class ConfigTab(QWidget):
             self._llm_vram_label.setText("— (nessun modello)")
             self._update_vram_budget()
             return
-        # Modello presente: mostra "verifica…" e interroga endpoint in background
+        # Modello presente: mostra "verifica…" e interroga endpoint via QThread
         self._llm_vram_label.setText("— (verifica…)")
         self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': model}
         self._update_vram_budget()
-        def _refine(ep=endpoint, mdl=model, bk=backend):
-            try:
-                from device_allocator import detect_llm_vram
-                _cfg_tmp = {'embedding': {'models': {'llm_vision': {
-                    'backend': bk, 'endpoint': ep, 'model': mdl, 'enabled': True,
-                }}}}
-                info = detect_llm_vram(_cfg_tmp)
-                real_vram = info.get('vram_gb', 0.0)
-                src = info.get('source', 'none')
-                if real_vram > 0:
-                    src_label = 'API' if src == 'ollama_api' else 'stima'
-                    lbl2 = f"~{real_vram:.1f} GB ({src_label})"
-                else:
-                    lbl2 = "— (non raggiungibile)"
-                from PyQt6.QtCore import QTimer
-                info_upd = info if real_vram > 0 else {'vram_gb': 0.0, 'source': 'none', 'model_name': mdl}
-                # Passa self come contesto: il callback viene eseguito nel thread GUI
-                QTimer.singleShot(0, self, lambda i=info_upd, l=lbl2: (
-                    setattr(self, '_llm_vram_info', i),
-                    self._llm_vram_label.setText(l),
-                    self._update_vram_budget(),
-                ))
-            except Exception:
-                from PyQt6.QtCore import QTimer
-                QTimer.singleShot(0, self, lambda: self._llm_vram_label.setText("— (errore)"))
-        threading.Thread(target=_refine, daemon=True).start()
+        from PyQt6.QtCore import QThread
+        worker = _LlmVramDetector(endpoint, model, backend)
+        thread = QThread(self)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.result_ready.connect(self._on_llm_vram_result)
+        worker.result_ready.connect(lambda _i, _l: thread.quit())
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.start()
+
+    def _on_llm_vram_result(self, info: dict, label: str):
+        """Riceve il risultato del rilevamento VRAM LLM dal QThread e aggiorna la GUI."""
+        # Ignora se nel frattempo l'utente ha disattivato LLM
+        if getattr(self, 'llm_enabled_combo', None) is None:
+            return
+        if self.llm_enabled_combo.currentData() != 'on':
+            return
+        self._llm_vram_info = info
+        self._llm_vram_label.setText(label)
+        self._update_vram_budget()
 
     def create_dinov2_section(self):
         """Crea sezione configurazione DINOv2 (MODIFICATO - rimosso checkbox enabled e device)"""
