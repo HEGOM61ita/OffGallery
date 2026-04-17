@@ -789,73 +789,83 @@ class ConfigTab(QWidget):
             self._device_restart_label.setVisible(True)
 
     def _on_llm_enabled_changed(self):
-        """Gestisce cambio toggle Attivo/Non attivo per LLM Vision.
-        Se Non attivo: scarica il modello da Ollama (keep_alive=0) e azzera la VRAM nel budget.
-        Se Attivo: ririleva la VRAM dal backend e aggiorna il budget."""
+        """Gestisce cambio toggle Attivo/Non attivo per LLM Vision."""
         import threading
         enabled = self.llm_enabled_combo.currentData() == 'on'
 
         if not enabled:
-            # Aggiorna subito il label e il budget (VRAM = 0)
+            # Usa endpoint+model memorizzati al momento dell'attivazione per l'unload
+            ep  = getattr(self, '_active_llm_endpoint', self.llm_vision_endpoint.text().strip())
+            mdl = getattr(self, '_active_llm_model',    self.llm_vision_model.currentText().strip())
+            bk  = getattr(self, '_active_llm_backend',  'ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio')
             self._llm_vram_label.setText("— (non attivo)")
             self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
             self._update_vram_budget()
-            # Scarica il modello dal backend in background (best-effort)
-            endpoint = self.llm_vision_endpoint.text().strip()
-            model = self.llm_vision_model.currentText().strip()
-            backend = ('ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio')
-            def _unload(ep=endpoint, mdl=model, bk=backend):
+            def _unload(ep=ep, mdl=mdl, bk=bk):
                 try:
                     import requests as _req
                     if not ep or not mdl:
                         return
                     if bk == 'ollama':
                         _req.post(f"{ep}/api/generate",
-                                  json={"model": mdl, "keep_alive": 0},
-                                  timeout=5)
+                                  json={"model": mdl, "keep_alive": 0}, timeout=5)
                     elif bk == 'lmstudio':
-                        # LM Studio v0.2.15+: POST /api/v0/models/unload
                         _req.post(f"{ep}/api/v0/models/unload",
-                                  json={"identifier": mdl},
-                                  timeout=5)
+                                  json={"identifier": mdl}, timeout=5)
                 except Exception:
                     pass
             threading.Thread(target=_unload, daemon=True).start()
         else:
-            # Aggiorna subito con stima dal nome (sincrono, nessun thread)
-            model   = self.llm_vision_model.currentText().strip()
-            backend = 'ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio'
+            # Memorizza endpoint+model attivi per uso futuro nell'unload
+            self._active_llm_endpoint = self.llm_vision_endpoint.text().strip()
+            self._active_llm_model    = self.llm_vision_model.currentText().strip()
+            self._active_llm_backend  = 'ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio'
+            self._refresh_llm_vram_if_active()
+
+    def _refresh_llm_vram_if_active(self):
+        """Aggiorna stima VRAM LLM se il toggle è Attivo. Chiamato anche al cambio modello/endpoint."""
+        if getattr(self, 'llm_enabled_combo', None) is None:
+            return
+        if self.llm_enabled_combo.currentData() != 'on':
+            return
+        import threading
+        model    = self.llm_vision_model.currentText().strip()
+        backend  = 'ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio'
+        endpoint = self.llm_vision_endpoint.text().strip()
+        # Aggiorna endpoint+model attivi (potrebbero essere cambiati)
+        self._active_llm_endpoint = endpoint
+        self._active_llm_model    = model
+        self._active_llm_backend  = backend
+        # Stima immediata sincrona
+        try:
+            from device_allocator import _estimate_llm_vram_from_name
+            vram = _estimate_llm_vram_from_name(model) if model else 0.0
+            self._llm_vram_info = {'vram_gb': vram, 'source': 'stima', 'model_name': model}
+            lbl = f"~{vram:.1f} GB (stima)" if vram > 0 else "—"
+        except Exception:
+            lbl = "—"
+        self._llm_vram_label.setText(lbl)
+        self._update_vram_budget()
+        # Raffina in background con VRAM reale dal backend se disponibile
+        def _refine(ep=endpoint, mdl=model, bk=backend):
             try:
-                from device_allocator import _estimate_llm_vram_from_name
-                vram = _estimate_llm_vram_from_name(model) if model else 0.0
-                src  = 'stima'
-                self._llm_vram_info = {'vram_gb': vram, 'source': src, 'model_name': model}
-                lbl = f"~{vram:.1f} GB ({src})" if vram > 0 else "—"
+                from device_allocator import detect_llm_vram
+                _cfg_tmp = {'embedding': {'models': {'llm_vision': {
+                    'backend': bk, 'endpoint': ep, 'model': mdl,
+                }}}}
+                info = detect_llm_vram(_cfg_tmp)
+                real_vram = info.get('vram_gb', 0.0)
+                if real_vram > 0 and info.get('source') == 'ollama_api':
+                    self._llm_vram_info = info
+                    lbl2 = f"~{real_vram:.1f} GB (API)"
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(0, lambda: (
+                        self._llm_vram_label.setText(lbl2),
+                        self._update_vram_budget(),
+                    ))
             except Exception:
-                lbl = "—"
-            self._llm_vram_label.setText(lbl)
-            self._update_vram_budget()
-            # Raffina in background con VRAM reale dal backend se disponibile
-            endpoint = self.llm_vision_endpoint.text().strip()
-            def _refine(ep=endpoint, mdl=model, bk=backend):
-                try:
-                    from device_allocator import detect_llm_vram
-                    _cfg_tmp = {'embedding': {'models': {'llm_vision': {
-                        'backend': bk, 'endpoint': ep, 'model': mdl,
-                    }}}}
-                    info = detect_llm_vram(_cfg_tmp)
-                    real_vram = info.get('vram_gb', 0.0)
-                    if real_vram > 0 and info.get('source') == 'ollama_api':
-                        self._llm_vram_info = info
-                        lbl2 = f"~{real_vram:.1f} GB (API)"
-                        from PyQt6.QtCore import QTimer
-                        QTimer.singleShot(0, lambda: (
-                            self._llm_vram_label.setText(lbl2),
-                            self._update_vram_budget(),
-                        ))
-                except Exception:
-                    pass
-            threading.Thread(target=_refine, daemon=True).start()
+                pass
+        threading.Thread(target=_refine, daemon=True).start()
 
     def create_dinov2_section(self):
         """Crea sezione configurazione DINOv2 (MODIFICATO - rimosso checkbox enabled e device)"""
@@ -979,6 +989,7 @@ class ConfigTab(QWidget):
         endpoint_row = QHBoxLayout()
         self.llm_vision_endpoint = QLineEdit()
         self.llm_vision_endpoint.editingFinished.connect(self._load_llm_models)
+        self.llm_vision_endpoint.editingFinished.connect(self._refresh_llm_vram_if_active)
         endpoint_row.addWidget(self.llm_vision_endpoint)
         self.test_endpoint_btn = QPushButton("🔍 Test")
         self.test_endpoint_btn.setFixedWidth(60)
@@ -1000,6 +1011,7 @@ class ConfigTab(QWidget):
         self.llm_vision_model.setEditable(True)
         self.llm_vision_model.setMaxVisibleItems(4)
         self.llm_vision_model.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.llm_vision_model.currentTextChanged.connect(self._refresh_llm_vram_if_active)
         conn_layout.addWidget(self.llm_vision_model, 1, 1)
 
         conn_layout.addWidget(QLabel(t("config.label.llm_timeout")), 2, 0)
