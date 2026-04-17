@@ -463,6 +463,7 @@
   "widgets.tooltip.label_size": "Size:",
   "widgets.tooltip.settings_header": "⚙️ SETTINGS",
   "widgets.tooltip.camera_from_exif": "📸 CAMERA (from EXIF)",
+  "widgets.tooltip.model_disabled": "Model disabled in Config Tab — restart after enabling it",
   "widgets.tooltip.no_tech_data": "❌ No technical data available",
   "widgets.tooltip.tech_data_error": "❌ Error loading technical data",
   "widgets.tooltip.section_dims": "📐 DIMENSIONS",

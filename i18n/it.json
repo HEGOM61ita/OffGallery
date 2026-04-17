@@ -463,6 +463,7 @@
   "widgets.tooltip.label_size": "Peso:",
   "widgets.tooltip.settings_header": "⚙️ IMPOSTAZIONI",
   "widgets.tooltip.camera_from_exif": "📸 CAMERA (da EXIF)",
+  "widgets.tooltip.model_disabled": "Modello disabilitato in Config Tab — riavvia dopo averlo abilitato",
   "widgets.tooltip.no_tech_data": "❌ Nessun dato tecnico disponibile",
   "widgets.tooltip.tech_data_error": "❌ Errore caricamento dati tecnici",
   "widgets.tooltip.section_dims": "📐 DIMENSIONI",

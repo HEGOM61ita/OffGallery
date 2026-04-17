@@ -2646,10 +2646,9 @@ class ProcessingTab(QWidget):
                     chk.setToolTip(t("processing.tooltip.model_enable", model=key.upper()))
 
             # Carica impostazioni generazione AI (tags/desc/title)
-            auto_import = (config.get('embedding', {})
-                           .get('models', {})
-                           .get('llm_vision', {})
-                           .get('auto_import', {}))
+            llm_vision_cfg = config.get('embedding', {}).get('models', {}).get('llm_vision', {})
+            llm_vision_enabled = llm_vision_cfg.get('enabled', True)
+            auto_import = llm_vision_cfg.get('auto_import', {})
 
             tags_cfg = auto_import.get('tags', {})
             self.pt_gen_tags_check.setChecked(tags_cfg.get('enabled', False))
@@ -2665,6 +2664,19 @@ class ProcessingTab(QWidget):
             self.pt_gen_title_check.setChecked(title_cfg.get('enabled', False))
             self.pt_gen_title_overwrite.setChecked(title_cfg.get('overwrite', False))
             self.pt_llm_max_title.setValue(title_cfg.get('max_words', 5))
+
+            # Se LLM è disabilitato in Config Tab, blocca tutti i controlli LLM
+            if not llm_vision_enabled:
+                _llm_tip = t("processing.tooltip.model_disabled_config")
+                for _w in (self.pt_gen_tags_check, self.pt_gen_tags_overwrite,
+                           self.pt_gen_desc_check, self.pt_gen_desc_overwrite,
+                           self.pt_gen_title_check, self.pt_gen_title_overwrite,
+                           self.pt_llm_max_tags, self.pt_llm_max_words, self.pt_llm_max_title):
+                    _w.setEnabled(False)
+                    _w.setToolTip(_llm_tip)
+                self.pt_gen_tags_check.setChecked(False)
+                self.pt_gen_desc_check.setChecked(False)
+                self.pt_gen_title_check.setChecked(False)
 
         except Exception as e:
             import logging

@@ -1207,15 +1207,34 @@ class ImageCard(QFrame):
 
             edit_menu.addSeparator()
 
+            # Leggi stato abilitazione modelli dal config (ristart richiesto per cambiarli)
+            try:
+                import yaml as _yaml_cm
+                _cfg_cm = _yaml_cm.safe_load(
+                    (get_app_dir() / 'config_new.yaml').read_text(encoding='utf-8')
+                ) or {}
+                _models_cm = _cfg_cm.get('embedding', {}).get('models', {})
+                _llm_enabled   = _models_cm.get('llm_vision', {}).get('enabled', True)
+                _bioclip_enabled = _models_cm.get('bioclip', {}).get('enabled', True)
+            except Exception:
+                _llm_enabled = True
+                _bioclip_enabled = True
+
             # ═══ GENERA CONTENUTI AI (sottomenu) ═══
             ai_menu = menu.addMenu(f"{t('widgets.menu.ai_generate')}{multi_label}")
 
             llm_action = QAction(t("widgets.action.run_llm"), self)
             llm_action.triggered.connect(lambda: self._run_llm_and_refresh(target_items))
+            if not _llm_enabled:
+                llm_action.setEnabled(False)
+                llm_action.setToolTip(t("widgets.tooltip.model_disabled"))
             ai_menu.addAction(llm_action)
 
             bioclip_action = QAction(t("widgets.action.run_bioclip"), self)
             bioclip_action.triggered.connect(lambda: self._run_bioclip_and_refresh(target_items))
+            if not _bioclip_enabled:
+                bioclip_action.setEnabled(False)
+                bioclip_action.setToolTip(t("widgets.tooltip.model_disabled"))
             ai_menu.addAction(bioclip_action)
 
             # ═══ PLUGIN AZIONI — generiche, guidate dai manifest ═══
@@ -1273,10 +1292,18 @@ class ImageCard(QFrame):
                     _ofields = _pm2.get('output_fields', [])
                     _label_gen = f"{_icon2} Genera {_pname2}" if _icon2 else f"Genera {_pname2}"
                     _label_del = f"🗑 Rimuovi {_pname2}"
+                    # Controlla se i modelli richiesti dal plugin sono abilitati
+                    _req_models = _pm2.get('requires_models', [])
+                    _plugin_ok  = all(
+                        _models_cm.get(m, {}).get('enabled', True) for m in _req_models
+                    )
                     act_gen = QAction(_label_gen, self)
                     act_gen.triggered.connect(
                         (lambda pid=_pid2, ep=_ep2: lambda: self._run_plugin_on_selection(target_items, pid, ep))()
                     )
+                    if not _plugin_ok:
+                        act_gen.setEnabled(False)
+                        act_gen.setToolTip(t("widgets.tooltip.model_disabled"))
                     plugin_menu.addAction(act_gen)
                     act_del = QAction(_label_del, self)
                     act_del.triggered.connect(
