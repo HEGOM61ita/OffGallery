@@ -822,33 +822,40 @@ class ConfigTab(QWidget):
                     pass
             threading.Thread(target=_unload, daemon=True).start()
         else:
-            # Ririleva VRAM usando i valori correnti dell'UI (non il config salvato)
+            # Aggiorna subito con stima dal nome (sincrono, nessun thread)
+            model   = self.llm_vision_model.currentText().strip()
+            backend = 'ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio'
+            try:
+                from device_allocator import _estimate_llm_vram_from_name
+                vram = _estimate_llm_vram_from_name(model) if model else 0.0
+                src  = 'stima'
+                self._llm_vram_info = {'vram_gb': vram, 'source': src, 'model_name': model}
+                lbl = f"~{vram:.1f} GB ({src})" if vram > 0 else "—"
+            except Exception:
+                lbl = "—"
+            self._llm_vram_label.setText(lbl)
+            self._update_vram_budget()
+            # Raffina in background con VRAM reale dal backend se disponibile
             endpoint = self.llm_vision_endpoint.text().strip()
-            model    = self.llm_vision_model.currentText().strip()
-            backend  = 'ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio'
-            def _redetect(ep=endpoint, mdl=model, bk=backend):
+            def _refine(ep=endpoint, mdl=model, bk=backend):
                 try:
-                    from device_allocator import detect_llm_vram, _estimate_llm_vram_from_name
+                    from device_allocator import detect_llm_vram
                     _cfg_tmp = {'embedding': {'models': {'llm_vision': {
                         'backend': bk, 'endpoint': ep, 'model': mdl,
                     }}}}
                     info = detect_llm_vram(_cfg_tmp)
-                    vram = info.get('vram_gb', 0.0)
-                    # Fallback a stima dal nome se il backend non ha il modello attivo
-                    if vram == 0 and mdl:
-                        vram = _estimate_llm_vram_from_name(mdl)
-                        info = {'vram_gb': vram, 'source': 'estimate', 'model_name': mdl}
-                    self._llm_vram_info = info
-                    src = "API" if info.get('source') == 'ollama_api' else "stima"
-                    lbl = f"~{vram:.1f} GB ({src})" if vram > 0 else "—"
+                    real_vram = info.get('vram_gb', 0.0)
+                    if real_vram > 0 and info.get('source') == 'ollama_api':
+                        self._llm_vram_info = info
+                        lbl2 = f"~{real_vram:.1f} GB (API)"
+                        from PyQt6.QtCore import QTimer
+                        QTimer.singleShot(0, lambda: (
+                            self._llm_vram_label.setText(lbl2),
+                            self._update_vram_budget(),
+                        ))
                 except Exception:
-                    lbl = "—"
-                from PyQt6.QtCore import QTimer
-                QTimer.singleShot(0, lambda: (
-                    self._llm_vram_label.setText(lbl),
-                    self._update_vram_budget(),
-                ))
-            threading.Thread(target=_redetect, daemon=True).start()
+                    pass
+            threading.Thread(target=_refine, daemon=True).start()
 
     def create_dinov2_section(self):
         """Crea sezione configurazione DINOv2 (MODIFICATO - rimosso checkbox enabled e device)"""
