@@ -306,6 +306,8 @@
   "config.combo.model_device_gpu": "GPU",
   "config.combo.model_device_cpu": "CPU",
   "config.combo.model_device_off": "OFF",
+  "config.device.on": "Attivo",
+  "config.device.off": "Non attivo",
   "config.btn.auto_optimize": "Auto-ottimizza",
   "config.tooltip.auto_optimize": "Alloca automaticamente i modelli su GPU/CPU in base alla VRAM disponibile",
   "config.label.vram_budget": "Budget VRAM:",

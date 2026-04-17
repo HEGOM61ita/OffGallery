@@ -603,7 +603,7 @@ class ConfigTab(QWidget):
             self.model_device_combos[model_key] = combo
             grid.addWidget(combo, row_idx, 2)
 
-        # Riga LLM Vision (VRAM reale, no combo — gestito da Ollama/LM Studio)
+        # Riga LLM Vision (VRAM reale + toggle attivo/non attivo)
         llm_row = len(ALL_MODELS) + 1
         llm_name = QLabel("LLM Vision")
         llm_name.setStyleSheet(f"color: {COLORS['grigio_chiaro']};")
@@ -613,9 +613,11 @@ class ConfigTab(QWidget):
         self._llm_vram_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px;")
         grid.addWidget(self._llm_vram_label, llm_row, 1)
 
-        llm_device_lbl = QLabel("Ollama/LMS")
-        llm_device_lbl.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; font-style: italic;")
-        grid.addWidget(llm_device_lbl, llm_row, 2)
+        self.llm_enabled_combo = NoWheelComboBox()
+        self.llm_enabled_combo.addItem(t("config.device.on"),  'on')
+        self.llm_enabled_combo.addItem(t("config.device.off"), 'off')
+        self.llm_enabled_combo.currentIndexChanged.connect(self._update_vram_budget)
+        grid.addWidget(self.llm_enabled_combo, llm_row, 2)
 
         # VRAM LLM: aggiornata in _load_config quando la config è disponibile
         self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
@@ -624,7 +626,7 @@ class ConfigTab(QWidget):
         if not self._llm_plugin_installed():
             llm_name.hide()
             self._llm_vram_label.hide()
-            llm_device_lbl.hide()
+            self.llm_enabled_combo.hide()
 
         layout.addLayout(grid)
 
@@ -1531,6 +1533,11 @@ class ConfigTab(QWidget):
             self.llm_vision_endpoint.setText(llm['endpoint'])
             self.llm_vision_model.setCurrentText(llm['model'])
             self.llm_vision_timeout.setValue(llm['timeout'])
+            # Toggle attivo/non attivo
+            _llm_on = llm.get('enabled', True)
+            _idx_llm = self.llm_enabled_combo.findData('on' if _llm_on else 'off')
+            if _idx_llm >= 0:
+                self.llm_enabled_combo.setCurrentIndex(_idx_llm)
             # Carica automaticamente la lista modelli dal backend configurato
             self._load_llm_models()
 
@@ -1805,7 +1812,7 @@ class ConfigTab(QWidget):
             _llm_backend = 'lmstudio' if self.llm_radio_lmstudio.isChecked() else 'ollama'
             _models.setdefault('llm_vision', {}).update({
                 'description': 'Genera tag, descrizioni e titoli con LLM Vision',
-                'enabled': True,  # Sempre true per gallery on-demand
+                'enabled': self.llm_enabled_combo.currentData() == 'on',
                 'backend': _llm_backend,
                 'endpoint': self.llm_vision_endpoint.text(),
                 'model': self.llm_vision_model.currentText(),
