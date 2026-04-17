@@ -2253,21 +2253,21 @@ class ProcessingTab(QWidget):
             pb.setFixedHeight(8)
             models_grid.addWidget(pb, row, _COL_BAR)
             chk.stateChanged.connect(lambda state, s=sovr: s.setEnabled(state == 2))
-            return chk, sovr, pb
+            return chk, sovr, pb, lbl
 
-        self.pt_clip_check, self.pt_clip_overwrite, self.pt_clip_bar = \
+        self.pt_clip_check, self.pt_clip_overwrite, self.pt_clip_bar, self.pt_clip_lbl = \
             _add_emb_row(_cur_row, 'CLIP', t("processing.check.clip")); _cur_row += 1
 
-        self.pt_dinov2_check, self.pt_dinov2_overwrite, self.pt_dinov2_bar = \
+        self.pt_dinov2_check, self.pt_dinov2_overwrite, self.pt_dinov2_bar, self.pt_dinov2_lbl = \
             _add_emb_row(_cur_row, 'DINOv2', t("processing.check.dinov2")); _cur_row += 1
 
-        self.pt_bioclip_check, self.pt_bioclip_overwrite, self.pt_bioclip_bar = \
+        self.pt_bioclip_check, self.pt_bioclip_overwrite, self.pt_bioclip_bar, self.pt_bioclip_lbl = \
             _add_emb_row(_cur_row, 'BioCLIP', t("processing.check.bioclip")); _cur_row += 1
 
-        self.pt_aesthetic_check, self.pt_aesthetic_overwrite, self.pt_aesthetic_bar = \
+        self.pt_aesthetic_check, self.pt_aesthetic_overwrite, self.pt_aesthetic_bar, self.pt_aesthetic_lbl = \
             _add_emb_row(_cur_row, 'Aesthetic', t("processing.check.aesthetic")); _cur_row += 1
 
-        self.pt_musiq_check, self.pt_musiq_overwrite, self.pt_musiq_bar = \
+        self.pt_musiq_check, self.pt_musiq_overwrite, self.pt_musiq_bar, self.pt_musiq_lbl = \
             _add_emb_row(_cur_row, 'Technical', t("processing.check.technical")); _cur_row += 1
 
         # Separatore embedding / LLM con label
@@ -2627,23 +2627,24 @@ class ProcessingTab(QWidget):
             # Carica stato Active modelli embedding da config
             models_cfg = config.get('embedding', {}).get('models', {})
             emb_mapping = [
-                (self.pt_clip_check, 'clip'),
-                (self.pt_dinov2_check, 'dinov2'),
-                (self.pt_bioclip_check, 'bioclip'),
-                (self.pt_aesthetic_check, 'aesthetic'),
-                (self.pt_musiq_check, 'technical'),
+                (self.pt_clip_check,      self.pt_clip_lbl,      'clip'),
+                (self.pt_dinov2_check,    self.pt_dinov2_lbl,    'dinov2'),
+                (self.pt_bioclip_check,   self.pt_bioclip_lbl,   'bioclip'),
+                (self.pt_aesthetic_check, self.pt_aesthetic_lbl, 'aesthetic'),
+                (self.pt_musiq_check,     self.pt_musiq_lbl,     'technical'),
             ]
-            for chk, key in emb_mapping:
+            for chk, lbl, key in emb_mapping:
                 model_enabled = models_cfg.get(key, {}).get('enabled', False)
                 if not model_enabled:
-                    # Modello impostato su OFF in Config Tab: non selezionabile
                     chk.setChecked(False)
                     chk.setEnabled(False)
                     chk.setToolTip(t("processing.tooltip.model_disabled_config"))
+                    lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #505050;")
                 else:
                     chk.setChecked(True)
                     chk.setEnabled(True)
                     chk.setToolTip(t("processing.tooltip.model_enable", model=key.upper()))
+                    lbl.setStyleSheet("font-size: 11px; font-weight: bold;")
 
             # Carica impostazioni generazione AI (tags/desc/title)
             llm_vision_cfg = config.get('embedding', {}).get('models', {}).get('llm_vision', {})

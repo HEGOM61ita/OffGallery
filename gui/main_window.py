@@ -461,6 +461,9 @@ class MainWindow(QMainWindow):
             QMenu::item:selected {{
                 background-color: {COLORS['blu_petrolio']};
             }}
+            QMenu::item:disabled {{
+                color: #505050;
+            }}
             QScrollBar:vertical {{
                 background-color: {COLORS['grafite']};
                 width: 10px;
