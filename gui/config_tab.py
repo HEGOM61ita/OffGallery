@@ -692,8 +692,13 @@ class ConfigTab(QWidget):
         auto_btn.clicked.connect(self._on_auto_optimize)
         if not gpu_available:
             auto_btn.setEnabled(False)
+        refresh_btn = QPushButton("🔄 Ricalcola")
+        refresh_btn.setToolTip("Ricalcola VRAM LLM leggendo da config corrente")
+        refresh_btn.setFixedWidth(110)
+        refresh_btn.clicked.connect(self._refresh_llm_vram_if_active)
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(auto_btn)
+        btn_layout.addWidget(refresh_btn)
         btn_layout.addStretch()
         layout.addLayout(btn_layout)
 
@@ -822,14 +827,20 @@ class ConfigTab(QWidget):
 
     def _on_llm_enabled_changed(self):
         """Gestisce cambio toggle Attivo/Non attivo per LLM Vision."""
-        import threading
+        import threading, yaml
         enabled = self.llm_enabled_combo.currentData() == 'on'
+        # Legge endpoint/model/backend da YAML (fonte di verità)
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as _f:
+                _cfg = yaml.safe_load(_f) or {}
+        except Exception:
+            _cfg = self.config
+        _llm = _cfg.get('embedding', {}).get('models', {}).get('llm_vision', {})
+        ep  = _llm.get('endpoint', '').strip()
+        mdl = _llm.get('model',    '').strip()
+        bk  = _llm.get('backend',  'ollama')
 
         if not enabled:
-            # Usa endpoint+model memorizzati al momento dell'attivazione per l'unload
-            ep  = getattr(self, '_active_llm_endpoint', self.llm_vision_endpoint.text().strip())
-            mdl = getattr(self, '_active_llm_model',    self.llm_vision_model.currentText().strip())
-            bk  = getattr(self, '_active_llm_backend',  'ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio')
             self._llm_vram_label.setText("— (non attivo)")
             self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
             self._update_vram_budget()
@@ -848,33 +859,34 @@ class ConfigTab(QWidget):
                     pass
             threading.Thread(target=_unload, daemon=True).start()
         else:
-            # Memorizza endpoint+model attivi per uso futuro nell'unload
-            self._active_llm_endpoint = self.llm_vision_endpoint.text().strip()
-            self._active_llm_model    = self.llm_vision_model.currentText().strip()
-            self._active_llm_backend  = 'ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio'
-            # Delega a _refresh che gestisce modello vuoto e verifica endpoint
             self._refresh_llm_vram_if_active()
 
     def _refresh_llm_vram_if_active(self):
-        """Aggiorna stima VRAM LLM se il toggle è Attivo. Chiamato anche al cambio modello/endpoint."""
+        """Ricalcola VRAM LLM leggendo endpoint/model da config_new.yaml."""
         if getattr(self, 'llm_enabled_combo', None) is None:
             return
         if self.llm_enabled_combo.currentData() != 'on':
             return
-        model    = self.llm_vision_model.currentText().strip()
-        backend  = 'ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio'
-        endpoint = self.llm_vision_endpoint.text().strip()
-        # Aggiorna endpoint+model attivi (potrebbero essere cambiati)
-        self._active_llm_endpoint = endpoint
-        self._active_llm_model    = model
-        self._active_llm_backend  = backend
-        # Senza modello configurato: 0 GB immediato
+        import yaml
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as _f:
+                _cfg = yaml.safe_load(_f) or {}
+        except Exception:
+            _cfg = self.config
+        _llm     = _cfg.get('embedding', {}).get('models', {}).get('llm_vision', {})
+        model    = _llm.get('model',    '').strip()
+        endpoint = _llm.get('endpoint', '').strip()
+        backend  = _llm.get('backend',  'ollama')
         if not model:
             self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
             self._llm_vram_label.setText("— (nessun modello)")
             self._update_vram_budget()
             return
-        # Modello presente: mostra "verifica…" e interroga endpoint via QThread
+        if not endpoint:
+            self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': model}
+            self._llm_vram_label.setText("— (nessun endpoint)")
+            self._update_vram_budget()
+            return
         self._llm_vram_label.setText("— (verifica…)")
         self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': model}
         self._update_vram_budget()
@@ -899,6 +911,23 @@ class ConfigTab(QWidget):
         self._llm_vram_info = info
         self._llm_vram_label.setText(label)
         self._update_vram_budget()
+
+    def _save_llm_vision_to_yaml(self):
+        """Salva immediatamente endpoint/model/backend LLM Vision in config_new.yaml."""
+        import yaml
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as _f:
+                _cfg = yaml.safe_load(_f) or {}
+            _llm = (_cfg.setdefault('embedding', {})
+                        .setdefault('models', {})
+                        .setdefault('llm_vision', {}))
+            _llm['backend']  = 'lmstudio' if self.llm_radio_lmstudio.isChecked() else 'ollama'
+            _llm['endpoint'] = self.llm_vision_endpoint.text().strip()
+            _llm['model']    = self.llm_vision_model.currentText().strip()
+            with open(self.config_path, 'w', encoding='utf-8') as _f:
+                yaml.dump(_cfg, _f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        except Exception as e:
+            logger.warning(f"Impossibile salvare llm_vision su YAML: {e}")
 
     def create_dinov2_section(self):
         """Crea sezione configurazione DINOv2 (MODIFICATO - rimosso checkbox enabled e device)"""
@@ -1022,7 +1051,7 @@ class ConfigTab(QWidget):
         endpoint_row = QHBoxLayout()
         self.llm_vision_endpoint = QLineEdit()
         self.llm_vision_endpoint.editingFinished.connect(self._load_llm_models)
-        self.llm_vision_endpoint.editingFinished.connect(self._refresh_llm_vram_if_active)
+        self.llm_vision_endpoint.editingFinished.connect(self._save_llm_vision_to_yaml)
         endpoint_row.addWidget(self.llm_vision_endpoint)
         self.test_endpoint_btn = QPushButton("🔍 Test")
         self.test_endpoint_btn.setFixedWidth(60)
@@ -1044,7 +1073,8 @@ class ConfigTab(QWidget):
         self.llm_vision_model.setEditable(True)
         self.llm_vision_model.setMaxVisibleItems(4)
         self.llm_vision_model.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.llm_vision_model.currentTextChanged.connect(self._refresh_llm_vram_if_active)
+        self.llm_vision_model.activated.connect(lambda _: self._save_llm_vision_to_yaml())
+        self.llm_vision_model.lineEdit().editingFinished.connect(self._save_llm_vision_to_yaml)
         conn_layout.addWidget(self.llm_vision_model, 1, 1)
 
         conn_layout.addWidget(QLabel(t("config.label.llm_timeout")), 2, 0)
@@ -1138,9 +1168,9 @@ class ConfigTab(QWidget):
         else:            # LM Studio
             if current == _OLLAMA_DEFAULT:
                 self.llm_vision_endpoint.setText(_LMSTUDIO_DEFAULT)
-        # Ricarica modelli e aggiorna stima VRAM al cambio backend
+        # Ricarica modelli e salva backend su YAML
         self._load_llm_models()
-        self._refresh_llm_vram_if_active()
+        self._save_llm_vision_to_yaml()
 
     def _load_llm_models(self):
         """Interroga il backend LLM in background e popola il combobox modelli.
