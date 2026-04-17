@@ -824,7 +824,7 @@ class ConfigTab(QWidget):
             model = self._active_llm_model
             try:
                 from device_allocator import _estimate_llm_vram_from_name
-                vram = _estimate_llm_vram_from_name(model) if model else 0.0
+                vram = _estimate_llm_vram_from_name(model or "")
                 self._llm_vram_info = {'vram_gb': vram, 'source': 'stima', 'model_name': model}
                 lbl = f"~{vram:.1f} GB (stima)" if vram > 0 else "—"
             except Exception:
@@ -849,7 +849,7 @@ class ConfigTab(QWidget):
         # Stima immediata sincrona
         try:
             from device_allocator import _estimate_llm_vram_from_name
-            vram = _estimate_llm_vram_from_name(model) if model else 0.0
+            vram = _estimate_llm_vram_from_name(model or "")
             self._llm_vram_info = {'vram_gb': vram, 'source': 'stima', 'model_name': model}
             lbl = f"~{vram:.1f} GB (stima)" if vram > 0 else "—"
         except Exception:
@@ -1115,8 +1115,9 @@ class ConfigTab(QWidget):
         else:            # LM Studio
             if current == _OLLAMA_DEFAULT:
                 self.llm_vision_endpoint.setText(_LMSTUDIO_DEFAULT)
-        # Ricarica modelli automaticamente al cambio backend
+        # Ricarica modelli e aggiorna stima VRAM al cambio backend
         self._load_llm_models()
+        self._refresh_llm_vram_if_active()
 
     def _load_llm_models(self):
         """Interroga il backend LLM in background e popola il combobox modelli.
