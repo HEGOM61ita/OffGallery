@@ -616,7 +616,7 @@ class ConfigTab(QWidget):
         self.llm_enabled_combo = NoWheelComboBox()
         self.llm_enabled_combo.addItem(t("config.device.on"),  'on')
         self.llm_enabled_combo.addItem(t("config.device.off"), 'off')
-        self.llm_enabled_combo.currentIndexChanged.connect(self._update_vram_budget)
+        self.llm_enabled_combo.currentIndexChanged.connect(self._on_llm_enabled_changed)
         grid.addWidget(self.llm_enabled_combo, llm_row, 2)
 
         # VRAM LLM: aggiornata in _load_config quando la config è disponibile
@@ -727,7 +727,9 @@ class ConfigTab(QWidget):
             mk for mk, combo in self.model_device_combos.items()
             if combo.currentData() != 'off'
         ]
-        llm_vram = getattr(self, '_llm_vram_info', {}).get('vram_gb', 0.0)
+        _llm_on = getattr(self, 'llm_enabled_combo', None)
+        llm_vram = (getattr(self, '_llm_vram_info', {}).get('vram_gb', 0.0)
+                    if (_llm_on is None or _llm_on.currentData() != 'off') else 0.0)
         allocation = auto_allocate(self._hw_info, enabled, llm_vram_gb=llm_vram)
         for model_key, device in allocation.items():
             combo = self.model_device_combos.get(model_key)
@@ -740,7 +742,9 @@ class ConfigTab(QWidget):
         """Aggiorna barra e label budget VRAM in base ai combo correnti"""
         from device_allocator import get_vram_budget_info
         allocation = {k: combo.currentData() for k, combo in self.model_device_combos.items()}
-        llm_vram = getattr(self, '_llm_vram_info', {}).get('vram_gb', 0.0)
+        _llm_on = getattr(self, 'llm_enabled_combo', None)
+        llm_vram = (getattr(self, '_llm_vram_info', {}).get('vram_gb', 0.0)
+                    if (_llm_on is None or _llm_on.currentData() != 'off') else 0.0)
         info = get_vram_budget_info(allocation, self._hw_info.get('vram_total_gb'), llm_vram)
 
         # Aggiorna barra
@@ -789,6 +793,51 @@ class ConfigTab(QWidget):
         # Mostra "riavvia per applicare" quando un combo cambia
         if hasattr(self, '_device_restart_label'):
             self._device_restart_label.setVisible(True)
+
+    def _on_llm_enabled_changed(self):
+        """Gestisce cambio toggle Attivo/Non attivo per LLM Vision.
+        Se Non attivo: scarica il modello da Ollama (keep_alive=0) e azzera la VRAM nel budget.
+        Se Attivo: ririleva la VRAM dal backend e aggiorna il budget."""
+        import threading
+        enabled = self.llm_enabled_combo.currentData() == 'on'
+
+        if not enabled:
+            # Aggiorna subito il label e il budget (VRAM = 0)
+            self._llm_vram_label.setText("— (non attivo)")
+            self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
+            self._update_vram_budget()
+            # Scarica il modello da Ollama in background
+            endpoint = self.llm_vision_endpoint.text().strip()
+            model = self.llm_vision_model.currentText().strip()
+            backend = ('ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio')
+            def _unload():
+                try:
+                    import requests as _req
+                    if backend == 'ollama' and endpoint and model:
+                        _req.post(f"{endpoint}/api/generate",
+                                  json={"model": model, "keep_alive": 0},
+                                  timeout=5)
+                except Exception:
+                    pass
+            threading.Thread(target=_unload, daemon=True).start()
+        else:
+            # Ririleva VRAM da Ollama in background, poi aggiorna UI nel main thread
+            def _redetect():
+                try:
+                    from device_allocator import detect_llm_vram
+                    info = detect_llm_vram(self.config)
+                    self._llm_vram_info = info
+                    vram = info.get('vram_gb', 0.0)
+                    src = "API" if info.get('source') == 'ollama_api' else "stima"
+                    lbl = f"~{vram:.1f} GB ({src})" if vram > 0 else "— (non attivo)"
+                except Exception:
+                    lbl = "—"
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, lambda: (
+                    self._llm_vram_label.setText(lbl),
+                    self._update_vram_budget(),
+                ))
+            threading.Thread(target=_redetect, daemon=True).start()
 
     def create_dinov2_section(self):
         """Crea sezione configurazione DINOv2 (MODIFICATO - rimosso checkbox enabled e device)"""
