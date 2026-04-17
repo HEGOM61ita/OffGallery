@@ -72,6 +72,7 @@ class NoWheelComboBox(QComboBox):
 class _LlmVramDetector(QObject):
     """Worker che rileva VRAM LLM in background e restituisce info + etichetta."""
     result_ready = pyqtSignal(dict, str)  # info_dict, label_text
+    progress     = pyqtSignal(str)        # label intermedia (es. "caricamento modello…")
 
     def __init__(self, endpoint: str, model: str, backend: str):
         super().__init__()
@@ -91,6 +92,28 @@ class _LlmVramDetector(QObject):
             logger.info(f"[LLM VRAM worker] detect_llm_vram ritornato: {info}")
             vram = info.get('vram_gb', 0.0)
             src  = info.get('source', 'none')
+
+            # Warm-up: endpoint raggiungibile ma modello non caricato → carichiamolo
+            if src == 'estimate' and self.backend == 'ollama':
+                logger.info("[LLM VRAM worker] modello non caricato, avvio warm-up Ollama")
+                self.progress.emit("— (caricamento modello…)")
+                try:
+                    import requests
+                    requests.post(
+                        f"{self.endpoint}/api/generate",
+                        json={"model": self.model, "prompt": ".",
+                              "stream": False, "keep_alive": "5m",
+                              "options": {"num_predict": 1}},
+                        timeout=180,
+                    )
+                    logger.info("[LLM VRAM worker] warm-up completato, rinterrogo /api/ps")
+                    info = detect_llm_vram(cfg)
+                    logger.info(f"[LLM VRAM worker] dopo warm-up: {info}")
+                    vram = info.get('vram_gb', 0.0)
+                    src  = info.get('source', 'none')
+                except Exception as e:
+                    logger.warning(f"[LLM VRAM worker] warm-up fallito: {e}")
+
             if vram > 0:
                 src_label = 'API' if src == 'ollama_api' else 'stima'
                 lbl = f"~{vram:.1f} GB ({src_label})"
@@ -924,6 +947,7 @@ class ConfigTab(QWidget):
         thread = QThread(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
+        worker.progress.connect(self._llm_vram_label.setText)
         worker.result_ready.connect(self._on_llm_vram_result)
         worker.result_ready.connect(lambda _i, _l: thread.quit())
         thread.finished.connect(worker.deleteLater)
