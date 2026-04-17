@@ -6,7 +6,10 @@ Versione 2.0 -
 
 import yaml
 import platform
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 from i18n import t
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
@@ -74,6 +77,7 @@ class _LlmVramDetector(QObject):
         self.backend  = backend
 
     def run(self):
+        logger.info(f"[LLM VRAM worker] run() partito ep={self.endpoint} mdl={self.model} bk={self.backend}")
         try:
             from device_allocator import detect_llm_vram
             cfg = {'embedding': {'models': {'llm_vision': {
@@ -81,16 +85,20 @@ class _LlmVramDetector(QObject):
                 'model': self.model, 'enabled': True,
             }}}}
             info = detect_llm_vram(cfg)
+            logger.info(f"[LLM VRAM worker] detect_llm_vram ritornato: {info}")
             vram = info.get('vram_gb', 0.0)
             src  = info.get('source', 'none')
             if vram > 0:
                 src_label = 'API' if src == 'ollama_api' else 'stima'
                 lbl = f"~{vram:.1f} GB ({src_label})"
+                logger.info(f"[LLM VRAM worker] emit result_ready: {lbl}")
                 self.result_ready.emit(info, lbl)
             else:
                 empty = {'vram_gb': 0.0, 'source': 'none', 'model_name': self.model}
+                logger.info(f"[LLM VRAM worker] emit result_ready: non raggiungibile")
                 self.result_ready.emit(empty, "— (non raggiungibile)")
-        except Exception:
+        except Exception as e:
+            logger.exception(f"[LLM VRAM worker] eccezione: {e}")
             empty = {'vram_gb': 0.0, 'source': 'none', 'model_name': self.model}
             self.result_ready.emit(empty, "— (errore)")
 
@@ -863,20 +871,27 @@ class ConfigTab(QWidget):
 
     def _refresh_llm_vram_if_active(self):
         """Ricalcola VRAM LLM leggendo endpoint/model da config_new.yaml."""
+        logger.info("[LLM VRAM] _refresh_llm_vram_if_active chiamato")
         if getattr(self, 'llm_enabled_combo', None) is None:
+            logger.info("[LLM VRAM] llm_enabled_combo non esiste, esco")
             return
         if self.llm_enabled_combo.currentData() != 'on':
+            logger.info(f"[LLM VRAM] toggle non è 'on' (={self.llm_enabled_combo.currentData()}), esco")
             return
         import yaml
+        logger.info(f"[LLM VRAM] leggo config_path={self.config_path} (absolute={Path(self.config_path).resolve()})")
         try:
             with open(self.config_path, 'r', encoding='utf-8') as _f:
                 _cfg = yaml.safe_load(_f) or {}
-        except Exception:
+            logger.info(f"[LLM VRAM] YAML letto ok")
+        except Exception as _e:
+            logger.warning(f"[LLM VRAM] errore lettura YAML: {_e}, uso self.config")
             _cfg = self.config
         _llm     = _cfg.get('embedding', {}).get('models', {}).get('llm_vision', {})
         model    = _llm.get('model',    '').strip()
         endpoint = _llm.get('endpoint', '').strip()
         backend  = _llm.get('backend',  'ollama')
+        logger.info(f"[LLM VRAM] model='{model}' endpoint='{endpoint}' backend='{backend}'")
         if not model:
             self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
             self._llm_vram_label.setText("— (nessun modello)")
@@ -887,6 +902,7 @@ class ConfigTab(QWidget):
             self._llm_vram_label.setText("— (nessun endpoint)")
             self._update_vram_budget()
             return
+        logger.info(f"[LLM VRAM] avvio QThread detector con ep={endpoint} mdl={model} bk={backend}")
         self._llm_vram_label.setText("— (verifica…)")
         self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': model}
         self._update_vram_budget()
@@ -899,18 +915,25 @@ class ConfigTab(QWidget):
         worker.result_ready.connect(lambda _i, _l: thread.quit())
         thread.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
+        # Mantiene riferimento per evitare garbage collection
+        self._llm_vram_thread = thread
+        self._llm_vram_worker = worker
         thread.start()
+        logger.info("[LLM VRAM] QThread partito")
 
     def _on_llm_vram_result(self, info: dict, label: str):
         """Riceve il risultato del rilevamento VRAM LLM dal QThread e aggiorna la GUI."""
-        # Ignora se nel frattempo l'utente ha disattivato LLM
+        logger.info(f"[LLM VRAM] _on_llm_vram_result ricevuto: info={info} label={label}")
         if getattr(self, 'llm_enabled_combo', None) is None:
+            logger.info("[LLM VRAM] llm_enabled_combo sparito, ignoro")
             return
         if self.llm_enabled_combo.currentData() != 'on':
+            logger.info("[LLM VRAM] toggle non più 'on', ignoro")
             return
         self._llm_vram_info = info
         self._llm_vram_label.setText(label)
         self._update_vram_budget()
+        logger.info("[LLM VRAM] GUI aggiornata")
 
     def _save_llm_vision_to_yaml(self):
         """Salva immediatamente endpoint/model/backend LLM Vision in config_new.yaml."""
