@@ -4,6 +4,7 @@ Struttura modulare basata su config_new.yaml
 Versione 2.0 - 
 """
 
+import json
 import yaml
 import platform
 import logging
@@ -11,14 +12,16 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 from i18n import t
+from utils.paths import get_database_dir
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
     QLabel, QLineEdit, QPushButton, QCheckBox, QSpinBox,
     QDoubleSpinBox, QFileDialog, QMessageBox, QScrollArea,
     QGridLayout, QTextEdit, QComboBox, QRadioButton, QButtonGroup,
-    QProgressBar, QFrame, QStackedLayout
+    QProgressBar, QFrame, QStackedLayout,
+    QInputDialog, QDialog, QListWidget, QListWidgetItem, QDialogButtonBox
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject, QDate
 
 # Classi custom per prevenire cambi accidentali con scroll wheel
 class NoWheelSpinBox(QSpinBox):
@@ -704,9 +707,19 @@ class ConfigTab(QWidget):
         refresh_btn.setToolTip("Ricalcola VRAM LLM leggendo da config corrente")
         refresh_btn.setFixedWidth(110)
         refresh_btn.clicked.connect(self._refresh_llm_vram_if_active)
+        save_matrix_btn = QPushButton("💾 Salva Matrice")
+        save_matrix_btn.setToolTip("Salva l'attuale combinazione GPU/CPU/OFF per tutti i modelli")
+        save_matrix_btn.setFixedWidth(140)
+        save_matrix_btn.clicked.connect(self._save_matrix_dialog)
+        load_matrix_btn = QPushButton("📋 Carica Matrice")
+        load_matrix_btn.setToolTip("Ripristina una combinazione salvata")
+        load_matrix_btn.setFixedWidth(140)
+        load_matrix_btn.clicked.connect(self._load_matrix_dialog)
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(auto_btn)
         btn_layout.addWidget(refresh_btn)
+        btn_layout.addWidget(save_matrix_btn)
+        btn_layout.addWidget(load_matrix_btn)
         btn_layout.addStretch()
         layout.addLayout(btn_layout)
 
@@ -958,6 +971,129 @@ class ConfigTab(QWidget):
                 yaml.dump(_cfg, _f, allow_unicode=True, default_flow_style=False, sort_keys=False)
         except Exception as e:
             logger.warning(f"Impossibile salvare llm_vision su YAML: {e}")
+
+    # ===== Matrici device (salvataggio/caricamento configurazioni GPU/CPU/OFF) =====
+
+    def _matrices_path(self) -> Path:
+        return get_database_dir() / 'device_matrices.json'
+
+    def _load_saved_matrices(self) -> list:
+        path = self._matrices_path()
+        try:
+            if path.exists():
+                with open(path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception as e:
+            logger.warning(f"Errore lettura matrici device: {e}")
+        return []
+
+    def _save_saved_matrices(self, matrices: list):
+        path = self._matrices_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(matrices, f, ensure_ascii=False, indent=2)
+
+    def _get_matrix_params(self) -> dict:
+        """Cattura l'attuale assegnazione GPU/CPU/OFF per tutti i modelli + stato LLM."""
+        models = {mk: combo.currentData() for mk, combo in self.model_device_combos.items()}
+        llm_enabled = False
+        if getattr(self, 'llm_enabled_combo', None) is not None:
+            llm_enabled = self.llm_enabled_combo.currentData() == 'on'
+        return {'models': models, 'llm_enabled': llm_enabled}
+
+    def _apply_matrix_params(self, params: dict):
+        """Ripristina assegnazione device + stato LLM da una matrice salvata."""
+        models = params.get('models', {})
+        for mk, device in models.items():
+            combo = self.model_device_combos.get(mk)
+            if combo:
+                idx = combo.findData(device)
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
+        if getattr(self, 'llm_enabled_combo', None) is not None:
+            llm_on = bool(params.get('llm_enabled', False))
+            idx = self.llm_enabled_combo.findData('on' if llm_on else 'off')
+            if idx >= 0:
+                self.llm_enabled_combo.setCurrentIndex(idx)
+
+    def _save_matrix_dialog(self):
+        params = self._get_matrix_params()
+        name, ok = QInputDialog.getText(
+            self, "Salva Matrice", "Nome della configurazione:")
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+        matrices = self._load_saved_matrices()
+        existing = [m['name'] for m in matrices]
+        while name in existing:
+            choice = QMessageBox.question(
+                self, "Nome già esistente",
+                f"Esiste già una matrice chiamata '{name}'. Sovrascrivere?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if choice == QMessageBox.StandardButton.Yes:
+                matrices = [m for m in matrices if m['name'] != name]
+                break
+            new_name, ok2 = QInputDialog.getText(
+                self, "Salva Matrice", "Nuovo nome:", text=name)
+            if not ok2 or not new_name.strip():
+                return
+            name = new_name.strip()
+        matrices.append({
+            'name': name,
+            'created': QDate.currentDate().toString("yyyy-MM-dd"),
+            'params': params,
+        })
+        self._save_saved_matrices(matrices)
+        QMessageBox.information(self, "Matrice salvata", f"'{name}' salvata.")
+
+    def _load_matrix_dialog(self):
+        matrices = self._load_saved_matrices()
+        if not matrices:
+            QMessageBox.information(self, "Nessuna matrice",
+                                     "Non ci sono matrici salvate.")
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Carica Matrice")
+        dialog.resize(380, 300)
+        layout = QVBoxLayout(dialog)
+        list_widget = QListWidget()
+        for m in matrices:
+            item = QListWidgetItem(f"{m['name']}  ({m.get('created', '')})")
+            item.setData(Qt.ItemDataRole.UserRole, m)
+            list_widget.addItem(item)
+        layout.addWidget(list_widget)
+        list_widget.itemDoubleClicked.connect(lambda _: dialog.accept())
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel |
+            QDialogButtonBox.StandardButton.Discard)
+        btns.button(QDialogButtonBox.StandardButton.Discard).setText("Elimina")
+        btns.accepted.connect(dialog.accept)
+        btns.rejected.connect(dialog.reject)
+        def _delete_selected():
+            sel = list_widget.selectedItems()
+            if not sel:
+                return
+            entry = sel[0].data(Qt.ItemDataRole.UserRole)
+            confirm = QMessageBox.question(
+                dialog, "Elimina matrice",
+                f"Eliminare '{entry['name']}'?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if confirm == QMessageBox.StandardButton.Yes:
+                remaining = [m for m in self._load_saved_matrices() if m['name'] != entry['name']]
+                self._save_saved_matrices(remaining)
+                list_widget.takeItem(list_widget.row(sel[0]))
+        btns.button(QDialogButtonBox.StandardButton.Discard).clicked.connect(_delete_selected)
+        layout.addWidget(btns)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        sel = list_widget.selectedItems()
+        if not sel:
+            return
+        entry = sel[0].data(Qt.ItemDataRole.UserRole)
+        self._apply_matrix_params(entry['params'])
 
     def create_dinov2_section(self):
         """Crea sezione configurazione DINOv2 (MODIFICATO - rimosso checkbox enabled e device)"""
