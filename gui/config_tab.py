@@ -820,17 +820,8 @@ class ConfigTab(QWidget):
             self._active_llm_endpoint = self.llm_vision_endpoint.text().strip()
             self._active_llm_model    = self.llm_vision_model.currentText().strip()
             self._active_llm_backend  = 'ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio'
-            # Aggiorna stima direttamente (senza guard currentData per evitare race condition)
-            model = self._active_llm_model
-            try:
-                from device_allocator import _estimate_llm_vram_from_name
-                vram = _estimate_llm_vram_from_name(model or "")
-                self._llm_vram_info = {'vram_gb': vram, 'source': 'stima', 'model_name': model}
-                lbl = f"~{vram:.1f} GB (stima)" if vram > 0 else "—"
-            except Exception:
-                lbl = "—"
-            self._llm_vram_label.setText(lbl)
-            self._update_vram_budget()
+            # Delega a _refresh che gestisce modello vuoto e verifica endpoint
+            self._refresh_llm_vram_if_active()
 
     def _refresh_llm_vram_if_active(self):
         """Aggiorna stima VRAM LLM se il toggle è Attivo. Chiamato anche al cambio modello/endpoint."""
@@ -846,35 +837,42 @@ class ConfigTab(QWidget):
         self._active_llm_endpoint = endpoint
         self._active_llm_model    = model
         self._active_llm_backend  = backend
-        # Stima immediata sincrona
-        try:
-            from device_allocator import _estimate_llm_vram_from_name
-            vram = _estimate_llm_vram_from_name(model or "")
-            self._llm_vram_info = {'vram_gb': vram, 'source': 'stima', 'model_name': model}
-            lbl = f"~{vram:.1f} GB (stima)" if vram > 0 else "—"
-        except Exception:
-            lbl = "—"
-        self._llm_vram_label.setText(lbl)
+        # Senza modello configurato: 0 GB immediato
+        if not model:
+            self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
+            self._llm_vram_label.setText("— (nessun modello)")
+            self._update_vram_budget()
+            return
+        # Modello presente: mostra "verifica…" e interroga endpoint in background
+        self._llm_vram_label.setText("— (verifica…)")
+        self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': model}
         self._update_vram_budget()
-        # Raffina in background con VRAM reale dal backend se disponibile
         def _refine(ep=endpoint, mdl=model, bk=backend):
             try:
                 from device_allocator import detect_llm_vram
                 _cfg_tmp = {'embedding': {'models': {'llm_vision': {
-                    'backend': bk, 'endpoint': ep, 'model': mdl,
+                    'backend': bk, 'endpoint': ep, 'model': mdl, 'enabled': True,
                 }}}}
                 info = detect_llm_vram(_cfg_tmp)
                 real_vram = info.get('vram_gb', 0.0)
-                if real_vram > 0 and info.get('source') == 'ollama_api':
-                    self._llm_vram_info = info
-                    lbl2 = f"~{real_vram:.1f} GB (API)"
-                    from PyQt6.QtCore import QTimer
-                    QTimer.singleShot(0, lambda: (
-                        self._llm_vram_label.setText(lbl2),
-                        self._update_vram_budget(),
-                    ))
+                src = info.get('source', 'none')
+                if real_vram > 0:
+                    src_label = 'API' if src == 'ollama_api' else 'stima'
+                    lbl2 = f"~{real_vram:.1f} GB ({src_label})"
+                else:
+                    lbl2 = "— (non raggiungibile)"
+                from PyQt6.QtCore import QTimer
+                info_upd = info if real_vram > 0 else {'vram_gb': 0.0, 'source': 'none', 'model_name': mdl}
+                QTimer.singleShot(0, lambda i=info_upd, l=lbl2: (
+                    setattr(self, '_llm_vram_info', i),
+                    self._llm_vram_label.setText(l),
+                    self._update_vram_budget(),
+                ))
             except Exception:
-                pass
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, lambda: (
+                    self._llm_vram_label.setText("— (errore)"),
+                ))
         threading.Thread(target=_refine, daemon=True).start()
 
     def create_dinov2_section(self):

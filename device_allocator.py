@@ -260,12 +260,15 @@ def detect_llm_vram(config: dict) -> dict:
     if not enabled or not endpoint or not model_name:
         return result
 
+    endpoint_reached = False  # traccia se l'endpoint ha risposto con HTTP 200
+
     # Ollama: /api/ps restituisce size_vram reale
     if backend == 'ollama':
         try:
             import requests
             r = requests.get(f"{endpoint}/api/ps", timeout=3)
             if r.status_code == 200:
+                endpoint_reached = True
                 for m in r.json().get('models', []):
                     if model_name in m.get('name', ''):
                         vram_bytes = m.get('size_vram', 0)
@@ -273,7 +276,7 @@ def detect_llm_vram(config: dict) -> dict:
                             result['vram_gb'] = round(vram_bytes / (1024**3), 1)
                             result['source'] = 'ollama_api'
                             return result
-                # Modello non caricato in VRAM ma Ollama raggiungibile → stima
+                # Modello non caricato ma Ollama raggiungibile → stima da nome
         except Exception:
             pass
 
@@ -283,11 +286,10 @@ def detect_llm_vram(config: dict) -> dict:
             import requests
             r = requests.get(f"{endpoint}/v1/models", timeout=3)
             if r.status_code == 200:
-                # LM Studio restituisce i modelli caricati — il nome può contenere Xb
+                endpoint_reached = True
                 for m in r.json().get('data', []):
                     mid = m.get('id', '')
                     if model_name in mid or mid in model_name:
-                        # Prova a stimare dal nome del modello restituito (più completo)
                         est = _estimate_llm_vram_from_name(mid)
                         if est > 0:
                             result['vram_gb'] = est
@@ -296,11 +298,12 @@ def detect_llm_vram(config: dict) -> dict:
         except Exception:
             pass
 
-    # Fallback: stima dal nome modello in config
-    est = _estimate_llm_vram_from_name(model_name)
-    if est > 0:
-        result['vram_gb'] = est
-        result['source'] = 'estimate'
+    # Fallback nome: solo se l'endpoint era raggiungibile (modello non ancora caricato)
+    if endpoint_reached:
+        est = _estimate_llm_vram_from_name(model_name)
+        if est > 0:
+            result['vram_gb'] = est
+            result['source'] = 'estimate'
     return result
 
 
