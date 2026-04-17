@@ -815,15 +815,25 @@ class ConfigTab(QWidget):
                     pass
             threading.Thread(target=_unload, daemon=True).start()
         else:
-            # Ririleva VRAM da Ollama in background, poi aggiorna UI nel main thread
-            def _redetect():
+            # Ririleva VRAM usando i valori correnti dell'UI (non il config salvato)
+            endpoint = self.llm_vision_endpoint.text().strip()
+            model    = self.llm_vision_model.currentText().strip()
+            backend  = 'ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio'
+            def _redetect(ep=endpoint, mdl=model, bk=backend):
                 try:
-                    from device_allocator import detect_llm_vram
-                    info = detect_llm_vram(self.config)
-                    self._llm_vram_info = info
+                    from device_allocator import detect_llm_vram, _estimate_llm_vram_from_name
+                    _cfg_tmp = {'embedding': {'models': {'llm_vision': {
+                        'backend': bk, 'endpoint': ep, 'model': mdl,
+                    }}}}
+                    info = detect_llm_vram(_cfg_tmp)
                     vram = info.get('vram_gb', 0.0)
+                    # Fallback a stima dal nome se Ollama non ha il modello attivo
+                    if vram == 0 and mdl:
+                        vram = _estimate_llm_vram_from_name(mdl)
+                        info = {'vram_gb': vram, 'source': 'estimate', 'model_name': mdl}
+                    self._llm_vram_info = info
                     src = "API" if info.get('source') == 'ollama_api' else "stima"
-                    lbl = f"~{vram:.1f} GB ({src})" if vram > 0 else "— (non attivo)"
+                    lbl = f"~{vram:.1f} GB ({src})" if vram > 0 else "—"
                 except Exception:
                     lbl = "—"
                 from PyQt6.QtCore import QTimer
