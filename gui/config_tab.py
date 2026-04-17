@@ -930,6 +930,13 @@ class ConfigTab(QWidget):
         if self.llm_enabled_combo.currentData() != 'on':
             logger.info("[LLM VRAM] toggle non più 'on', ignoro")
             return
+        # Endpoint irraggiungibile o errore: forza toggle a 'Non attivo'
+        if info.get('vram_gb', 0.0) <= 0 and info.get('source', 'none') == 'none':
+            logger.info("[LLM VRAM] endpoint non raggiungibile → forzo toggle a 'off'")
+            idx_off = self.llm_enabled_combo.findData('off')
+            if idx_off >= 0:
+                self.llm_enabled_combo.setCurrentIndex(idx_off)
+            return
         self._llm_vram_info = info
         self._llm_vram_label.setText(label)
         self._update_vram_budget()
