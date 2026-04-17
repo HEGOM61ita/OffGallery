@@ -351,14 +351,19 @@ class MainWindow(QMainWindow):
                 print(f"⚠️ Modelli AI non inizializzati: {e}")
                 print(traceback.format_exc())
 
-        # Warmup LLM in background (pre-carica il modello attivo in VRAM)
-        import threading
-        def _llm_warmup():
-            try:
-                self.ai_models['embedding_generator'].warmup_llm()
-            except Exception as e:
-                print(f"⚠️ LLM warmup fallito: {e}")
-        threading.Thread(target=_llm_warmup, daemon=True).start()
+        # Warmup LLM in background solo se abilitato in config
+        _llm_enabled_cfg = (self.config.get('embedding', {})
+                            .get('models', {})
+                            .get('llm_vision', {})
+                            .get('enabled', True))
+        if _llm_enabled_cfg:
+            import threading
+            def _llm_warmup():
+                try:
+                    self.ai_models['embedding_generator'].warmup_llm()
+                except Exception as e:
+                    print(f"⚠️ LLM warmup fallito: {e}")
+            threading.Thread(target=_llm_warmup, daemon=True).start()
 
         # === INIZIALIZZAZIONE DATABASE CENTRALIZZATA ===
         from db_manager_new import DatabaseManager
