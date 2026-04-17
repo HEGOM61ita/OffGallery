@@ -863,16 +863,15 @@ class ConfigTab(QWidget):
                     lbl2 = "— (non raggiungibile)"
                 from PyQt6.QtCore import QTimer
                 info_upd = info if real_vram > 0 else {'vram_gb': 0.0, 'source': 'none', 'model_name': mdl}
-                QTimer.singleShot(0, lambda i=info_upd, l=lbl2: (
+                # Passa self come contesto: il callback viene eseguito nel thread GUI
+                QTimer.singleShot(0, self, lambda i=info_upd, l=lbl2: (
                     setattr(self, '_llm_vram_info', i),
                     self._llm_vram_label.setText(l),
                     self._update_vram_budget(),
                 ))
             except Exception:
                 from PyQt6.QtCore import QTimer
-                QTimer.singleShot(0, lambda: (
-                    self._llm_vram_label.setText("— (errore)"),
-                ))
+                QTimer.singleShot(0, self, lambda: self._llm_vram_label.setText("— (errore)"))
         threading.Thread(target=_refine, daemon=True).start()
 
     def create_dinov2_section(self):
