@@ -622,12 +622,6 @@ class ConfigTab(QWidget):
         # VRAM LLM: aggiornata in _load_config quando la config è disponibile
         self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
 
-        # Nasconde la riga LLM VRAM se nessun plugin LLM è installato
-        if not self._llm_plugin_installed():
-            llm_name.hide()
-            self._llm_vram_label.hide()
-            self.llm_enabled_combo.hide()
-
         layout.addLayout(grid)
 
         # Barra budget VRAM
