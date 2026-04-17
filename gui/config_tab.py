@@ -820,7 +820,17 @@ class ConfigTab(QWidget):
             self._active_llm_endpoint = self.llm_vision_endpoint.text().strip()
             self._active_llm_model    = self.llm_vision_model.currentText().strip()
             self._active_llm_backend  = 'ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio'
-            self._refresh_llm_vram_if_active()
+            # Aggiorna stima direttamente (senza guard currentData per evitare race condition)
+            model = self._active_llm_model
+            try:
+                from device_allocator import _estimate_llm_vram_from_name
+                vram = _estimate_llm_vram_from_name(model) if model else 0.0
+                self._llm_vram_info = {'vram_gb': vram, 'source': 'stima', 'model_name': model}
+                lbl = f"~{vram:.1f} GB (stima)" if vram > 0 else "—"
+            except Exception:
+                lbl = "—"
+            self._llm_vram_label.setText(lbl)
+            self._update_vram_budget()
 
     def _refresh_llm_vram_if_active(self):
         """Aggiorna stima VRAM LLM se il toggle è Attivo. Chiamato anche al cambio modello/endpoint."""
