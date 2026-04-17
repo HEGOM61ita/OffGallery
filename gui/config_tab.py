@@ -800,16 +800,23 @@ class ConfigTab(QWidget):
             self._llm_vram_label.setText("— (non attivo)")
             self._llm_vram_info = {'vram_gb': 0.0, 'source': 'none', 'model_name': ''}
             self._update_vram_budget()
-            # Scarica il modello da Ollama in background
+            # Scarica il modello dal backend in background (best-effort)
             endpoint = self.llm_vision_endpoint.text().strip()
             model = self.llm_vision_model.currentText().strip()
             backend = ('ollama' if self.llm_radio_ollama.isChecked() else 'lmstudio')
-            def _unload():
+            def _unload(ep=endpoint, mdl=model, bk=backend):
                 try:
                     import requests as _req
-                    if backend == 'ollama' and endpoint and model:
-                        _req.post(f"{endpoint}/api/generate",
-                                  json={"model": model, "keep_alive": 0},
+                    if not ep or not mdl:
+                        return
+                    if bk == 'ollama':
+                        _req.post(f"{ep}/api/generate",
+                                  json={"model": mdl, "keep_alive": 0},
+                                  timeout=5)
+                    elif bk == 'lmstudio':
+                        # LM Studio v0.2.15+: POST /api/v0/models/unload
+                        _req.post(f"{ep}/api/v0/models/unload",
+                                  json={"identifier": mdl},
                                   timeout=5)
                 except Exception:
                     pass
@@ -827,7 +834,7 @@ class ConfigTab(QWidget):
                     }}}}
                     info = detect_llm_vram(_cfg_tmp)
                     vram = info.get('vram_gb', 0.0)
-                    # Fallback a stima dal nome se Ollama non ha il modello attivo
+                    # Fallback a stima dal nome se il backend non ha il modello attivo
                     if vram == 0 and mdl:
                         vram = _estimate_llm_vram_from_name(mdl)
                         info = {'vram_gb': vram, 'source': 'estimate', 'model_name': mdl}
