@@ -1376,7 +1376,7 @@ class ProcessingWorker(QThread):
         """
         _has_model_queues = bool(model_queues)
         _feed_llm_direct  = llm_active and not _has_model_queues
-        _EXIFTOOL_RESTART_EVERY = 500
+        _EXIFTOOL_RESTART_EVERY = 200
 
         for i, image_path in enumerate(images_to_process, 1):
             if not self._wait_if_paused():
