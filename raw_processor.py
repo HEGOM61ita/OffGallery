@@ -561,18 +561,26 @@ class RAWProcessor:
     def _extract_high_quality(self, raw_path: Path, target_size: int, profile: dict) -> Optional[Image.Image]:
         """Estrazione alta qualità per modelli AI critici (BioCLIP, etc.)"""
         try:
-            # STRATEGIA 1: Preview Image se grande
+            # STRATEGIA 0: Per non-RAW (TIFF, JPEG) PIL è più veloce di ExifTool
+            if not self.is_raw_file(raw_path):
+                thumbnail = self._extract_full_image_resized(raw_path, target_size)
+                if thumbnail and thumbnail.mode in ('RGB', 'RGBA') and min(thumbnail.size) >= 100:
+                    logger.debug(f"🖼 PIL {raw_path.name}")
+                    return self._resize_with_quality(thumbnail, target_size, profile)
+                logger.debug(f"🔧 XTL {raw_path.name} (PIL anomalo, fallback ExifTool)")
+
+            # STRATEGIA 1: Preview Image se grande (RAW o fallback non-RAW)
             thumbnail = self._extract_preview_image(raw_path)
             if thumbnail and max(thumbnail.size) >= 400:
                 thumbnail = self._resize_with_quality(thumbnail, target_size, profile)
                 return thumbnail
-            
+
             # STRATEGIA 2: JPEG from RAW
             if self.is_raw_file(raw_path):
                 thumbnail = self._extract_jpeg_from_raw(raw_path, target_size)
                 if thumbnail:
                     return thumbnail
-            
+
             # STRATEGIA 3: Full image resized
             thumbnail = self._extract_full_image_resized(raw_path, target_size)
             if thumbnail:
@@ -587,21 +595,23 @@ class RAWProcessor:
     def _extract_preview_optimized(self, raw_path: Path, target_size: int, profile: dict) -> Optional[Image.Image]:
         """Estrazione bilanciata qualità/velocità per CLIP, DINOv2, Aesthetic"""
         try:
-            # STRATEGIA 1: Preview Image
+            # STRATEGIA 0: Per non-RAW PIL è più veloce di ExifTool
+            if not self.is_raw_file(raw_path):
+                thumbnail = self._extract_full_image_resized(raw_path, target_size)
+                if thumbnail and thumbnail.mode in ('RGB', 'RGBA') and min(thumbnail.size) >= 100:
+                    logger.debug(f"🖼 PIL {raw_path.name}")
+                    return self._resize_with_quality(thumbnail, target_size, profile)
+                logger.debug(f"🔧 XTL {raw_path.name} (PIL anomalo, fallback ExifTool)")
+
+            # STRATEGIA 1: Preview Image (RAW o fallback non-RAW)
             thumbnail = self._extract_preview_image(raw_path)
             if thumbnail and max(thumbnail.size) >= 250:
                 return self._resize_with_quality(thumbnail, target_size, profile)
-            
+
             # STRATEGIA 2: Thumbnail embedded ridimensionato
             thumbnail = self._extract_thumbnail_embedded(raw_path)
             if thumbnail:
                 return self._resize_with_quality(thumbnail, target_size, profile)
-            
-            # STRATEGIA 3: Full image per non-RAW
-            if not self.is_raw_file(raw_path):
-                thumbnail = self._extract_full_image_resized(raw_path, target_size)
-                if thumbnail:
-                    return self._resize_with_quality(thumbnail, target_size, profile)
             
             return None
             
@@ -631,7 +641,14 @@ class RAWProcessor:
     def _extract_original_method(self, raw_path: Path, target_size: int) -> Optional[Image.Image]:
         """Metodo di estrazione originale (fallback)"""
         try:
-            # Replica il metodo originale per compatibilità
+            # Per non-RAW PIL è più veloce di ExifTool
+            if not self.is_raw_file(raw_path):
+                thumbnail = self._extract_full_image_resized(raw_path, target_size)
+                if thumbnail and thumbnail.mode in ('RGB', 'RGBA') and min(thumbnail.size) >= 100:
+                    logger.debug(f"🖼 PIL {raw_path.name}")
+                    return thumbnail
+                logger.debug(f"🔧 XTL {raw_path.name} (PIL anomalo, fallback ExifTool)")
+
             thumbnail = self._extract_preview_image(raw_path)
 
             if thumbnail and max(thumbnail.size) >= 300:
