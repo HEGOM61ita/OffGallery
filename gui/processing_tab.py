@@ -1083,15 +1083,13 @@ class ProcessingWorker(QThread):
 
             # Segnala alla barrier che questo modello ha finito la foto
             barrier.done(model_key)
-            if prep:
-                if use_disk:
-                    # Modello lento su disco: rilascia DiskThumbRef (l'ultimo cancella il file)
-                    disk_ref = prep.get('thumbnail_disk')
-                    if disk_ref is not None:
-                        disk_ref.release()
-                else:
-                    # Modello veloce su RAM: libera PIL Image
-                    prep['thumbnail'] = None
+            if prep and use_disk:
+                # Modello su disco: rilascia DiskThumbRef (l'ultimo cancella il file)
+                disk_ref = prep.get('thumbnail_disk')
+                if disk_ref is not None:
+                    disk_ref.release()
+            # NON azzerare prep['thumbnail'] qui: è condivisa tra tutti i modelli GPU.
+            # Viene liberata dal thread LLM (che legge dal disco) o alla fine della sessione.
             self._emit_progress_throttled(model_key, i, total)
 
         # Commit finale residui
