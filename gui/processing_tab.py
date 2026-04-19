@@ -57,6 +57,31 @@ class PhotoBarrier:
                 self._llm_queue.put(self._image_path)
 
 
+class DiskThumbRef:
+    """Reference counter per thumbnail JPEG su disco usata da modelli lenti (LLM, MUSIQ su CPU).
+
+    Creata durante la prep con count = numero di modelli lenti che useranno il file.
+    Ogni modello chiama release() al termine — l'ultimo cancella automaticamente il file.
+    """
+
+    __slots__ = ('path', '_count', '_lock')
+
+    def __init__(self, path, count: int):
+        self.path   = path   # Path al JPEG su disco
+        self._count = count
+        self._lock  = threading.Lock()
+
+    def release(self):
+        """Decrementa il contatore; se arriva a 0 cancella il file disco."""
+        with self._lock:
+            self._count -= 1
+            if self._count <= 0:
+                try:
+                    self.path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+
 class ProcessingWorker(QThread):
     """Worker thread per processing immagini — ARCHITETTURA THREAD PER MODELLO
 
@@ -381,7 +406,7 @@ class ProcessingWorker(QThread):
                 ('technical', 'technical_score',   lambda t, eg=embedding_generator: eg._generate_musiq_score_batch(t),      False),
             ]
             active_emb_models = [
-                (mk, db_field, fn, is_emb)
+                (mk, db_field, fn, is_emb, emb_flags.get(mk, {}).get('disk_queue', False))
                 for mk, db_field, fn, is_emb in _EMB_MODELS
                 if (emb_flags.get(mk, {}).get('active', False)
                     and _avail_map.get(mk, False)
@@ -392,10 +417,18 @@ class ProcessingWorker(QThread):
             bioclip_active = (emb_flags.get('bioclip', {}).get('active', False)
                               and embedding_enabled and embedding_generator is not None
                               and _avail_map.get('bioclip', False))
+            bioclip_use_disk = emb_flags.get('bioclip', {}).get('disk_queue', False)
 
             llm_active = bool(llm_gen_config.get('tags', {}).get('enabled') or
                               llm_gen_config.get('description', {}).get('enabled') or
                               llm_gen_config.get('title', {}).get('enabled'))
+
+            # Conta modelli che usano thumbnail da disco (DiskThumbRef)
+            _disk_consumers = sum(1 for *_, use_disk in active_emb_models if use_disk)
+            if bioclip_active and bioclip_use_disk:
+                _disk_consumers += 1
+            if llm_active:
+                _disk_consumers += 1  # LLM usa sempre disco (disk_queue: true)
 
             # Generatore per LLM (può essere indipendente dai modelli embedding)
             llm_generator = None
@@ -457,13 +490,13 @@ class ProcessingWorker(QThread):
             model_threads = []
 
             # Thread per ogni modello embedding (CLIP, DINOv2, Aesthetic, MUSIQ)
-            for mk, db_field, infer_fn, is_emb in active_emb_models:
+            for mk, db_field, infer_fn, is_emb, use_disk in active_emb_models:
                 t = threading.Thread(
                     target=self._thread_model_worker,
                     args=(mk, db_field, infer_fn, is_emb,
                           model_queues[mk], prep_cache,
                           embedding_generator, db_manager,
-                          emb_flags, stats, model_total, processing_mode),
+                          emb_flags, stats, model_total, processing_mode, use_disk),
                     name=f"model-{mk}", daemon=True
                 )
                 model_threads.append(t)
@@ -476,7 +509,7 @@ class ProcessingWorker(QThread):
                     args=(model_queues['bioclip'], prep_cache,
                           embedding_generator, db_manager,
                           emb_flags, stats, model_total, processing_mode,
-                          bioclip_results, bioclip_lock),
+                          bioclip_results, bioclip_lock, bioclip_use_disk),
                     name="model-bioclip", daemon=True
                 )
                 model_threads.append(t)
@@ -502,7 +535,7 @@ class ProcessingWorker(QThread):
                       processing_mode, emb_flags, llm_gen_config,
                       stats, total_to_process,
                       model_queues, _barrier_modelli, llm_queue, llm_active,
-                      _temp_dir),
+                      _temp_dir, _disk_consumers),
                 kwargs={'geo_plugin': _geo_plugin, 'geo_plugin_cfg': _geo_plugin_cfg},
                 name="model-exiftool", daemon=True
             )
@@ -612,7 +645,8 @@ class ProcessingWorker(QThread):
     # ─────────────────────────────────────────────────────────────
     def _prep_image(self, image_path, raw_processor, config, db_manager,
                     processing_mode, emb_flags, llm_gen_config,
-                    temp_dir=None, geo_plugin=None, geo_plugin_cfg=None):
+                    temp_dir=None, geo_plugin=None, geo_plugin_cfg=None,
+                    disk_consumers=0):
         """Estrae EXIF + thumbnail in parallelo, poi geo + hash + DB insert.
         Le due operazioni più lente (exif e thumb) vengono sovrapposte con
         due thread interni sincronizzati tramite threading.Event.
@@ -874,6 +908,24 @@ class ProcessingWorker(QThread):
                     f"⚠️ {fname}: nessuna immagine estraibile dal RAW — "
                     f"embedding e LLM saltati", "warning")
 
+            # Salva thumbnail su disco per modelli lenti (LLM, MUSIQ su CPU).
+            # L'ultimo modello lento a finire cancella il file via DiskThumbRef.release().
+            thumbnail_disk = None
+            if disk_consumers > 0 and thumbnail and hasattr(thumbnail, 'size'):
+                try:
+                    import tempfile as _tf
+                    _disk_dir = temp_dir or Path(_tf.gettempdir())
+                    _disk_path = _disk_dir / f"llmthumb_{fname}.jpg"
+                    _dt = thumbnail.copy()
+                    if _dt.mode not in ('RGB', 'L'):
+                        _dt = _dt.convert('RGB')
+                    _dt.save(str(_disk_path), 'JPEG', quality=90)
+                    _dt = None
+                    thumbnail_disk = DiskThumbRef(_disk_path, disk_consumers)
+                    logger.debug(f"Thumbnail disco salvata: {fname} → {_disk_path.name}")
+                except Exception as _e:
+                    logger.warning(f"Impossibile salvare thumbnail disco per {fname}: {_e}")
+
             _t_total = time.monotonic() - _t0
             self.log_message.emit(
                 f"⏱ prep {fname}: read={_read_dur:.2f}s exif={_t_exif_dur:.2f}s "
@@ -882,7 +934,8 @@ class ProcessingWorker(QThread):
 
             return {
                 'image_path':     image_path,
-                'thumbnail':      thumbnail,   # PIL Image in RAM (no disco)
+                'thumbnail':      thumbnail,       # PIL Image in RAM per modelli veloci GPU
+                'thumbnail_disk': thumbnail_disk,  # DiskThumbRef JPEG per modelli lenti CPU
                 'image_data':     image_data,
                 'geo_hierarchy':  geo_hierarchy,
                 'location_hint':  location_hint,
@@ -913,7 +966,7 @@ class ProcessingWorker(QThread):
     def _thread_model_worker(self, model_key, db_field, infer_fn, is_embedding,
                              model_queue, prep_cache,
                              emb_gen, db_manager,
-                             emb_flags, stats, total, processing_mode):
+                             emb_flags, stats, total, processing_mode, use_disk=False):
         """Thread dedicato a un singolo modello embedding.
 
         Consuma (image_path, barrier) dalla propria Queue con backpressure.
@@ -965,7 +1018,22 @@ class ProcessingWorker(QThread):
 
             is_new    = prep.get('is_new', True)
             ai_fields = prep.get('ai_fields', {})
-            thumb     = prep.get('thumbnail')
+
+            # Legge thumbnail da disco o da RAM in base a disk_queue del modello
+            if use_disk:
+                disk_ref = prep.get('thumbnail_disk')
+                if disk_ref is not None:
+                    try:
+                        from PIL import Image as _PILImg
+                        thumb = _PILImg.open(str(disk_ref.path)).copy()
+                    except Exception as _de:
+                        self.log_message.emit(
+                            f"❌ {model_key.upper()} {fname}: lettura thumbnail disco: {_de}", "error")
+                        thumb = None
+                else:
+                    thumb = None
+            else:
+                thumb = prep.get('thumbnail')
 
             update_data = {}
 
@@ -1015,6 +1083,15 @@ class ProcessingWorker(QThread):
 
             # Segnala alla barrier che questo modello ha finito la foto
             barrier.done(model_key)
+            if prep:
+                if use_disk:
+                    # Modello lento su disco: rilascia DiskThumbRef (l'ultimo cancella il file)
+                    disk_ref = prep.get('thumbnail_disk')
+                    if disk_ref is not None:
+                        disk_ref.release()
+                else:
+                    # Modello veloce su RAM: libera PIL Image
+                    prep['thumbnail'] = None
             self._emit_progress_throttled(model_key, i, total)
 
         # Commit finale residui
@@ -1033,7 +1110,7 @@ class ProcessingWorker(QThread):
     def _thread_bioclip_worker(self, model_queue, prep_cache,
                                emb_gen, db_manager,
                                emb_flags, stats, total, processing_mode,
-                               bioclip_results, bioclip_lock):
+                               bioclip_results, bioclip_lock, use_disk=False):
         """Thread dedicato a BioCLIP.
 
         Come _thread_model_worker ma in più salva il contesto
@@ -1083,7 +1160,22 @@ class ProcessingWorker(QThread):
 
             is_new    = prep.get('is_new', True)
             ai_fields = prep.get('ai_fields', {})
-            thumb     = prep.get('thumbnail')
+
+            # Legge thumbnail da disco o da RAM in base a disk_queue di BioCLIP
+            if use_disk:
+                _bc_disk_ref = prep.get('thumbnail_disk')
+                if _bc_disk_ref is not None:
+                    try:
+                        from PIL import Image as _PILImg
+                        thumb = _PILImg.open(str(_bc_disk_ref.path)).copy()
+                    except Exception as _de:
+                        self.log_message.emit(
+                            f"❌ BioCLIP {fname}: lettura thumbnail disco: {_de}", "error")
+                        thumb = None
+                else:
+                    thumb = None
+            else:
+                thumb = prep.get('thumbnail')
 
             update_data = {}
 
@@ -1130,6 +1222,13 @@ class ProcessingWorker(QThread):
                     _db_pending = 0
 
             barrier.done('bioclip')
+            if prep:
+                if use_disk:
+                    _bc_disk_ref = prep.get('thumbnail_disk')
+                    if _bc_disk_ref is not None:
+                        _bc_disk_ref.release()
+                else:
+                    prep['thumbnail'] = None
             self._emit_progress_throttled('bioclip', i, total)
 
         if _db_pending > 0:
@@ -1181,10 +1280,22 @@ class ProcessingWorker(QThread):
                 self._emit_progress_throttled('llm', processed, total)
                 continue
 
-            # Thumbnail PIL dalla RAM (prep_cache), non da disco
-            thumb = prep.get('thumbnail')
+            # Thumbnail da disco (DiskThumbRef) — non da prep_cache RAM.
+            # Libera subito la PIL Image dalla RAM (i modelli GPU l'hanno già usata
+            # o non sono attivi — in entrambi i casi LLM non ne ha bisogno).
+            prep['thumbnail'] = None
+            disk_ref = prep.get('thumbnail_disk')
             t_thumb_load = time.time()
-            if thumb is None:
+            if disk_ref is None:
+                processed += 1
+                self._emit_progress_throttled('llm', processed, total)
+                continue
+            try:
+                from PIL import Image as _PILImg
+                thumb = _PILImg.open(str(disk_ref.path)).copy()
+            except Exception as _te:
+                logger.warning(f"LLM: impossibile leggere thumbnail disco per {fname}: {_te}")
+                disk_ref.release()
                 processed += 1
                 self._emit_progress_throttled('llm', processed, total)
                 continue
@@ -1230,8 +1341,7 @@ class ProcessingWorker(QThread):
                         existing_tags = []
 
                 if not (should_gen_tags or should_gen_desc or should_gen_title):
-                    if prep:
-                        prep['thumbnail'] = None  # libera RAM
+                    disk_ref.release()
                     processed += 1
                     self._emit_progress_throttled('llm', processed, total)
                     continue
@@ -1343,9 +1453,8 @@ class ProcessingWorker(QThread):
                 import traceback
                 self.log_message.emit(f"Traceback: {traceback.format_exc()}", "error")
 
-            # Libera thumbnail dalla RAM (ultimo consumatore)
-            if prep:
-                prep['thumbnail'] = None
+            # Ultimo consumatore del file disco — cancella il JPEG
+            disk_ref.release()
 
             processed += 1
             self._emit_progress_throttled('llm', processed, total)
@@ -1358,7 +1467,7 @@ class ProcessingWorker(QThread):
                          processing_mode, emb_flags, llm_gen_config,
                          stats, total_to_process,
                          model_queues, barrier_modelli, llm_queue, llm_active,
-                         temp_dir=None,
+                         temp_dir=None, disk_consumers=0,
                          geo_plugin=None, geo_plugin_cfg=None):
         """Thread ExifTool (produttore).
 
@@ -1396,7 +1505,8 @@ class ProcessingWorker(QThread):
                 image_path, raw_processor, config, db_manager,
                 processing_mode, emb_flags, llm_gen_config,
                 temp_dir=temp_dir,
-                geo_plugin=geo_plugin, geo_plugin_cfg=geo_plugin_cfg
+                geo_plugin=geo_plugin, geo_plugin_cfg=geo_plugin_cfg,
+                disk_consumers=disk_consumers,
             )
 
             if prep:
@@ -2999,8 +3109,11 @@ class ProcessingTab(QWidget):
                 _mcfg = _cur_cfg.get('embedding', {}).get('models', {})
                 for _fk, _ck in [('clip', 'clip'), ('dinov2', 'dinov2'), ('aesthetic', 'aesthetic'),
                                   ('technical', 'technical'), ('bioclip', 'bioclip')]:
-                    if not _mcfg.get(_ck, {}).get('enabled', True):
+                    _mnode = _mcfg.get(_ck, {})
+                    if not _mnode.get('enabled', True):
                         embedding_model_flags[_fk]['active'] = False
+                    # disk_queue non esposto in UI — letto direttamente da config
+                    embedding_model_flags[_fk]['disk_queue'] = _mnode.get('disk_queue', False)
             except Exception:
                 pass
 
