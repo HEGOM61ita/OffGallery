@@ -798,20 +798,37 @@ class RAWProcessor:
             with Image.open(file_path) as img:
                 img = img.convert('RGB')
                 w, h = img.size
-                
+
                 # Ridimensiona solo se necessario
                 max_side = max(w, h)
                 if max_side > target_size:
                     scale = target_size / max_side
                     new_size = (int(w * scale), int(h * scale))
                     img = img.resize(new_size, Image.Resampling.LANCZOS)
-                
+
                 logger.debug(f"Full image resized: {file_path.name} → {img.size}")
                 return img.copy()
-                
+
         except Exception as e:
             logger.debug(f"Full image resize failed for {file_path.name}: {e}")
-            return None
+
+        # Fallback PSD: PIL non supporta PSD 16-bit — usa psd-tools
+        if file_path.suffix.lower() == '.psd':
+            try:
+                from psd_tools import PSDImage
+                psd = PSDImage.open(file_path)
+                img = psd.composite().convert('RGB')
+                w, h = img.size
+                max_side = max(w, h)
+                if max_side > target_size:
+                    scale = target_size / max_side
+                    img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
+                logger.debug(f"PSD composite (psd-tools): {file_path.name} → {img.size}")
+                return img
+            except Exception as e2:
+                logger.debug(f"psd-tools fallback failed for {file_path.name}: {e2}")
+
+        return None
 
     # ===== RESTO DEI METODI ORIGINALI (invariati) =====
     
