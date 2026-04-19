@@ -1207,9 +1207,19 @@ class RAWProcessor:
                     return None
             else:
                 # === FILE NON-RAW: PIL diretto ===
-                img = Image.open(file_path)
-                logger.debug(f"⚡ B/N analysis: PIL diretto per {file_path.name}")
-                return img
+                try:
+                    img = Image.open(file_path)
+                    logger.debug(f"⚡ B/N analysis: PIL diretto per {file_path.name}")
+                    return img
+                except Exception:
+                    # Fallback PSD 16-bit non supportato da PIL
+                    if file_path.suffix.lower() == '.psd':
+                        from psd_tools import PSDImage
+                        psd = PSDImage.open(file_path)
+                        img = psd.composite().convert('RGB')
+                        logger.debug(f"⚡ B/N analysis: psd-tools per {file_path.name}")
+                        return img
+                    raise
 
         except Exception as e:
             logger.error(f"Errore estrazione per B/N analysis: {e}")
