@@ -10,7 +10,7 @@ embedding:
       returns_score: true
     bioclip:
       description: Classificazione flora/fauna TreeOfLife (~450k specie)
-      device: gpu
+      device: cpu
       disk_queue: false
       enabled: true
       max_tags: 10
@@ -31,13 +31,13 @@ embedding:
     llm_vision:
       auto_import:
         description:
-          enabled: true
+          enabled: false
           max_words: 100
           overwrite: true
         tags:
           enabled: true
           max_tags: 10
-          overwrite: false
+          overwrite: true
         title:
           enabled: true
           max_words: 5
@@ -202,6 +202,7 @@ image_optimization:
   - .3fr
   - .iiq
   - .x3f
+  - .psd
 image_processing:
   supported_formats:
   - .jpg
@@ -231,6 +232,7 @@ image_processing:
   - .3fr
   - .iiq
   - .x3f
+  - .psd
 logging:
   show_debug: false
 models_repository:
@@ -248,7 +250,8 @@ models_repository:
   models_dir: Models
 paths:
   database: database/offgallery.sqlite
-  input_dir: INPUT
+  input_dir: I:\IMMAGINI\Altopiano dello Sciliar\Altopiano dello Sciliar 2007\ORIG\digitale
+    2
   log_dir: logs
   temp_cache_dir: temp_cache
 search:
