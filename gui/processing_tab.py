@@ -1606,8 +1606,13 @@ class ProcessingWorker(QThread):
                         if max(pil_image.size) > target_size:
                             pil_image.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
                         return pil_image
-                except Exception as e:
-                    self.log_message.emit(f"❌ Errore immagine {image_path.name}: {e}", "error")
+                except Exception:
+                    # PIL non riconosce il formato (es. PSD senza composite) —
+                    # fallback a raw_processor che tenta ExifTool preview embedded
+                    pil_image = raw_processor.extract_thumbnail(image_path, target_size=target_size)
+                    if pil_image:
+                        return pil_image
+                    self.log_message.emit(f"⚠️ Thumbnail non estraibile: {image_path.name}", "warning")
                     return None
         except Exception as e:
             self.log_message.emit(f"❌ Errore prepare_image {image_path.name}: {e}", "error")
