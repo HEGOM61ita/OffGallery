@@ -408,6 +408,7 @@ class ExportTab(QWidget):
         self.csv_browse_btn.setEnabled(checked)
         self.csv_exclude_gps.setEnabled(checked)
         self.csv_exclude_exif.setEnabled(checked)
+        self._update_destination_ui()
 
     def _on_path_mode_changed(self):
         """Aggiorna UI destinazione al cambio radio XMP"""
@@ -432,6 +433,7 @@ class ExportTab(QWidget):
         self.dir_row_widget.setVisible(need_dir)
 
         # Label e info contestuali
+        has_csv = self.format_csv.isChecked()
         if has_copy and has_xmp:
             self.output_dir_label.setText(t("export.label.dir_output"))
             if self.path_original.isChecked():
@@ -444,6 +446,8 @@ class ExportTab(QWidget):
         elif xmp_to_output:
             self.output_dir_label.setText(t("export.label.dir_xmp"))
             self.path_info.setText("")
+        elif has_csv and not has_xmp and not has_copy:
+            self.path_info.setText(t("export.label.csv_dir_info"))
         else:
             self.path_info.setText("")
 
@@ -841,6 +845,12 @@ class ExportTab(QWidget):
                 t("export.msg.missing_dir", reasons=', '.join(motivi)))
             return
 
+        # Validazione: directory CSV obbligatoria se CSV attivo e nessuna directory disponibile
+        if options['format']['csv'] and not options['path']['csv_dir'] and not options['path']['single_dir']:
+            QMessageBox.warning(self, t("export.msg.missing_dir_title"),
+                t("export.msg.missing_csv_dir"))
+            return
+
         try:
             export_xmp = options['format']['sidecar'] or options['format']['embedded']
             export_csv = options['format']['csv']
@@ -1050,7 +1060,7 @@ class ExportTab(QWidget):
         try:
             import csv
 
-            # Determina path CSV: csv_dir dedicata → single_dir → directory prima immagine
+            # Determina path CSV: csv_dir dedicata → single_dir (se XMP/copia in dir unica)
             csv_filename = f"metadata_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
             csv_dir = options['path'].get('csv_dir', '').strip()
 
@@ -1063,12 +1073,7 @@ class ExportTab(QWidget):
                 output_dir.mkdir(parents=True, exist_ok=True)
                 csv_path = output_dir / csv_filename
             else:
-                # Fallback: directory della prima immagine
-                if image_items:
-                    first_path = Path(image_items[0].image_data.get('filepath', ''))
-                    csv_path = first_path.parent / csv_filename
-                else:
-                    csv_path = Path(csv_filename)
+                raise ValueError("Nessuna directory CSV specificata")
             
             # Scrivi CSV completo
             with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
