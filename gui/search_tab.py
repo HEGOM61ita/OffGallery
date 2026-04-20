@@ -4,6 +4,7 @@ Campo unico con switch semantica/tag + filtri EXIF
 CORRECTED: Fix ricerca semantica con embedding_generator corretto
 """
 
+import os
 import yaml
 import sys
 import logging
@@ -26,6 +27,7 @@ from utils.paths import get_app_dir, get_database_dir
 
 # Importa la black box
 from retrieval import ImageRetrieval
+from gui.directory_dialog import DirectoryTreeWidget
 
 import unicodedata
 import re
@@ -117,6 +119,7 @@ class SearchTab(QWidget):
         self._plugin_filter_meta: dict = {}
         # Manifest plugin con search_filters (ordinati per priority)
         self._plugin_filter_manifests: list = self._discover_plugin_filters()
+        self._dir_widget = None
 
         self.init_ui()
         self.load_config_defaults()
@@ -186,7 +189,15 @@ class SearchTab(QWidget):
         """
         conditions = []
         params = []
-        
+
+        # --- DIRECTORY FILTER (ambito ricerca) ---
+        if self._dir_widget is not None:
+            selected_dirs = self._dir_widget.get_selected_dirs()
+            if selected_dirs:
+                dir_clauses = " OR ".join(["file_path LIKE ?" for _ in selected_dirs])
+                conditions.append(f"({dir_clauses})")
+                params.extend([d.rstrip(os.sep) + os.sep + "%" for d in selected_dirs])
+
         # --- CAMERA (Make + Model combinato) ---
         camera = self.camera_combo.currentText()
         if self.camera_combo.currentIndex() > 0 and camera:
@@ -529,6 +540,9 @@ class SearchTab(QWidget):
         layout = QVBoxLayout(scroll_content)
         layout.setSpacing(8)
 
+        # Filtro per directory (ambito ricerca) — prima della ricerca semantica
+        layout.addWidget(self._create_directory_section())
+
         # Ricerca principale
         layout.addWidget(self.create_search_section())
 
@@ -631,6 +645,127 @@ class SearchTab(QWidget):
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll)
         #------------------------------------------------
+    # ------------------------------------------------------------------
+    # Pannello filtro directory
+    # ------------------------------------------------------------------
+
+    def _create_directory_section(self):
+        """Pannello collassabile per limitare la ricerca a specifiche directory del DB."""
+        from PyQt6.QtWidgets import QFrame
+
+        outer = QWidget()
+        outer_layout = QVBoxLayout(outer)
+        outer_layout.setContentsMargins(4, 2, 4, 2)
+        outer_layout.setSpacing(0)
+
+        # Header sempre visibile
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(4, 4, 4, 4)
+        header_layout.setSpacing(6)
+
+        self._dir_toggle_btn = QPushButton("▶")
+        self._dir_toggle_btn.setFixedSize(22, 22)
+        self._dir_toggle_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                font-size: 10px;
+                color: #666;
+            }
+            QPushButton:hover { color: #333; }
+        """)
+        self._dir_toggle_btn.clicked.connect(self._toggle_dir_panel)
+        header_layout.addWidget(self._dir_toggle_btn)
+
+        title = QLabel("📁 Ambito ricerca (Directory)")
+        title.setStyleSheet("font-weight: bold; font-size: 12px;")
+        header_layout.addWidget(title)
+
+        self._dir_status_label = QLabel("")
+        self._dir_status_label.setStyleSheet("color: #C88B2E; font-size: 11px;")
+        header_layout.addWidget(self._dir_status_label)
+
+        header_layout.addStretch()
+
+        btn_reset = QPushButton("✕ Reset")
+        btn_reset.setFixedHeight(20)
+        btn_reset.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: 1px solid #aaa;
+                border-radius: 3px;
+                font-size: 10px;
+                color: #666;
+                padding: 0px 6px;
+            }
+            QPushButton:hover { background: #eee; }
+        """)
+        btn_reset.clicked.connect(self._reset_dir_filter)
+        header_layout.addWidget(btn_reset)
+
+        outer_layout.addWidget(header)
+
+        # Contenuto collassabile
+        self._dir_content = QWidget()
+        content_layout = QVBoxLayout(self._dir_content)
+        content_layout.setContentsMargins(0, 4, 0, 4)
+        content_layout.setSpacing(0)
+
+        self._dir_widget = DirectoryTreeWidget(self._dir_content)
+        self._dir_widget.setMaximumHeight(280)
+        self._dir_widget.selection_changed.connect(self._on_dir_selection_changed)
+        content_layout.addWidget(self._dir_widget)
+
+        self._dir_content.setVisible(False)
+        outer_layout.addWidget(self._dir_content)
+
+        frame = QFrame()
+        frame.setFrameShape(QFrame.Shape.StyledPanel)
+        frame.setStyleSheet("QFrame { border: 1px solid #ddd; border-radius: 4px; }")
+        frame_layout = QVBoxLayout(frame)
+        frame_layout.setContentsMargins(0, 0, 0, 0)
+        frame_layout.addWidget(outer)
+
+        return frame
+
+    def _toggle_dir_panel(self):
+        """Espande o collassa il pannello directory."""
+        visible = not self._dir_content.isVisible()
+        self._dir_content.setVisible(visible)
+        self._dir_toggle_btn.setText("▼" if visible else "▶")
+
+    def _on_dir_selection_changed(self, selected_dirs: list):
+        """Aggiorna il badge nell'header quando cambia la selezione."""
+        if selected_dirs:
+            self._dir_status_label.setText(f"— {len(selected_dirs)} dir selezionate")
+        else:
+            self._dir_status_label.setText("")
+
+    def _reset_dir_filter(self):
+        """Deseleziona tutte le directory."""
+        if self._dir_widget is not None:
+            self._dir_widget._deselect_all()
+
+    def _load_dir_filter(self, db_manager):
+        """Popola l'albero directory con le directory presenti nel DB."""
+        if self._dir_widget is None:
+            return
+        try:
+            db_manager.cursor.execute(
+                "SELECT DISTINCT file_path FROM images WHERE file_path IS NOT NULL"
+            )
+            rows = db_manager.cursor.fetchall()
+            dir_counts: dict = {}
+            for (fp,) in rows:
+                d = str(Path(fp).parent)
+                dir_counts[d] = dir_counts.get(d, 0) + 1
+            self._dir_widget.refresh(dir_counts)
+        except Exception as e:
+            self.log_message(f"⚠️ Caricamento albero directory: {e}", "warning")
+
+    # ------------------------------------------------------------------
+
     def create_search_section(self):
         """Sezione ricerca principale: campo unico + switch + opzioni divise per modalità"""
         group = QGroupBox()  # Rimosso titolo ridondante
@@ -2005,6 +2140,7 @@ class SearchTab(QWidget):
             except Exception as _e:
                 self.log_message(f"⚠️ Popolamento posizione: {_e}", "warning")
 
+            self._load_dir_filter(db_manager)
             db_manager.close()
             self.log_message("✓ Caricamento filtri completato", "info")
             
@@ -2116,6 +2252,10 @@ class SearchTab(QWidget):
         if self.location_text_filter.currentText().strip():
             return True
         if self.location_lat_filter.text().strip() and self.location_lon_filter.text().strip():
+            return True
+
+        # Directory filter
+        if self._dir_widget is not None and self._dir_widget.get_selected_dirs():
             return True
 
         return False
