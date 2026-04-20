@@ -713,7 +713,8 @@ class SearchTab(QWidget):
         content_layout.setSpacing(0)
 
         self._dir_widget = DirectoryTreeWidget(self._dir_content)
-        self._dir_widget.setMaximumHeight(380)
+        self._dir_widget.tree.setMinimumHeight(160)
+        self._dir_widget.setMaximumHeight(500)
         self._dir_widget.selection_changed.connect(self._on_dir_selection_changed)
         content_layout.addWidget(self._dir_widget)
 
