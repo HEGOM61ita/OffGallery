@@ -35,26 +35,42 @@ logger = logging.getLogger(__name__)
 
 class PhotoBarrier:
     """Barriera per-foto: raccoglie i done() dei thread modello attivi.
-    Quando tutti i modelli non-LLM hanno finito una foto, la accoda in llm_queue.
+    Quando tutti i modelli non-LLM hanno finito una foto:
+      - libera il thumbnail RAM (LLM usa sempre disco)
+      - accoda in llm_queue se LLM è attivo
+      - rimuove la voce da prep_cache se LLM non è attivo (ultimo modello in assoluto)
+    Il thread LLM, essendo sempre l'ultimo, rimuove la voce da prep_cache al termine.
 
     Ogni foto ha la sua istanza PhotoBarrier, creata da ExifTool e
     passata alle code insieme al path immagine.
     """
 
-    __slots__ = ('_pending', '_lock', '_llm_queue', '_image_path')
+    __slots__ = ('_pending', '_lock', '_llm_queue', '_image_path', '_prep_cache')
 
-    def __init__(self, modelli_attivi, llm_queue, image_path):
+    def __init__(self, modelli_attivi, llm_queue, image_path, prep_cache):
         self._pending    = set(modelli_attivi)   # modelli che devono ancora chiamare done()
         self._lock       = threading.Lock()
         self._llm_queue  = llm_queue             # None se LLM non attivo
         self._image_path = image_path
+        self._prep_cache = prep_cache
 
     def done(self, modello):
-        """Chiamato da un thread modello al termine dell'elaborazione della foto."""
+        """Chiamato da un thread modello al termine dell'elaborazione della foto.
+        L'ultimo modello non-LLM libera il thumbnail RAM e conclude la sessione per
+        questa foto: accoda in llm_queue se attivo, altrimenti rimuove da prep_cache.
+        """
         with self._lock:
             self._pending.discard(modello)
-            if not self._pending and self._llm_queue is not None:
-                self._llm_queue.put(self._image_path)
+            if not self._pending:
+                fname = self._image_path.name
+                prep = self._prep_cache.get(fname)
+                if prep is not None:
+                    prep['thumbnail'] = None  # LLM usa disco: libera PIL Image dalla RAM
+                if self._llm_queue is not None:
+                    self._llm_queue.put(self._image_path)
+                else:
+                    # LLM non attivo: questo è l'ultimo modello in assoluto → pulizia completa
+                    self._prep_cache.pop(fname, None)
 
 
 class DiskThumbRef:
@@ -590,8 +606,14 @@ class ProcessingWorker(QThread):
 
             self._model_threads = []
 
-            # Libera VRAM al termine di tutti i modelli
+            # Libera esplicitamente prep_cache: eventuali voci residue (stop anticipato,
+            # immagini saltate) vengono rimosse prima del GC, restituendo memoria al pool Python
+            prep_cache.clear()
+
+            # Libera VRAM e forza due passaggi GC (il secondo raccoglie cicli circolari)
             self._cleanup_gpu_memory()
+            import gc
+            gc.collect()
 
             # Checkpoint WAL finale — tutti i thread sono terminati, nessuna contesa
             try:
@@ -1272,16 +1294,14 @@ class ProcessingWorker(QThread):
                 time.sleep(0.05)
             t_prep_wait = time.time()
 
-            prep = prep_cache.get(fname)
+            # LLM è l'ultimo modello: rimuove la voce da prep_cache (thumbnail RAM già
+            # liberata dal PhotoBarrier; prep locale rimane valido per questa iterazione)
+            prep = prep_cache.pop(fname, None)
             if not prep:
                 processed += 1
                 self._emit_progress_throttled('llm', processed, total)
                 continue
 
-            # Thumbnail da disco (DiskThumbRef) — non da prep_cache RAM.
-            # Libera subito la PIL Image dalla RAM (i modelli GPU l'hanno già usata
-            # o non sono attivi — in entrambi i casi LLM non ne ha bisogno).
-            prep['thumbnail'] = None
             disk_ref = prep.get('thumbnail_disk')
             t_thumb_load = time.time()
             if disk_ref is None:
@@ -1457,6 +1477,11 @@ class ProcessingWorker(QThread):
             processed += 1
             self._emit_progress_throttled('llm', processed, total)
 
+            # GC periodico — libera buffer accumulati (psd-tools, PIL, numpy)
+            if processed % 100 == 0:
+                import gc
+                gc.collect()
+
     # ─────────────────────────────────────────────────────────────
     # THREAD EXIFTOOL (produttore — estrae EXIF + distribuisce su code)
     # ─────────────────────────────────────────────────────────────
@@ -1499,6 +1524,12 @@ class ProcessingWorker(QThread):
                 except Exception:
                     pass
 
+            # GC periodico — copre il caso LLM disabilitato (prep_cache pulita da PhotoBarrier,
+            # ma buffer psd-tools/PIL/numpy nel heap Python vanno rilasciati esplicitamente)
+            if i % 100 == 0:
+                import gc
+                gc.collect()
+
             prep = self._prep_image(
                 image_path, raw_processor, config, db_manager,
                 processing_mode, emb_flags, llm_gen_config,
@@ -1517,7 +1548,7 @@ class ProcessingWorker(QThread):
                     # Crea una barrier per questa foto: si sblocca quando tutti i
                     # thread modello hanno chiamato done() → accoda in llm_queue
                     _llm_q = llm_queue if llm_active else None
-                    barrier = PhotoBarrier(barrier_modelli, _llm_q, image_path)
+                    barrier = PhotoBarrier(barrier_modelli, _llm_q, image_path, prep_cache)
                     # Distribuisce su ogni coda modello con timeout per rispondere a stop/pausa
                     for mk, q in model_queues.items():
                         while self.is_running:
@@ -1540,7 +1571,7 @@ class ProcessingWorker(QThread):
                 if _has_model_queues:
                     # Barrier vuota (nessun modello da aspettare): accoda subito in LLM se attivo
                     _llm_q = llm_queue if llm_active else None
-                    barrier = PhotoBarrier([], _llm_q, image_path)
+                    barrier = PhotoBarrier([], _llm_q, image_path, prep_cache)
                     # barrier con pending vuoto → done() non viene mai chiamata,
                     # ma LLM vedrà prep=None e salterà la foto
                     # Alternativa più robusta: accodiamo None nei modelli per saltare,
