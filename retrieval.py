@@ -193,89 +193,88 @@ class ImageRetrieval:
         # Dimensione attesa dall'embedding della query (per validazione)
         expected_dim = query_emb.shape[0]
 
-        for i, img in enumerate(candidates):
+        # FASE 1: deserializzazione batch di tutti gli embedding
+        valid_candidates = []
+        emb_list = []
+        for img in candidates:
             filename = img.get('filename', 'Unknown')
             try:
-                # Deserializza embedding: può essere raw bytes (float32) o pickle
                 raw_data = img['clip_embedding']
                 if isinstance(raw_data, bytes):
-                    # Pickle protocol 2-5: header \x80 + byte protocollo (0x02-0x05)
                     if len(raw_data) >= 2 and raw_data[0] == 0x80 and raw_data[1] in (2, 3, 4, 5):
                         img_emb_raw = pickle.loads(raw_data)
-                        img_emb = np.array(img_emb_raw.get('image_embedding') if isinstance(img_emb_raw, dict) else img_emb_raw)
-                    # Raw float32 bytes: qualsiasi dimensione multipla di 4
+                        emb = np.array(img_emb_raw.get('image_embedding') if isinstance(img_emb_raw, dict) else img_emb_raw, dtype=np.float32)
                     elif len(raw_data) >= 4 and len(raw_data) % 4 == 0:
-                        img_emb = np.frombuffer(raw_data, dtype=np.float32).copy()
+                        emb = np.frombuffer(raw_data, dtype=np.float32).copy()
                     else:
                         raise ValueError(f"Formato embedding non riconosciuto ({len(raw_data)} bytes)")
                 else:
-                    img_emb = np.array(raw_data)
+                    emb = np.array(raw_data, dtype=np.float32)
 
-                # Validazione dimensione: rileva embedding incompatibili (modello diverso)
-                if img_emb.shape[0] != expected_dim:
+                if emb.shape[0] != expected_dim:
                     logger.warning(
-                        f"⚠️ {filename}: dimensione embedding ({img_emb.shape[0]}) != attesa ({expected_dim}). "
+                        f"⚠️ {filename}: dimensione embedding ({emb.shape[0]}) != attesa ({expected_dim}). "
                         f"Rielaborare le foto per rigenerare gli embedding CLIP."
                     )
                     continue
 
-                visual_score = float(self._cosine_similarity(query_emb, img_emb))
-                
-                final_score = visual_score
-                debug_info = "Solo CLIP"
-
-                if deep_search:
-                    # Pulizia e normalizzazione testo
-                    desc = str(img.get('description', '')).lower() if include_description else ""
-                    tags = str(img.get('tags', '[]')).lower()
-                    full_text = f" {desc} {tags} ".replace('"', ' ').replace("'", " ").replace(",", " ").replace(".", " ")
-                    
-                    # Conteggio match con word boundary
-                    matches = 0
-                    match_details = []
-                    
-                    for word in query_words:
-                        # Estrai radice della lunghezza calcolata
-                        root = word[:min(match_length, len(word))]
-                        
-                        # Verifica presenza radice con word boundary (evita match in "marroni")
-                        pattern = r'\b' + re.escape(root)
-                        if re.search(pattern, full_text):
-                            matches += 1
-                            match_details.append(f"{word}→{root}✓")
-                        else:
-                            match_details.append(f"{word}→{root}✗")
-                    
-                    # Calcolo score finale con bonus/penalty più incisivi
-                    match_ratio = matches / len(query_words)
-                    
-                    if match_ratio == 1.0:
-                        # Tutti i concetti presenti - bonus forte
-                        bonus = 0.15 + (0.25 * strictness)
-                        final_score = visual_score + bonus
-                        debug_info = f"MATCH COMPLETO (+{bonus:.2f}) [{', '.join(match_details)}]"
-                    elif match_ratio >= 0.5:
-                        # Match parziale - boost moderato
-                        partial_bonus = (0.08 + 0.12 * strictness) * match_ratio
-                        final_score = visual_score + partial_bonus
-                        debug_info = f"MATCH PARZIALE (+{partial_bonus:.2f}) [{', '.join(match_details)}]"
-                    else:
-                        # Match insufficiente - penalty significativa
-                        penalty = 0.05 + (0.15 * strictness)
-                        final_score = visual_score - penalty
-                        debug_info = f"MATCH SCARSO (-{penalty:.2f}) [{', '.join(match_details)}]"
-
-                # Log dettagliato
-                log_line = f"FILE: {filename[:25]:<25} | CLIP: {visual_score:.3f} | FINAL: {final_score:.3f} | LEN: {match_length if deep_search else 'N/A'} | {debug_info}"
-                
-                if final_score >= threshold:
-                    logger.info(f"[AMMESSO]  {log_line}")
-                    results.append((final_score, img))
-                else:
-                    logger.debug(f"[SCARTATO] {log_line}")
-
+                valid_candidates.append(img)
+                emb_list.append(emb)
             except Exception as e:
-                logger.error(f"Errore su {filename}: {str(e)}")
+                logger.error(f"Errore deserializzazione {filename}: {str(e)}")
+
+        if not emb_list:
+            return []
+
+        # FASE 2: similarità coseno vettorizzata — una sola operazione per tutte le foto
+        emb_matrix = np.stack(emb_list)                                    # (N, D)
+        query_norm = query_emb / (np.linalg.norm(query_emb) + 1e-8)
+        row_norms = np.linalg.norm(emb_matrix, axis=1, keepdims=True)
+        emb_matrix_norm = emb_matrix / (row_norms + 1e-8)
+        similarities = (emb_matrix_norm @ query_norm).astype(float)        # (N,)
+
+        # FASE 3: deep search testuale solo sui candidati che superano la soglia CLIP
+        for img, visual_score in zip(valid_candidates, similarities):
+            filename = img.get('filename', 'Unknown')
+            final_score = float(visual_score)
+            debug_info = "Solo CLIP"
+
+            if deep_search and query_words:
+                desc = str(img.get('description', '')).lower() if include_description else ""
+                tags = str(img.get('tags', '[]')).lower()
+                full_text = f" {desc} {tags} ".replace('"', ' ').replace("'", " ").replace(",", " ").replace(".", " ")
+
+                matches = 0
+                match_details = []
+                for word in query_words:
+                    root = word[:min(match_length, len(word))]
+                    pattern = r'\b' + re.escape(root)
+                    if re.search(pattern, full_text):
+                        matches += 1
+                        match_details.append(f"{word}→{root}✓")
+                    else:
+                        match_details.append(f"{word}→{root}✗")
+
+                match_ratio = matches / len(query_words)
+                if match_ratio == 1.0:
+                    bonus = 0.15 + (0.25 * strictness)
+                    final_score = float(visual_score) + bonus
+                    debug_info = f"MATCH COMPLETO (+{bonus:.2f}) [{', '.join(match_details)}]"
+                elif match_ratio >= 0.5:
+                    partial_bonus = (0.08 + 0.12 * strictness) * match_ratio
+                    final_score = float(visual_score) + partial_bonus
+                    debug_info = f"MATCH PARZIALE (+{partial_bonus:.2f}) [{', '.join(match_details)}]"
+                else:
+                    penalty = 0.05 + (0.15 * strictness)
+                    final_score = float(visual_score) - penalty
+                    debug_info = f"MATCH SCARSO (-{penalty:.2f}) [{', '.join(match_details)}]"
+
+            log_line = f"FILE: {filename[:25]:<25} | CLIP: {float(visual_score):.3f} | FINAL: {final_score:.3f} | LEN: {match_length if deep_search else 'N/A'} | {debug_info}"
+            if final_score >= threshold:
+                logger.info(f"[AMMESSO]  {log_line}")
+                results.append((final_score, img))
+            else:
+                logger.debug(f"[SCARTATO] {log_line}")
 
         results.sort(key=lambda x: x[0], reverse=True)
 
