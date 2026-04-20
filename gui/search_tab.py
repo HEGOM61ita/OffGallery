@@ -194,7 +194,7 @@ class SearchTab(QWidget):
         if self._dir_widget is not None:
             selected_dirs = self._dir_widget.get_selected_dirs()
             if selected_dirs:
-                dir_clauses = " OR ".join(["file_path LIKE ?" for _ in selected_dirs])
+                dir_clauses = " OR ".join(["filepath LIKE ?" for _ in selected_dirs])
                 conditions.append(f"({dir_clauses})")
                 params.extend([d.rstrip(os.sep) + os.sep + "%" for d in selected_dirs])
 
@@ -753,7 +753,7 @@ class SearchTab(QWidget):
             return
         try:
             db_manager.cursor.execute(
-                "SELECT DISTINCT file_path FROM images WHERE file_path IS NOT NULL"
+                "SELECT DISTINCT filepath FROM images WHERE filepath IS NOT NULL"
             )
             rows = db_manager.cursor.fetchall()
             dir_counts: dict = {}
