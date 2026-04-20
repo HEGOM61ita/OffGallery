@@ -111,12 +111,22 @@ class ImageRetrieval:
                 return [], 0
         
         # 2. TRADUZIONE
+        import time as _time
+        from pathlib import Path as _Path
+        _log_path = _Path(__file__).parent / 'search_debug.log'
+        def _tlog(msg):
+            with open(_log_path, 'a', encoding='utf-8') as _f:
+                _f.write(f"[{_time.strftime('%H:%M:%S')}] {msg}\n")
+            logger.info(msg)
+        _tlog(f"=== RICERCA START: '{query_text}' mode={mode} ===")
+        _t0 = _time.time()
+
         # L'utente scrive nella sua lingua → _translate_to_english converte in EN per CLIP
         query_en = self.embedding_gen._translate_to_english(query_text)
         # Per tag/keyword matching: traduce EN → lingua dei contenuti (llm_output_language)
         query_tag = self.embedding_gen._translate_to_tag_language(query_en)
-        logger.info(f"🔤 Query EN: '{query_en}' | Tag lang: '{query_tag}'")
-        
+        _tlog(f"Traduzione: {_time.time()-_t0:.2f}s — EN='{query_en}' tag='{query_tag}'")
+
         # 3. SQL FETCH - Prende TUTTE le immagini per ricerca semantica
         # La ricerca CLIP deve confrontare la query con OGNI immagine nel database
         plugin_cols = self._plugin_columns()
@@ -131,8 +141,9 @@ class ImageRetrieval:
         WHERE clip_embedding IS NOT NULL
         """
         if filters_sql:
-            base_sql += f" AND {filters_sql}" 
-        
+            base_sql += f" AND {filters_sql}"
+
+        _t1 = _time.time()
         try:
             self.db.cursor.execute(base_sql, filter_params or [])
             columns = [d[0] for d in self.db.cursor.description]
@@ -140,6 +151,7 @@ class ImageRetrieval:
         except Exception as e:
             logger.error(f"Errore SQL: {e}")
             return [], 0
+        _tlog(f"SQL fetchall: {_time.time()-_t1:.2f}s — {len(candidates)} candidati")
 
         if not candidates:
             return [], 0
@@ -175,9 +187,20 @@ class ImageRetrieval:
         logger = logging.getLogger('root')
         results = []
 
+        import time as _time
+        from pathlib import Path as _Path
+        _log_path = _Path(__file__).parent / 'search_debug.log'
+        def _tlog(msg):
+            with open(_log_path, 'a', encoding='utf-8') as _f:
+                _f.write(f"[{_time.strftime('%H:%M:%S')}] {msg}\n")
+            logger.info(msg)
+        _tp = _time.time()
+        _tlog(f"_semantic_pipeline START — {len(candidates)} candidati")
+
         # 1. CLIP EMBEDDING — usa query_en (inglese)
         # CLIP è addestrato su coppie immagine-testo in inglese: la query DEVE essere EN
         res_query = self.embedding_gen.generate_embeddings(query_en)
+        _tlog(f"generate_embeddings (encoding testo CLIP): {_time.time()-_tp:.2f}s")
         if not res_query: return []
         query_emb = np.array(res_query.get('text_embedding') if isinstance(res_query, dict) else res_query)
 
@@ -225,6 +248,8 @@ class ImageRetrieval:
 
         if not emb_list:
             return []
+        _tlog(f"Deserializzazione embedding: {_time.time()-_tp:.2f}s — {len(emb_list)} validi su {len(candidates)}")
+        _tp2 = _time.time()
 
         # FASE 2: similarità coseno vettorizzata — una sola operazione per tutte le foto
         emb_matrix = np.stack(emb_list)                                    # (N, D)
@@ -232,11 +257,19 @@ class ImageRetrieval:
         row_norms = np.linalg.norm(emb_matrix, axis=1, keepdims=True)
         emb_matrix_norm = emb_matrix / (row_norms + 1e-8)
         similarities = (emb_matrix_norm @ query_norm).astype(float)        # (N,)
+        _tlog(f"Similarità vettorizzata (np.stack + @): {_time.time()-_tp2:.2f}s")
 
-        # FASE 3: deep search testuale solo sui candidati che superano la soglia CLIP
-        for img, visual_score in zip(valid_candidates, similarities):
+        # FASE 3: pre-filtraggio numpy per threshold, poi deep search solo sui candidati validi
+        # Abbassa la soglia di pre-filtro per il deep search (il bonus potrebbe alzare score sotto-soglia)
+        pre_threshold = (threshold - 0.40) if deep_search else threshold
+        passing_indices = np.where(similarities >= pre_threshold)[0]
+        _tlog(f"Pre-filtro threshold ({pre_threshold:.2f}): {len(passing_indices)} candidati da elaborare su {len(similarities)}")
+
+        for idx in passing_indices:
+            img = valid_candidates[idx]
+            visual_score = float(similarities[idx])
             filename = img.get('filename', 'Unknown')
-            final_score = float(visual_score)
+            final_score = visual_score
             debug_info = "Solo CLIP"
 
             if deep_search and query_words:
@@ -258,25 +291,25 @@ class ImageRetrieval:
                 match_ratio = matches / len(query_words)
                 if match_ratio == 1.0:
                     bonus = 0.15 + (0.25 * strictness)
-                    final_score = float(visual_score) + bonus
+                    final_score = visual_score + bonus
                     debug_info = f"MATCH COMPLETO (+{bonus:.2f}) [{', '.join(match_details)}]"
                 elif match_ratio >= 0.5:
                     partial_bonus = (0.08 + 0.12 * strictness) * match_ratio
-                    final_score = float(visual_score) + partial_bonus
+                    final_score = visual_score + partial_bonus
                     debug_info = f"MATCH PARZIALE (+{partial_bonus:.2f}) [{', '.join(match_details)}]"
                 else:
                     penalty = 0.05 + (0.15 * strictness)
-                    final_score = float(visual_score) - penalty
+                    final_score = visual_score - penalty
                     debug_info = f"MATCH SCARSO (-{penalty:.2f}) [{', '.join(match_details)}]"
 
-            log_line = f"FILE: {filename[:25]:<25} | CLIP: {float(visual_score):.3f} | FINAL: {final_score:.3f} | LEN: {match_length if deep_search else 'N/A'} | {debug_info}"
             if final_score >= threshold:
-                logger.info(f"[AMMESSO]  {log_line}")
+                logger.info(f"[AMMESSO]  FILE: {filename[:25]:<25} | CLIP: {visual_score:.3f} | FINAL: {final_score:.3f} | {debug_info}")
                 results.append((final_score, img))
             else:
-                logger.debug(f"[SCARTATO] {log_line}")
+                logger.debug(f"[SCARTATO] {filename} score={final_score:.3f}")
 
         results.sort(key=lambda x: x[0], reverse=True)
+        _tlog(f"FINE pipeline — {len(results)} risultati ammessi su {len(emb_list)}")
 
         # Rilevamento spazio embedding incompatibile: se il miglior score è molto
         # basso, gli image embedding nel DB sono probabilmente generati con una
