@@ -189,6 +189,32 @@ class ExportTab(QWidget):
         self.csv_exclude_exif.setToolTip(t("export.tooltip.exclude_exif"))
         self.csv_exclude_exif.setEnabled(False)
 
+        # --- Directory CSV (indentata sotto la spunta CSV) ---
+        self.csv_dir_label = QLabel(t("export.label.csv_dir"))
+        self.csv_dir_label.setEnabled(False)
+        self.csv_dir_input = QLineEdit()
+        self.csv_dir_input.setPlaceholderText(t("export.placeholder.csv_dir"))
+        self.csv_dir_input.setEnabled(False)
+        self.csv_browse_btn = QPushButton("📂")
+        self.csv_browse_btn.setMaximumWidth(40)
+        self.csv_browse_btn.setEnabled(False)
+        self.csv_browse_btn.clicked.connect(self._browse_csv_dir)
+
+        csv_dir_row = QWidget()
+        csv_dir_layout = QHBoxLayout(csv_dir_row)
+        csv_dir_layout.setContentsMargins(0, 0, 0, 0)
+        csv_dir_layout.setSpacing(6)
+        csv_dir_layout.addWidget(self.csv_dir_label)
+        csv_dir_layout.addWidget(self.csv_dir_input)
+        csv_dir_layout.addWidget(self.csv_browse_btn)
+
+        csv_sub_widget = QWidget()
+        csv_sub_layout = QVBoxLayout(csv_sub_widget)
+        csv_sub_layout.setContentsMargins(24, 2, 0, 2)
+        csv_sub_layout.setSpacing(0)
+        csv_sub_layout.addWidget(csv_dir_row)
+        self.csv_dir_widget = csv_sub_widget
+
         # --- Copia file + opzioni indentate ---
         self.format_copy = QCheckBox(t("export.check.copy_originals"))
         self.format_copy.setToolTip(t("export.tooltip.copy_originals"))
@@ -221,6 +247,7 @@ class ExportTab(QWidget):
 
         # --- Default e segnali ---
         self.format_sidecar.setChecked(True)
+        self.csv_dir_widget.setVisible(False)
         self.format_copy.toggled.connect(self._on_copy_toggled)
         self.format_csv.toggled.connect(self._on_csv_toggled)
 
@@ -259,6 +286,7 @@ class ExportTab(QWidget):
         csv_row.addWidget(self.csv_exclude_exif)
         csv_row.addStretch()
         layout.addWidget(csv_row_widget)
+        layout.addWidget(self.csv_dir_widget)
 
         # --- Separatore ---
         layout.addWidget(_separator())
@@ -350,25 +378,6 @@ class ExportTab(QWidget):
         self.path_info.setWordWrap(True)
         self.path_info.setStyleSheet("color: gray; font-size: 10px;")
 
-        # --- Directory CSV dedicata (opzionale, visibile solo con CSV attivo) ---
-        csv_dir_label = QLabel(t("export.label.csv_dir"))
-        self.csv_dir_input = QLineEdit()
-        self.csv_dir_input.setPlaceholderText(t("export.placeholder.csv_dir"))
-        self.csv_dir_input.setEnabled(False)
-
-        self.csv_browse_btn = QPushButton("📂")
-        self.csv_browse_btn.setMaximumWidth(40)
-        self.csv_browse_btn.setEnabled(False)
-        self.csv_browse_btn.clicked.connect(self._browse_csv_dir)
-
-        csv_dir_layout = QHBoxLayout()
-        csv_dir_layout.addWidget(csv_dir_label)
-        csv_dir_layout.addWidget(self.csv_dir_input)
-        csv_dir_layout.addWidget(self.csv_browse_btn)
-
-        self.csv_dir_label = csv_dir_label
-        self.csv_dir_label.setEnabled(False)
-
         # Segnali radio XMP
         self.path_original.toggled.connect(self._on_path_mode_changed)
         self.path_single.toggled.connect(self._on_path_mode_changed)
@@ -377,7 +386,6 @@ class ExportTab(QWidget):
         layout.addWidget(self.xmp_dest_widget)
         layout.addWidget(self.dir_row_widget)
         layout.addWidget(self.path_info)
-        layout.addLayout(csv_dir_layout)
 
         return box
 
@@ -406,6 +414,7 @@ class ExportTab(QWidget):
         self.csv_dir_label.setEnabled(checked)
         self.csv_dir_input.setEnabled(checked)
         self.csv_browse_btn.setEnabled(checked)
+        self.csv_dir_widget.setVisible(checked)
         self.csv_exclude_gps.setEnabled(checked)
         self.csv_exclude_exif.setEnabled(checked)
         self._update_destination_ui()
@@ -446,8 +455,6 @@ class ExportTab(QWidget):
         elif xmp_to_output:
             self.output_dir_label.setText(t("export.label.dir_xmp"))
             self.path_info.setText("")
-        elif has_csv and not has_xmp and not has_copy:
-            self.path_info.setText(t("export.label.csv_dir_info"))
         else:
             self.path_info.setText("")
 
@@ -605,6 +612,7 @@ class ExportTab(QWidget):
                 'embedded':                self.format_embedded.isChecked(),
                 'dng_allow_embedded':      self.dng_allow_embedded.isChecked(),
                 'csv':                     self.format_csv.isChecked(),
+                'csv_dir':                 self.csv_dir_input.text().strip(),
                 'copy':                    self.format_copy.isChecked(),
                 'copy_preserve_structure': self.copy_preserve_structure.isChecked(),
                 'copy_overwrite':          self.copy_overwrite.isChecked(),
@@ -637,6 +645,7 @@ class ExportTab(QWidget):
         _set(self.format_embedded,             'embedded',                False)
         _set(self.dng_allow_embedded,          'dng_allow_embedded',      False)
         _set(self.format_csv,                  'csv',                     False)
+        self.csv_dir_input.setText(fmt.get('csv_dir', ''))
         _set(self.format_copy,                 'copy',                    False)
         _set(self.copy_preserve_structure,     'copy_preserve_structure', False)
         _set(self.copy_overwrite,              'copy_overwrite',          False)
