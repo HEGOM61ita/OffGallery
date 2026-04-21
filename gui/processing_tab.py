@@ -570,6 +570,10 @@ class ProcessingWorker(QThread):
 
             # Attendi completamento con check is_running (permette stop reattivo)
             for t in model_threads:
+                # Quando raggiungiamo il thread LLM (embedding già terminati),
+                # invia la sentinella per sbloccare llm_queue.get() e permettere uscita
+                if t.name == "model-llm" and llm_active and model_queues:
+                    llm_queue.put(None)
                 while t.is_alive():
                     t.join(timeout=0.5)
                     if not self.is_running:
