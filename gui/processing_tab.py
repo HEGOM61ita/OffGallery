@@ -380,6 +380,8 @@ class ProcessingWorker(QThread):
                 'clip': 0, 'dinov2': 0, 'aesthetic': 0, 'technical': 0,
                 'bioclip': 0, 'llm_tags': 0, 'llm_desc': 0, 'llm_title': 0,
                 'geospecies_skipped_no_gps': 0,
+                # Lista ID immagini processate in questo import (per plugin post-import)
+                'processed_ids': [],
             }
             start_time = time.time()
 
@@ -873,6 +875,11 @@ class ProcessingWorker(QThread):
                 if image_exists and processing_mode in ['reprocess_all', 'new_plus_errors']:
                     ai_fields = db_manager.get_ai_fields_status(fname)
                     db_manager.update_image(fname, image_data)
+                    _row = db_manager.conn.execute(
+                        "SELECT id FROM images WHERE filename = ?", (fname,)
+                    ).fetchone()
+                    if _row:
+                        stats['processed_ids'].append(_row[0])
                     self.log_message.emit(f"🔄 DB aggiornato (reprocess): {fname}", "debug")
                 elif image_exists:
                     self.log_message.emit(f"⏭️ Già nel DB, saltato: {fname}", "debug")
@@ -880,6 +887,7 @@ class ProcessingWorker(QThread):
                     image_id = db_manager.insert_image(image_data)
                     is_new = True
                     if image_id:
+                        stats['processed_ids'].append(image_id)
                         self.log_message.emit(f"✅ DB inserito: {fname} (ID: {image_id})", "debug")
                     else:
                         self.log_message.emit(f"❌ DB inserimento fallito: {fname}", "error")
@@ -2014,7 +2022,7 @@ class ProcessingTab(QWidget):
     # LANCIO PLUGIN POST-IMPORT
     # ─────────────────────────────────────────────────────────────
 
-    def _launch_post_import_plugins(self):
+    def _launch_post_import_plugins(self, processed_ids=None):
         """Lancia in sequenza i plugin abilitati dopo il completamento dell'import."""
         # Determina quali plugin sono abilitati
         to_run = [
@@ -2055,6 +2063,8 @@ class ProcessingTab(QWidget):
         self._plugin_queue = list(to_run)
         self._plugin_db_path = db_path
         self._plugin_dir = current_dir
+        self._plugin_image_ids = processed_ids if processed_ids else None
+        self._plugin_tmp_files = []
         self._launch_next_plugin()
 
     def _launch_next_plugin(self):
@@ -2095,7 +2105,17 @@ class ProcessingTab(QWidget):
             cmd += ['--db', self._plugin_db_path]
         if self._plugin_dir:
             cmd += ['--directory', self._plugin_dir]
-            cmd += ['--mode', 'directory']
+        if self._plugin_image_ids is not None:
+            # Passa la lista precisa di ID immagini processate nell'import corrente
+            import tempfile, json as _json
+            _ids_file = tempfile.NamedTemporaryFile(
+                mode='w', suffix='.json', delete=False, encoding='utf-8'
+            )
+            _json.dump(self._plugin_image_ids, _ids_file)
+            _ids_file.flush()
+            _ids_file.close()
+            cmd += ['--ids-file', _ids_file.name, '--mode', 'ids']
+            self._plugin_tmp_files.append(_ids_file.name)
         else:
             cmd += ['--mode', 'unprocessed']
         config_json = Path(plugin_dir) / 'config.json'
@@ -2152,6 +2172,14 @@ class ProcessingTab(QWidget):
             # Tutti i plugin terminati: riabilita tab Plugin e pulsante Start
             self.plugins_lock.emit(False)
             self.start_btn.setEnabled(True)
+            # Pulizia file temporanei IDs
+            import os as _os
+            for _f in getattr(self, '_plugin_tmp_files', []):
+                try:
+                    _os.unlink(_f)
+                except Exception:
+                    pass
+            self._plugin_tmp_files = []
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -3423,5 +3451,6 @@ class ProcessingTab(QWidget):
 
         # Lancia plugin post-import se abilitati (start_btn rimane disabilitato
         # finché tutti i plugin non hanno terminato)
-        self._launch_post_import_plugins()
+        processed_ids = stats.get('processed_ids', [])
+        self._launch_post_import_plugins(processed_ids=processed_ids)
     
