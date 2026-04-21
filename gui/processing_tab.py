@@ -2077,9 +2077,11 @@ class ProcessingTab(QWidget):
         plugin_dir = manifest.get('_dir', '')
         entry_point = manifest.get('entry_point', '')
 
-        # Plugin config_only o geo_enricher: operano nella pipeline interna,
-        # non come subprocess autonomo. Saltiamo silenziosamente.
-        if manifest.get('config_only', False) or manifest.get('plugin_type') == 'geo_enricher':
+        # Plugin config_only senza subprocess headless: saltati silenziosamente.
+        # Eccezione: geo_enricher ha un subprocess reale (es. geonames) e gira post-import
+        # in overwrite mode per raffinare la geo_hierarchy del builtin.
+        is_geo_enricher = manifest.get('plugin_type') == 'geo_enricher'
+        if manifest.get('config_only', False) and not is_geo_enricher:
             self._on_plugin_finished(plugin_id)
             return
 
@@ -2105,19 +2107,31 @@ class ProcessingTab(QWidget):
             cmd += ['--db', self._plugin_db_path]
         if self._plugin_dir:
             cmd += ['--directory', self._plugin_dir]
+
+        # Scrive file temporaneo con gli ID immagini dell'import corrente
+        _ids_tmp = None
         if self._plugin_image_ids is not None:
-            # Passa la lista precisa di ID immagini processate nell'import corrente
             import tempfile, json as _json
-            _ids_file = tempfile.NamedTemporaryFile(
+            _ids_tmp = tempfile.NamedTemporaryFile(
                 mode='w', suffix='.json', delete=False, encoding='utf-8'
             )
-            _json.dump(self._plugin_image_ids, _ids_file)
-            _ids_file.flush()
-            _ids_file.close()
-            cmd += ['--ids-file', _ids_file.name, '--mode', 'ids']
-            self._plugin_tmp_files.append(_ids_file.name)
+            _json.dump(self._plugin_image_ids, _ids_tmp)
+            _ids_tmp.flush()
+            _ids_tmp.close()
+            self._plugin_tmp_files.append(_ids_tmp.name)
+
+        if is_geo_enricher:
+            # GeoNames: ricalcola geo_hierarchy con più precisione del builtin.
+            # overwrite=True sovrascrive la geo_hierarchy già assegnata durante import.
+            cmd += ['--mode', 'overwrite', '--overwrite']
+            if _ids_tmp:
+                cmd += ['--ids-file', _ids_tmp.name]
         else:
-            cmd += ['--mode', 'unprocessed']
+            if _ids_tmp:
+                cmd += ['--ids-file', _ids_tmp.name, '--mode', 'ids']
+            else:
+                cmd += ['--mode', 'unprocessed']
+
         config_json = Path(plugin_dir) / 'config.json'
         if config_json.exists():
             cmd += ['--config', str(config_json)]
