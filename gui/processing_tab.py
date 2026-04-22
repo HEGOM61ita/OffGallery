@@ -2072,50 +2072,8 @@ class ProcessingTab(QWidget):
         hdr_lay.addWidget(hdr_r, stretch=1)
         parent_layout.addWidget(hdr_w)
 
-        # Raggruppa plugin per pipeline_stage; plugin senza stage → post_import
-        _stage_order = ['pre_llm', 'post_import']
-        _stage_labels = {
-            'pre_llm':     'Pre-LLM  ·  eseguito prima della generazione testo',
-            'post_import': 'Post-import  ·  eseguito al termine dell\'elaborazione',
-        }
-        _stage_colors = {'pre_llm': ('#b87333', '#d4924a'), 'post_import': ('#4a7c59', '#6aad7e')}
-
-        from collections import defaultdict
-        _by_stage: dict[str, list] = defaultdict(list)
-        for m in self._discovered_plugins:
-            stage = m.get('pipeline_stage', 'post_import')
-            _by_stage[stage].append(m)
-
-        # Aggiungi stage non standard in coda
-        extra_stages = [s for s in _by_stage if s not in _stage_order]
-        stages_to_show = [s for s in _stage_order if s in _by_stage] + extra_stages
-
-        # Helper: sotto-separatore stage con etichetta e sottotitolo inline
-        def _make_stage_sep(label: str, color_line: str, color_text: str) -> QWidget:
-            w = QWidget()
-            lay = QHBoxLayout(w)
-            lay.setContentsMargins(8, 4, 0, 2)
-            lay.setSpacing(4)
-            l = QLabel("")
-            l.setFixedHeight(1)
-            l.setStyleSheet(f"background-color: {color_line};")
-            lay.addWidget(l, stretch=1)
-            lbl = QLabel(label)
-            lbl.setStyleSheet(f"font-size: 9px; font-weight: bold; color: {color_text};")
-            lay.addWidget(lbl)
-            r = QLabel("")
-            r.setFixedHeight(1)
-            r.setStyleSheet(f"background-color: {color_line};")
-            lay.addWidget(r, stretch=3)
-            return w
-
-        for stage in stages_to_show:
-            if len(stages_to_show) > 1 or len(_by_stage[stage]) > 0:
-                cl, ct = _stage_colors.get(stage, ('#555', '#aaa'))
-                stage_label = _stage_labels.get(stage, stage)
-                parent_layout.addWidget(_make_stage_sep(stage_label, cl, ct))
-
-            for manifest in _by_stage[stage]:
+        # Plugin già ordinati per priority da _discover_standalone_plugins — lista piatta
+        for manifest in self._discovered_plugins:
                 plugin_id   = manifest.get('id', '')
                 plugin_name = manifest.get('name', plugin_id)
                 plugin_desc = manifest.get('description', '')
@@ -2138,10 +2096,9 @@ class ProcessingTab(QWidget):
 
                 chk = QCheckBox()
                 if is_geo_enricher:
-                    # Checkbox sempre attiva e non modificabile — stesso stile degli altri plugin
                     chk.setChecked(True)
                     chk.setEnabled(False)
-                    chk.setToolTip("Plugin sempre attivo nella pipeline")
+                    chk.setToolTip(f"{plugin_name} — sempre attivo")
                     chk.setStyleSheet(
                         "QCheckBox::indicator:disabled:checked {"
                         "  background-color: #4a90d9;"
@@ -2150,14 +2107,8 @@ class ProcessingTab(QWidget):
                         "}"
                     )
                     chk_lay.addWidget(chk)
-                elif stage == 'pre_llm':
-                    chk.setToolTip(
-                        f"Esegui {plugin_name} prima della generazione LLM\n"
-                        f"(arricchisce il contesto per tags · titolo · descrizione)"
-                    )
-                    chk_lay.addWidget(chk)
                 else:
-                    chk.setToolTip(f"Esegui {plugin_name} al termine dell'import")
+                    chk.setToolTip(f"Abilita {plugin_name}")
                     chk_lay.addWidget(chk)
                 row_lay.addWidget(chk_container)
 
@@ -2415,6 +2366,7 @@ class ProcessingTab(QWidget):
         row = self._plugin_rows.get(plugin_id, {})
         pb = row.get('bar')
         if pb:
+            pb.setVisible(True)
             pb.setValue(100)
 
         self.add_log_message(f"✅ Plugin completato: {plugin_id}", "success")
