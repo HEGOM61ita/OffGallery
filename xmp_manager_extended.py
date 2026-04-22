@@ -898,6 +898,27 @@ class XMPManagerExtended:
             k = k.replace(char, '')
         return k.strip().lower()
     
+    def _export_embedded_xmp_to_sidecar(self, source: Path, sidecar: Path) -> bool:
+        """Esporta l'XMP embedded del file sorgente in un nuovo sidecar .xmp.
+        Preserva tutti i namespace proprietari (crs:, darktable:, dxo:, lr:, ecc.)."""
+        try:
+            cmd = [
+                *XMPManagerExtended._exiftool_cmd,
+                '-o', str(sidecar),
+                '-XMP:all',
+                str(source)
+            ]
+            result = subprocess.run(cmd, capture_output=True, timeout=15,
+                                    **subprocess_creation_kwargs())
+            if result.returncode == 0 and sidecar.exists():
+                logger.info(f"✓ XMP embedded esportato nel sidecar: {sidecar.name}")
+                return True
+            logger.debug(f"Nessun XMP embedded da esportare per {source.name}")
+            return False
+        except Exception as e:
+            logger.warning(f"Esportazione XMP embedded fallita per {source.name}: {e}")
+            return False
+
     def write_xmp_sidecar(self, file_path: Path, xmp_dict: Dict[str, Any],
                           merge_existing_keywords: bool = True) -> bool:
         """
@@ -934,12 +955,18 @@ class XMPManagerExtended:
                         if 'subject' in merged_dict:
                             merged_dict['subject'] = merged
 
-                # Crea file sidecar vuoto se non esiste
+                # Se il sidecar non esiste, inizializzalo con l'XMP embedded del file sorgente
+                # (preserva namespace proprietari: crs:, darktable:, dxo:, lr:, ecc.)
                 if not sidecar_path.exists():
-                    sidecar_path.write_text(
-                        '<?xml version="1.0" encoding="UTF-8"?>\n'
-                        '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="OffGallery XMP Manager"/>'
-                    )
+                    category = self._get_file_category(file_path)
+                    exported = False
+                    if category != 'raw':
+                        exported = self._export_embedded_xmp_to_sidecar(file_path, sidecar_path)
+                    if not exported:
+                        sidecar_path.write_text(
+                            '<?xml version="1.0" encoding="UTF-8"?>\n'
+                            '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="OffGallery XMP Manager"/>'
+                        )
 
                 # Scrittura tramite argfile UTF-8 (evita perdita accentate su Windows)
                 write_args = ['-overwrite_original'] + self._build_exiftool_args_from_dict(merged_dict)
