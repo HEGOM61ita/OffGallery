@@ -862,6 +862,81 @@ class ExportTab(QWidget):
     # EXPORT LOGIC
     # ------------------------------------------------------------------
 
+    def _collect_source_dirs(self) -> set:
+        """Raccoglie le directory uniche delle foto selezionate."""
+        dirs = set()
+        for item in self.images_to_export:
+            fp = item.image_data.get('filepath', '')
+            if fp:
+                try:
+                    dirs.add(Path(fp).resolve().parent)
+                except Exception:
+                    pass
+        return dirs
+
+    def _paths_overlap(self, p1: Path, p2: Path) -> bool:
+        """True se p1 e p2 sono la stessa directory o una contiene l'altra."""
+        try:
+            p1 = p1.resolve()
+            p2 = p2.resolve()
+            return p1 == p2 or p2 in p1.parents or p1 in p2.parents
+        except Exception:
+            return False
+
+    def _check_directory_safety(self, options: dict) -> bool:
+        """
+        Verifica sicurezza directory prima dell'export.
+        BLOCCA se la destinazione copia sovrappone le sorgenti (rischio sovrascrittura foto).
+        AVVISA con conferma se XMP directory unica sovrappone le sorgenti (sidecar aggiornati, foto intatte).
+        Restituisce True se sicuro procedere, False se annullare.
+        """
+        source_dirs = self._collect_source_dirs()
+        if not source_dirs:
+            return True
+
+        single_dir = options['path'].get('single_dir', '').strip()
+
+        # --- Copia file: BLOCCO totale se destinazione sovrappone sorgenti ---
+        if options['format']['copy'] and single_dir:
+            copy_dest = Path(single_dir)
+            for src in source_dirs:
+                if self._paths_overlap(src, copy_dest):
+                    QMessageBox.critical(
+                        self,
+                        "Destinazione non sicura",
+                        f"La directory di destinazione:\n"
+                        f"  {copy_dest}\n\n"
+                        f"coincide o si sovrappone con la directory delle foto originali:\n"
+                        f"  {src}\n\n"
+                        f"OffGallery non può copiare i file nella stessa cartella "
+                        f"da cui provengono — le foto originali potrebbero essere sovrascritte.\n\n"
+                        f"Scegli una directory di destinazione diversa."
+                    )
+                    return False
+
+        # --- XMP directory unica: AVVISO con conferma se sovrappone sorgenti ---
+        if options['format']['sidecar'] and options['path']['single'] and single_dir:
+            xmp_dest = Path(single_dir)
+            for src in source_dirs:
+                if self._paths_overlap(src, xmp_dest):
+                    reply = QMessageBox.question(
+                        self,
+                        "Directory XMP coincide con la sorgente",
+                        f"La directory XMP di output:\n"
+                        f"  {xmp_dest}\n\n"
+                        f"coincide con la directory delle foto originali.\n\n"
+                        f"I file sidecar .xmp esistenti verranno aggiornati con i dati "
+                        f"di OffGallery. Le foto originali non vengono mai toccate.\n\n"
+                        f"Vuoi continuare?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        QMessageBox.StandardButton.No
+                    )
+                    if reply != QMessageBox.StandardButton.Yes:
+                        return False
+                    break
+
+        return True
+
     def _do_export(self):
         """Export principale: gestisce XMP sidecar, XMP embedded, CSV, copia foto"""
         if not self.images_to_export:
@@ -893,6 +968,10 @@ class ExportTab(QWidget):
         if options['format']['csv'] and not options['path']['csv_dir'] and not options['path']['single_dir']:
             QMessageBox.warning(self, t("export.msg.missing_dir_title"),
                 t("export.msg.missing_csv_dir"))
+            return
+
+        # Controllo sicurezza directory (blocca sovrascritture pericolose)
+        if not self._check_directory_safety(options):
             return
 
         try:
@@ -1473,7 +1552,10 @@ class ExportTab(QWidget):
                 output_dir = Path(single_dir)
                 if not output_dir.exists():
                     output_dir.mkdir(parents=True, exist_ok=True)
-                sidecar_path = output_dir / f"{image_file.stem}.xmp"
+                if naming == 'darktable':
+                    sidecar_path = output_dir / (image_file.name + '.xmp')
+                else:
+                    sidecar_path = output_dir / f"{image_file.stem}.xmp"
 
             # Comportamento per campo — controllo indipendente
             do_merge_keywords = options['advanced'].get('xmp_merge_keywords', True)
@@ -1887,6 +1969,7 @@ class ExportTab(QWidget):
         return {
             "format": {
                 "sidecar": self.format_sidecar.isChecked(),
+                "sidecar_naming": 'darktable' if self.sidecar_dt.isChecked() else 'lightroom',
                 "embedded": self.format_embedded.isChecked(),
                 "dng_allow_embedded": self.dng_allow_embedded.isChecked(),
                 "csv": self.format_csv.isChecked(),
