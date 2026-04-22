@@ -587,20 +587,50 @@ class ProcessingWorker(QThread):
 
             # Watcher pre_llm: parte appena ExifTool finisce (tutti i record DB esistono)
             # ed esegue i plugin pre_llm in parallelo agli embedding.
+            # Plugin con run_condition='bioclip_not_null' attendono anche il join di BioCLIP.
             # L'LLM thread aspetta pre_llm_done prima di processare la prima immagine.
             if has_pre_llm:
                 _db_path_for_plugins = db_path
+                _bioclip_thread = next(
+                    (t for t in model_threads if t.name == "model-bioclip"), None
+                )
+                # Separa plugin indipendenti da BioCLIP da quelli che ne dipendono
+                _plugins_no_bioclip = [
+                    p for p in self.pre_llm_plugins
+                    if p.get('run_condition') != 'bioclip_not_null'
+                ]
+                _plugins_bioclip = [
+                    p for p in self.pre_llm_plugins
+                    if p.get('run_condition') == 'bioclip_not_null'
+                ]
+
                 def _pre_llm_watcher():
                     exif_thread.join()
                     if not self.is_running:
                         pre_llm_done.set()
                         return
                     ids = list(stats.get('processed_ids', []))
-                    self._run_pre_llm_plugins_sync(
-                        self.pre_llm_plugins, _db_path_for_plugins, ids
-                    )
+
+                    # Fase A: plugin indipendenti da BioCLIP (partono subito)
+                    if _plugins_no_bioclip:
+                        self._run_pre_llm_plugins_sync(
+                            _plugins_no_bioclip, _db_path_for_plugins, ids
+                        )
+
+                    # Fase B: plugin che dipendono da BioCLIP (aspettano il suo thread)
+                    if _plugins_bioclip and self.is_running:
+                        if _bioclip_thread is not None and _bioclip_thread.is_alive():
+                            self.log_message.emit(
+                                "⏳ Plugin Pre-LLM: attesa completamento BioCLIP...", "info"
+                            )
+                            _bioclip_thread.join()
+                        self._run_pre_llm_plugins_sync(
+                            _plugins_bioclip, _db_path_for_plugins, ids
+                        )
+
                     self._pre_llm_plugins_ran = True
                     pre_llm_done.set()
+
                 threading.Thread(
                     target=_pre_llm_watcher, daemon=True, name="pre-llm-watcher"
                 ).start()
@@ -1608,8 +1638,22 @@ class ProcessingWorker(QThread):
                     if bioclip_context:
                         sci_name = bioclip_context.split('(')[0].split(',')[0].strip() or None
 
+                    # Leggi vernacular_name da BioNomen (già scritto in DB dal plugin pre_llm)
+                    vern_name = None
+                    try:
+                        with self._db_lock:
+                            _vrow = db_manager.conn.execute(
+                                "SELECT vernacular_name FROM images WHERE filename = ?", (fname,)
+                            ).fetchone()
+                        if _vrow and _vrow[0]:
+                            vern_name = _vrow[0]
+                    except Exception:
+                        pass
+
                     if gen_tags_cfg.get('overwrite'):
-                        final_tags = normalize_tags(llm_tags, scientific_name=sci_name)
+                        final_tags = normalize_tags(
+                            llm_tags, scientific_name=sci_name, vernacular_name=vern_name
+                        )
                     else:
                         # Merge: unione senza duplicati, poi normalize
                         merged = list(existing_tags)
@@ -1617,7 +1661,9 @@ class ProcessingWorker(QThread):
                         for t in llm_tags:
                             if t.lower() not in existing_lower:
                                 merged.append(t)
-                        final_tags = normalize_tags(merged, scientific_name=sci_name)
+                        final_tags = normalize_tags(
+                            merged, scientific_name=sci_name, vernacular_name=vern_name
+                        )
 
                     # Aggiungi città geo come tag (plugin o builtin)
                     if geo_hierarchy:
