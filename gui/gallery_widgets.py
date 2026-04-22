@@ -2509,12 +2509,19 @@ class ImageCard(QFrame):
                         continue
 
                     # Check 4: XMP source disponibile?
-                    sidecar_path = filepath.with_suffix('.xmp')
+                    # Prova convenzione Lightroom (foto.xmp) e Darktable (foto.EXT.xmp)
                     xmp_source = None
+                    for _candidate in [
+                        filepath.with_suffix('.xmp'),
+                        filepath.with_suffix('.XMP'),
+                        Path(str(filepath) + '.xmp'),
+                        Path(str(filepath) + '.XMP'),
+                    ]:
+                        if _candidate.exists():
+                            xmp_source = _candidate
+                            break
 
-                    if sidecar_path.exists():
-                        xmp_source = sidecar_path
-                    else:
+                    if not xmp_source:
                         # Check embedded XMP
                         embedded_formats = {'.jpg', '.jpeg', '.tif', '.tiff', '.dng', '.cr2', '.nef', '.orf', '.arw', '.rw2', '.pef', '.cr3', '.nrw', '.srf', '.sr2'}
                         if filepath.suffix.lower() in embedded_formats:
