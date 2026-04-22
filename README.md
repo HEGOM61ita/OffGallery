@@ -50,14 +50,12 @@
 
 | Data | Cosa | Note |
 |------|------|------|
+| 22 apr 2026 | **Compatibilità Darktable** | Supporto completo al workflow Darktable: lettura sidecar `.NEF.xmp` / `.ARW.xmp` (convenzione `nomefile.EXT.xmp`), preservazione namespace `darktable:` nella creazione di nuovi sidecar, import XMP→DB e sync badge dalla Gallery, opzione **Output format: Lightroom / Darktable** nel tab Export |
 | 12 apr 2026 | **Filtro tassonomia con autocompletamento** | Il filtro "Nome comune" nella Search Tab propone i nomi già presenti nel DB mentre si digita (QComboBox editabile con ricerca per contenuto, case-insensitive) |
 | 5 apr 2026 | **Plugin GeoNames** | Geolocalizzazione avanzata: gerarchia geografica completa (continente → nazione → regione → città), filtro Luogo con autocompletamento dal DB, filtro GPS a 4 stati (tutti / solo GPS / GPS modificato / senza GPS) |
 | 5 apr 2026 | **Filtro Luogo con autocompletamento** | Il campo Luogo nella Search Tab suggerisce le città/regioni già presenti nel database mentre si digita |
 | 22 mar 2026 | **Allocazione device per-modello con auto-ottimizzazione** | Ogni modello AI (CLIP, DINOv2, BioCLIP, Aesthetic, MUSIQ) può essere assegnato individualmente a GPU o CPU. L'algoritmo di auto-ottimizzazione rileva hardware (CUDA/MPS/DirectML), calcola il budget VRAM (incluso LLM), e distribuisce i modelli bilanciando velocità GPU e parallelismo CPU. Barra budget VRAM in tempo reale nel tab Configurazione |
 | 21 mar 2026 | **Sistema Plugin LLM** | Plugin per backend LLM alternativi: **Ollama** (default) e **LM Studio**. Auto-discovery all'avvio, backend selezionabile dal tab Configurazione. Il backend viene rilevato automaticamente (`auto`) senza configurazione manuale |
-| 21 mar 2026 | **Indicatori stato modelli migliorati** | Nuovo schema semafori a 4 stati: verde (VRAM), ambra (CPU), rosso (errore), grigio (disabilitato). BioCLIP con fallback automatico su CPU se VRAM insufficiente |
-| 21 mar 2026 | **Gallery più veloce** | Lettura cache disco spostata su thread worker: la gallery non blocca più la GUI anche con centinaia di risultati |
-| 14 mar 2026 | **Splash screen minimizzabile** | La finestra di avvio è ora minimizzabile durante il caricamento dei modelli AI |
 
 Storico completo nelle [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
@@ -77,7 +75,7 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 | **Supporto RAW Nativo** | 25+ formati RAW supportati (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF...) |
 | **Ricerca similarità visiva** | Un semplice click per trovare immagini simili, doppioni, etc. |
 | **Import da catalogo Lightroom** | Elabora direttamente i file indicizzati in un catalogo `.lrcat` come sorgente di input, senza dover specificare cartelle manualmente |
-| **Integrazione Lightroom** | Sincronizzazione/export bidirezionale XMP con rating, tag e metadati. Nessun dato proprietario viene modificato |
+| **Integrazione Lightroom & Darktable** | Sincronizzazione/export bidirezionale XMP con rating, tag e metadati. Supporto naming sidecar Lightroom (`.xmp`) e Darktable (`.EXT.xmp`). Nessun dato proprietario viene modificato |
 | **Plugin LLM** | Sistema plugin per backend LLM alternativi (Ollama, LM Studio). Auto-discovery all'avvio, cambio backend senza riavvio |
 | **Valutazione Estetica** | Score automatico della qualità artistica (0-10) |
 | **Identificazione Specie** | BioCLIP2 riconosce ~450.000 specie con tassonomia completa a 7 livelli |
@@ -497,7 +495,7 @@ A photographer's tool to catalog thousands of RAW images without sending them to
 | **Native RAW Support** | 25+ RAW formats (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF…) |
 | **Visual Similarity** | One click to find similar images or near-duplicates |
 | **Lightroom Catalog Import** | Process files directly from a `.lrcat` catalog — read-only, no catalog modification |
-| **Lightroom Integration** | Bidirectional XMP sync: ratings, tags, metadata. No proprietary data is modified |
+| **Lightroom & Darktable Integration** | Bidirectional XMP sync: ratings, tags, metadata. Supports Lightroom (`.xmp`) and Darktable (`.EXT.xmp`) sidecar naming. No proprietary data is modified |
 | **LLM Plugins** | Plugin system for alternative LLM backends (Ollama, LM Studio). Auto-discovery at startup, switch backends without restart |
 | **Aesthetic Scoring** | Automatic artistic quality score (0–10) |
 | **Species Identification** | BioCLIP2 recognizes ~450,000 species with full 7-level taxonomy |
@@ -630,14 +628,12 @@ For a full step-by-step guide see **[installer/INSTALL_GUIDE_IT.md](installer/IN
 
 | Date | What | Notes |
 |------|------|-------|
+| 22 Apr 2026 | **Darktable compatibility** | Full Darktable workflow support: reads `.NEF.xmp` / `.ARW.xmp` sidecars (Darktable `filename.EXT.xmp` convention), preserves `darktable:` namespace when creating new sidecars, XMP→DB import and badge sync from Gallery, **Output format: Lightroom / Darktable** option in Export tab |
 | 12 Apr 2026 | **Taxonomy filter with autocomplete** | The "Common name" filter in the Search Tab suggests names already in the DB while typing (editable QComboBox with contains-search, case-insensitive) |
 | 5 Apr 2026 | **GeoNames plugin** | Advanced geolocation: full geographic hierarchy (continent → country → region → city), Location filter with DB autocomplete, GPS filter with 4 states (all / GPS only / GPS modified / no GPS) |
 | 5 Apr 2026 | **Location filter with autocomplete** | The Location field in the Search Tab suggests cities/regions already in the database while typing |
 | 22 Mar 2026 | **Per-model device allocation with auto-optimization** | Each AI model (CLIP, DINOv2, BioCLIP, Aesthetic, MUSIQ) can be individually assigned to GPU or CPU. Auto-optimization detects hardware (CUDA/MPS/DirectML), calculates VRAM budget (including LLM), and balances GPU speed vs CPU parallelism. Real-time VRAM budget bar in Configuration tab |
 | 21 Mar 2026 | **LLM Plugin System** | Plugins for alternative LLM backends: **Ollama** (default) and **LM Studio**. Auto-discovery at startup, backend selectable from the Configuration tab. Backend auto-detected (`auto`) with no manual setup needed |
-| 21 Mar 2026 | **Improved model status indicators** | New 4-state semaphore scheme: green (VRAM), amber (CPU), red (error), grey (disabled). BioCLIP with automatic CPU fallback if VRAM is insufficient |
-| 21 Mar 2026 | **Faster Gallery** | Disk cache reads moved to worker threads: gallery no longer blocks the GUI even with hundreds of results |
-| 14 Mar 2026 | **Minimizable splash screen** | Startup loading screen can now be minimized while AI models load |
 
 Full history in [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
