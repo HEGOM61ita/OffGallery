@@ -7,7 +7,8 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QScrollArea, QPushButton, QMessageBox,
-    QApplication, QProgressDialog, QSizePolicy, QComboBox
+    QApplication, QProgressDialog, QSizePolicy, QComboBox,
+    QDialog, QFormLayout, QDoubleSpinBox, QSpinBox, QDialogButtonBox
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap
@@ -658,11 +659,43 @@ class GalleryTab(QWidget):
             config = self._load_config()
             if not config:
                 return
-        
-            # FIXED: Usa percorso config corretto
-            threshold = config.get('embedding', {}).get('models', {}).get('dinov2', {}).get('similarity_threshold', 0.3)
-            max_results = config.get('similarity', {}).get('max_results', 20)
-            
+
+            default_threshold = config.get('embedding', {}).get('models', {}).get('dinov2', {}).get('similarity_threshold', 0.3)
+            default_max = config.get('similarity', {}).get('max_results', 20)
+
+            # Dialog parametri ricerca
+            dlg = QDialog(self)
+            dlg.setWindowTitle(t("gallery.dialog.dinov2_params_title"))
+            apply_popup_style(dlg)
+            form = QFormLayout(dlg)
+            form.setContentsMargins(16, 16, 16, 16)
+            form.setSpacing(12)
+
+            spin_threshold = QDoubleSpinBox()
+            spin_threshold.setRange(0.0, 1.0)
+            spin_threshold.setSingleStep(0.05)
+            spin_threshold.setDecimals(2)
+            spin_threshold.setValue(default_threshold)
+            spin_threshold.setToolTip(t("gallery.dialog.dinov2_threshold_tooltip"))
+            form.addRow(t("gallery.dialog.dinov2_threshold_label"), spin_threshold)
+
+            spin_max = QSpinBox()
+            spin_max.setRange(1, 1000)
+            spin_max.setValue(default_max)
+            spin_max.setToolTip(t("gallery.dialog.dinov2_max_tooltip"))
+            form.addRow(t("gallery.dialog.dinov2_max_label"), spin_max)
+
+            buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+            buttons.accepted.connect(dlg.accept)
+            buttons.rejected.connect(dlg.reject)
+            form.addRow(buttons)
+
+            if dlg.exec() != QDialog.DialogCode.Accepted:
+                return
+
+            threshold = spin_threshold.value()
+            max_results = spin_max.value()
+
             progress = QProgressDialog(self)
             progress.setWindowTitle(t("gallery.progress.similar_title"))
             progress.setLabelText(t("gallery.progress.similar_loading"))
@@ -718,8 +751,8 @@ class GalleryTab(QWidget):
             QApplication.processEvents()
         
             db_manager.cursor.execute(
-                "SELECT * FROM images WHERE dinov2_embedding IS NOT NULL AND id != ?",
-                (ref_id,)
+                "SELECT * FROM images WHERE dinov2_embedding IS NOT NULL",
+                ()
             )
             columns = [desc[0] for desc in db_manager.cursor.description]
             all_rows = db_manager.cursor.fetchall()
