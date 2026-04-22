@@ -674,7 +674,7 @@ class ProcessingWorker(QThread):
     def _prep_image(self, image_path, raw_processor, config, db_manager,
                     processing_mode, emb_flags, llm_gen_config,
                     temp_dir=None, geo_plugin=None, geo_plugin_cfg=None,
-                    disk_consumers=0):
+                    disk_consumers=0, stats=None):
         """Estrae EXIF + thumbnail in parallelo, poi geo + hash + DB insert.
         Le due operazioni più lente (exif e thumb) vengono sovrapposte con
         due thread interni sincronizzati tramite threading.Event.
@@ -878,7 +878,7 @@ class ProcessingWorker(QThread):
                     _row = db_manager.conn.execute(
                         "SELECT id FROM images WHERE filename = ?", (fname,)
                     ).fetchone()
-                    if _row:
+                    if _row and stats is not None:
                         stats['processed_ids'].append(_row[0])
                     self.log_message.emit(f"🔄 DB aggiornato (reprocess): {fname}", "debug")
                 elif image_exists:
@@ -887,7 +887,8 @@ class ProcessingWorker(QThread):
                     image_id = db_manager.insert_image(image_data)
                     is_new = True
                     if image_id:
-                        stats['processed_ids'].append(image_id)
+                        if stats is not None:
+                            stats['processed_ids'].append(image_id)
                         self.log_message.emit(f"✅ DB inserito: {fname} (ID: {image_id})", "debug")
                     else:
                         self.log_message.emit(f"❌ DB inserimento fallito: {fname}", "error")
@@ -1548,6 +1549,7 @@ class ProcessingWorker(QThread):
                 temp_dir=temp_dir,
                 geo_plugin=geo_plugin, geo_plugin_cfg=geo_plugin_cfg,
                 disk_consumers=disk_consumers,
+                stats=stats,
             )
 
             if prep:
