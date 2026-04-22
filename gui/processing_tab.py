@@ -802,7 +802,7 @@ class ProcessingWorker(QThread):
             # Assembla image_data con i metadati EXIF
             image_data = {
                 'filename': fname,
-                'filepath': str(image_path),
+                'filepath': str(image_path.resolve()),
                 'file_size': image_path.stat().st_size,
                 'file_format': image_path.suffix.lower().replace('.', ''),
                 'is_raw': is_raw,

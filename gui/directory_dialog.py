@@ -316,12 +316,18 @@ class DirectoryTreeWidget(QWidget):
                 self._build_subtree(child_item, children, sub_root)
 
     def _update_aggregate_counts(self):
-        """Aggiorna testo nodi intermedi con conteggio aggregato dei figli."""
+        """Aggiorna testo di tutti i nodi con conteggio aggregato dei discendenti."""
         for i in range(self.tree.topLevelItemCount()):
-            root_item = self.tree.topLevelItem(i)
-            total     = self._count_descendants(root_item)
-            label     = root_item.text(0).split('  (')[0]
-            root_item.setText(0, f"{label}  ({total})")
+            self._update_node_count_recursive(self.tree.topLevelItem(i))
+
+    def _update_node_count_recursive(self, item):
+        """Aggiorna ricorsivamente il conteggio di un nodo e di tutti i suoi figli."""
+        for i in range(item.childCount()):
+            self._update_node_count_recursive(item.child(i))
+        total = self._count_descendants(item)
+        if total > 0:
+            label = item.text(0).split('  (')[0]
+            item.setText(0, f"{label}  ({total})")
 
     def _count_descendants(self, item):
         """Conta ricorsivamente le immagini nei discendenti foglia."""
