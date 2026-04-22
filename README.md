@@ -50,7 +50,7 @@
 
 | Data | Cosa | Note |
 |------|------|------|
-| 22 apr 2026 | **Compatibilità Darktable** | Supporto completo al workflow Darktable: lettura sidecar `.NEF.xmp` / `.ARW.xmp` (convenzione `nomefile.EXT.xmp`), preservazione namespace `darktable:` nella creazione di nuovi sidecar, import XMP→DB e sync badge dalla Gallery, opzione **Output format: Lightroom / Darktable** nel tab Export |
+| 22 apr 2026 | **Compatibilità Darktable e altri editor** | Supporto completo al workflow Darktable: lettura sidecar `.NEF.xmp` / `.ARW.xmp` (convenzione `nomefile.EXT.xmp`), preservazione namespace proprietari nella creazione di nuovi sidecar, import XMP→DB e sync badge dalla Gallery, opzione **Output format: Lightroom / Darktable** nel tab Export. Compatibile con Lightroom, Darktable, Capture One, digiKam, ACDSee, FastRawViewer |
 | 12 apr 2026 | **Filtro tassonomia con autocompletamento** | Il filtro "Nome comune" nella Search Tab propone i nomi già presenti nel DB mentre si digita (QComboBox editabile con ricerca per contenuto, case-insensitive) |
 | 5 apr 2026 | **Plugin GeoNames** | Geolocalizzazione avanzata: gerarchia geografica completa (continente → nazione → regione → città), filtro Luogo con autocompletamento dal DB, filtro GPS a 4 stati (tutti / solo GPS / GPS modificato / senza GPS) |
 | 5 apr 2026 | **Filtro Luogo con autocompletamento** | Il campo Luogo nella Search Tab suggerisce le città/regioni già presenti nel database mentre si digita |
@@ -75,7 +75,7 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 | **Supporto RAW Nativo** | 25+ formati RAW supportati (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF...) |
 | **Ricerca similarità visiva** | Un semplice click per trovare immagini simili, doppioni, etc. |
 | **Import da catalogo Lightroom** | Elabora direttamente i file indicizzati in un catalogo `.lrcat` come sorgente di input, senza dover specificare cartelle manualmente |
-| **Integrazione Lightroom & Darktable** | Sincronizzazione/export bidirezionale XMP con rating, tag e metadati. Supporto naming sidecar Lightroom (`.xmp`) e Darktable (`.EXT.xmp`). Nessun dato proprietario viene modificato |
+| **Integrazione con editor fotografici** | Sincronizzazione/export bidirezionale XMP con rating, tag e metadati. Compatibile con **Lightroom** (`.xmp`), **Darktable** (`.EXT.xmp`), **Capture One**, **digiKam**, **ACDSee**, **FastRawViewer** e qualsiasi software che rispetti lo standard XMP. Nessun dato proprietario viene modificato |
 | **Plugin LLM** | Sistema plugin per backend LLM alternativi (Ollama, LM Studio). Auto-discovery all'avvio, cambio backend senza riavvio |
 | **Valutazione Estetica** | Score automatico della qualità artistica (0-10) |
 | **Identificazione Specie** | BioCLIP2 riconosce ~450.000 specie con tassonomia completa a 7 livelli |
@@ -495,7 +495,7 @@ A photographer's tool to catalog thousands of RAW images without sending them to
 | **Native RAW Support** | 25+ RAW formats (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF…) |
 | **Visual Similarity** | One click to find similar images or near-duplicates |
 | **Lightroom Catalog Import** | Process files directly from a `.lrcat` catalog — read-only, no catalog modification |
-| **Lightroom & Darktable Integration** | Bidirectional XMP sync: ratings, tags, metadata. Supports Lightroom (`.xmp`) and Darktable (`.EXT.xmp`) sidecar naming. No proprietary data is modified |
+| **Integration with photo editors** | Bidirectional XMP sync: ratings, tags, metadata. Compatible with **Lightroom** (`.xmp`), **Darktable** (`.EXT.xmp`), **Capture One**, **digiKam**, **ACDSee**, **FastRawViewer** and any XMP-standard compliant software. No proprietary data is modified |
 | **LLM Plugins** | Plugin system for alternative LLM backends (Ollama, LM Studio). Auto-discovery at startup, switch backends without restart |
 | **Aesthetic Scoring** | Automatic artistic quality score (0–10) |
 | **Species Identification** | BioCLIP2 recognizes ~450,000 species with full 7-level taxonomy |
@@ -628,7 +628,7 @@ For a full step-by-step guide see **[installer/INSTALL_GUIDE_IT.md](installer/IN
 
 | Date | What | Notes |
 |------|------|-------|
-| 22 Apr 2026 | **Darktable compatibility** | Full Darktable workflow support: reads `.NEF.xmp` / `.ARW.xmp` sidecars (Darktable `filename.EXT.xmp` convention), preserves `darktable:` namespace when creating new sidecars, XMP→DB import and badge sync from Gallery, **Output format: Lightroom / Darktable** option in Export tab |
+| 22 Apr 2026 | **Darktable & multi-editor compatibility** | Full Darktable workflow support: reads `.NEF.xmp` / `.ARW.xmp` sidecars (Darktable `filename.EXT.xmp` convention), preserves proprietary namespaces when creating new sidecars, XMP→DB import and badge sync from Gallery, **Output format: Lightroom / Darktable** option in Export tab. Compatible with Lightroom, Darktable, Capture One, digiKam, ACDSee, FastRawViewer |
 | 12 Apr 2026 | **Taxonomy filter with autocomplete** | The "Common name" filter in the Search Tab suggests names already in the DB while typing (editable QComboBox with contains-search, case-insensitive) |
 | 5 Apr 2026 | **GeoNames plugin** | Advanced geolocation: full geographic hierarchy (continent → country → region → city), Location filter with DB autocomplete, GPS filter with 4 states (all / GPS only / GPS modified / no GPS) |
 | 5 Apr 2026 | **Location filter with autocomplete** | The Location field in the Search Tab suggests cities/regions already in the database while typing |
