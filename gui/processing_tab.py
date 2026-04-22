@@ -913,7 +913,7 @@ class ProcessingWorker(QThread):
                     _row = db_manager.conn.execute(
                         "SELECT id FROM images WHERE filename = ?", (fname,)
                     ).fetchone()
-                    if _row and stats is not None:
+                    if _row:
                         stats['processed_ids'].append(_row[0])
                     self.log_message.emit(f"🔄 DB aggiornato (reprocess): {fname}", "debug")
                 elif image_exists:
@@ -922,8 +922,7 @@ class ProcessingWorker(QThread):
                     image_id = db_manager.insert_image(image_data)
                     is_new = True
                     if image_id:
-                        if stats is not None:
-                            stats['processed_ids'].append(image_id)
+                        stats['processed_ids'].append(image_id)
                         self.log_message.emit(f"✅ DB inserito: {fname} (ID: {image_id})", "debug")
                     else:
                         self.log_message.emit(f"❌ DB inserimento fallito: {fname}", "error")
