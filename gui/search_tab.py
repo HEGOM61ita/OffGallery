@@ -754,13 +754,29 @@ class SearchTab(QWidget):
             return
         try:
             db_manager.cursor.execute(
-                "SELECT DISTINCT filepath FROM images WHERE filepath IS NOT NULL"
+                "SELECT id, filepath FROM images WHERE filepath IS NOT NULL"
             )
             rows = db_manager.cursor.fetchall()
+
+            # Normalizza path relativi → assoluti (migrazione one-shot per import precedenti)
+            to_update = []
             dir_counts: dict = {}
-            for (fp,) in rows:
+            for (img_id, fp) in rows:
+                p = Path(fp)
+                if not p.is_absolute():
+                    resolved = p.resolve()
+                    if resolved.exists():
+                        fp = str(resolved)
+                        to_update.append((fp, img_id))
                 d = str(Path(fp).parent)
                 dir_counts[d] = dir_counts.get(d, 0) + 1
+
+            if to_update:
+                db_manager.conn.executemany(
+                    "UPDATE images SET filepath=? WHERE id=?", to_update
+                )
+                db_manager.conn.commit()
+
             self._dir_widget.refresh(dir_counts)
         except Exception as e:
             self.log_message(f"⚠️ Caricamento albero directory: {e}", "warning")
