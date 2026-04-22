@@ -914,7 +914,7 @@ class ProcessingWorker(QThread):
                         "SELECT id FROM images WHERE filename = ?", (fname,)
                     ).fetchone()
                     if _row:
-                        stats['processed_ids'].append(_row[0])
+                        image_id = _row[0]
                     self.log_message.emit(f"🔄 DB aggiornato (reprocess): {fname}", "debug")
                 elif image_exists:
                     self.log_message.emit(f"⏭️ Già nel DB, saltato: {fname}", "debug")
@@ -922,7 +922,6 @@ class ProcessingWorker(QThread):
                     image_id = db_manager.insert_image(image_data)
                     is_new = True
                     if image_id:
-                        stats['processed_ids'].append(image_id)
                         self.log_message.emit(f"✅ DB inserito: {fname} (ID: {image_id})", "debug")
                     else:
                         self.log_message.emit(f"❌ DB inserimento fallito: {fname}", "error")
@@ -1010,6 +1009,7 @@ class ProcessingWorker(QThread):
                 'location_hint':  location_hint,
                 'is_new':         is_new,
                 'ai_fields':      ai_fields,
+                'image_id':       image_id,        # ID DB per processed_ids (raccolto in _thread_exiftool)
             }
 
         except Exception as e:
@@ -1733,6 +1733,8 @@ class ProcessingWorker(QThread):
                 with self._stats_lock:
                     stats['success'] += 1
                     stats['processed'] += 1
+                    if prep.get('image_id'):
+                        stats['processed_ids'].append(prep['image_id'])
 
                 if _has_model_queues:
                     # Crea una barrier per questa foto: si sblocca quando tutti i
