@@ -130,9 +130,10 @@ class ProcessingWorker(QThread):
     log_message = pyqtSignal(str, str)  # message, level
     stats_update = pyqtSignal(dict)  # statistiche live
     finished = pyqtSignal(dict)  # statistiche finali
+    plugin_progress = pyqtSignal(str, int, int)  # plugin_id, current, total
 
     def __init__(self, config_path, input_directory, embedding_gen=None, options=None,
-                 include_subdirs=False, image_list=None):
+                 include_subdirs=False, image_list=None, pre_llm_plugins=None):
         super().__init__()
         self.config_path = config_path
         self.input_directory = Path(input_directory) if input_directory else None
@@ -140,6 +141,8 @@ class ProcessingWorker(QThread):
         self.options = options or {}
         self.include_subdirs = include_subdirs
         self.image_list = image_list
+        self.pre_llm_plugins = list(pre_llm_plugins or [])
+        self._pre_llm_plugins_ran = False  # True se eseguiti dentro il worker
         self.is_running = True
         self.is_paused = False
         # Sincronizzazione multi-thread
@@ -497,11 +500,21 @@ class ProcessingWorker(QThread):
             # Modelli che partecipano alla barrier (tutti eccetto LLM)
             _barrier_modelli = list(model_queues.keys())  # es. ['clip','dinov2','bioclip']
 
+            # ─── EVENTO PRE-LLM ───
+            # I plugin pre_llm girano in parallelo agli embedding, avviandosi appena
+            # ExifTool finisce (tutti i record DB esistono). L'LLM attende pre_llm_done
+            # prima di processare la prima immagine — le immagini si accumulano in llm_queue.
+            has_pre_llm = bool(self.pre_llm_plugins) and llm_active
+            pre_llm_done = threading.Event()
+            if not has_pre_llm:
+                pre_llm_done.set()  # nessun plugin → LLM parte libero
+
             # ─── AVVIO THREAD ───
+            _pre_llm_label = f" + {len(self.pre_llm_plugins)} Plugin Pre-LLM" if has_pre_llm else ""
             self.log_message.emit("═" * 50, "info")
             _thread_labels = [mk.upper() for mk in _barrier_modelli] + (['LLM'] if llm_active else [])
             self.log_message.emit(
-                f"Avvio thread: ExifTool + {', '.join(_thread_labels) if _thread_labels else 'nessun modello'}",
+                f"Avvio thread: ExifTool + {', '.join(_thread_labels) if _thread_labels else 'nessun modello'}{_pre_llm_label}",
                 "info")
             self.log_message.emit("═" * 50, "info")
 
@@ -539,11 +552,13 @@ class ProcessingWorker(QThread):
                     target=self._thread_llm,
                     args=(prep_cache, llm_generator, db_manager,
                           llm_gen_config, stats, model_total,
-                          bioclip_results, bioclip_lock, llm_queue),
+                          bioclip_results, bioclip_lock, llm_queue,
+                          pre_llm_done if has_pre_llm else None),
                     name="model-llm", daemon=True
                 )
                 model_threads.append(t)
-                self.log_message.emit("🚀 Thread LLM pronto", "info")
+                _llm_wait_note = " (attende Plugin Pre-LLM)" if has_pre_llm else ""
+                self.log_message.emit(f"🚀 Thread LLM pronto{_llm_wait_note}", "info")
 
             # Thread ExifTool (produttore — ultimo perché usa model_queues e llm_queue)
             exif_thread = threading.Thread(
@@ -569,6 +584,26 @@ class ProcessingWorker(QThread):
 
             # ExifTool parte per primo e alimenta le code con backpressure naturale
             exif_thread.start()
+
+            # Watcher pre_llm: parte appena ExifTool finisce (tutti i record DB esistono)
+            # ed esegue i plugin pre_llm in parallelo agli embedding.
+            # L'LLM thread aspetta pre_llm_done prima di processare la prima immagine.
+            if has_pre_llm:
+                _db_path_for_plugins = db_path
+                def _pre_llm_watcher():
+                    exif_thread.join()
+                    if not self.is_running:
+                        pre_llm_done.set()
+                        return
+                    ids = list(stats.get('processed_ids', []))
+                    self._run_pre_llm_plugins_sync(
+                        self.pre_llm_plugins, _db_path_for_plugins, ids
+                    )
+                    self._pre_llm_plugins_ran = True
+                    pre_llm_done.set()
+                threading.Thread(
+                    target=_pre_llm_watcher, daemon=True, name="pre-llm-watcher"
+                ).start()
 
             # Attendi completamento con check is_running (permette stop reattivo)
             for t in model_threads:
@@ -674,7 +709,7 @@ class ProcessingWorker(QThread):
     def _prep_image(self, image_path, raw_processor, config, db_manager,
                     processing_mode, emb_flags, llm_gen_config,
                     temp_dir=None, geo_plugin=None, geo_plugin_cfg=None,
-                    disk_consumers=0, stats=None):
+                    disk_consumers=0):
         """Estrae EXIF + thumbnail in parallelo, poi geo + hash + DB insert.
         Le due operazioni più lente (exif e thumb) vengono sovrapposte con
         due thread interni sincronizzati tramite threading.Event.
@@ -1274,15 +1309,158 @@ class ProcessingWorker(QThread):
         self.log_message.emit("✅ Thread BioCLIP completato", "info")
 
     # ─────────────────────────────────────────────────────────────
+    # PLUGIN PRE-LLM — esecuzione sincrona dentro il worker
+    # ─────────────────────────────────────────────────────────────
+
+    def _run_pre_llm_plugins_sync(self, plugins, db_path, processed_ids):
+        """Esegue i plugin pre_llm in sequenza sincrona, dentro il worker thread.
+        Avviato dal watcher thread dopo che ExifTool ha completato tutti i DB insert.
+        Emette log_message e plugin_progress verso la UI principale.
+        """
+        import os as _os
+        import tempfile
+
+        n_plugins = len(plugins)
+        n_ids = len(processed_ids)
+
+        self.log_message.emit("═" * 50, "info")
+        self.log_message.emit(
+            f"▌ FASE 1.5 — Plugin Pre-LLM  ({n_plugins} plugin · {n_ids} immagini)",
+            "info"
+        )
+        self.log_message.emit("═" * 50, "info")
+
+        tmp_files = []
+
+        for idx, manifest in enumerate(plugins, 1):
+            if not self.is_running:
+                break
+
+            plugin_id   = manifest.get('id', '')
+            plugin_name = manifest.get('name', plugin_id)
+            plugin_dir  = manifest.get('_dir', '')
+            entry_point = manifest.get('entry_point', '')
+            entry_path  = Path(plugin_dir) / entry_point
+
+            if not entry_path.exists():
+                self.log_message.emit(
+                    f"  ⚠️ [{idx}/{n_plugins}] {plugin_name}: entry point non trovato — saltato",
+                    "warning"
+                )
+                continue
+
+            t_start = time.time()
+            self.log_message.emit(
+                f"  ▶ [{idx}/{n_plugins}] {plugin_name} — {n_ids} immagini",
+                "info"
+            )
+            # Barra a 0 visibile
+            self.plugin_progress.emit(plugin_id, 0, max(n_ids, 1))
+
+            # Costruisce comando headless
+            cmd = [sys.executable, str(entry_path)]
+            if db_path:
+                cmd += ['--db', db_path]
+
+            # File temporaneo IDs
+            _ids_tmp = None
+            if processed_ids:
+                _ids_tmp = tempfile.NamedTemporaryFile(
+                    mode='w', suffix='.json', delete=False, encoding='utf-8'
+                )
+                import json as _json
+                _json.dump(processed_ids, _ids_tmp)
+                _ids_tmp.flush()
+                _ids_tmp.close()
+                tmp_files.append(_ids_tmp.name)
+                cmd += ['--ids-file', _ids_tmp.name, '--mode', 'ids']
+            else:
+                cmd += ['--mode', 'unprocessed']
+
+            if manifest.get('run_condition') == 'bioclip_not_null':
+                cmd += ['--filter-bioclip']
+
+            config_json = Path(plugin_dir) / 'config.json'
+            if config_json.exists():
+                cmd += ['--config', str(config_json)]
+
+            cmd += ['--headless']
+
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1
+                )
+                for line in proc.stdout:
+                    line = line.rstrip()
+                    if not line:
+                        continue
+                    if line.startswith('PROGRESS:'):
+                        try:
+                            parts = line.split(':')
+                            curr_p, tot_p = int(parts[1]), int(parts[2])
+                            self.plugin_progress.emit(plugin_id, curr_p, max(tot_p, 1))
+                        except Exception:
+                            pass
+                    else:
+                        self.log_message.emit(f"    {plugin_id}: {line}", "debug")
+                proc.wait()
+                rc = proc.returncode
+                elapsed = time.time() - t_start
+                if rc == 0:
+                    self.log_message.emit(
+                        f"  ✅ [{idx}/{n_plugins}] {plugin_name} — completato in {elapsed:.1f}s",
+                        "success"
+                    )
+                else:
+                    self.log_message.emit(
+                        f"  ⚠️ [{idx}/{n_plugins}] {plugin_name} — exit code {rc} ({elapsed:.1f}s)",
+                        "warning"
+                    )
+            except Exception as e:
+                self.log_message.emit(
+                    f"  ❌ [{idx}/{n_plugins}] {plugin_name} — errore avvio: {e}",
+                    "error"
+                )
+
+            # Barra al 100%
+            self.plugin_progress.emit(plugin_id, n_ids, max(n_ids, 1))
+
+        # Pulizia file temporanei
+        for f in tmp_files:
+            try:
+                _os.unlink(f)
+            except Exception:
+                pass
+
+        self.log_message.emit("═" * 50, "info")
+        self.log_message.emit(
+            f"▌ Plugin Pre-LLM completati — avvio generazione LLM",
+            "info"
+        )
+        self.log_message.emit("═" * 50, "info")
+
+    # ─────────────────────────────────────────────────────────────
     # THREAD LLM VISION
     # ─────────────────────────────────────────────────────────────
     def _thread_llm(self, prep_cache, emb_gen, db_manager, llm_gen_config, stats, total,
-                    bioclip_results, bioclip_lock, llm_queue):
+                    bioclip_results, bioclip_lock, llm_queue, pre_llm_done_event=None):
         """Thread LLM: consuma dalla coda, genera tags/descrizione/titolo."""
         gen_tags_cfg = llm_gen_config.get('tags', {})
         gen_desc_cfg = llm_gen_config.get('description', {})
         gen_title_cfg = llm_gen_config.get('title', {})
         processed = 0
+
+        # Attende i plugin Pre-LLM prima di iniziare (se presenti)
+        if pre_llm_done_event is not None:
+            self.log_message.emit("⏳ LLM: in attesa completamento Plugin Pre-LLM...", "info")
+            while not pre_llm_done_event.wait(timeout=2.0):
+                if not self.is_running:
+                    return
+            self.log_message.emit("✅ Plugin Pre-LLM completati — avvio generazione LLM", "info")
 
         while self.is_running:
             # Attendi prossima immagine dalla coda (timeout per controllare is_running)
@@ -1549,7 +1727,6 @@ class ProcessingWorker(QThread):
                 temp_dir=temp_dir,
                 geo_plugin=geo_plugin, geo_plugin_cfg=geo_plugin_cfg,
                 disk_consumers=disk_consumers,
-                stats=stats,
             )
 
             if prep:
@@ -1850,7 +2027,10 @@ class ProcessingTab(QWidget):
 
         # Raggruppa plugin per pipeline_stage; plugin senza stage → post_import
         _stage_order = ['pre_llm', 'post_import']
-        _stage_labels = {'pre_llm': 'Pre-LLM', 'post_import': 'Post-import'}
+        _stage_labels = {
+            'pre_llm':     'Pre-LLM  ·  eseguito prima della generazione testo',
+            'post_import': 'Post-import  ·  eseguito al termine dell\'elaborazione',
+        }
         _stage_colors = {'pre_llm': ('#b87333', '#d4924a'), 'post_import': ('#4a7c59', '#6aad7e')}
 
         from collections import defaultdict
@@ -1863,7 +2043,7 @@ class ProcessingTab(QWidget):
         extra_stages = [s for s in _by_stage if s not in _stage_order]
         stages_to_show = [s for s in _stage_order if s in _by_stage] + extra_stages
 
-        # Helper: sotto-separatore stage
+        # Helper: sotto-separatore stage con etichetta e sottotitolo inline
         def _make_stage_sep(label: str, color_line: str, color_text: str) -> QWidget:
             w = QWidget()
             lay = QHBoxLayout(w)
@@ -1921,6 +2101,12 @@ class ProcessingTab(QWidget):
                         "  border: 1px solid #4a90d9;"
                         "  image: url(none);"
                         "}"
+                    )
+                    chk_lay.addWidget(chk)
+                elif stage == 'pre_llm':
+                    chk.setToolTip(
+                        f"Esegui {plugin_name} prima della generazione LLM\n"
+                        f"(arricchisce il contesto per tags · titolo · descrizione)"
                     )
                     chk_lay.addWidget(chk)
                 else:
@@ -2025,11 +2211,16 @@ class ProcessingTab(QWidget):
     # ─────────────────────────────────────────────────────────────
 
     def _launch_post_import_plugins(self, processed_ids=None):
-        """Lancia in sequenza i plugin abilitati dopo il completamento dell'import."""
-        # Determina quali plugin sono abilitati
+        """Lancia in sequenza i plugin abilitati dopo il completamento dell'import.
+        I plugin pre_llm già eseguiti dentro il worker vengono saltati.
+        """
+        # I plugin pre_llm sono già stati eseguiti se il worker li ha gestiti
+        _pre_llm_ran = getattr(self.worker, '_pre_llm_plugins_ran', False)
+
         to_run = [
             m for m in self._discovered_plugins
             if self._plugin_rows.get(m.get('id', ''), {}).get('check', QCheckBox()).isChecked()
+            and not (_pre_llm_ran and m.get('pipeline_stage') == 'pre_llm')
         ]
         if not to_run:
             return
@@ -2164,11 +2355,13 @@ class ProcessingTab(QWidget):
         reader.start()
 
     def _on_plugin_progress(self, plugin_id: str, current: int, total: int):
-        """Aggiorna la progress bar del plugin in base a PROGRESS:n:total."""
+        """Aggiorna la progress bar del plugin (usato sia da pre_llm che da post-import)."""
         row = self._plugin_rows.get(plugin_id, {})
         pb = row.get('bar')
-        if pb and total > 0:
-            pb.setValue(int(current * 100 / total))
+        if pb:
+            pb.setVisible(True)
+            if total > 0:
+                pb.setValue(int(current * 100 / total))
 
     def _on_plugin_finished(self, plugin_id: str):
         """Chiamato quando un plugin subprocess termina."""
@@ -3237,6 +3430,23 @@ class ProcessingTab(QWidget):
             else:
                 image_list = None
 
+            # Raccogli plugin pre_llm abilitati da passare al worker
+            _llm_active = bool(
+                llm_gen_config.get('tags', {}).get('enabled') or
+                llm_gen_config.get('description', {}).get('enabled') or
+                llm_gen_config.get('title', {}).get('enabled')
+            )
+            _pre_llm_plugins = []
+            if _llm_active:
+                _pre_llm_plugins = [
+                    m for m in self._discovered_plugins
+                    if m.get('pipeline_stage') == 'pre_llm'
+                    and not m.get('config_only', False)
+                    and m.get('plugin_type') != 'geo_enricher'
+                    and m.get('type') != 'llm_backend'
+                    and self._plugin_rows.get(m.get('id', ''), {}).get('check', QCheckBox()).isChecked()
+                ]
+
             self.worker = ProcessingWorker(
                 self.config_path,
                 input_dir_text,
@@ -3246,7 +3456,8 @@ class ProcessingTab(QWidget):
                     'embedding_model_flags': embedding_model_flags,
                 },
                 include_subdirs=self.include_subdirs_cb.isChecked(),
-                image_list=image_list
+                image_list=image_list,
+                pre_llm_plugins=_pre_llm_plugins
             )
 
             # Connetti segnali
@@ -3255,6 +3466,7 @@ class ProcessingTab(QWidget):
             self.worker.log_message.connect(self.add_log_message)
             self.worker.stats_update.connect(self.update_stats)
             self.worker.finished.connect(self.processing_finished)
+            self.worker.plugin_progress.connect(self._on_plugin_progress)
 
             # Reset progress bar per-modello e cache setRange
             self._progress_range_set.clear()
