@@ -360,13 +360,32 @@ class XMPManagerExtended:
         
         return False
     
+    def _resolve_sidecar_path(self, file_path: Path, for_write: bool = False) -> Path:
+        """Risolve il path del sidecar .xmp supportando convenzione Lightroom e Darktable.
+        Lightroom: nomefile.xmp — Darktable: nomefile.EXT.xmp (es. foto.NEF.xmp).
+        In lettura restituisce il sidecar esistente; in scrittura preferisce Lightroom,
+        ma usa il sidecar Darktable se è l'unico presente."""
+        lr_path = file_path.with_suffix('.xmp')
+        dt_path = Path(str(file_path) + '.xmp')
+        if for_write:
+            # Scrivi nel sidecar già esistente; crea Lightroom-style se nessuno esiste
+            if not lr_path.exists() and dt_path.exists():
+                return dt_path
+            return lr_path
+        # Lettura: priorità Lightroom, fallback Darktable
+        for candidate in [lr_path, file_path.with_suffix('.XMP'),
+                          dt_path, Path(str(file_path) + '.XMP')]:
+            if candidate.exists():
+                return candidate
+        return lr_path  # non esiste, restituisce il path canonico
+
     def read_xmp_sidecar(self, file_path: Path) -> Optional[Dict[str, Any]]:
         """
         UNIFICATO: Legge XMP sidecar usando RAWProcessor per consistenza totale
         Garantisce parsing standard Lightroom/ExifTool identico all'estrazione iniziale
         """
-        sidecar_path = file_path.with_suffix('.xmp')  # Naming Lightroom standard
-        
+        sidecar_path = self._resolve_sidecar_path(file_path)
+
         if not sidecar_path.exists():
             return None
         
@@ -929,7 +948,7 @@ class XMPManagerExtended:
         I namespace non gestiti (crs:, lr:, xmpMM:, photoshop:) vengono preservati
         automaticamente da ExifTool (scrittura campo per campo).
         """
-        sidecar_path = file_path.with_suffix('.xmp')
+        sidecar_path = self._resolve_sidecar_path(file_path, for_write=True)
 
         try:
             if self.exiftool_available:

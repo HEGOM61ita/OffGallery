@@ -865,6 +865,11 @@ class RAWProcessor:
         if not xmp_path.exists():
             xmp_path = raw_path.with_suffix('.XMP')
         if not xmp_path.exists():
+            # Convenzione Darktable: nomefile.EXT.xmp (es. foto.NEF.xmp)
+            xmp_path = Path(str(raw_path) + '.xmp')
+        if not xmp_path.exists():
+            xmp_path = Path(str(raw_path) + '.XMP')
+        if not xmp_path.exists():
             return {}
         try:
             et = get_exiftool()
