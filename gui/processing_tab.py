@@ -504,7 +504,8 @@ class ProcessingWorker(QThread):
             # I plugin pre_llm girano in parallelo agli embedding, avviandosi appena
             # ExifTool finisce (tutti i record DB esistono). L'LLM attende pre_llm_done
             # prima di processare la prima immagine — le immagini si accumulano in llm_queue.
-            has_pre_llm = bool(self.pre_llm_plugins) and llm_active
+            # GeoNames (geo_enricher) gira sempre, anche senza LLM attivo
+            has_pre_llm = bool(self.pre_llm_plugins)
             pre_llm_done = threading.Event()
             if not has_pre_llm:
                 pre_llm_done.set()  # nessun plugin → LLM parte libero
@@ -1402,9 +1403,17 @@ class ProcessingWorker(QThread):
                 _ids_tmp.flush()
                 _ids_tmp.close()
                 tmp_files.append(_ids_tmp.name)
-                cmd += ['--ids-file', _ids_tmp.name, '--mode', 'ids']
+
+            is_geo_enricher = manifest.get('plugin_type') == 'geo_enricher'
+            if is_geo_enricher:
+                cmd += ['--mode', 'overwrite', '--overwrite']
+                if _ids_tmp:
+                    cmd += ['--ids-file', _ids_tmp.name]
             else:
-                cmd += ['--mode', 'unprocessed']
+                if _ids_tmp:
+                    cmd += ['--ids-file', _ids_tmp.name, '--mode', 'ids']
+                else:
+                    cmd += ['--mode', 'unprocessed']
 
             if manifest.get('run_condition') == 'bioclip_not_null':
                 cmd += ['--filter-bioclip']
@@ -3435,9 +3444,15 @@ class ProcessingTab(QWidget):
                 llm_gen_config.get('description', {}).get('enabled') or
                 llm_gen_config.get('title', {}).get('enabled')
             )
-            _pre_llm_plugins = []
+            # Geo_enricher pre_llm girano sempre (indipendenti da LLM)
+            _pre_llm_plugins = [
+                m for m in self._discovered_plugins
+                if m.get('pipeline_stage') == 'pre_llm'
+                and m.get('plugin_type') == 'geo_enricher'
+                and self._plugin_rows.get(m.get('id', ''), {}).get('check', QCheckBox()).isChecked()
+            ]
             if _llm_active:
-                _pre_llm_plugins = [
+                _pre_llm_plugins += [
                     m for m in self._discovered_plugins
                     if m.get('pipeline_stage') == 'pre_llm'
                     and not m.get('config_only', False)
