@@ -822,15 +822,24 @@ class DatabaseManager:
             # Filtra solo i campi validi dal database
             update_data = {}
             for key, value in image_data.items():
-                if key in valid_columns and key not in {'id', 'filename', 'filepath', 'file_hash'}:
+                if key in valid_columns and key not in {'id', 'filename', 'file_hash'}:
                     update_data[key] = value
-            
+
             if not update_data:
                 logger.warning(f"Nessun campo valido da aggiornare per {filename}")
                 return False
-            
-            # Usa update_image_metadata esistente
-            success = self.update_image_metadata(image_id, **update_data)
+
+            # filepath aggiornato direttamente (non passa per update_image_metadata)
+            new_filepath = update_data.pop('filepath', None)
+            if new_filepath:
+                self.cursor.execute(
+                    "UPDATE images SET filepath=? WHERE id=?", (new_filepath, image_id)
+                )
+
+            # Usa update_image_metadata esistente per gli altri campi
+            success = True
+            if update_data:
+                success = self.update_image_metadata(image_id, **update_data)
             
             if success:
                 logger.info(f"✅ Aggiornata immagine: {filename} ({len(update_data)} campi)")
