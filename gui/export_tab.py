@@ -88,6 +88,7 @@ class ExportTab(QWidget):
         # Connetti format_sidecar alla sezione destinazione
         # (embedded e copy sono già collegati nei rispettivi toggle)
         self.format_sidecar.toggled.connect(self._update_destination_ui)
+        self.format_sidecar.toggled.connect(self.sidecar_naming_widget.setEnabled)
 
         # Stato iniziale della sezione destinazione
         self._update_destination_ui()
@@ -157,6 +158,34 @@ class ExportTab(QWidget):
         # --- XMP sidecar ---
         self.format_sidecar = QCheckBox(t("export.check.xmp_sidecar"))
         self.format_sidecar.setToolTip(t("export.tooltip.xmp_sidecar"))
+
+        # Sub-opzione naming sidecar (indentata, visibile solo con sidecar attivo)
+        self.sidecar_lr = QRadioButton(t("export.radio.sidecar_lr"))
+        self.sidecar_lr.setToolTip(t("export.tooltip.sidecar_lr"))
+        self.sidecar_lr.setChecked(True)
+        self.sidecar_dt = QRadioButton(t("export.radio.sidecar_dt"))
+        self.sidecar_dt.setToolTip(t("export.tooltip.sidecar_dt"))
+        self.sidecar_naming_group = QButtonGroup(self)
+        self.sidecar_naming_group.addButton(self.sidecar_lr)
+        self.sidecar_naming_group.addButton(self.sidecar_dt)
+
+        naming_label = QLabel(t("export.label.sidecar_output_format"))
+        naming_label.setStyleSheet("color: #666; font-size: 11px;")
+        naming_row = QWidget()
+        naming_row_layout = QHBoxLayout(naming_row)
+        naming_row_layout.setContentsMargins(0, 0, 0, 0)
+        naming_row_layout.setSpacing(10)
+        naming_row_layout.addWidget(naming_label)
+        naming_row_layout.addWidget(self.sidecar_lr)
+        naming_row_layout.addWidget(self.sidecar_dt)
+        naming_row_layout.addStretch()
+
+        sidecar_sub = QWidget()
+        sidecar_sub_layout = QVBoxLayout(sidecar_sub)
+        sidecar_sub_layout.setContentsMargins(24, 2, 0, 2)
+        sidecar_sub_layout.setSpacing(0)
+        sidecar_sub_layout.addWidget(naming_row)
+        self.sidecar_naming_widget = sidecar_sub
 
         # --- XMP embedded + opzione DNG indentata ---
         self.format_embedded = QCheckBox(t("export.check.xmp_embedded"))
@@ -269,6 +298,7 @@ class ExportTab(QWidget):
         # --- Layout: sezione XMP ---
         layout.addWidget(_section_label("📋", t("export.section.xmp")))
         layout.addWidget(self.format_sidecar)
+        layout.addWidget(self.sidecar_naming_widget)
         layout.addWidget(self.format_embedded)
         layout.addWidget(self.dng_options_widget)
 
@@ -609,6 +639,7 @@ class ExportTab(QWidget):
         return {
             'format': {
                 'sidecar':                 self.format_sidecar.isChecked(),
+                'sidecar_naming':          'darktable' if self.sidecar_dt.isChecked() else 'lightroom',
                 'embedded':                self.format_embedded.isChecked(),
                 'dng_allow_embedded':      self.dng_allow_embedded.isChecked(),
                 'csv':                     self.format_csv.isChecked(),
@@ -642,6 +673,10 @@ class ExportTab(QWidget):
             widget.blockSignals(False)
 
         _set(self.format_sidecar,              'sidecar',                 True)
+        naming = fmt.get('sidecar_naming', 'lightroom')
+        self.sidecar_lr.setChecked(naming != 'darktable')
+        self.sidecar_dt.setChecked(naming == 'darktable')
+        self.sidecar_naming_widget.setEnabled(fmt.get('sidecar', True))
         _set(self.format_embedded,             'embedded',                False)
         _set(self.dng_allow_embedded,          'dng_allow_embedded',      False)
         _set(self.format_csv,                  'csv',                     False)
@@ -1424,8 +1459,12 @@ class ExportTab(QWidget):
             keywords = list(dict.fromkeys(keywords))
 
             # Determina path XMP
+            naming = options['format'].get('sidecar_naming', 'lightroom')
             if options['path']['original']:
-                sidecar_path = image_file.with_suffix('.xmp')
+                if naming == 'darktable':
+                    sidecar_path = Path(str(image_file) + '.xmp')
+                else:
+                    sidecar_path = image_file.with_suffix('.xmp')
             else:
                 single_dir = options['path']['single_dir']
                 if not single_dir:
