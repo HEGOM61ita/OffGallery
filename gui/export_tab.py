@@ -170,7 +170,7 @@ class ExportTab(QWidget):
         self.sidecar_naming_group.addButton(self.sidecar_dt)
 
         naming_label = QLabel(t("export.label.sidecar_output_format"))
-        naming_label.setStyleSheet("color: #666; font-size: 11px;")
+        naming_label.setStyleSheet("color: #ffffff; font-size: 11px;")
         naming_row = QWidget()
         naming_row_layout = QHBoxLayout(naming_row)
         naming_row_layout.setContentsMargins(0, 0, 0, 0)
