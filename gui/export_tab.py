@@ -1575,25 +1575,12 @@ class ExportTab(QWidget):
             else:
                 final_keywords = list(dict.fromkeys(keywords))
 
-            # Azzera dc:Subject nel sidecar esistente prima di riscrivere
-            # MAI cancellare il file: potrebbe contenere dati Lightroom/altri software non gestiti
-            if sidecar_path.exists():
-                try:
-                    clear_cmd = ["exiftool", "-overwrite_original", "-XMP-dc:Subject=", str(sidecar_path)]
-                    clear_result = subprocess.run(clear_cmd, capture_output=True, text=True, timeout=10,
-                                                  **subprocess_creation_kwargs())
-                    if clear_result.returncode != 0:
-                        print(f"❌ Errore pulizia Subject nel sidecar, export annullato per sicurezza: {clear_result.stderr}")
-                        return False
-                except Exception as clear_error:
-                    print(f"❌ Errore ExifTool nel clear Subject, export annullato per sicurezza: {clear_error}")
-                    return False
-
             cmd = ["exiftool", "-overwrite_original"]
 
-            if final_keywords:
-                for kw in final_keywords:
-                    cmd.append(f"-XMP-dc:Subject+={kw}")
+            # Azzera dc:Subject nella stessa cmd e riscrive: evita incoerenze tra due chiamate ExifTool separate
+            cmd.append("-XMP-dc:Subject=")
+            for kw in final_keywords:
+                cmd.append(f"-XMP-dc:Subject+={kw}")
 
             # Comportamento per campo — tutti i flag
             do_preserve_rating = options['advanced'].get('xmp_preserve_rating', True)
@@ -1638,70 +1625,56 @@ class ExportTab(QWidget):
                 if not do_preserve_color_label or not existing_scalar.get('color_label'):
                     cmd.append(f"-XMP-xmp:Label={color_label}")
 
-            # BIOCLIP HIERARCHICAL TAXONOMY → HierarchicalSubject + dc:Subject
+            # HIERARCHICALSUBJECT: lettura unica, filtro combinato, scrittura unica
+            # Legge gli HS esistenti una sola volta e filtra entrambi i rami gestiti (AI|Taxonomy e GeOFF|)
+            # per evitare che due sezioni separate aggiungano ciascuna un proprio "-HS=" alla stessa cmd
+            # (ExifTool accumula i += anche dopo un secondo =, causando duplicati dei tag preesistenti)
             bioclip_taxonomy_raw = image_item.image_data.get('bioclip_taxonomy', '')
+            geo_hierarchy = image_item.image_data.get('geo_hierarchy', '')
+
+            bioclip_hier_path = None
             if bioclip_taxonomy_raw:
                 try:
                     from embedding_generator import EmbeddingGenerator
                     taxonomy = json.loads(bioclip_taxonomy_raw) if isinstance(bioclip_taxonomy_raw, str) else bioclip_taxonomy_raw
                     if taxonomy and isinstance(taxonomy, list):
-                        hierarchical_path = EmbeddingGenerator.build_hierarchical_taxonomy(taxonomy, prefix="AI|Taxonomy")
-                        if hierarchical_path:
-                            # Leggi HierarchicalSubject esistenti, preserva quelli non-AI
-                            existing_hier = []
-                            if sidecar_path.exists():
-                                try:
-                                    hier_result = subprocess.run(
-                                        ['exiftool', '-j', '-XMP-lr:HierarchicalSubject', str(sidecar_path)],
-                                        capture_output=True, text=True, timeout=10,
-                                        **subprocess_creation_kwargs()
-                                    )
-                                    if hier_result.returncode == 0 and hier_result.stdout.strip():
-                                        hier_data = json.loads(hier_result.stdout)
-                                        if hier_data:
-                                            hs = hier_data[0].get('HierarchicalSubject', [])
-                                            if isinstance(hs, str):
-                                                hs = [hs]
-                                            existing_hier = [s for s in hs if not s.startswith('AI|Taxonomy')]
-                                except Exception:
-                                    pass
-
-                            # HierarchicalSubject: cancella ramo AI e riscrivi
-                            # NON scrivere in dc:Subject: BioCLIP resta separato dai tag LLM/utente
-                            cmd.append("-XMP-lr:HierarchicalSubject=")
-                            for subject in existing_hier:
-                                cmd.append(f"-XMP-lr:HierarchicalSubject+={subject}")
-                            cmd.append(f"-XMP-lr:HierarchicalSubject+={hierarchical_path}")
+                        bioclip_hier_path = EmbeddingGenerator.build_hierarchical_taxonomy(taxonomy, prefix="AI|Taxonomy")
                 except Exception as e:
-                    print(f"⚠️ Errore scrittura BioCLIP HierarchicalSubject: {e}")
+                    print(f"⚠️ Errore build tassonomia BioCLIP: {e}")
 
-            # GERARCHIA GEOGRAFICA → HierarchicalSubject sidecar (solo GeOFF|, separato da AI|Taxonomy)
-            geo_hierarchy = image_item.image_data.get('geo_hierarchy', '')
-            if geo_hierarchy:
-                try:
-                    existing_hier_geo = []
-                    if sidecar_path.exists():
-                        try:
-                            hier_result = subprocess.run(
-                                ['exiftool', '-j', '-XMP-lr:HierarchicalSubject', str(sidecar_path)],
-                                capture_output=True, text=True, timeout=10,
-                                **subprocess_creation_kwargs()
-                            )
-                            if hier_result.returncode == 0 and hier_result.stdout.strip():
-                                hier_data = json.loads(hier_result.stdout)
-                                if hier_data:
-                                    hs = hier_data[0].get('HierarchicalSubject', [])
-                                    if isinstance(hs, str):
-                                        hs = [hs]
-                                    existing_hier_geo = [s for s in hs if not s.startswith('GeOFF|')]
-                        except Exception:
-                            pass
-                    cmd.append("-XMP-lr:HierarchicalSubject=")
-                    for subject in existing_hier_geo:
-                        cmd.append(f"-XMP-lr:HierarchicalSubject+={subject}")
+            if bioclip_hier_path or geo_hierarchy:
+                # Lettura unica degli HS esistenti: rimuove solo i rami che verranno riscritti.
+                # Se solo BioCLIP è attivo, i GeOFF esistenti vengono preservati (e viceversa).
+                existing_hier_base = []
+                if sidecar_path.exists():
+                    try:
+                        hier_result = subprocess.run(
+                            ['exiftool', '-j', '-XMP-lr:HierarchicalSubject', str(sidecar_path)],
+                            capture_output=True, text=True, timeout=10,
+                            **subprocess_creation_kwargs()
+                        )
+                        if hier_result.returncode == 0 and hier_result.stdout.strip():
+                            hier_data = json.loads(hier_result.stdout)
+                            if hier_data:
+                                hs = hier_data[0].get('HierarchicalSubject', [])
+                                if isinstance(hs, str):
+                                    hs = [hs]
+                                existing_hier_base = [
+                                    s for s in hs
+                                    if not (bioclip_hier_path and s.startswith('AI|Taxonomy'))
+                                    and not (geo_hierarchy and s.startswith('GeOFF|'))
+                                ]
+                    except Exception:
+                        pass
+
+                # Scrittura unica: un solo "=" seguito da tutti i += (no doppio clear)
+                cmd.append("-XMP-lr:HierarchicalSubject=")
+                for subject in existing_hier_base:
+                    cmd.append(f"-XMP-lr:HierarchicalSubject+={subject}")
+                if bioclip_hier_path:
+                    cmd.append(f"-XMP-lr:HierarchicalSubject+={bioclip_hier_path}")
+                if geo_hierarchy:
                     cmd.append(f"-XMP-lr:HierarchicalSubject+={geo_hierarchy}")
-                except Exception as e:
-                    print(f"⚠️ Errore scrittura Geo HierarchicalSubject sidecar: {e}")
 
             cmd.append(str(sidecar_path))
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
