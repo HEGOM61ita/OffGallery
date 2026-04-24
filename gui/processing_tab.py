@@ -134,7 +134,8 @@ class ProcessingWorker(QThread):
     critical_gpu_error = pyqtSignal(str, str)  # model_key, messaggio errore
 
     def __init__(self, config_path, input_directory, embedding_gen=None, options=None,
-                 include_subdirs=False, image_list=None, pre_llm_plugins=None):
+                 include_subdirs=False, image_list=None, pre_llm_plugins=None,
+                 pre_bioclip_plugins=None):
         super().__init__()
         self.config_path = config_path
         self.input_directory = Path(input_directory) if input_directory else None
@@ -143,6 +144,7 @@ class ProcessingWorker(QThread):
         self.include_subdirs = include_subdirs
         self.image_list = image_list
         self.pre_llm_plugins = list(pre_llm_plugins or [])
+        self.pre_bioclip_plugins = list(pre_bioclip_plugins or [])
         self._pre_llm_plugins_ran = False  # True se eseguiti dentro il worker
         self.is_running = True
         self.is_paused = False
@@ -1348,6 +1350,12 @@ class ProcessingWorker(QThread):
 
         self.log_message.emit("✅ Thread BioCLIP completato", "info")
 
+        # Aggiorna progress bar dei plugin pre_bioclip (giravano dentro questo thread)
+        for _pb_plugin in self.pre_bioclip_plugins:
+            _pb_id = _pb_plugin.get('id', '')
+            if _pb_id:
+                self.plugin_progress.emit(_pb_id, max(total, 1), max(total, 1))
+
     # ─────────────────────────────────────────────────────────────
     # PLUGIN PRE-LLM — esecuzione sincrona dentro il worker
     # ─────────────────────────────────────────────────────────────
@@ -2238,6 +2246,7 @@ class ProcessingTab(QWidget):
             m for m in self._discovered_plugins
             if self._plugin_rows.get(m.get('id', ''), {}).get('check', QCheckBox()).isChecked()
             and not (_pre_llm_ran and m.get('pipeline_stage') == 'pre_llm')
+            and m.get('pipeline_stage') != 'pre_bioclip'
         ]
         if not to_run:
             return
@@ -3448,6 +3457,13 @@ class ProcessingTab(QWidget):
             else:
                 image_list = None
 
+            # Raccogli plugin pre_bioclip abilitati da passare al worker
+            _pre_bioclip_plugins = [
+                m for m in self._discovered_plugins
+                if m.get('pipeline_stage') == 'pre_bioclip'
+                and self._plugin_rows.get(m.get('id', ''), {}).get('check', QCheckBox()).isChecked()
+            ]
+
             # Raccogli plugin pre_llm abilitati da passare al worker
             _llm_active = bool(
                 llm_gen_config.get('tags', {}).get('enabled') or
@@ -3481,7 +3497,8 @@ class ProcessingTab(QWidget):
                 },
                 include_subdirs=self.include_subdirs_cb.isChecked(),
                 image_list=image_list,
-                pre_llm_plugins=_pre_llm_plugins
+                pre_llm_plugins=_pre_llm_plugins,
+                pre_bioclip_plugins=_pre_bioclip_plugins
             )
 
             # Connetti segnali
