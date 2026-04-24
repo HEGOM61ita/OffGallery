@@ -1066,6 +1066,18 @@ class GalleryTab(QWidget):
                     except Exception:
                         pass
 
+                # Leggi vernacular_name da BioNomen (se già elaborato in fase pre_llm)
+                vernacular_name = None
+                try:
+                    _vrow = db_manager.conn.execute(
+                        "SELECT vernacular_name FROM images WHERE filename = ?",
+                        (item.image_data.get('filename', ''),)
+                    ).fetchone()
+                    if _vrow and _vrow[0]:
+                        vernacular_name = _vrow[0]
+                except Exception:
+                    pass
+
                 # Estrai contesto BioCLIP dal campo dedicato bioclip_taxonomy
                 bioclip_context = None
                 category_hint = None
@@ -1121,6 +1133,7 @@ class GalleryTab(QWidget):
                         bioclip_context=bioclip_context,
                         category_hint=category_hint,
                         location_hint=location_hint,
+                        vernacular_name=vernacular_name,
                     ) or {}
                 #-------------------------------------------
                 if not result:
