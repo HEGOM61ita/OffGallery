@@ -131,6 +131,7 @@ class ProcessingWorker(QThread):
     stats_update = pyqtSignal(dict)  # statistiche live
     finished = pyqtSignal(dict)  # statistiche finali
     plugin_progress = pyqtSignal(str, int, int)  # plugin_id, current, total
+    critical_gpu_error = pyqtSignal(str, str)  # model_key, messaggio errore
 
     def __init__(self, config_path, input_directory, embedding_gen=None, options=None,
                  include_subdirs=False, image_list=None, pre_llm_plugins=None):
@@ -145,6 +146,7 @@ class ProcessingWorker(QThread):
         self._pre_llm_plugins_ran = False  # True se eseguiti dentro il worker
         self.is_running = True
         self.is_paused = False
+        self._gpu_error_reported = False  # evita emit multipli da thread concorrenti
         # Sincronizzazione multi-thread
         self._db_lock = threading.Lock()
         self._stats_lock = threading.Lock()
@@ -1191,6 +1193,14 @@ class ProcessingWorker(QThread):
             # NON azzerare prep['thumbnail'] qui: è condivisa tra tutti i modelli GPU.
             # Viene liberata dal thread LLM (che legge dal disco) o alla fine della sessione.
             self._emit_progress_throttled(model_key, i, total)
+
+            # GPU crash rilevato: interrompe il thread dopo aver soddisfatto la barrier
+            if getattr(emb_gen, '_gpu_dead', False):
+                if not self._gpu_error_reported:
+                    self._gpu_error_reported = True
+                    self.critical_gpu_error.emit(model_key, "GPU device removed (TDR)")
+                self.is_running = False
+                return
 
         # Commit finale residui
         if _db_pending > 0:
@@ -3481,6 +3491,7 @@ class ProcessingTab(QWidget):
             self.worker.stats_update.connect(self.update_stats)
             self.worker.finished.connect(self.processing_finished)
             self.worker.plugin_progress.connect(self._on_plugin_progress)
+            self.worker.critical_gpu_error.connect(self._on_critical_gpu_error)
 
             # Reset progress bar per-modello e cache setRange
             self._progress_range_set.clear()
@@ -3598,6 +3609,41 @@ class ProcessingTab(QWidget):
         if model_key == 'exiftool' and total > 0:
             pct = int(current * 100 / total)
             self.scan_label.setText(f"⏳ {current:,} / {total:,}  ({pct}%)")
+
+    def _on_critical_gpu_error(self, model_key: str, error_msg: str):
+        """GPU crash rilevato durante il processing: LED rosso + popup bloccante."""
+        # LED rosso nella sidebar della main window
+        if hasattr(self, 'main_window') and hasattr(self.main_window, 'update_model_status'):
+            self.main_window.update_model_status(model_key, 'error')
+
+        # Barra di progresso rossa (feedback visivo immediato anche nel pannello)
+        _bar_map = {
+            'clip':      self.pt_clip_bar,
+            'dinov2':    self.pt_dinov2_bar,
+            'aesthetic': self.pt_aesthetic_bar,
+            'technical': self.pt_musiq_bar,
+        }
+        bar = _bar_map.get(model_key)
+        if bar:
+            bar.setStyleSheet("""
+                QProgressBar { border: 1px solid #555; background: #2a2a2a;
+                               border-radius: 3px; max-height: 8px; }
+                QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+                    stop:0 #8b0000, stop:1 #c0392b); border-radius: 2px; }
+            """)
+
+        # Popup bloccante — l'utente deve leggere e confermare
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Errore GPU — Elaborazione interrotta")
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setText(
+            f"<b>La GPU ha subito un crash (device removed / TDR).</b><br><br>"
+            f"Modello coinvolto: <b>{model_key.upper()}</b><br><br>"
+            f"L'elaborazione è stata interrotta per evitare blocchi indefiniti.<br>"
+            f"Riavvia l'applicazione per ripristinare la GPU."
+        )
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.exec()
 
     def update_progress(self, current, total):
         """Aggiorna progresso generale (legacy — non utilizzato nel flusso multi-thread)"""

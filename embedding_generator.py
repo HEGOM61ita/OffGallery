@@ -42,6 +42,9 @@ class EmbeddingGenerator:
         self.bioclip_classifier = None
         self.bioclip_on_cpu = False
 
+        # Flag GPU crash: True dopo device removed (TDR Windows) — salta chiamate GPU successive
+        self._gpu_dead = False
+
         # Cache immagine LLM: evita estrazione/base64 ripetute per la stessa immagine
         self._llm_image_cache = {'source': None, 'base64': None, 'temp_path': None}
 
@@ -145,6 +148,18 @@ class EmbeddingGenerator:
         else:
             logger.warning("⚠️ Nessun plugin LLM disponibile — warmup saltato")
 
+
+    def _mark_gpu_dead(self, model_name: str, e: Exception):
+        """Imposta _gpu_dead se l'eccezione indica un crash GPU (TDR / device removed su Windows)."""
+        msg = str(e).lower()
+        keywords = ('device', 'removed', 'suspended', 'getdeviceremoved', 'device instance')
+        if any(k in msg for k in keywords):
+            if not self._gpu_dead:
+                self._gpu_dead = True
+                logger.error(
+                    f"💀 GPU device removed rilevato in {model_name} — "
+                    f"embedding GPU saltati per le immagini rimanenti"
+                )
 
     def _device_for(self, model_key: str) -> str:
         """Restituisce device torch per un modello specifico (con cache)."""
@@ -1369,6 +1384,8 @@ class EmbeddingGenerator:
         images: lista di PIL Image già in RGB (pre-caricati dal thread chiamante)."""
         if not images:
             return []
+        if self._gpu_dead:
+            return [None] * len(images)
         try:
             import torch
             # Prepara tutte le immagini con il profilo clip_embedding (resize 224x224)
@@ -1388,6 +1405,7 @@ class EmbeddingGenerator:
                 results.append((emb / norm).astype(np.float32) if norm > 0 else None)
             return results
         except Exception as e:
+            self._mark_gpu_dead('CLIP', e)
             logger.error(f"CLIP batch embedding: {e}")
             return [None] * len(images)
 
@@ -1416,6 +1434,8 @@ class EmbeddingGenerator:
         images: lista di PIL Image già in RGB (pre-caricati dal thread chiamante)."""
         if not images:
             return []
+        if self._gpu_dead:
+            return [None] * len(images)
         try:
             import torch
             # DINOv2 usa input 518x518: prepara tutte con profilo dinov2_embedding
@@ -1431,6 +1451,7 @@ class EmbeddingGenerator:
                 results.append((emb / norm).astype(np.float32) if norm > 0 else None)
             return results
         except Exception as e:
+            self._mark_gpu_dead('DINOv2', e)
             logger.error(f"DINOv2 batch embedding: {e}")
             return [None] * len(images)
 
@@ -1465,6 +1486,8 @@ class EmbeddingGenerator:
         images: lista di PIL Image già in RGB (pre-caricati dal thread chiamante)."""
         if not images:
             return []
+        if self._gpu_dead:
+            return [None] * len(images)
         try:
             import torch
             prepared = [self._prepare_image_for_model(img, 'aesthetic_score') for img in images]
@@ -1479,6 +1502,7 @@ class EmbeddingGenerator:
                 results.append(round(float(10 / (1 + np.exp(-raw))), 2))
             return results
         except Exception as e:
+            self._mark_gpu_dead('Aesthetic', e)
             logger.error(f"Aesthetic batch score: {e}")
             return [None] * len(images)
 
@@ -1510,6 +1534,9 @@ class EmbeddingGenerator:
             if self.musiq_model is None:
                 return None
 
+            if self._gpu_dead and getattr(self, 'musiq_device', 'cpu') != 'cpu':
+                return None
+
             # Ottieni PIL Image
             if isinstance(input_data, Image.Image):
                 img = input_data.convert('RGB')
@@ -1533,6 +1560,7 @@ class EmbeddingGenerator:
 
             return round(score, 2)
         except Exception as e:
+            self._mark_gpu_dead('MUSIQ', e)
             logger.error(f"Errore MUSIQ: {e}")
             return None
 
