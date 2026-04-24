@@ -1565,6 +1565,17 @@ class ProcessingWorker(QThread):
             location_hint = prep.get('location_hint')
             geo_hierarchy = prep.get('geo_hierarchy')
 
+            # Leggi vernacular_name da BioNomen (scritto in DB durante fase pre_llm)
+            vernacular_name = None
+            try:
+                with self._db_lock:
+                    _vrow = db_manager.conn.execute(
+                        "SELECT vernacular_name FROM images WHERE filename = ?", (fname,)
+                    ).fetchone()
+                if _vrow and _vrow[0]:
+                    vernacular_name = _vrow[0]
+            except Exception:
+                pass
 
             try:
                 # Determina cosa generare (rispettando overwrite)
@@ -1624,6 +1635,7 @@ class ProcessingWorker(QThread):
                         bioclip_context=bioclip_context,
                         category_hint=category_hint,
                         location_hint=location_hint,
+                        vernacular_name=vernacular_name,
                     )
                     llm_results.update(combined)
                 except Exception as e:
@@ -1657,21 +1669,9 @@ class ProcessingWorker(QThread):
                     if bioclip_context:
                         sci_name = bioclip_context.split('(')[0].split(',')[0].strip() or None
 
-                    # Leggi vernacular_name da BioNomen (già scritto in DB dal plugin pre_llm)
-                    vern_name = None
-                    try:
-                        with self._db_lock:
-                            _vrow = db_manager.conn.execute(
-                                "SELECT vernacular_name FROM images WHERE filename = ?", (fname,)
-                            ).fetchone()
-                        if _vrow and _vrow[0]:
-                            vern_name = _vrow[0]
-                    except Exception:
-                        pass
-
                     if gen_tags_cfg.get('overwrite'):
                         final_tags = normalize_tags(
-                            llm_tags, scientific_name=sci_name, vernacular_name=vern_name
+                            llm_tags, scientific_name=sci_name, vernacular_name=vernacular_name
                         )
                     else:
                         # Merge: unione senza duplicati, poi normalize
@@ -1681,7 +1681,7 @@ class ProcessingWorker(QThread):
                             if t.lower() not in existing_lower:
                                 merged.append(t)
                         final_tags = normalize_tags(
-                            merged, scientific_name=sci_name, vernacular_name=vern_name
+                            merged, scientific_name=sci_name, vernacular_name=vernacular_name
                         )
 
                     # Aggiungi città geo come tag (plugin o builtin)

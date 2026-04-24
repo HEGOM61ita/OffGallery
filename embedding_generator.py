@@ -2063,7 +2063,8 @@ class EmbeddingGenerator:
                               max_title_words: int = 5,
                               bioclip_context: Optional[str] = None,
                               category_hint: Optional[str] = None,
-                              location_hint: Optional[str] = None) -> dict:
+                              location_hint: Optional[str] = None,
+                              vernacular_name: Optional[str] = None) -> dict:
         """Genera tags/descrizione/titolo con UNA SOLA chiamata LLM.
 
         Tutti i modi (singoli o combinati) passano per _call_llm_vision_unified
@@ -2096,7 +2097,8 @@ class EmbeddingGenerator:
             result = self._call_llm_vision_unified(
                 image_b64, effective_modes, max_tags if not anchor_added else 5,
                 max_description_words, max_title_words,
-                category_hint=category_hint, location_hint=location_hint
+                category_hint=category_hint, location_hint=location_hint,
+                vernacular_name=vernacular_name
             )
 
             # Rimuovi i tag ancora dal risultato se non erano richiesti
@@ -2282,7 +2284,8 @@ class EmbeddingGenerator:
                                   max_tags: int = 10, max_description_words: int = 100,
                                   max_title_words: int = 5,
                                   category_hint: Optional[str] = None,
-                                  location_hint: Optional[str] = None) -> dict:
+                                  location_hint: Optional[str] = None,
+                                  vernacular_name: Optional[str] = None) -> dict:
         """Nucleo unificato per tutte le chiamate LLM Vision.
 
         Sostituisce _call_llm_vision (singolo) e _call_llm_vision_combined.
@@ -2345,10 +2348,19 @@ class EmbeddingGenerator:
             else:
                 location_line = "- LOCATION: No GPS data available. Do NOT mention, guess or infer any specific location, city, country or place name.\n"
 
+            vernacular_line = ""
+            if vernacular_name:
+                vernacular_line = (
+                    f"- The common name of this species is: \"{vernacular_name}\". "
+                    f"USE this name in your output (in {lang_name}). "
+                    "Do not translate it — it is already in the correct language.\n"
+                )
+
             language_rules = (
                 f"LANGUAGE: ALL output MUST be in {lang_name}. NEVER mix languages.\n"
                 f"{category_line}"
                 f"{location_line}"
+                f"{vernacular_line}"
                 f"- If no species hint and you recognize an animal/plant, use a generic {lang_name} term.\n"
                 "- NEVER guess a species name. A generic term is ALWAYS better than a wrong name.\n"
                 "- NEVER use scientific/Latin names.\n"
