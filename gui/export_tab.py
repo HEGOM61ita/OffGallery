@@ -1535,7 +1535,13 @@ class ExportTab(QWidget):
             if unified_tags_data:
                 unified_tags = self._parse_tags(unified_tags_data)
                 keywords.extend(unified_tags)
-            keywords = list(dict.fromkeys(keywords))
+            _seen = set()
+            _kw_dedup = []
+            for k in keywords:
+                if k.lower() not in _seen:
+                    _seen.add(k.lower())
+                    _kw_dedup.append(k)
+            keywords = _kw_dedup
 
             # Determina path XMP
             naming = options['format'].get('sidecar_naming', 'lightroom')
@@ -1985,8 +1991,13 @@ class ExportTab(QWidget):
             # Tag esistenti dal DB
             existing_tags = self._parse_tags(image_item.image_data.get('tags', ''))
             
-            # Merge intelligente: mantieni tutti i tag unici
-            combined_tags = list(set(existing_tags + xmp_keywords))
+            # Merge intelligente: mantieni tutti i tag unici (case-insensitive)
+            _seen = {t.lower() for t in existing_tags}
+            combined_tags = list(existing_tags)
+            for t in xmp_keywords:
+                if t.lower() not in _seen:
+                    combined_tags.append(t)
+                    _seen.add(t.lower())
             
             # Aggiorna nel database
             if combined_tags:

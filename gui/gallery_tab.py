@@ -1226,9 +1226,14 @@ class GalleryTab(QWidget):
                     except:
                         existing_tags = []
                 
-                merged = list(set(existing_tags + new_tags))
+                _seen = {t.lower() for t in existing_tags}
+                merged = list(existing_tags)
+                for t in new_tags:
+                    if t.lower() not in _seen:
+                        merged.append(t)
+                        _seen.add(t.lower())
                 tags_json = json.dumps(merged, ensure_ascii=False)
-                
+
                 db_manager.cursor.execute(
                     "UPDATE images SET tags = ? WHERE id = ?",
                     (tags_json, item.image_id)
@@ -1418,8 +1423,13 @@ class GalleryTab(QWidget):
                 # Ottieni tag esistenti unificati
                 current_tags = item.get_unified_tags() if hasattr(item, 'get_unified_tags') else []
                 
-                # Aggiungi nuovi tag evitando duplicati
-                updated_tags = list(set(current_tags + new_tags))
+                # Aggiungi nuovi tag evitando duplicati (case-insensitive)
+                _seen = {t.lower() for t in current_tags}
+                updated_tags = list(current_tags)
+                for t in new_tags:
+                    if t.lower() not in _seen:
+                        updated_tags.append(t)
+                        _seen.add(t.lower())
                 
                 # Aggiorna database
                 tags_json = json.dumps(updated_tags, ensure_ascii=False)
