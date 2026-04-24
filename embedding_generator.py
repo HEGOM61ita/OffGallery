@@ -2349,7 +2349,7 @@ class EmbeddingGenerator:
                 location_line = "- LOCATION: No GPS data available. Do NOT mention, guess or infer any specific location, city, country or place name.\n"
 
             vernacular_line = ""
-            if vernacular_name:
+            if vernacular_name and category_hint:
                 vernacular_line = (
                     f"- The common name of this species is: \"{vernacular_name}\". "
                     f"USE this name in your output (in {lang_name}). "
