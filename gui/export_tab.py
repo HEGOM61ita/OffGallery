@@ -1568,14 +1568,16 @@ class ExportTab(QWidget):
                 existing_keywords = self._read_existing_keywords_from_xmp(sidecar_path)
                 existing_keywords = list(dict.fromkeys(existing_keywords))
                 all_keywords = existing_keywords[:]
+                all_keywords_lower = {k.lower() for k in all_keywords}
                 for kw in keywords:
-                    if kw not in all_keywords:
+                    if kw.lower() not in all_keywords_lower:
                         all_keywords.append(kw)
+                        all_keywords_lower.add(kw.lower())
                 final_keywords = all_keywords
             else:
                 final_keywords = list(dict.fromkeys(keywords))
 
-            cmd = ["exiftool", "-overwrite_original"]
+            cmd = ["exiftool", "-overwrite_original", "-api", "Compact=OneDesc"]
 
             # Azzera dc:Subject nella stessa cmd e riscrive: evita incoerenze tra due chiamate ExifTool separate
             cmd.append("-XMP-dc:Subject=")
