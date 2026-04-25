@@ -2084,14 +2084,24 @@ class EmbeddingGenerator:
             if not image_b64:
                 return {}
 
-            # Ancora semantica: se manca 'tags', lo aggiungiamo silenziosamente
-            # come primo campo — il modello identifica i soggetti prima di scrivere
-            # titolo o descrizione, evitando pattern matching superficiale.
-            # I tag aggiunti come ancora vengono poi rimossi dal risultato finale.
-            anchor_added = False
             effective_modes = list(modes)
-            if 'tags' not in effective_modes and len(effective_modes) < 3:
-                effective_modes = ['tags'] + effective_modes
+
+            # Ancora semantica 1 — title sempre primo: forza il modello a identificare
+            # il soggetto principale in 5 parole prima di qualsiasi altro output.
+            # Il titolo funge da ancora cognitiva: impedisce che tags generici ("forme",
+            # "cielo") trascinino descrizione e titolo verso interpretazioni sbagliate.
+            title_added = False
+            if 'title' not in effective_modes:
+                effective_modes = ['title'] + effective_modes
+                title_added = True
+            elif effective_modes[0] != 'title':
+                effective_modes = ['title'] + [m for m in effective_modes if m != 'title']
+
+            # Ancora semantica 2 — tags subito dopo title: enumerazione soggetti
+            # prima della descrizione estesa. Rimossi dal risultato se non richiesti.
+            anchor_added = False
+            if 'tags' not in effective_modes:
+                effective_modes = [effective_modes[0]] + ['tags'] + effective_modes[1:]
                 anchor_added = True
 
             result = self._call_llm_vision_unified(
@@ -2101,9 +2111,11 @@ class EmbeddingGenerator:
                 vernacular_name=vernacular_name
             )
 
-            # Rimuovi i tag ancora dal risultato se non erano richiesti
+            # Rimuovi i campi ancora se non erano richiesti dall'utente
             if anchor_added:
                 result.pop('tags', None)
+            if title_added:
+                result.pop('title', None)
             if not result:
                 return {}
 
