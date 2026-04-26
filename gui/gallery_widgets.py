@@ -2358,13 +2358,28 @@ class ImageCard(QFrame):
                 embedded_supported = file_category in ('standard', 'dng')
 
                 # === DATI DA DATABASE ===
-                db_tags = set(item.get_unified_tags())
+                def _parse_json_tags(raw):
+                    if not raw:
+                        return set()
+                    if isinstance(raw, list):
+                        return set(raw)
+                    try:
+                        parsed = json.loads(raw)
+                        return set(parsed) if isinstance(parsed, list) else set()
+                    except Exception:
+                        return set()
+
+                db_user_tags = _parse_json_tags(item.image_data.get('tags', ''))
+                db_ai_tags   = _parse_json_tags(item.image_data.get('llm_tags', ''))
+                db_tags = db_user_tags | db_ai_tags
                 db_desc = (item.image_data.get('description') or '').strip()
                 db_title = (item.image_data.get('title') or '').strip()
 
                 # === DATI DA SIDECAR XMP ===
                 sidecar_path = filepath.with_suffix('.xmp')
                 sidecar_tags = set()
+                sidecar_user_tags = set()
+                sidecar_ai_tags = set()
                 sidecar_desc = ""
                 sidecar_title = ""
                 sidecar_exists = sidecar_path.exists()
@@ -2373,9 +2388,12 @@ class ImageCard(QFrame):
                     sidecar_data = self._read_xmp_with_exiftool(sidecar_path)
                     if sidecar_data:
                         sidecar_tags, sidecar_desc, sidecar_title = self._extract_xmp_fields(sidecar_data)
+                        sidecar_user_tags, sidecar_ai_tags = self._extract_xmp_tags_by_origin(sidecar_data)
 
                 # === DATI DA EMBEDDED XMP (solo standard e DNG) ===
                 embedded_tags = set()
+                embedded_user_tags = set()
+                embedded_ai_tags = set()
                 embedded_desc = ""
                 embedded_title = ""
 
@@ -2383,6 +2401,7 @@ class ImageCard(QFrame):
                     embedded_data = self._read_xmp_with_exiftool(filepath)
                     if embedded_data:
                         embedded_tags, embedded_desc, embedded_title = self._extract_xmp_fields(embedded_data)
+                        embedded_user_tags, embedded_ai_tags = self._extract_xmp_tags_by_origin(embedded_data)
 
                 # === FORMATO OUTPUT ===
                 _ev = t("widgets.xmp.empty_value")
@@ -2430,54 +2449,58 @@ class ImageCard(QFrame):
 
                 # --- SEZIONE TAGS ---
                 result += f"\n{t('widgets.xmp.section_tags')}\n"
-                result += f"   DB:       {len(db_tags)} tag\n"
+                result += f"   DB:       {len(db_user_tags)} utente + {len(db_ai_tags)} AI = {len(db_tags)} tag\n"
                 if sidecar_exists:
-                    result += f"   Sidecar:  {len(sidecar_tags)} tag\n"
+                    result += f"   Sidecar:  {len(sidecar_user_tags)} utente + {len(sidecar_ai_tags)} AI = {len(sidecar_tags)} tag\n"
                 if embedded_supported:
-                    result += f"   Embedded: {len(embedded_tags)} tag\n"
+                    result += f"   Embedded: {len(embedded_user_tags)} utente + {len(embedded_ai_tags)} AI = {len(embedded_tags)} tag\n"
 
-                # Analisi differenze tags
-                all_tags = db_tags | sidecar_tags | embedded_tags
-                if all_tags:
-                    # Tags presenti ovunque
-                    common_all = db_tags & (sidecar_tags if sidecar_exists else db_tags) & (embedded_tags if embedded_supported else db_tags)
-                    if common_all:
-                        common_text = ', '.join(sorted(common_all)[:5])
-                        if len(common_all) > 5:
-                            common_text += f"... (+{len(common_all)-5})"
-                        result += f"   {t('widgets.xmp.common_tags')}: {common_text}\n"
+                tags_match = True
 
-                    # Tags solo in DB
-                    db_only = db_tags - sidecar_tags - embedded_tags
+                def _diff_section(label, db_set, xmp_set_s, xmp_set_e, label_s, label_e):
+                    """Ritorna (testo_diff, is_synced)"""
+                    nonlocal tags_match
+                    xmp_ref = (xmp_set_e if embedded_supported else set()) | (xmp_set_s if sidecar_exists else set())
+                    db_only = db_set - xmp_ref
+                    xmp_only_e = (xmp_set_e - db_set) if embedded_supported else set()
+                    xmp_only_s = (xmp_set_s - db_set) if sidecar_exists else set()
+                    synced = not db_only and not xmp_only_e and not xmp_only_s
+                    if not synced:
+                        tags_match = False
+                    lines = []
+                    common = db_set & xmp_ref
+                    if common:
+                        txt = ', '.join(sorted(common)[:5])
+                        if len(common) > 5: txt += f"... (+{len(common)-5})"
+                        lines.append(f"   {label} {t('widgets.xmp.common_tags')}: {txt}")
                     if db_only:
-                        db_only_text = ', '.join(sorted(db_only)[:3])
-                        if len(db_only) > 3:
-                            db_only_text += f"... (+{len(db_only)-3})"
-                        result += f"   {t('widgets.xmp.db_only_tags')}: {db_only_text}\n"
+                        txt = ', '.join(sorted(db_only)[:3])
+                        if len(db_only) > 3: txt += f"... (+{len(db_only)-3})"
+                        lines.append(f"   {label} {t('widgets.xmp.db_only_tags')}: {txt}")
+                    if xmp_only_s:
+                        txt = ', '.join(sorted(xmp_only_s)[:3])
+                        if len(xmp_only_s) > 3: txt += f"... (+{len(xmp_only_s)-3})"
+                        lines.append(f"   {label} {t('widgets.xmp.sidecar_only_tags')}: {txt}")
+                    if xmp_only_e:
+                        txt = ', '.join(sorted(xmp_only_e)[:3])
+                        if len(xmp_only_e) > 3: txt += f"... (+{len(xmp_only_e)-3})"
+                        lines.append(f"   {label} {t('widgets.xmp.embedded_only_tags')}: {txt}")
+                    status = t('widgets.xmp.synced') if synced else t('widgets.xmp.mismatch')
+                    lines.append(f"   {label} {status}")
+                    return '\n'.join(lines)
 
-                    # Tags solo in Sidecar
-                    if sidecar_exists:
-                        sidecar_only = sidecar_tags - db_tags - embedded_tags
-                        if sidecar_only:
-                            sidecar_only_text = ', '.join(sorted(sidecar_only)[:3])
-                            if len(sidecar_only) > 3:
-                                sidecar_only_text += f"... (+{len(sidecar_only)-3})"
-                            result += f"   {t('widgets.xmp.sidecar_only_tags')}: {sidecar_only_text}\n"
-
-                    # Tags solo in Embedded
-                    if embedded_supported:
-                        embedded_only = embedded_tags - db_tags - sidecar_tags
-                        if embedded_only:
-                            embedded_only_text = ', '.join(sorted(embedded_only)[:3])
-                            if len(embedded_only) > 3:
-                                embedded_only_text += f"... (+{len(embedded_only)-3})"
-                            result += f"   {t('widgets.xmp.embedded_only_tags')}: {embedded_only_text}\n"
-
-                # Stato sync tags
-                tags_match = (db_tags == sidecar_tags == embedded_tags) if embedded_supported and sidecar_exists else \
-                             (db_tags == sidecar_tags) if sidecar_exists else \
-                             (db_tags == embedded_tags) if embedded_supported else True
-                result += f"   {t('widgets.xmp.synced') if tags_match else t('widgets.xmp.mismatch')}\n"
+                result += _diff_section(
+                    "[Utente]",
+                    db_user_tags,
+                    sidecar_user_tags, embedded_user_tags,
+                    "Sidecar", "Embedded"
+                ) + "\n"
+                result += _diff_section(
+                    "[AI]",
+                    db_ai_tags,
+                    sidecar_ai_tags, embedded_ai_tags,
+                    "Sidecar", "Embedded"
+                ) + "\n"
 
                 results.append(result)
 
@@ -3244,6 +3267,33 @@ class ImageCard(QFrame):
             print(f"❌ Errore ExifTool: {e}")
             return None
 
+    def _extract_xmp_tags_by_origin(self, xmp_data):
+        """Ritorna (user_tags: set, ai_tags: set) separando Subject flat da HierarchicalSubject AI|Tags|"""
+        user_tags = set()
+        ai_tags = set()
+        if not xmp_data:
+            return user_tags, ai_tags
+
+        for field in ['Keywords', 'Subject']:
+            value = xmp_data.get(field)
+            if not value:
+                continue
+            items = value if isinstance(value, list) else [value]
+            for v in items:
+                v = str(v).strip()
+                if v and not v.startswith('AI|') and not v.startswith('GeOFF|'):
+                    user_tags.add(v)
+
+        hs = xmp_data.get('HierarchicalSubject')
+        if hs:
+            items = hs if isinstance(hs, list) else [hs]
+            for v in items:
+                v = str(v).strip()
+                if v.startswith('AI|Tags|'):
+                    ai_tags.add(v[len('AI|Tags|'):])
+
+        return user_tags, ai_tags
+
     def _extract_xmp_fields(self, xmp_data):
         """Estrae title, description e tags da dati XMP - ritorna (tags_set, desc_str, title_str)"""
         tags = set()
@@ -3269,7 +3319,9 @@ class ImageCard(QFrame):
                 if desc:
                     break
 
-        # Estrai TAGS/KEYWORDS (filtra AI|Taxonomy — BioCLIP gestito internamente)
+        # Estrai TAGS/KEYWORDS
+        # - Subject/Keywords: tag flat (utente)
+        # - HierarchicalSubject: strippa prefisso AI|Tags| → tag AI; scarta AI|Taxonomy| e GeOFF|
         keyword_fields = ['Keywords', 'Subject', 'HierarchicalSubject']
         for field in keyword_fields:
             if field in xmp_data and xmp_data[field] is not None:
@@ -3279,7 +3331,13 @@ class ImageCard(QFrame):
                     for item_val in value:
                         if item_val is not None:
                             item_str = str(item_val).strip()
-                            if item_str and not item_str.startswith('AI|Taxonomy') and not item_str.startswith('GeOFF|'):
+                            if not item_str:
+                                continue
+                            if item_str.startswith('AI|Taxonomy') or item_str.startswith('GeOFF|'):
+                                continue
+                            if field == 'HierarchicalSubject' and item_str.startswith('AI|Tags|'):
+                                item_str = item_str[len('AI|Tags|'):]
+                            if item_str:
                                 tags.add(item_str)
                 elif isinstance(value, str):
                     # Prima prova a parsare come lista (JSON o Python repr)
