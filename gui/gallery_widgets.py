@@ -698,33 +698,40 @@ class ImageCard(QFrame):
             return 0
     
     def get_unified_tags(self):
-        """Ottieni lista tag unificati con cache invalidabile"""
+        """Ottieni lista tag unificati (umani + LLM) con cache invalidabile"""
         try:
-            # Check se abbiamo cache valida
             if hasattr(self, '_unified_tags_cache'):
                 return self._unified_tags_cache
-            
-            # Rebuild cache
-            tags_raw = self.image_data.get('tags', '')
 
-            if not tags_raw:
-                self._unified_tags_cache = []
-                return self._unified_tags_cache
+            def _parse(raw):
+                if not raw:
+                    return []
+                if isinstance(raw, list):
+                    return raw
+                if isinstance(raw, str):
+                    try:
+                        parsed = json.loads(raw)
+                        return parsed if isinstance(parsed, list) else []
+                    except json.JSONDecodeError:
+                        return []
+                return []
 
-            if isinstance(tags_raw, str):
-                try:
-                    tags = json.loads(tags_raw)
-                except json.JSONDecodeError:
-                    self._unified_tags_cache = []
-                    return self._unified_tags_cache
-            else:
-                tags = tags_raw
+            human = _parse(self.image_data.get('tags', ''))
+            llm = _parse(self.image_data.get('llm_tags', ''))
+            # Deduplicazione case-insensitive mantenendo ordine: prima i tag umani
+            seen = set()
+            merged = []
+            for tag in human + llm:
+                key = tag.lower()
+                if key not in seen:
+                    seen.add(key)
+                    merged.append(tag)
 
-            self._unified_tags_cache = tags if isinstance(tags, list) else []
+            self._unified_tags_cache = merged
             return self._unified_tags_cache
-            
+
         except Exception as e:
-            print(f"Errore get_unified_tags: {e}")
+            logger.error(f"Errore get_unified_tags: {e}")
             self._unified_tags_cache = []
             return self._unified_tags_cache
     
@@ -2550,7 +2557,7 @@ class ImageCard(QFrame):
                                     if item_val is not None:
                                         item_str = str(item_val).strip()
                                         # Filtra via rami AI|Taxonomy (BioCLIP gestito internamente)
-                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|Taxonomy') and not item_str.startswith('GeOFF|'):
+                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|') and not item_str.startswith('GeOFF|'):
                                             new_tags.append(item_str)
                             elif isinstance(value, str):
                                 separators = [',', '|', ';', '\n']
@@ -2564,7 +2571,7 @@ class ImageCard(QFrame):
 
                                 for tag in current_tags:
                                     # Filtra via rami AI|Taxonomy
-                                    if tag and tag not in new_tags and not tag.startswith('AI|Taxonomy') and not tag.startswith('GeOFF|'):
+                                    if tag and tag not in new_tags and not tag.startswith('AI|') and not tag.startswith('GeOFF|'):
                                         new_tags.append(tag)
                     
                     # Estrai descrizione
@@ -2944,7 +2951,7 @@ class ImageCard(QFrame):
                                 for item in value:
                                     if item is not None:
                                         item_str = str(item).strip()
-                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|Taxonomy') and not item_str.startswith('GeOFF|'):
+                                        if item_str and item_str not in new_tags and not item_str.startswith('AI|') and not item_str.startswith('GeOFF|'):
                                             new_tags.append(item_str)
                             elif isinstance(value, str):
                                 separators = [',', '|', ';', '\n']
@@ -2957,7 +2964,7 @@ class ImageCard(QFrame):
                                     current_tags = expanded_tags
 
                                 for tag in current_tags:
-                                    if tag and tag not in new_tags and not tag.startswith('AI|Taxonomy') and not tag.startswith('GeOFF|'):
+                                    if tag and tag not in new_tags and not tag.startswith('AI|') and not tag.startswith('GeOFF|'):
                                         new_tags.append(tag)
                     
                     # Descrizione da XMP

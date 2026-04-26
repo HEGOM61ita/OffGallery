@@ -79,7 +79,7 @@ class ImageRetrieval:
             # Solo filtri - restituiamo tutti i risultati filtrati senza processing AI
             plugin_cols = self._plugin_columns()
             base_sql = f"""
-            SELECT id, filepath, filename, clip_embedding, tags, description, title,
+            SELECT id, filepath, filename, clip_embedding, tags, llm_tags, description, title,
                    camera_make, camera_model, lens_model, focal_length, aperture,
                    iso, shutter_speed, width, height, datetime_original,
                    datetime_digitized, datetime_modified, processed_date,
@@ -121,7 +121,7 @@ class ImageRetrieval:
         # La ricerca CLIP deve confrontare la query con OGNI immagine nel database
         plugin_cols = self._plugin_columns()
         base_sql = f"""
-        SELECT id, filepath, filename, clip_embedding, tags, description, title,
+        SELECT id, filepath, filename, clip_embedding, tags, llm_tags, description, title,
                camera_make, camera_model, lens_model, focal_length, aperture,
                iso, shutter_speed, width, height, datetime_original,
                datetime_digitized, datetime_modified, processed_date,
@@ -249,7 +249,8 @@ class ImageRetrieval:
             if deep_search and query_words:
                 desc = str(img.get('description', '')).lower() if include_description else ""
                 tags = str(img.get('tags', '[]')).lower()
-                full_text = f" {desc} {tags} ".replace('"', ' ').replace("'", " ").replace(",", " ").replace(".", " ")
+                llm_tags = str(img.get('llm_tags', '[]')).lower()
+                full_text = f" {desc} {tags} {llm_tags} ".replace('"', ' ').replace("'", " ").replace(",", " ").replace(".", " ")
 
                 matches = 0
                 match_details = []
@@ -318,18 +319,21 @@ class ImageRetrieval:
 
         # 2. Ciclo di filtraggio con scoring
         for img in candidates:
-            # Recupero e pulizia Tag (gestione stringa JSON o lista)
-            raw_tags = img.get('tags', '[]')
-            processed_tags = ""
-            try:
-                if isinstance(raw_tags, str) and raw_tags.startswith('['):
-                    processed_tags = " ".join(json.loads(raw_tags))
-                elif isinstance(raw_tags, list):
-                    processed_tags = " ".join(raw_tags)
-                else:
-                    processed_tags = str(raw_tags)
-            except:
-                processed_tags = str(raw_tags)
+            # Recupero e pulizia Tag — unisce tag umani e tag LLM
+            def _parse_tags_field(raw):
+                try:
+                    if isinstance(raw, str) and raw.startswith('['):
+                        return json.loads(raw)
+                    elif isinstance(raw, list):
+                        return raw
+                    elif raw:
+                        return [str(raw)]
+                except Exception:
+                    pass
+                return []
+
+            all_tags = _parse_tags_field(img.get('tags', '[]')) + _parse_tags_field(img.get('llm_tags', '[]'))
+            processed_tags = " ".join(all_tags)
 
             # Uniamo titolo, descrizione e tag per la ricerca
             title_text = str(img.get('title', '')) if include_title else ""
