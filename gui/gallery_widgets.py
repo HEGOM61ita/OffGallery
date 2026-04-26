@@ -1172,9 +1172,13 @@ class ImageCard(QFrame):
             title_action.triggered.connect(lambda: self._edit_title(target_items))
             edit_menu.addAction(title_action)
 
-            tag_action = QAction(t("widgets.action.edit_tags"), self)
-            tag_action.triggered.connect(lambda: self._edit_tags(target_items))
-            edit_menu.addAction(tag_action)
+            tag_user_action = QAction(t("widgets.action.edit_tags_user"), self)
+            tag_user_action.triggered.connect(lambda: self._edit_tags(target_items))
+            edit_menu.addAction(tag_user_action)
+
+            tag_ai_action = QAction(t("widgets.action.edit_tags_ai"), self)
+            tag_ai_action.triggered.connect(lambda: self._edit_llm_tags(target_items))
+            edit_menu.addAction(tag_ai_action)
 
             bioclip_edit_action = QAction(t("widgets.action.edit_bioclip"), self)
             bioclip_edit_action.triggered.connect(lambda: self._edit_bioclip_taxonomy(target_items))
@@ -1771,9 +1775,9 @@ class ImageCard(QFrame):
             print(f"Errore reimport dopo edit: {e}")
     
     def _edit_tags(self, items):
-        """Edita tag - SOLO database reale, nessun fallback"""
+        """Edita tag utente — scrive su campo 'tags'"""
         try:
-            dialog = UserTagDialog(items, self)
+            dialog = UserTagDialog(items, self, tag_field='tags')
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 new_tags = dialog.get_tags()
 
@@ -1819,6 +1823,8 @@ class ImageCard(QFrame):
                                 continue
 
                             item.image_data['tags'] = json.dumps(normalized)
+                            if hasattr(item, '_unified_tags_cache'):
+                                del item._unified_tags_cache
                             db_success += 1
                         except Exception as e:
                             print(f"Errore scrittura tag DB per {item.image_data.get('filename')}: {e}")
@@ -1831,7 +1837,45 @@ class ImageCard(QFrame):
                     self._refresh_after_database_operation([item for item in items if hasattr(item, 'image_id') and item.image_id], "tag")
         except Exception as e:
             print(f"Errore gestione tag: {e}")
-    
+
+    def _edit_llm_tags(self, items):
+        """Edita tag AI — scrive su campo 'llm_tags'"""
+        try:
+            dialog = UserTagDialog(items, self, tag_field='llm_tags')
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                new_tags = dialog.get_tags()
+
+                db_manager = self._get_database_manager()
+                if not db_manager:
+                    logger.error("DatabaseManager non disponibile - operazione annullata")
+                    return
+
+                db_success = 0
+                for item in items:
+                    if hasattr(item, 'image_id') and item.image_id:
+                        try:
+                            if hasattr(db_manager, 'update_llm_tags'):
+                                db_manager.update_llm_tags(item.image_id, new_tags)
+                            else:
+                                db_manager.cursor.execute(
+                                    "UPDATE images SET llm_tags = ? WHERE id = ?",
+                                    (json.dumps(new_tags, ensure_ascii=False) if new_tags else None, item.image_id)
+                                )
+                                db_manager.conn.commit()
+                            item.image_data['llm_tags'] = json.dumps(new_tags, ensure_ascii=False)
+                            if hasattr(item, '_unified_tags_cache'):
+                                del item._unified_tags_cache
+                            db_success += 1
+                        except Exception as e:
+                            logger.error(f"Errore scrittura llm_tags per {item.image_data.get('filename')}: {e}")
+
+                if db_success > 0:
+                    self._refresh_after_database_operation(
+                        [i for i in items if hasattr(i, 'image_id') and i.image_id], "tag"
+                    )
+        except Exception as e:
+            logger.error(f"Errore gestione tag AI: {e}")
+
     def _edit_bioclip_taxonomy(self, items):
         """Edita tassonomia BioCLIP - dialog dedicato con 7 livelli"""
         try:
@@ -3677,91 +3721,100 @@ class BioCLIPTaxonomyDialog(QDialog):
 
 
 class UserTagDialog(QDialog):
-    """Dialog per gestione tag (utente + AI, NO BioCLIP)"""
-    
-    def __init__(self, items, parent=None):
+    """Dialog per gestione tag utente o AI (NO BioCLIP).
+    tag_field: 'tags' per tag utente, 'llm_tags' per tag AI."""
+
+    def __init__(self, items, parent=None, tag_field='tags'):
         super().__init__(parent)
         self.items = items or []
-        self.setWindowTitle(t("widgets.dialog.edit_tags_title", n=len(self.items)))
+        self.tag_field = tag_field  # 'tags' o 'llm_tags'
+
+        if tag_field == 'llm_tags':
+            self.setWindowTitle(t("widgets.dialog.edit_tags_ai_title", n=len(self.items)))
+        else:
+            self.setWindowTitle(t("widgets.dialog.edit_tags_user_title", n=len(self.items)))
+
         self.setMinimumWidth(500)
         self.setModal(True)
-        
+
         self._build_ui()
         self._load_current_tags()
-    
+
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        
+
         # Info
-        info_text = t("widgets.label.manage_tags_multi", n=len(self.items))
         if len(self.items) == 1 and hasattr(self.items[0], 'image_data'):
             filename = self.items[0].image_data.get('filename', 'Unknown')
-            info_text = t("widgets.label.manage_tags_single", filename=filename)
-            
+            if self.tag_field == 'llm_tags':
+                info_text = t("widgets.label.manage_tags_ai_single", filename=filename)
+            else:
+                info_text = t("widgets.label.manage_tags_user_single", filename=filename)
+        else:
+            info_text = t("widgets.label.manage_tags_multi", n=len(self.items))
+
         info_label = QLabel(info_text)
         info_label.setStyleSheet("font-weight: bold; color: #2A6A82; margin-bottom: 10px;")
         layout.addWidget(info_label)
-        
-        # Campo tag unificato
-        layout.addWidget(QLabel(t("widgets.label.tags_all_types")))
+
+        if self.tag_field == 'llm_tags':
+            layout.addWidget(QLabel(t("widgets.label.tags_ai")))
+        else:
+            layout.addWidget(QLabel(t("widgets.label.tags_user")))
+
         self.tag_input = QLineEdit()
         self.tag_input.setPlaceholderText(t("widgets.placeholder.tags"))
         layout.addWidget(self.tag_input)
 
-        # Help
         help_label = QLabel(t("widgets.label.tags_help"))
         help_label.setStyleSheet("color: gray; font-size: 11px; margin-top: 5px;")
         layout.addWidget(help_label)
 
-        # Sezione azioni rapide
         actions_group = QGroupBox(t("widgets.group.quick_actions"))
         actions_layout = QVBoxLayout(actions_group)
-
         clear_all_button = QPushButton(t("widgets.btn.remove_all_tags"))
         clear_all_button.clicked.connect(self._clear_all_tags)
         actions_layout.addWidget(clear_all_button)
-        
         layout.addWidget(actions_group)
-        
-        # Bottoni
+
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
-    
+
     def _load_current_tags(self):
-        """Carica tag unificati esistenti"""
+        """Carica i tag del campo specifico (utente o AI)"""
         try:
             if len(self.items) == 1:
-                # Singola immagine - mostra tutti i tag esistenti
                 item = self.items[0]
-                if hasattr(item, 'get_unified_tags'):
-                    tags = item.get_unified_tags()
-                    if tags:
-                        self.tag_input.setText(", ".join(tags))
+                raw = item.image_data.get(self.tag_field, '') if hasattr(item, 'image_data') else ''
+                tags = []
+                if raw:
+                    if isinstance(raw, list):
+                        tags = raw
+                    elif isinstance(raw, str):
+                        try:
+                            tags = json.loads(raw)
+                        except json.JSONDecodeError:
+                            tags = []
+                if tags:
+                    self.tag_input.setText(", ".join(tags))
             else:
-                # Multi-selezione - placeholder
                 self.tag_input.setPlaceholderText(t("widgets.placeholder.tags_cleared"))
-                
         except Exception as e:
-            print(f"Errore caricamento tag: {e}")
-    
+            logger.error(f"Errore caricamento tag dialog: {e}")
+
     def _clear_all_tags(self):
-        """Pulisce tutti i tag"""
         self.tag_input.clear()
         self.tag_input.setPlaceholderText(t("widgets.placeholder.tags_cleared"))
-    
+
     def get_tags(self):
-        """Ottieni lista tag dal dialog"""
         text = self.tag_input.text().strip()
         if not text:
             return []
-        
-        # Split e clean
-        tags = [tag.strip() for tag in text.split(',') if tag.strip()]
-        return tags
+        return [tag.strip() for tag in text.split(',') if tag.strip()]
 
 
 class RemoveTagDialog(QDialog):
