@@ -2931,6 +2931,15 @@ class ImageCard(QFrame):
                             except Exception as e:
                                 logger.warning(f"Errore HierarchicalSubject GeOFF per {filepath.name}: {e}")
 
+                    # Scrivi llm_tags in HierarchicalSubject AI|Tags| (sempre, sovrascrive)
+                    if success:
+                        llm_raw = item.image_data.get('llm_tags', '')
+                        if llm_raw:
+                            try:
+                                xmp_manager.write_hierarchical_llm_tags(filepath, llm_raw)
+                            except Exception as e:
+                                logger.warning(f"Errore HierarchicalSubject AI|Tags| per {filepath.name}: {e}")
+
                     if success:
                         success_count += 1
                     else:

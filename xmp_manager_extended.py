@@ -1200,6 +1200,70 @@ class XMPManagerExtended:
             logger.error(f"Errore write_hierarchical_geo: {e}")
             return False
 
+    def write_hierarchical_llm_tags(self, file_path: Path, llm_tags_raw) -> bool:
+        """Scrive llm_tags in HierarchicalSubject come AI|Tags|nomtag.
+        Preserva rami non-AI|Tags| esistenti, sovrascrive sempre il ramo AI|Tags|.
+        NON scrive in dc:Subject: i tag AI restano separati dai tag utente.
+        """
+        if not self.exiftool_available or not llm_tags_raw:
+            return False
+
+        try:
+            llm_list = json.loads(llm_tags_raw) if isinstance(llm_tags_raw, str) else llm_tags_raw
+            if not isinstance(llm_list, list) or not llm_list:
+                return False
+            llm_hier_paths = [f"AI|Tags|{t}" for t in llm_list if t and str(t).strip()]
+            if not llm_hier_paths:
+                return False
+        except Exception:
+            return False
+
+        try:
+            if self._get_file_category(file_path) == 'raw':
+                target = file_path.with_suffix('.xmp')
+                if not target.exists():
+                    return False
+            else:
+                target = file_path
+
+            # Leggi HierarchicalSubject esistenti, filtra ramo AI|Tags|
+            existing_hier = []
+            try:
+                result = subprocess.run(
+                    [*XMPManagerExtended._exiftool_cmd, '-j',
+                     '-XMP-lr:HierarchicalSubject', str(target)],
+                    capture_output=True, text=True, timeout=10,
+                    **subprocess_creation_kwargs()
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    data = json.loads(result.stdout)
+                    if data:
+                        hs = data[0].get('HierarchicalSubject', [])
+                        if isinstance(hs, str):
+                            hs = [hs]
+                        existing_hier = [s for s in hs if not s.startswith('AI|Tags|')]
+            except Exception:
+                pass
+
+            write_args = ['-overwrite_original', '-XMP-lr:HierarchicalSubject=']
+            for subject in existing_hier:
+                write_args.append(f'-XMP-lr:HierarchicalSubject+={subject}')
+            for path in llm_hier_paths:
+                write_args.append(f'-XMP-lr:HierarchicalSubject+={path}')
+
+            result = self._run_exiftool_write(write_args, target, timeout=15)
+            if result.returncode == 0:
+                logger.info(f"✓ HierarchicalSubject AI|Tags| scritto: {target.name} ({len(llm_hier_paths)} tag)")
+                return True
+            else:
+                error_msg = result.stderr.decode() if result.stderr else "Unknown"
+                logger.error(f"Errore HierarchicalSubject AI|Tags|: {error_msg}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Errore write_hierarchical_llm_tags: {e}")
+            return False
+
 
 # ===== UTILITY FUNCTIONS (invariate) =====
 

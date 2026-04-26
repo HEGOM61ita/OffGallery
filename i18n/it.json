@@ -521,7 +521,7 @@
   "widgets.xmp.import_errors": "❌ Errori: {n}\n",
   "widgets.xmp.import_error": "Errore durante sincronizzazione XMP → DB:\n{error}",
   "widgets.xmp.export_confirm_title": "📤 Sincronizzazione DB → XMP",
-  "widgets.xmp.export_confirm": "Sincronizzare DB → XMP per {n} elementi?\n\nIl database OffGallery è la fonte di verità.\nVerranno scritti nel file XMP/embedded: titolo, descrizione,\ntag, tassonomia BioCLIP, stelle (rating), colore.\n\n🛡️ I namespace non gestiti da OffGallery (crs:, xmpMM:, photoshop:, ecc.)\n   rimangono intatti nel file.",
+  "widgets.xmp.export_confirm": "Sincronizzare DB → XMP per {n} elementi?\n\nIl database OffGallery è la fonte di verità.\nVerranno scritti nel file XMP/embedded: titolo, descrizione,\ntag utente (Subject) e tag AI (HierarchicalSubject AI|Tags|),\ntassonomia BioCLIP, stelle (rating), colore.\n\n⚠️ I tag utente e AI già presenti nel file verranno sovrascritti\n   con i contenuti del database.\n\n🛡️ I namespace non gestiti da OffGallery (crs:, xmpMM:, photoshop:, ecc.)\n   rimangono intatti nel file.",
   "widgets.xmp.export_done_title": "📋 Sincronizzazione completata",
   "widgets.xmp.export_done": "Sincronizzazione DB → XMP completata!\n\n",
   "widgets.xmp.export_synced": "✅ Sincronizzati: {n}\n",
