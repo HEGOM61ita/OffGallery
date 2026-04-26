@@ -327,18 +327,18 @@ def restore_log_capture():
 def _check_for_updates(parent_window):
     """Controlla se è disponibile una nuova versione su GitHub.
     Confronta versione locale con ultimo commit remoto.
-    In repo git usa git rev-parse, altrimenti legge il file VERSION."""
+    In repo git usa origin/main come riferimento locale, altrimenti legge il file VERSION."""
     try:
         from update import get_local_version, get_remote_version
         app_dir = get_app_dir()
 
-        # In repo git, la versione locale è lo SHA corrente di HEAD
         is_git = (app_dir / '.git').exists()
         if is_git:
             import subprocess
             from utils.subprocess_utils import subprocess_creation_kwargs
+            # Usa origin/main come versione locale: ignora commit non ancora pushati
             result = subprocess.run(
-                ['git', 'rev-parse', '--short', 'HEAD'],
+                ['git', 'rev-parse', '--short', 'origin/main'],
                 capture_output=True, text=True, cwd=str(app_dir), timeout=5,
                 **subprocess_creation_kwargs()
             )
@@ -350,16 +350,6 @@ def _check_for_updates(parent_window):
 
         if remote is None or local == remote:
             return  # Nessun aggiornamento o rete non disponibile
-
-        # In repo git: se il commit remoto è antenato del locale, siamo avanti (commit non pushati)
-        if is_git:
-            merge_base = subprocess.run(
-                ['git', 'merge-base', '--is-ancestor', remote, 'HEAD'],
-                capture_output=True, cwd=str(app_dir), timeout=5,
-                **subprocess_creation_kwargs()
-            )
-            if merge_base.returncode == 0:
-                return  # Il remoto è un antenato: siamo avanti, nessun aggiornamento necessario
 
         from PyQt6.QtWidgets import QMessageBox
         msg_key = "update.msg.body_git" if is_git else "update.msg.body"

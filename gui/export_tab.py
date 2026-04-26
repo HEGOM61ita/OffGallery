@@ -507,6 +507,10 @@ class ExportTab(QWidget):
         self.xmp_merge_keywords.setChecked(True)
         self.xmp_merge_keywords.setToolTip(t("export.tooltip.merge_keywords"))
 
+        self.xmp_overwrite_ai_tags = QCheckBox(t("export.check.overwrite_ai_tags"))
+        self.xmp_overwrite_ai_tags.setChecked(False)
+        self.xmp_overwrite_ai_tags.setToolTip(t("export.tooltip.overwrite_ai_tags"))
+
         self.xmp_preserve_title = QCheckBox(t("export.check.preserve_title"))
         self.xmp_preserve_title.setChecked(True)
         self.xmp_preserve_title.setToolTip(t("export.tooltip.preserve_title"))
@@ -527,7 +531,8 @@ class ExportTab(QWidget):
         note = QLabel(t("export.label.lr_namespace_note"))
         note.setStyleSheet("color: gray; font-style: italic; font-size: 10px;")
 
-        for cb in [self.xmp_merge_keywords, self.xmp_preserve_title, self.xmp_preserve_description,
+        for cb in [self.xmp_merge_keywords, self.xmp_overwrite_ai_tags,
+                   self.xmp_preserve_title, self.xmp_preserve_description,
                    self.xmp_preserve_rating, self.xmp_preserve_color_label]:
             xmp_layout.addWidget(cb)
         xmp_layout.addWidget(note)
@@ -654,6 +659,7 @@ class ExportTab(QWidget):
             },
             'advanced': {
                 'xmp_merge_keywords':        self.xmp_merge_keywords.isChecked(),
+                'xmp_overwrite_ai_tags':     self.xmp_overwrite_ai_tags.isChecked(),
                 'xmp_preserve_title':        self.xmp_preserve_title.isChecked(),
                 'xmp_preserve_description':  self.xmp_preserve_description.isChecked(),
                 'xmp_preserve_rating':       self.xmp_preserve_rating.isChecked(),
@@ -696,6 +702,7 @@ class ExportTab(QWidget):
             widget.blockSignals(False)
 
         _set_adv(self.xmp_merge_keywords,       'xmp_merge_keywords',       True)
+        _set_adv(self.xmp_overwrite_ai_tags,    'xmp_overwrite_ai_tags',    False)
         _set_adv(self.xmp_preserve_title,       'xmp_preserve_title',       True)
         _set_adv(self.xmp_preserve_description, 'xmp_preserve_description', True)
         _set_adv(self.xmp_preserve_rating,      'xmp_preserve_rating',      True)
@@ -1393,11 +1400,12 @@ class ExportTab(QWidget):
             import subprocess
 
             # Flag preserve — stessi del sidecar, applicati al file embedded
-            do_merge_kw   = options['advanced'].get('xmp_merge_keywords', True)
-            do_pres_title = options['advanced'].get('xmp_preserve_title', True)
-            do_pres_desc  = options['advanced'].get('xmp_preserve_description', True)
-            do_pres_rate  = options['advanced'].get('xmp_preserve_rating', True)
-            do_pres_color = options['advanced'].get('xmp_preserve_color_label', True)
+            do_merge_kw          = options['advanced'].get('xmp_merge_keywords', True)
+            do_overwrite_ai_tags = options['advanced'].get('xmp_overwrite_ai_tags', False)
+            do_pres_title        = options['advanced'].get('xmp_preserve_title', True)
+            do_pres_desc         = options['advanced'].get('xmp_preserve_description', True)
+            do_pres_rate         = options['advanced'].get('xmp_preserve_rating', True)
+            do_pres_color        = options['advanced'].get('xmp_preserve_color_label', True)
 
             # Leggi campi esistenti dal file embedded se almeno un flag preserve è attivo
             existing_emb = {}
@@ -1490,7 +1498,7 @@ class ExportTab(QWidget):
                                 s for s in hs
                                 if not (bioclip_hier_path_emb and s.startswith('AI|Taxonomy'))
                                 and not (geo_hierarchy and s.startswith('GeOFF|'))
-                                and not (llm_hier_paths_emb and s.startswith('AI|Tags|'))
+                                and not (do_overwrite_ai_tags and llm_hier_paths_emb and s.startswith('AI|Tags|'))
                             ]
                 except Exception:
                     pass
@@ -1560,7 +1568,8 @@ class ExportTab(QWidget):
                     sidecar_path = output_dir / f"{image_file.stem}.xmp"
 
             # Comportamento per campo — controllo indipendente
-            do_merge_keywords = options['advanced'].get('xmp_merge_keywords', True)
+            do_merge_keywords    = options['advanced'].get('xmp_merge_keywords', True)
+            do_overwrite_ai_tags = options['advanced'].get('xmp_overwrite_ai_tags', False)
             do_preserve_title = options['advanced'].get('xmp_preserve_title', True)
             do_preserve_description = options['advanced'].get('xmp_preserve_description', True)
 
@@ -1674,7 +1683,7 @@ class ExportTab(QWidget):
                                     s for s in hs
                                     if not (bioclip_hier_path and s.startswith('AI|Taxonomy'))
                                     and not (geo_hierarchy and s.startswith('GeOFF|'))
-                                    and not (llm_hier_paths and s.startswith('AI|Tags|'))
+                                    and not (do_overwrite_ai_tags and llm_hier_paths and s.startswith('AI|Tags|'))
                                 ]
                     except Exception:
                         pass
