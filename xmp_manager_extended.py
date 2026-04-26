@@ -1282,6 +1282,11 @@ class XMPManagerExtended:
             target = file_path
 
         try:
+            # Prima passata: cancella tutto l'XMP per eliminare duplicati da export precedenti
+            result_clear = self._run_exiftool_write(['-overwrite_original', '-XMP='], target, timeout=15)
+            if result_clear.returncode != 0:
+                logger.warning(f"Pulizia XMP fallita per {target.name}, continuo comunque")
+
             write_args = ['-overwrite_original']
 
             # Campi scalari (title, description, rating, color_label)
@@ -1293,7 +1298,7 @@ class XMPManagerExtended:
                 exif_key = self._dict_key_to_exiftool(key)
                 write_args.append(f'-{exif_key}={value}')
 
-            # Subject: azzera sempre e riscrivi solo tag utente
+            # Subject: riscrivi solo tag utente
             write_args.append('-XMP-dc:Subject=')
             for tag in user_tags:
                 if tag:
