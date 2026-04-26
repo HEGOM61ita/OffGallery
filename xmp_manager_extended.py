@@ -1264,47 +1264,102 @@ class XMPManagerExtended:
             logger.error(f"Errore write_hierarchical_llm_tags: {e}")
             return False
 
+    # Namespace non scrivibili o non XMP — da escludere quando si rilegge per preservare
+    _NON_XMP_GROUPS = frozenset({
+        'ExifTool', 'System', 'File', 'Composite',
+        'JFIF', 'JFIF-APP14',
+        'IFD0', 'IFD1', 'ExifIFD', 'GlobIFD', 'SubIFD',
+        'EXIF', 'GPS', 'MakerNotes',
+        'IPTC', 'Photoshop', 'ICC-header', 'ICC_Profile',
+        'APP14', 'JFIF',
+    })
+
+    # Campi XMP gestiti da OffGallery — sempre sovrascritti, mai preservati dal file
+    _OFFGALLERY_XMP_FIELDS = frozenset({
+        'XMP-dc:Subject', 'XMP-dc:Title', 'XMP-dc:Description',
+        'XMP-lr:HierarchicalSubject',
+        'XMP-xmp:Rating', 'XMP-xmp:Label',
+    })
+
     def write_full_xmp_gallery(self, file_path: Path, xmp_dict: dict,
                                user_tags: list, llm_tags: list,
                                bioclip_path: str = None,
                                geo_hierarchy: str = None) -> bool:
-        """Scrive Subject + HierarchicalSubject in un unico passaggio ExifTool.
-        Garantisce pulizia completa da export precedenti — nessun duplicato.
-        Usato dalla Gallery (DB è fonte di verità, nessun merge).
+        """Scrive XMP in Gallery preservando tutti i namespace non-OffGallery.
+        Strategia chirurgica: legge lo stato corrente, rimuove solo i campi
+        gestiti da OffGallery (Subject, HierarchicalSubject, Title, Description,
+        Rating, Label), poi riscrive tutto in un unico passaggio ExifTool.
+        Preserva crs:, xmpMM:, photoshop:, e qualsiasi altro namespace ignoto.
         """
         if not self.exiftool_available:
             return False
 
         category = self._get_file_category(file_path)
-        if category == 'raw':
-            target = self._resolve_sidecar_path(file_path, for_write=True)
-        else:
-            target = file_path
+        target = self._resolve_sidecar_path(file_path, for_write=True) if category == 'raw' else file_path
 
         try:
-            # Prima passata: cancella tutto l'XMP per eliminare duplicati da export precedenti
+            # 1. Leggi tutti i tag esistenti con namespace G1
+            preserve_args = []
+            try:
+                result_read = subprocess.run(
+                    [*XMPManagerExtended._exiftool_cmd, '-j', '-G1', '-a', str(target)],
+                    capture_output=True, text=True, timeout=15,
+                    **subprocess_creation_kwargs()
+                )
+                if result_read.returncode == 0 and result_read.stdout.strip():
+                    all_tags = json.loads(result_read.stdout)
+                    if all_tags:
+                        for full_key, value in all_tags[0].items():
+                            if full_key == 'SourceFile':
+                                continue
+                            # Estrai gruppo (es. "XMP-crs") e nome campo (es. "Temperature")
+                            if ':' not in full_key:
+                                continue
+                            group, field = full_key.split(':', 1)
+                            # Salta namespace non-XMP
+                            if group in self._NON_XMP_GROUPS:
+                                continue
+                            # Salta campi gestiti da OffGallery (verranno riscritti)
+                            if full_key in self._OFFGALLERY_XMP_FIELDS:
+                                continue
+                            # Preserva tutto il resto (crs:, xmpMM:, photoshop:, ecc.)
+                            exiftool_tag = f'{group}:{field}'
+                            if isinstance(value, list):
+                                for v in value:
+                                    if v is not None:
+                                        preserve_args.append(f'-{exiftool_tag}+={v}')
+                            elif value is not None:
+                                preserve_args.append(f'-{exiftool_tag}={value}')
+            except Exception as e:
+                logger.warning(f"Lettura tag esistenti fallita per {target.name}: {e} — continuo senza preservazione")
+
+            # 2. Cancella tutto l'XMP (inclusi eventuali blocchi duplicati)
             result_clear = self._run_exiftool_write(['-overwrite_original', '-XMP='], target, timeout=15)
             if result_clear.returncode != 0:
                 logger.warning(f"Pulizia XMP fallita per {target.name}, continuo comunque")
 
+            # 3. Riscrivi: campi preservati + campi OffGallery aggiornati
             write_args = ['-overwrite_original']
 
-            # Campi scalari (title, description, rating, color_label)
+            # Campi preservati da altri namespace
+            write_args.extend(preserve_args)
+
+            # Campi scalari OffGallery (title, description, rating, color_label)
             for key, value in xmp_dict.items():
                 if key.lower() in ('keywords', 'subject'):
-                    continue  # gestiti sotto
+                    continue
                 if value is None:
                     continue
                 exif_key = self._dict_key_to_exiftool(key)
                 write_args.append(f'-{exif_key}={value}')
 
-            # Subject: riscrivi solo tag utente
+            # Subject: solo tag utente
             write_args.append('-XMP-dc:Subject=')
             for tag in user_tags:
                 if tag:
                     write_args.append(f'-XMP-dc:Subject+={tag}')
 
-            # HierarchicalSubject: azzera sempre e riscrivi tutto
+            # HierarchicalSubject: BioCLIP + Geo + AI|Tags
             write_args.append('-XMP-lr:HierarchicalSubject=')
             if bioclip_path:
                 write_args.append(f'-XMP-lr:HierarchicalSubject+={bioclip_path}')
@@ -1316,7 +1371,7 @@ class XMPManagerExtended:
 
             result = self._run_exiftool_write(write_args, target, timeout=30)
             if result.returncode == 0:
-                logger.info(f"✓ XMP gallery scritto: {target.name} ({len(user_tags)} utente, {len(llm_tags)} AI)")
+                logger.info(f"✓ XMP gallery scritto: {target.name} ({len(user_tags)} utente, {len(llm_tags)} AI, {len(preserve_args)} campi preservati)")
                 return True
             else:
                 error_msg = result.stderr.decode() if result.stderr else "Unknown"
