@@ -84,7 +84,7 @@ class ImageRetrieval:
                    iso, shutter_speed, width, height, datetime_original,
                    datetime_digitized, datetime_modified, processed_date,
                    aesthetic_score, technical_score, lr_rating, color_label,
-                   bioclip_taxonomy, geo_hierarchy{plugin_cols}
+                   bioclip_taxonomy, geo_hierarchy, vernacular_name{plugin_cols}
             FROM images
             """
             if filters_sql:
@@ -248,9 +248,11 @@ class ImageRetrieval:
 
             if deep_search and query_words:
                 desc = str(img.get('description', '')).lower() if include_description else ""
+                title = str(img.get('title', '')).lower()
                 tags = str(img.get('tags', '[]')).lower()
                 llm_tags = str(img.get('llm_tags', '[]')).lower()
-                full_text = f" {desc} {tags} {llm_tags} ".replace('"', ' ').replace("'", " ").replace(",", " ").replace(".", " ")
+                vernacular = str(img.get('vernacular_name', '') or '').lower()
+                full_text = f" {title} {desc} {tags} {llm_tags} {vernacular} ".replace('"', ' ').replace("'", " ").replace(",", " ").replace(".", " ")
 
                 matches = 0
                 match_details = []
@@ -335,10 +337,10 @@ class ImageRetrieval:
             all_tags = _parse_tags_field(img.get('tags', '[]')) + _parse_tags_field(img.get('llm_tags', '[]'))
             processed_tags = " ".join(all_tags)
 
-            # Uniamo titolo, descrizione e tag per la ricerca
             title_text = str(img.get('title', '')) if include_title else ""
             desc_text = str(img.get('description', '')) if include_description else ""
-            content_text = self._normalize(f"{title_text} {desc_text} {processed_tags}")
+            vernacular_text = str(img.get('vernacular_name', '') or '')
+            content_text = self._normalize(f"{title_text} {desc_text} {processed_tags} {vernacular_text}")
             
             # 3. Logica di Match con scoring
             if fuzzy:
