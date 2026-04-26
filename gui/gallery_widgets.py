@@ -2903,42 +2903,38 @@ class ImageCard(QFrame):
                     if color_label:
                         xmp_dict['color_label'] = color_label
 
-                    # Sync DB→XMP: merge_existing_keywords=False — il DB è la fonte di verità
-                    success = xmp_manager.write_xmp_by_format(
-                        filepath, xmp_dict, merge_existing_keywords=False
+                    # Prepara dati per scrittura unica (Subject + HierarchicalSubject in un colpo)
+                    llm_raw = item.image_data.get('llm_tags', '')
+                    llm_list = []
+                    if llm_raw:
+                        try:
+                            llm_list = json.loads(llm_raw) if isinstance(llm_raw, str) else llm_raw
+                            if not isinstance(llm_list, list):
+                                llm_list = []
+                        except Exception:
+                            llm_list = []
+
+                    bioclip_path = None
+                    bioclip_raw = item.image_data.get('bioclip_taxonomy', '')
+                    if bioclip_raw:
+                        try:
+                            from embedding_generator import EmbeddingGenerator
+                            taxonomy = json.loads(bioclip_raw) if isinstance(bioclip_raw, str) else bioclip_raw
+                            if taxonomy and isinstance(taxonomy, list):
+                                bioclip_path = EmbeddingGenerator.build_hierarchical_taxonomy(taxonomy, prefix="AI|Taxonomy")
+                        except Exception as e:
+                            logger.warning(f"Errore build tassonomia BioCLIP per {filepath.name}: {e}")
+
+                    geo_hierarchy = item.image_data.get('geo_hierarchy', '') or ''
+
+                    # Unico passaggio ExifTool: azzera e riscrivi Subject + HierarchicalSubject
+                    success = xmp_manager.write_full_xmp_gallery(
+                        filepath, xmp_dict,
+                        user_tags=tags,
+                        llm_tags=llm_list,
+                        bioclip_path=bioclip_path,
+                        geo_hierarchy=geo_hierarchy or None
                     )
-
-                    # Scrivi BioCLIP HierarchicalSubject se presente
-                    if success:
-                        bioclip_raw = item.image_data.get('bioclip_taxonomy', '')
-                        if bioclip_raw:
-                            try:
-                                from embedding_generator import EmbeddingGenerator
-                                taxonomy = json.loads(bioclip_raw) if isinstance(bioclip_raw, str) else bioclip_raw
-                                if taxonomy and isinstance(taxonomy, list):
-                                    hier_path = EmbeddingGenerator.build_hierarchical_taxonomy(taxonomy, prefix="AI|Taxonomy")
-                                    if hier_path:
-                                        xmp_manager.write_hierarchical_bioclip(filepath, hier_path)
-                            except Exception as e:
-                                logger.warning(f"Errore HierarchicalSubject BioCLIP per {filepath.name}: {e}")
-
-                    # Scrivi gerarchia geografica se presente
-                    if success:
-                        geo_hierarchy = item.image_data.get('geo_hierarchy', '')
-                        if geo_hierarchy:
-                            try:
-                                xmp_manager.write_hierarchical_geo(filepath, geo_hierarchy)
-                            except Exception as e:
-                                logger.warning(f"Errore HierarchicalSubject GeOFF per {filepath.name}: {e}")
-
-                    # Scrivi llm_tags in HierarchicalSubject AI|Tags| (sempre, sovrascrive)
-                    if success:
-                        llm_raw = item.image_data.get('llm_tags', '')
-                        if llm_raw:
-                            try:
-                                xmp_manager.write_hierarchical_llm_tags(filepath, llm_raw)
-                            except Exception as e:
-                                logger.warning(f"Errore HierarchicalSubject AI|Tags| per {filepath.name}: {e}")
 
                     if success:
                         success_count += 1

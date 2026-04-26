@@ -1264,6 +1264,64 @@ class XMPManagerExtended:
             logger.error(f"Errore write_hierarchical_llm_tags: {e}")
             return False
 
+    def write_full_xmp_gallery(self, file_path: Path, xmp_dict: dict,
+                               user_tags: list, llm_tags: list,
+                               bioclip_path: str = None,
+                               geo_hierarchy: str = None) -> bool:
+        """Scrive Subject + HierarchicalSubject in un unico passaggio ExifTool.
+        Garantisce pulizia completa da export precedenti — nessun duplicato.
+        Usato dalla Gallery (DB è fonte di verità, nessun merge).
+        """
+        if not self.exiftool_available:
+            return False
+
+        category = self._get_file_category(file_path)
+        if category == 'raw':
+            target = self._resolve_sidecar_path(file_path, for_write=True)
+        else:
+            target = file_path
+
+        try:
+            write_args = ['-overwrite_original']
+
+            # Campi scalari (title, description, rating, color_label)
+            for key, value in xmp_dict.items():
+                if key.lower() in ('keywords', 'subject'):
+                    continue  # gestiti sotto
+                if value is None:
+                    continue
+                exif_key = self._dict_key_to_exiftool(key)
+                write_args.append(f'-{exif_key}={value}')
+
+            # Subject: azzera sempre e riscrivi solo tag utente
+            write_args.append('-XMP-dc:Subject=')
+            for tag in user_tags:
+                if tag:
+                    write_args.append(f'-XMP-dc:Subject+={tag}')
+
+            # HierarchicalSubject: azzera sempre e riscrivi tutto
+            write_args.append('-XMP-lr:HierarchicalSubject=')
+            if bioclip_path:
+                write_args.append(f'-XMP-lr:HierarchicalSubject+={bioclip_path}')
+            if geo_hierarchy:
+                write_args.append(f'-XMP-lr:HierarchicalSubject+={geo_hierarchy}')
+            for tag in llm_tags:
+                if tag:
+                    write_args.append(f'-XMP-lr:HierarchicalSubject+=AI|Tags|{tag}')
+
+            result = self._run_exiftool_write(write_args, target, timeout=30)
+            if result.returncode == 0:
+                logger.info(f"✓ XMP gallery scritto: {target.name} ({len(user_tags)} utente, {len(llm_tags)} AI)")
+                return True
+            else:
+                error_msg = result.stderr.decode() if result.stderr else "Unknown"
+                logger.error(f"Errore write_full_xmp_gallery: {error_msg}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Errore write_full_xmp_gallery: {e}")
+            return False
+
 
 # ===== UTILITY FUNCTIONS (invariate) =====
 
