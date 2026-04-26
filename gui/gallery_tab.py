@@ -1148,12 +1148,12 @@ class GalleryTab(QWidget):
                     item.image_data['title'] = result['title']
                     updated_title += 1
 
-                # Salva TAGS
+                # Salva TAGS LLM
                 if result.get('tags'):
                     existing_tags = []
-                    if 'tags' in item.image_data and item.image_data['tags']:
+                    if item.image_data.get('llm_tags'):
                         try:
-                            existing_tags = json.loads(item.image_data['tags'])
+                            existing_tags = json.loads(item.image_data['llm_tags'])
                         except Exception:
                             existing_tags = []
 
@@ -1166,10 +1166,10 @@ class GalleryTab(QWidget):
                     tags_json = json.dumps(final_tags, ensure_ascii=False)
 
                     db_manager.cursor.execute(
-                        "UPDATE images SET tags = ? WHERE id = ?",
+                        "UPDATE images SET llm_tags = ? WHERE id = ?",
                         (tags_json, item.image_id)
                     )
-                    item.image_data['tags'] = tags_json
+                    item.image_data['llm_tags'] = tags_json
                     updated_tags += 1
 
                 # Salva DESCRIPTION

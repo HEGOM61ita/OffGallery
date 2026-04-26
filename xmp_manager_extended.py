@@ -1031,7 +1031,7 @@ class XMPManagerExtended:
                 kw.strip() for kw in subjects
                 if kw and kw.strip()
                 and '|' not in kw
-                and not kw.startswith('AI|Taxonomy')
+                and not kw.startswith('AI|')
             ]
         except Exception as e:
             logger.warning(f"Errore lettura keyword sidecar esistenti: {e}")

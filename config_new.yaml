@@ -31,17 +31,17 @@ embedding:
     llm_vision:
       auto_import:
         description:
-          enabled: false
+          enabled: true
           max_words: 100
-          overwrite: false
+          overwrite: true
         tags:
           enabled: true
           max_tags: 10
           overwrite: true
         title:
-          enabled: false
+          enabled: true
           max_words: 5
-          overwrite: false
+          overwrite: true
       backend: ollama
       description: Genera tag, descrizioni e titoli con LLM Vision
       disk_queue: true

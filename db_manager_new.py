@@ -1,7 +1,7 @@
 """
 Database Manager - Schema definitivo con campi separati
 Versione pulita senza migrazioni - richiede database ricreato da zero
-UNIFIED: Campo tags per user/ai tags, bioclip_taxonomy separato per tassonomia BioCLIP
+SPLIT: tags = solo tag umani, llm_tags = solo tag generati da LLM, bioclip_taxonomy separato per tassonomia BioCLIP
 """
 
 import sqlite3
@@ -134,7 +134,8 @@ class DatabaseManager:
                 is_monochrome BOOLEAN DEFAULT 0,  -- Rilevamento automatico B/N
                 
                 -- ===== TAGGING =====
-                tags TEXT,                     -- Tags LLM + user (JSON array, NO bioclip)
+                tags TEXT,                     -- Tag umani (da XMP preesistente, JSON array)
+                llm_tags TEXT,                 -- Tag generati da LLM (JSON array, mai scritto dall'utente)
                 bioclip_taxonomy TEXT,          -- Tassonomia BioCLIP completa JSON [kingdom,phylum,class,order,family,genus,species]
                 geo_hierarchy TEXT,             -- Gerarchia geografica 'GeOFF|Continent|Country|Region|City'
                 
@@ -189,6 +190,12 @@ class DatabaseManager:
         except Exception:
             pass  # colonna già presente
 
+        # Migrazione: aggiunge colonna llm_tags se non presente (separazione tag umani/AI)
+        try:
+            self.cursor.execute("ALTER TABLE images ADD COLUMN llm_tags TEXT")
+        except Exception:
+            pass  # colonna già presente
+
         self.conn.commit()
         logger.info(f"Database schema completo inizializzato: {self.db_path}")
     
@@ -222,11 +229,11 @@ class DatabaseManager:
                     gps_city, gps_state, gps_country, gps_location,
                     exif_json,
                     clip_embedding, dinov2_embedding, aesthetic_score, technical_score, is_monochrome,
-                    tags, bioclip_taxonomy, geo_hierarchy,
+                    tags, llm_tags, bioclip_taxonomy, geo_hierarchy,
                     ai_description_hash, model_used,
                     processing_time, embedding_generated, llm_generated, success, error_message, app_version,
                     sync_state, last_xmp_mtime, last_sync_at, last_sync_check_at, last_import_mtime, processed_date
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 # File base
                 image_data.get('filename'),
@@ -306,8 +313,10 @@ class DatabaseManager:
                 image_data.get('technical_score'),
                 image_data.get('is_monochrome', 0),  # Campo aggiunto
                 
-                # Tags LLM + user (JSON)
+                # Tag umani (JSON)
                 image_data.get('tags'),
+                # Tag LLM (JSON)
+                image_data.get('llm_tags'),
                 # Tassonomia BioCLIP completa (JSON)
                 image_data.get('bioclip_taxonomy'),
                 # Gerarchia geografica
@@ -399,7 +408,7 @@ class DatabaseManager:
         try:
             self.cursor.execute(
                 "SELECT clip_embedding, dinov2_embedding, bioclip_taxonomy, "
-                "aesthetic_score, technical_score, tags, description, title "
+                "aesthetic_score, technical_score, tags, llm_tags, description, title "
                 "FROM images WHERE filename = ?", (filename,))
             row = self.cursor.fetchone()
             if not row:
@@ -411,8 +420,9 @@ class DatabaseManager:
                 'aesthetic_score': row[3] is not None,
                 'technical_score': row[4] is not None,
                 'tags': row[5] is not None and row[5] not in ('', '[]'),
-                'description': row[6] is not None and row[6] != '',
-                'title': row[7] is not None and row[7] != '',
+                'llm_tags': row[6] is not None and row[6] not in ('', '[]'),
+                'description': row[7] is not None and row[7] != '',
+                'title': row[8] is not None and row[8] != '',
             }
         except Exception as e:
             logger.error(f"Errore get_ai_fields_status: {e}")
@@ -481,6 +491,7 @@ class DatabaseManager:
                     COUNT(technical_score)                                      AS technical,
                     COUNT(bioclip_taxonomy)                                     AS bioclip,
                     COUNT(CASE WHEN tags IS NOT NULL AND tags != '[]' THEN 1 END) AS tags,
+                    COUNT(CASE WHEN llm_tags IS NOT NULL AND llm_tags != '[]' THEN 1 END) AS llm_tags,
                     COUNT(description)                                          AS description,
                     COUNT(title)                                                AS title
                 FROM images
@@ -517,6 +528,26 @@ class DatabaseManager:
             self.conn.rollback()
             return False
     
+    def update_llm_tags(self, image_id: int, tags: List[str]) -> bool:
+        """Aggiorna tag LLM per un'immagine specifica"""
+        try:
+            tags_json = json.dumps(tags, ensure_ascii=False) if tags else None
+            self.cursor.execute(
+                "UPDATE images SET llm_tags = ? WHERE id = ?",
+                (tags_json, image_id)
+            )
+            self.conn.commit()
+            if self.cursor.rowcount > 0:
+                logger.info(f"LLM tags aggiornati per image_id {image_id}: {tags}")
+                return True
+            else:
+                logger.warning(f"Nessuna immagine trovata con id {image_id}")
+                return False
+        except Exception as e:
+            logger.error(f"Errore update_llm_tags: {e}")
+            self.conn.rollback()
+            return False
+
     def update_bioclip_taxonomy(self, image_id: int, taxonomy: List[str]) -> bool:
         """Aggiorna tassonomia BioCLIP per un'immagine"""
         try:
@@ -680,8 +711,8 @@ class DatabaseManager:
             values = []
             
             for field, value in kwargs.items():
-                if field == 'tags' and isinstance(value, list):
-                    fields.append("tags = ?")
+                if field in ('tags', 'llm_tags') and isinstance(value, list):
+                    fields.append(f"{field} = ?")
                     values.append(json.dumps(value))
                 elif field in ('clip_embedding', 'dinov2_embedding'):
                     fields.append(f"{field} = ?")
@@ -813,7 +844,7 @@ class DatabaseManager:
                 'gps_city', 'gps_state', 'gps_country', 'gps_location',
                 'exif_json',
                 'clip_embedding', 'dinov2_embedding', 'aesthetic_score', 'technical_score', 'is_monochrome',
-                'tags', 'bioclip_taxonomy', 'geo_hierarchy',
+                'tags', 'llm_tags', 'bioclip_taxonomy', 'geo_hierarchy',
                 'ai_description_hash', 'model_used',
                 'processing_time', 'embedding_generated', 'llm_generated', 'success', 'error_message', 'app_version',
                 'sync_state', 'last_xmp_mtime', 'last_sync_at', 'last_sync_check_at', 'last_import_mtime', 'processed_date'

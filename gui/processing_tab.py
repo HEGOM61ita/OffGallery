@@ -1591,10 +1591,10 @@ class ProcessingWorker(QThread):
                 ai_fields = prep.get('ai_fields', {})
                 is_new = prep.get('is_new', True)
 
-                # Tags: se overwrite OFF e campo già popolato, non rigenerare
+                # Tags: se overwrite OFF e llm_tags già popolato, non rigenerare
                 should_gen_tags = gen_tags_cfg.get('enabled', False)
                 if should_gen_tags and not gen_tags_cfg.get('overwrite') and not is_new:
-                    if ai_fields.get('tags', False):
+                    if ai_fields.get('llm_tags', False):
                         should_gen_tags = False
 
                 should_gen_desc = gen_desc_cfg.get('enabled', False)
@@ -1607,13 +1607,17 @@ class ProcessingWorker(QThread):
                     if ai_fields.get('title', False):
                         should_gen_title = False
 
-                # Carica tags esistenti per merge (solo se non sovrascriviamo)
+                # Carica llm_tags esistenti dal DB per merge (solo se non sovrascriviamo)
                 existing_tags = []
-                img_data = prep.get('image_data', {})
-                if img_data.get('tags') and not gen_tags_cfg.get('overwrite'):
+                if not gen_tags_cfg.get('overwrite') and not is_new:
                     try:
-                        existing_tags = json.loads(img_data['tags'])
-                    except (json.JSONDecodeError, TypeError):
+                        with self._db_lock:
+                            _row = db_manager.conn.execute(
+                                "SELECT llm_tags FROM images WHERE filename = ?", (fname,)
+                            ).fetchone()
+                        if _row and _row[0]:
+                            existing_tags = json.loads(_row[0])
+                    except (json.JSONDecodeError, TypeError, Exception):
                         existing_tags = []
 
                 if not (should_gen_tags or should_gen_desc or should_gen_title):
@@ -1705,7 +1709,7 @@ class ProcessingWorker(QThread):
                         except Exception:
                             pass
 
-                    update_data['tags'] = json.dumps(final_tags, ensure_ascii=False)
+                    update_data['llm_tags'] = json.dumps(final_tags, ensure_ascii=False)
                     self.log_message.emit(f"🏷️ LLM tags {fname}: {len(final_tags)} tag", "debug")
                     with self._stats_lock:
                         stats['with_tags'] += 1
