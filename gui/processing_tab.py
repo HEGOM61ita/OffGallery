@@ -1591,11 +1591,8 @@ class ProcessingWorker(QThread):
                 ai_fields = prep.get('ai_fields', {})
                 is_new = prep.get('is_new', True)
 
-                # Tags: se overwrite OFF e llm_tags già popolato, non rigenerare
+                # Tags: overwrite OFF = merge (aggiunge ai tag esistenti); ON = rimpiazza
                 should_gen_tags = gen_tags_cfg.get('enabled', False)
-                if should_gen_tags and not gen_tags_cfg.get('overwrite') and not is_new:
-                    if ai_fields.get('llm_tags', False):
-                        should_gen_tags = False
 
                 should_gen_desc = gen_desc_cfg.get('enabled', False)
                 if should_gen_desc and not gen_desc_cfg.get('overwrite') and not is_new:
