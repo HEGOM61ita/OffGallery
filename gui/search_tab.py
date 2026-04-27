@@ -697,33 +697,10 @@ class SearchTab(QWidget):
         inner_layout.setContentsMargins(0, 0, 0, 0)
         inner_layout.setSpacing(4)
 
-        # Riga badge + reset
-        badge_row = QHBoxLayout()
-        badge_row.setSpacing(8)
-
+        # Badge directory selezionate
         self._dir_status_label = QLabel("")
         self._dir_status_label.setStyleSheet("color: #C88B2E; font-size: 11px; font-weight: bold;")
-        badge_row.addWidget(self._dir_status_label)
-
-        badge_row.addStretch()
-
-        btn_reset = QPushButton("✕ Deseleziona tutto")
-        btn_reset.setFixedHeight(22)
-        btn_reset.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                border: 1px solid #bbb;
-                border-radius: 3px;
-                font-size: 10px;
-                color: #555;
-                padding: 0px 8px;
-            }
-            QPushButton:hover { background: #e8e8e8; border-color: #999; }
-        """)
-        btn_reset.clicked.connect(self._reset_dir_filter)
-        badge_row.addWidget(btn_reset)
-
-        inner_layout.addLayout(badge_row)
+        inner_layout.addWidget(self._dir_status_label)
 
         # Widget albero directory (dark, stile proprio)
         self._dir_widget = DirectoryTreeWidget(self._dir_inner)
@@ -752,11 +729,6 @@ class SearchTab(QWidget):
             self._dir_status_label.setText(f"● {len(selected_dirs)} {'directory' if len(selected_dirs) == 1 else 'directory'} selezionate")
         else:
             self._dir_status_label.setText("")
-
-    def _reset_dir_filter(self):
-        """Deseleziona tutte le directory."""
-        if self._dir_widget is not None:
-            self._dir_widget._deselect_all()
 
     def _load_dir_filter(self, db_manager):
         """Popola l'albero directory con le directory presenti nel DB."""
