@@ -293,12 +293,12 @@ Then reimport the affected photos (re-run Processing on the same folder).
 
 ### Windows
 
-**Method 1 — Double-click (Recommended):**
+**Method 1 — Desktop shortcut (Recommended):**
 
-In the `installer` folder you will find `OffGallery_Launcher_EN.bat`:
+The installer creates the **OffGallery.lnk** shortcut on the Desktop automatically.
+**Double-click** it to launch the app.
 
-1. **Copy** `OffGallery_Launcher_EN.bat` to the **Desktop**
-2. **Double-click** to launch the app
+> **Warning**: do not copy or move `OffGallery_Launcher_EN.bat` to the Desktop or any other folder — the `.bat` file uses its own location to find the application and will fail if moved. Always use the `.lnk` shortcut. If you have lost it: right-click `installer\OffGallery_Launcher_EN.bat` → **Send to → Desktop (create shortcut)**.
 
 **Method 2 — From terminal:**
 
@@ -373,24 +373,55 @@ Models are downloaded from the frozen repository `HEGOM/OffGallery-models` and s
 
 ---
 
-## Saved Searches
+## Plugins (beta access)
 
-The **Search** tab lets you save and recall complete search configurations, so you do not have to re-enter frequently used filters and parameters (e.g. "birds Sardinia, 4+ stars").
+OffGallery includes a plugin system to extend analysis and enrichment capabilities. All plugins are distributed separately from the source code during the beta testing period.
 
-### Save a search
+### LLM Plugins — tag, description and title generation
 
-1. Configure the search normally: query, mode (semantic/tag), threshold, all EXIF, score, date filters, etc.
-2. Click **💾 Save search** (below the RESET button).
-3. Enter a descriptive name and confirm.
-   - If the name already exists, you will be asked whether to overwrite or choose a different name.
+Enable automatic text content generation via local LLM Vision models. Two backends are available:
 
-### Recall a search
+| Plugin | Backend | Default endpoint |
+|--------|---------|------------------|
+| **Ollama** | Local Ollama | `http://localhost:11434` |
+| **LM Studio** | LM Studio server | `http://localhost:1234` |
 
-1. Click **📋 Saved searches**.
-2. Select the desired entry from the list (shows name and creation date).
-3. Click **Load** or double-click — all parameters are restored instantly.
+**LLM generation is optional.** Without an LLM plugin, OffGallery works normally for CLIP, DINOv2, BioCLIP, aesthetic/technical scores, search and geo-enrichment.
 
-> Searches are saved in `database/saved_searches.json` in the project folder. This file can be copied alongside the database to bring your saved searches to another machine.
+### Data Plugins — contextual enrichment
+
+Add information derived from GPS, date/time and BioCLIP taxonomy to photos already in the database:
+
+| Plugin | Function |
+|--------|----------|
+| **GeoNames** | Full geographic hierarchy from GPS (continent → city) |
+| **GeoSpecies** | BioCLIP restricted to species expected at the GPS location |
+| **NaturArea** | Protected area (WDPA) and habitat type (ESA WorldCover) |
+| **Weather** | Historical weather conditions at time of capture |
+| **BioNomen** | Common biological names in 6 languages (GBIF) |
+
+### How to receive the plugins
+
+> **Beta access**: During the beta testing period all plugins are distributed free of charge. To receive them, write to **offgallery.ai.info@gmail.com** stating:
+> - Operating system (Windows / Linux / macOS) and version
+> - System RAM
+> - GPU (model and VRAM) — or "CPU only" if you have no dedicated GPU
+> - Plugins requested (LLM: Ollama or LM Studio; data plugins: list which ones)
+>
+> The address will be used solely to send the plugins and for update notifications — never for any other purpose or shared with third parties.
+
+### Installing a plugin (from zip)
+
+1. Extract the zip contents into the `plugins/` folder of your OffGallery installation
+2. The resulting structure should be:
+   ```
+   plugins/
+   └── plugin_name/
+       ├── __init__.py
+       ├── plugin.py       (or the main file indicated in the manifest)
+       └── manifest.json
+   ```
+3. Restart OffGallery — the plugin is detected automatically
 
 ---
 
