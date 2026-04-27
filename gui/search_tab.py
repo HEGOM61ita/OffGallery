@@ -667,7 +667,7 @@ class SearchTab(QWidget):
                 subcontrol-origin: margin;
                 subcontrol-position: top left;
                 padding: 0 6px;
-                color: #333;
+                color: #ffffff;
             }
             QGroupBox::indicator {
                 width: 14px;
