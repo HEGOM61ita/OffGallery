@@ -93,7 +93,9 @@ class DatabaseManager:
                 flash_mode TEXT,
                 color_space TEXT,
                 orientation INTEGER,
-                
+                focus_distance REAL,           -- Distanza di messa a fuoco in metri (NULL = non disponibile, -1 = Infinity)
+                drive_mode TEXT,               -- Modalità scatto normalizzata: single|continuous|bracketing|timer|silent
+
                 -- ===== DATE =====
                 datetime_original TEXT,
                 datetime_digitized TEXT,
@@ -196,6 +198,18 @@ class DatabaseManager:
         except Exception:
             pass  # colonna già presente
 
+        # Migrazione: aggiunge colonna focus_distance se non presente
+        try:
+            self.cursor.execute("ALTER TABLE images ADD COLUMN focus_distance REAL")
+        except Exception:
+            pass  # colonna già presente
+
+        # Migrazione: aggiunge colonna drive_mode se non presente
+        try:
+            self.cursor.execute("ALTER TABLE images ADD COLUMN drive_mode TEXT")
+        except Exception:
+            pass  # colonna già presente
+
         self.conn.commit()
         logger.info(f"Database schema completo inizializzato: {self.db_path}")
     
@@ -221,7 +235,7 @@ class DatabaseManager:
                     shutter_speed, shutter_speed_decimal, iso,
                     exposure_mode, exposure_bias, metering_mode,
                     white_balance, flash_used, flash_mode,
-                    color_space, orientation,
+                    color_space, orientation, focus_distance, drive_mode,
                     datetime_original, datetime_digitized, datetime_modified,
                     gps_latitude, gps_longitude, gps_altitude, gps_direction,
                     artist, copyright, software,
@@ -233,7 +247,7 @@ class DatabaseManager:
                     ai_description_hash, model_used,
                     processing_time, embedding_generated, llm_generated, success, error_message, app_version,
                     sync_state, last_xmp_mtime, last_sync_at, last_sync_check_at, last_import_mtime, processed_date
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 # File base
                 image_data.get('filename'),
@@ -273,7 +287,9 @@ class DatabaseManager:
                 image_data.get('flash_mode'),
                 image_data.get('color_space'),
                 image_data.get('orientation'),
-                
+                image_data.get('focus_distance'),
+                image_data.get('drive_mode'),
+
                 # Date - CORRETTO
                 image_data.get('datetime_original'),
                 image_data.get('datetime_digitized'),
@@ -836,7 +852,7 @@ class DatabaseManager:
                 'shutter_speed', 'shutter_speed_decimal', 'iso',
                 'exposure_mode', 'exposure_bias', 'metering_mode',
                 'white_balance', 'flash_used', 'flash_mode',
-                'color_space', 'orientation',
+                'color_space', 'orientation', 'focus_distance', 'drive_mode',
                 'datetime_original', 'datetime_digitized', 'datetime_modified',
                 'gps_latitude', 'gps_longitude', 'gps_altitude', 'gps_direction',
                 'artist', 'copyright', 'software',
