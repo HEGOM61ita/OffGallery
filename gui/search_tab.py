@@ -651,95 +651,105 @@ class SearchTab(QWidget):
 
     def _create_directory_section(self):
         """Pannello collassabile per limitare la ricerca a specifiche directory del DB."""
-        from PyQt6.QtWidgets import QFrame
-
-        outer = QWidget()
-        outer_layout = QVBoxLayout(outer)
-        outer_layout.setContentsMargins(4, 2, 4, 2)
-        outer_layout.setSpacing(0)
-
-        # Header sempre visibile
-        header = QWidget()
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(4, 4, 4, 4)
-        header_layout.setSpacing(6)
-
-        self._dir_toggle_btn = QPushButton("▶")
-        self._dir_toggle_btn.setFixedSize(22, 22)
-        self._dir_toggle_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                border: none;
-                font-size: 10px;
-                color: #666;
+        self._dir_group = QGroupBox("📁 Ambito ricerca — Directory")
+        self._dir_group.setCheckable(True)
+        self._dir_group.setChecked(False)
+        self._dir_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 12px;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                margin-top: 6px;
+                padding-top: 4px;
             }
-            QPushButton:hover { color: #333; }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 6px;
+                color: #333;
+            }
+            QGroupBox::indicator {
+                width: 14px;
+                height: 14px;
+            }
+            QGroupBox::indicator:unchecked {
+                image: none;
+                background-color: #e0e0e0;
+                border: 1px solid #aaa;
+                border-radius: 2px;
+            }
+            QGroupBox::indicator:checked {
+                image: none;
+                background-color: #1C4F63;
+                border: 1px solid #1C4F63;
+                border-radius: 2px;
+            }
         """)
-        self._dir_toggle_btn.clicked.connect(self._toggle_dir_panel)
-        header_layout.addWidget(self._dir_toggle_btn)
 
-        title = QLabel("📁 Ambito ricerca (Directory)")
-        title.setStyleSheet("font-weight: bold; font-size: 12px;")
-        header_layout.addWidget(title)
+        outer_layout = QVBoxLayout(self._dir_group)
+        outer_layout.setContentsMargins(6, 6, 6, 6)
+        outer_layout.setSpacing(4)
+
+        # Contenitore interno — unico figlio diretto da mostrare/nascondere
+        self._dir_inner = QWidget()
+        inner_layout = QVBoxLayout(self._dir_inner)
+        inner_layout.setContentsMargins(0, 0, 0, 0)
+        inner_layout.setSpacing(4)
+
+        # Riga badge + reset
+        badge_row = QHBoxLayout()
+        badge_row.setSpacing(8)
 
         self._dir_status_label = QLabel("")
-        self._dir_status_label.setStyleSheet("color: #C88B2E; font-size: 11px;")
-        header_layout.addWidget(self._dir_status_label)
+        self._dir_status_label.setStyleSheet("color: #C88B2E; font-size: 11px; font-weight: bold;")
+        badge_row.addWidget(self._dir_status_label)
 
-        header_layout.addStretch()
+        badge_row.addStretch()
 
-        btn_reset = QPushButton("✕ Reset")
-        btn_reset.setFixedHeight(20)
+        btn_reset = QPushButton("✕ Deseleziona tutto")
+        btn_reset.setFixedHeight(22)
         btn_reset.setStyleSheet("""
             QPushButton {
                 background: transparent;
-                border: 1px solid #aaa;
+                border: 1px solid #bbb;
                 border-radius: 3px;
                 font-size: 10px;
-                color: #666;
-                padding: 0px 6px;
+                color: #555;
+                padding: 0px 8px;
             }
-            QPushButton:hover { background: #eee; }
+            QPushButton:hover { background: #e8e8e8; border-color: #999; }
         """)
         btn_reset.clicked.connect(self._reset_dir_filter)
-        header_layout.addWidget(btn_reset)
+        badge_row.addWidget(btn_reset)
 
-        outer_layout.addWidget(header)
+        inner_layout.addLayout(badge_row)
 
-        # Contenuto collassabile
-        self._dir_content = QWidget()
-        content_layout = QVBoxLayout(self._dir_content)
-        content_layout.setContentsMargins(0, 4, 0, 4)
-        content_layout.setSpacing(0)
-
-        self._dir_widget = DirectoryTreeWidget(self._dir_content)
+        # Widget albero directory (dark, stile proprio)
+        self._dir_widget = DirectoryTreeWidget(self._dir_inner)
         self._dir_widget.tree.setMinimumHeight(160)
         self._dir_widget.setMaximumHeight(500)
         self._dir_widget.selection_changed.connect(self._on_dir_selection_changed)
-        content_layout.addWidget(self._dir_widget)
+        inner_layout.addWidget(self._dir_widget)
 
-        self._dir_content.setVisible(False)
-        outer_layout.addWidget(self._dir_content)
+        self._dir_inner.setVisible(False)
+        outer_layout.addWidget(self._dir_inner)
 
-        frame = QFrame()
-        frame.setFrameShape(QFrame.Shape.StyledPanel)
-        frame.setStyleSheet("QFrame { border: 1px solid #ddd; border-radius: 4px; }")
-        frame_layout = QVBoxLayout(frame)
-        frame_layout.setContentsMargins(0, 0, 0, 0)
-        frame_layout.addWidget(outer)
+        # Toggle collassa/espande il contenitore interno
+        self._dir_group.toggled.connect(self._on_dir_group_toggled)
 
-        return frame
+        return self._dir_group
 
-    def _toggle_dir_panel(self):
-        """Espande o collassa il pannello directory."""
-        visible = not self._dir_content.isVisible()
-        self._dir_content.setVisible(visible)
-        self._dir_toggle_btn.setText("▼" if visible else "▶")
+    def _on_dir_group_toggled(self, checked: bool):
+        """Mostra/nasconde il contenuto del GroupBox directory."""
+        self._dir_inner.setVisible(checked)
+        if not checked:
+            self._dir_status_label.setText("")
 
     def _on_dir_selection_changed(self, selected_dirs: list):
         """Aggiorna il badge nell'header quando cambia la selezione."""
         if selected_dirs:
-            self._dir_status_label.setText(f"— {len(selected_dirs)} dir selezionate")
+            self._dir_status_label.setText(f"● {len(selected_dirs)} {'directory' if len(selected_dirs) == 1 else 'directory'} selezionate")
         else:
             self._dir_status_label.setText("")
 
