@@ -357,7 +357,7 @@
     <li class="sub"><a href="#stato-modelli">Indicatori di Stato Modelli</a></li>
 
     <li class="section-title"><a>Tab Principali</a></li>
-    <li><a href="#elaborazione">Tab Elaborazione</a></li>
+    <li><a href="#elaborazione">Tab Processing</a></li>
     <li class="sub"><a href="#elab-sorgente">Sorgente Immagini</a></li>
     <li class="sub"><a href="#elab-modalita">Modalità Elaborazione</a></li>
     <li class="sub"><a href="#elab-ai">Opzioni AI</a></li>
@@ -368,17 +368,20 @@
     <li class="sub"><a href="#cerca-tag">Ricerca per Tag</a></li>
     <li class="sub"><a href="#cerca-filtri">Filtri Avanzati</a></li>
     <li class="sub"><a href="#cerca-salvate">Ricerche Salvate</a></li>
-    <li><a href="#galleria">Tab Galleria</a></li>
+    <li><a href="#galleria">Tab Gallery</a></li>
     <li class="sub"><a href="#gall-badge">Badge e Indicatori</a></li>
     <li class="sub"><a href="#gall-ordinamento">Ordinamento</a></li>
     <li class="sub"><a href="#gall-menu">Menu Contestuale</a></li>
     <li><a href="#statistiche">Tab Statistiche</a></li>
-    <li><a href="#esportazione">Tab Esportazione</a></li>
+    <li><a href="#esportazione">Tab Export</a></li>
     <li class="sub"><a href="#export-xmp">Export XMP</a></li>
     <li class="sub"><a href="#export-copia">Copia con Struttura</a></li>
     <li><a href="#configurazione">Tab Configurazione</a></li>
     <li class="sub"><a href="#config-device">Allocazione Device</a></li>
-    <li><a href="#plugin-llm">Plugin LLM</a></li>
+    <li><a href="#plugin-llm">Plugin</a></li>
+    <li class="sub"><a href="#plugin-llm-backends">Plugin LLM</a></li>
+    <li class="sub"><a href="#plugin-dati">Plugin Dati</a></li>
+    <li class="sub"><a href="#plugin-accesso">Accesso beta</a></li>
     <li><a href="#log">Tab Log</a></li>
 
     <li class="section-title"><a>Concetti Avanzati</a></li>
@@ -402,7 +405,7 @@
   <img class="logo" src="../assets/logo3.jpg" alt="OffGallery Logo">
   <h1>OffGallery</h1>
   <div class="subtitle">Manuale Utente</div>
-  <div class="meta">Versione 1.0 &nbsp;·&nbsp; Marzo 2026 &nbsp;·&nbsp; Italiano</div>
+  <div class="meta">Versione 1.0 &nbsp;·&nbsp; Aprile 2026 &nbsp;·&nbsp; Italiano</div>
 </div>
 
 <!-- ===== 1. INTRODUZIONE ===== -->
@@ -418,7 +421,7 @@
   <li>Genera <strong>embedding semantici CLIP</strong> (768 dimensioni) per ricerca in linguaggio naturale</li>
   <li>Calcola <strong>embedding DINOv2</strong> per ricerca per similarità visiva</li>
   <li>Classifica automaticamente flora e fauna con <strong>BioCLIP2</strong> (~450.000 specie, 7 livelli tassonomici)</li>
-  <li>Genera <strong>tag, descrizioni e titoli</strong> tramite modello LLM Vision locale (Qwen3.5 4B via Ollama)</li>
+  <li>Genera <strong>tag, descrizioni e titoli</strong> tramite modello LLM Vision locale (es. Qwen3-VL via Ollama o LM Studio)</li>
   <li>Valuta la qualità artistica con <strong>score estetico</strong> (0–10) e tecnica (nitidezza/rumore)</li>
   <li>Geocodifica offline le <strong>coordinate GPS</strong> in gerarchia Continente › Paese › Regione › Città</li>
   <li>Si integra con <strong>Lightroom</strong> tramite import/export XMP bidirezionale</li>
@@ -436,12 +439,12 @@
 <!-- ===== PRIMO AVVIO ===== -->
 <h1 id="primo-avvio"><span class="section-number">2</span>Primo Avvio</h1>
 
-<p>Dopo l'installazione tramite wizard (vedi <code>installer/INSTALL_GUIDE.md</code>), avvia OffGallery dall'icona desktop o dalla voce nel menu applicazioni. Al <strong>primo avvio</strong> l'applicazione scarica automaticamente i modelli AI (~6,7 GB totali). Un pannello di progresso mostra l'avanzamento. Questo passaggio avviene una volta sola.</p>
+<p>Dopo l'installazione (vedi <code>installer/INSTALL_GUIDE_IT.md</code>), avvia OffGallery tramite lo script <code>installer/INSTALLA_OffGallery.bat</code> (Windows) o il launcher corrispondente per macOS/Linux. Al <strong>primo avvio</strong> l'applicazione scarica automaticamente i modelli AI (~6,7 GB totali). Un pannello di progresso mostra l'avanzamento. Questo passaggio avviene una volta sola.</p>
 
 <ol class="steps">
-  <li><p>Avvia OffGallery dal collegamento creato dall'installer.</p></li>
+  <li><p>Avvia OffGallery tramite lo script launcher nella cartella <code>installer/</code>.</p></li>
   <li><p>Al primo avvio appare una splash screen che scarica i modelli AI. Connessione internet necessaria solo in questo momento.</p></li>
-  <li><p>Al termine del download l'interfaccia principale appare con 7 tab.</p></li>
+  <li><p>Al termine del download l'interfaccia principale appare con 8 tab.</p></li>
   <li><p>(Opzionale) Assicurati che <strong>Ollama</strong> sia in esecuzione se vuoi generare tag e descrizioni LLM. Su Windows avvia l'app Ollama; su macOS/Linux il daemon parte automaticamente.</p></li>
 </ol>
 
@@ -456,18 +459,19 @@
 <!-- ===== INTERFACCIA ===== -->
 <h1 id="interfaccia"><span class="section-number">3</span>Panoramica Interfaccia</h1>
 
-<p>L'interfaccia è organizzata in <strong>7 tab</strong> orizzontali nella parte superiore della finestra:</p>
+<p>L'interfaccia è organizzata in <strong>8 tab</strong> orizzontali nella parte superiore della finestra:</p>
 
 <table>
   <thead><tr><th>Tab</th><th>Funzione Principale</th></tr></thead>
   <tbody>
-    <tr><td><strong>Elaborazione</strong></td><td>Analisi AI delle immagini: embedding, BioCLIP, LLM, score estetico/tecnico, geotag</td></tr>
-    <tr><td><strong>Ricerca</strong></td><td>Query semantica in linguaggio naturale + filtri EXIF/score/data/colore</td></tr>
-    <tr><td><strong>Galleria</strong></td><td>Visualizzazione risultati con badge, anteprima e ordinamento avanzato</td></tr>
-    <tr><td><strong>Statistiche</strong></td><td>Analisi del database: tipologia, date, obiettivi, score, rating</td></tr>
-    <tr><td><strong>Esportazione</strong></td><td>Export XMP, copia file con struttura originale, sync con Lightroom</td></tr>
     <tr><td><strong>Configurazione</strong></td><td>Impostazioni modelli AI, LLM, lingua UI e output, editor esterni</td></tr>
+    <tr><td><strong>Processing</strong></td><td>Analisi AI delle immagini: embedding, BioCLIP, LLM, score estetico/tecnico, geotag</td></tr>
+    <tr><td><strong>Ricerca</strong></td><td>Query semantica in linguaggio naturale + filtri EXIF/score/data/colore</td></tr>
+    <tr><td><strong>Gallery</strong></td><td>Visualizzazione risultati con badge, anteprima e ordinamento avanzato</td></tr>
+    <tr><td><strong>Export</strong></td><td>Export XMP, copia file con struttura originale, sync con Lightroom</td></tr>
+    <tr><td><strong>Statistiche</strong></td><td>Analisi del database: tipologia, date, obiettivi, score, rating</td></tr>
     <tr><td><strong>Log</strong></td><td>Monitoraggio in tempo reale dei processi di elaborazione</td></tr>
+    <tr><td><strong>Plugin</strong></td><td>Gestione plugin standalone: avvio, configurazione e monitoraggio progresso</td></tr>
   </tbody>
 </table>
 
@@ -494,9 +498,9 @@
 <hr>
 
 <!-- ===== TAB ELABORAZIONE ===== -->
-<h1 id="elaborazione"><span class="section-number">4</span>Tab Elaborazione</h1>
+<h1 id="elaborazione"><span class="section-number">4</span>Tab Processing</h1>
 
-<p>Il tab Elaborazione è il centro operativo di OffGallery. Da qui si avviano le sessioni di analisi AI che popolano il database con embedding, tag, descrizioni e metadati.</p>
+<p>Il tab Processing è il centro operativo di OffGallery. Da qui si avviano le sessioni di analisi AI che popolano il database con embedding, tag, descrizioni e metadati.</p>
 
 <h2 id="elab-sorgente">4.1 Sorgente Immagini</h2>
 
@@ -539,16 +543,16 @@
   <thead><tr><th>Modalità</th><th>Comportamento</th></tr></thead>
   <tbody>
     <tr>
-      <td><strong>Solo nuove</strong></td>
+      <td><strong>Solo nuove immagini</strong></td>
       <td>Elabora solo le immagini non ancora presenti nel database. Le foto già analizzate vengono saltate.</td>
     </tr>
     <tr>
-      <td><strong>Riprocessa tutte</strong></td>
-      <td>Rianalizza tutte le immagini nella sorgente, anche quelle già nel database. Utile dopo aver aggiornato un modello o cambiato parametri.</td>
+      <td><strong>Nuove + errori precedenti</strong></td>
+      <td>Elabora le immagini nuove e riprova quelle che avevano dato errore in una sessione precedente.</td>
     </tr>
     <tr>
-      <td><strong>Riprocessa tutte + Solo Gen. AI</strong></td>
-      <td>Modalità speciale: rigenera solo tag, descrizione e titolo (LLM) sulle immagini già nel database. Salta EXIF ed embedding. Vedi <a href="#solo-gen-ai">§ 4.4</a>.</td>
+      <td><strong>Riprocessa tutte</strong></td>
+      <td>Rianalizza tutte le immagini nella sorgente, anche quelle già nel database. Utile dopo aver aggiornato un modello o cambiato parametri. Attivando questa modalità appare il checkbox <strong>Solo Gen. AI</strong>: vedi <a href="#solo-gen-ai">§ 4.4</a>.</td>
     </tr>
   </tbody>
 </table>
@@ -568,6 +572,47 @@
   </tbody>
 </table>
 
+<h3>Griglia: effetto di Sovrascrivi per tipo di campo</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Campo</th>
+      <th>Sovrascrivi OFF (default)</th>
+      <th>Sovrascrivi ON</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Tag</strong></td>
+      <td>Merge: aggiunge solo i tag non già presenti (case-insensitive). I tag esistenti restano invariati.</td>
+      <td>Replace totale: i tag esistenti vengono sostituiti integralmente con quelli generati dal LLM.</td>
+    </tr>
+    <tr>
+      <td><strong>Descrizione</strong></td>
+      <td>Skip: se la descrizione è già presente nel DB, il LLM non viene chiamato per questo campo.</td>
+      <td>Genera sempre: sovrascrive la descrizione esistente con quella generata dal LLM.</td>
+    </tr>
+    <tr>
+      <td><strong>Titolo</strong></td>
+      <td>Skip: se il titolo è già presente nel DB, il LLM non viene chiamato per questo campo.</td>
+      <td>Genera sempre: sovrascrive il titolo esistente con quello generato dal LLM.</td>
+    </tr>
+    <tr>
+      <td><strong>Embedding CLIP/DINOv2</strong></td>
+      <td colspan="2">Sempre rigenerati se si usa "Riprocessa tutte". Non influenzati da Sovrascrivi.</td>
+    </tr>
+    <tr>
+      <td><strong>BioCLIP tassonomia</strong></td>
+      <td colspan="2">Sempre rigenerata se si usa "Riprocessa tutte". Non influenzata da Sovrascrivi.</td>
+    </tr>
+    <tr>
+      <td><strong>Score estetico / tecnico</strong></td>
+      <td colspan="2">Sempre rigenerati se si usa "Riprocessa tutte". Non influenzati da Sovrascrivi.</td>
+    </tr>
+  </tbody>
+</table>
+
 <div class="callout note">
   <span class="icon">ℹ️</span>
   <div class="body">
@@ -578,7 +623,7 @@
 
 <h2 id="solo-gen-ai">4.4 Modalità "Solo Gen. AI"</h2>
 
-<p>La modalità <strong>Solo Gen. AI</strong> è accessibile attivando prima "Riprocessa tutte" e poi spuntando il checkbox "Solo Gen. AI" che appare accanto.</p>
+<p>Il checkbox <strong>Solo Gen. AI</strong> appare accanto a "Riprocessa tutte" quando questa modalità è selezionata. Spuntandolo si attiva una modalità speciale che agisce solo sulla generazione LLM.</p>
 
 <p>Questa modalità è pensata per un caso d'uso molto frequente: <em>hai già analizzato le foto ma vuoi aggiornare tag, descrizioni e titoli con un modello LLM migliore, senza dover rieseguire tutta la pipeline (EXIF, embedding CLIP/DINOv2, BioCLIP, aesthetic score, ecc.)</em>.</p>
 
@@ -629,7 +674,7 @@
   <span class="icon">💡</span>
   <div class="body">
     <strong>Elaborazione in background</strong>
-    <p>Puoi passare ad altri tab (Ricerca, Galleria) mentre l'elaborazione è in corso. Il processo continua in background.</p>
+    <p>Puoi passare ad altri tab (Ricerca, Gallery) mentre l'elaborazione è in corso. Il processo continua in background.</p>
   </div>
 </div>
 
@@ -706,8 +751,40 @@
       <td><strong>Formato</strong></td>
       <td>Solo RAW, Solo JPEG, o tutti</td>
     </tr>
+    <tr>
+      <td><strong>Luogo</strong></td>
+      <td>Città o regione con autocompletamento dai valori presenti nel DB (plugin GeoNames). Ricerca per contenuto, case-insensitive.</td>
+    </tr>
+    <tr>
+      <td><strong>GPS</strong></td>
+      <td>4 stati: Tutte · Solo con GPS · GPS modificato manualmente · Senza GPS (plugin GeoNames)</td>
+    </tr>
+    <tr>
+      <td><strong>Nome comune</strong></td>
+      <td>Filtra per nome comune biologico con autocompletamento (plugin BioNomen). Ricerca per contenuto sul campo.</td>
+    </tr>
+    <tr>
+      <td><strong>Habitat</strong></td>
+      <td>Tipo di habitat ESA WorldCover (bosco, macchia, prato, urbano, acqua…) — plugin NaturArea</td>
+    </tr>
+    <tr>
+      <td><strong>Area protetta</strong></td>
+      <td>Testo libero sul nome dell'area protetta WDPA — plugin NaturArea</td>
+    </tr>
+    <tr>
+      <td><strong>Condizione meteo</strong></td>
+      <td>Sereno · Parzialmente nuvoloso · Nuvoloso · Nebbia · Pioggerella · Pioggia · Neve · Temporale — plugin Meteo</td>
+    </tr>
   </tbody>
 </table>
+
+<div class="callout note">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>Filtri plugin</strong>
+    <p>I filtri Luogo, GPS, Nome comune, Habitat, Area protetta e Condizione meteo sono visibili solo se il plugin corrispondente è installato e ha già elaborato almeno una foto. Se il plugin non è presente, la riga non appare nell'interfaccia.</p>
+  </div>
+</div>
 
 <h2 id="cerca-salvate">5.4 Ricerche Salvate</h2>
 
@@ -724,7 +801,7 @@
 <hr>
 
 <!-- ===== TAB GALLERIA ===== -->
-<h1 id="galleria"><span class="section-number">6</span>Tab Galleria</h1>
+<h1 id="galleria"><span class="section-number">6</span>Tab Gallery</h1>
 
 <div class="screenshot-wrap">
   <img src="../assets/Int_gallery.png" alt="Galleria OffGallery">
@@ -784,8 +861,20 @@
     <tr><td><strong>Modifica tag</strong></td><td>Apre un editor inline per aggiungere/rimuovere tag manualmente</td></tr>
     <tr><td><strong>Rigenera AI</strong></td><td>Rigenera tag, descrizione e titolo per questa singola immagine</td></tr>
     <tr><td><strong>Export XMP</strong></td><td>Esporta subito il file XMP per questa immagine</td></tr>
+    <tr><td><strong>Esegui GeoNames</strong></td><td>Aggiorna la gerarchia geografica da GPS per questa immagine (plugin GeoNames)</td></tr>
+    <tr><td><strong>Esegui NaturArea</strong></td><td>Rileva area protetta e habitat dalla posizione GPS (plugin NaturArea)</td></tr>
+    <tr><td><strong>Esegui Meteo</strong></td><td>Recupera le condizioni meteo storiche al momento dello scatto (plugin Meteo — richiede internet)</td></tr>
+    <tr><td><strong>Esegui BioNomen</strong></td><td>Aggiunge i nomi comuni biologici nella lingua configurata (plugin BioNomen)</td></tr>
   </tbody>
 </table>
+
+<div class="callout note">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>Azioni plugin nel menu contestuale</strong>
+    <p>Le voci relative ai plugin appaiono nel menu contestuale solo se il plugin corrispondente è installato. Le azioni si applicano all'immagine selezionata. Per elaborare più immagini in batch, usa il tab Processing.</p>
+  </div>
+</div>
 
 <hr>
 
@@ -812,9 +901,9 @@
 <hr>
 
 <!-- ===== TAB ESPORTAZIONE ===== -->
-<h1 id="esportazione"><span class="section-number">8</span>Tab Esportazione</h1>
+<h1 id="esportazione"><span class="section-number">8</span>Tab Export</h1>
 
-<p>Il tab Esportazione è organizzato in tre sezioni distinte — <strong>Metadati XMP</strong>, <strong>Foglio dati CSV</strong> e <strong>File immagini</strong> — combinabili liberamente. In cima al riquadro trovi la barra dei <strong>Preset</strong> per salvare e richiamare configurazioni complete.</p>
+<p>Il tab Export è organizzato in tre sezioni distinte — <strong>Metadati XMP</strong>, <strong>Foglio dati CSV</strong> e <strong>File immagini</strong> — combinabili liberamente. In cima al riquadro trovi la barra dei <strong>Preset</strong> per salvare e richiamare configurazioni complete.</p>
 
 <h2 id="export-preset">8.1 Preset Export</h2>
 
@@ -845,7 +934,50 @@
   </tbody>
 </table>
 
-<p>I campi esportati includono: tag utente e LLM (<code>dc:subject</code>), tassonomia BioCLIP (<code>lr:hierarchicalSubject</code> con prefisso <code>AI|Taxonomy|</code>), gerarchia geografica (<code>GeOFF|</code>), stelle, descrizione e titolo LLM.</p>
+<p>I campi esportati includono: tag utente e LLM (<code>dc:subject</code>), tassonomia BioCLIP (<code>lr:hierarchicalSubject</code> con prefisso <code>AI|Taxonomy|</code>), gerarchia geografica (<code>GeOFF|</code>), stelle, descrizione e titolo LLM. I dati dei plugin (habitat, area protetta, meteo, nome comune) vengono scritti come campi XMP aggiuntivi se presenti.</p>
+
+<h3>Griglia: campi esportati in XMP per tipo di dato</h3>
+
+<table>
+  <thead><tr><th>Dato</th><th>Campo XMP</th><th>Standard</th><th>Visibile in Lightroom come</th></tr></thead>
+  <tbody>
+    <tr><td>Tag utente + LLM</td><td><code>dc:subject</code></td><td>Dublin Core</td><td>Parole chiave piatte</td></tr>
+    <tr><td>Tassonomia BioCLIP</td><td><code>lr:hierarchicalSubject</code></td><td>Lightroom</td><td>Gerarchia <code>AI &gt; Taxonomy &gt; ...</code></td></tr>
+    <tr><td>Gerarchia geografica (GeoNames)</td><td><code>lr:hierarchicalSubject</code></td><td>Lightroom</td><td>Gerarchia <code>GeOFF &gt; Europe &gt; Italy &gt; ...</code></td></tr>
+    <tr><td>Descrizione LLM</td><td><code>dc:description</code></td><td>Dublin Core</td><td>Didascalia / Caption</td></tr>
+    <tr><td>Titolo LLM</td><td><code>dc:title</code></td><td>Dublin Core</td><td>Titolo</td></tr>
+    <tr><td>Rating stelle</td><td><code>xmp:Rating</code></td><td>XMP Basic</td><td>Stelle 1–5</td></tr>
+    <tr><td>Etichetta colore</td><td><code>xmp:Label</code></td><td>XMP Basic</td><td>Etichetta colore</td></tr>
+  </tbody>
+</table>
+
+<h3>Griglia: comportamento import XMP → DB</h3>
+
+<table>
+  <thead><tr><th>Campo nel file XMP</th><th>Importato?</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td>Tag (<code>dc:subject</code>) senza prefisso speciale</td><td>✅ Sì</td><td>Aggiunti ai tag esistenti nel DB (merge case-insensitive)</td></tr>
+    <tr><td>Tag con prefisso <code>AI|Taxonomy|</code></td><td>❌ No</td><td>Filtrati: la tassonomia BioCLIP è gestita solo internamente</td></tr>
+    <tr><td>Tag con prefisso <code>GeOFF|</code></td><td>❌ No</td><td>Filtrati: la gerarchia geografica è gestita solo internamente</td></tr>
+    <tr><td>Rating (<code>xmp:Rating</code>)</td><td>✅ Sì</td><td>Aggiorna il campo stelle nel DB</td></tr>
+    <tr><td>Etichetta colore (<code>xmp:Label</code>)</td><td>✅ Sì</td><td>Aggiorna il campo color_label nel DB</td></tr>
+    <tr><td>Descrizione (<code>dc:description</code>)</td><td>✅ Sì</td><td>Aggiorna il campo description nel DB</td></tr>
+    <tr><td>Titolo (<code>dc:title</code>)</td><td>✅ Sì</td><td>Aggiorna il campo title nel DB</td></tr>
+    <tr><td>Namespace proprietari (Darktable, Capture One…)</td><td>⚠️ Preservati</td><td>Copiati nel nuovo XMP senza interpretazione — nessun dato proprietario viene perso</td></tr>
+  </tbody>
+</table>
+
+<h3>Griglia: formato output XMP per editor fotografico</h3>
+
+<table>
+  <thead><tr><th>Editor</th><th>Formato sidecar</th><th>Opzione in OffGallery</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Lightroom</strong></td><td><code>nomefile.xmp</code></td><td>Output format: Lightroom</td><td>Sidecar accanto al RAW, convenzione standard</td></tr>
+    <tr><td><strong>Darktable</strong></td><td><code>nomefile.EXT.xmp</code></td><td>Output format: Darktable</td><td>Es. <code>IMG_001.NEF.xmp</code> — estensione doppia</td></tr>
+    <tr><td><strong>Capture One</strong></td><td><code>nomefile.xmp</code></td><td>Output format: Lightroom</td><td>Legge il formato standard Lightroom</td></tr>
+    <tr><td><strong>digiKam / ACDSee / FastRawViewer</strong></td><td><code>nomefile.xmp</code></td><td>Output format: Lightroom</td><td>Compatibili con il formato standard</td></tr>
+  </tbody>
+</table>
 
 <h3>Destinazione XMP</h3>
 <p>Puoi scegliere tra <strong>Accanto all'originale</strong> (il file <code>.xmp</code> viene creato nella stessa cartella del RAW) e <strong>Cartella unica</strong> (tutti gli XMP in una directory a tua scelta).</p>
@@ -902,7 +1034,7 @@ Destinazione (es. E:\Backup):
   <tbody>
     <tr><td><strong>Backend</strong></td><td>Plugin LLM da utilizzare (Ollama, LM Studio)</td><td>Ollama</td></tr>
     <tr><td><strong>Endpoint</strong></td><td>URL del server LLM</td><td>Dipende dal plugin selezionato</td></tr>
-    <tr><td><strong>Modello</strong></td><td>Nome del modello da utilizzare</td><td><code>qwen3.5:4b-q4_K_M</code></td></tr>
+    <tr><td><strong>Modello</strong></td><td>Nome del modello da utilizzare</td><td><code>qwen3-vl:8b-instruct-q4_K_M</code></td></tr>
     <tr><td><strong>Timeout</strong></td><td>Secondi massimi per risposta</td><td>180</td></tr>
   </tbody>
 </table>
@@ -962,93 +1094,51 @@ Destinazione (es. E:\Backup):
 
 <hr>
 
-<!-- ===== PLUGIN LLM ===== -->
-<h1 id="plugin-llm"><span class="section-number">9b</span>Plugin LLM</h1>
+<!-- ===== PLUGIN ===== -->
+<h1 id="plugin-llm"><span class="section-number">9b</span>Plugin</h1>
 
-<p>OffGallery utilizza un sistema di plugin per la generazione di tag, descrizioni e titoli tramite modelli LLM Vision. I plugin vengono rilevati automaticamente dalla cartella <code>plugins/</code> all'avvio.</p>
+<p>OffGallery include un sistema di plugin auto-discovery: i plugin vengono rilevati automaticamente dalla cartella <code>plugins/</code> all'avvio, senza configurazione manuale. I plugin si dividono in due categorie: <strong>LLM</strong> (generazione testo) e <strong>Dati</strong> (arricchimento contestuale).</p>
 
 <div class="callout tip">
   <span class="icon">💡</span>
   <div class="body">
-    <strong>La generazione LLM è opzionale</strong>
-    <p>Senza plugin installati, OffGallery funziona normalmente per tutte le altre funzioni: ricerca semantica CLIP, classificazione BioCLIP, score estetico e tecnico, geolocalizzazione, filtri EXIF. I tag vengono semplicemente lasciati vuoti finché non si installa un plugin.</p>
+    <strong>Tutti i plugin sono opzionali</strong>
+    <p>Senza plugin installati, OffGallery funziona normalmente per tutte le funzioni core: ricerca semantica CLIP, similarità visiva DINOv2, classificazione BioCLIP, score estetico e tecnico, filtri EXIF. I plugin aggiungono capacità ulteriori ma non sono prerequisiti.</p>
   </div>
 </div>
 
-<h3>Plugin disponibili</h3>
+<h2 id="plugin-llm-backends">9b.1 Plugin LLM — generazione testo</h2>
 
-<p>I plugin LLM sono distribuiti separatamente dal codice sorgente di OffGallery.</p>
+<p>Abilitano la generazione automatica di tag, descrizioni e titoli tramite modelli LLM Vision locali. Configurazione dal tab <strong>Configurazione → Connessione LLM</strong>.</p>
 
 <table>
   <thead><tr><th>Plugin</th><th>Backend</th><th>Endpoint default</th><th>Note</th></tr></thead>
   <tbody>
     <tr>
-      <td><strong>OffGallery Ollama Plugin</strong></td>
+      <td><strong>Ollama</strong></td>
       <td>Ollama locale</td>
       <td><code>http://localhost:11434</code></td>
-      <td>Ottimizzato per qwen3-VL, llava, gemma3. Supporto <code>think=false</code>, diagnostica timing, warmup/unload VRAM automatici</td>
+      <td>Ottimizzato per qwen3-VL, llava, gemma3. Supporto <code>think=false</code>, diagnostica timing, warmup/unload VRAM automatici. Consigliato per GPU NVIDIA e Apple Silicon.</td>
     </tr>
     <tr>
-      <td><strong>OffGallery LM Studio Plugin</strong></td>
+      <td><strong>LM Studio</strong></td>
       <td>LM Studio server</td>
       <td><code>http://localhost:1234</code></td>
-      <td>Ottimizzato per API OpenAI-compatible. Supporto AMD/DirectML, unload via CLI <code>lms</code>. Modelli VL consigliati: qwen3-VL</td>
-    </tr>
-    <tr>
-      <td><strong>BioNomen</strong></td>
-      <td>—</td>
-      <td>—</td>
-      <td>Nomi comuni e scientifici di specie biologiche (Aves, Mammalia, Insecta, Plantae…). Database offline scaricabile da GBIF. Configurabile da Config → Plugin → BioNomen</td>
+      <td>API OpenAI-compatible. Supporto AMD/DirectML, unload via CLI <code>lms</code>. Consigliato per GPU AMD o chi preferisce un'interfaccia grafica per la gestione modelli.</td>
     </tr>
   </tbody>
 </table>
 
-<p>I plugin sono distribuiti tramite la repo privata <strong>OffGallery_BETA</strong>, accessibile ai beta tester autorizzati. Per richiedere l'accesso: <strong><a href="mailto:offgallery.ai.info@gmail.com">offgallery.ai.info@gmail.com</a></strong></p>
-<p style="font-size:0.9em; color:#888;">L'indirizzo email fornito sarà utilizzato esclusivamente per l'invio dell'accesso ai plugin e per eventuali notifiche di aggiornamento. Non verrà usato per altri scopi né condiviso con terze parti.</p>
-
-<h3>Installazione plugin (dalla repo beta)</h3>
-
-<p>Le istruzioni complete si trovano nel file <code>plugins/INSTALL.md</code> all'interno della repo beta. In sintesi:</p>
-
-<ol>
-  <li><strong>Clona la repo beta</strong> in una cartella qualsiasi (non dentro OffGallery):
-    <pre>git clone https://github.com/HEGOM61ita/OffGallery_BETA.git offgallery-beta
-cd offgallery-beta</pre>
-  </li>
-  <li><strong>Esegui l'installer</strong> per il tuo sistema operativo:
-    <ul>
-      <li><strong>Windows</strong> — doppio clic su <code>install_plugins.bat</code></li>
-      <li><strong>macOS</strong> — doppio clic su <code>install_plugins.command</code></li>
-      <li><strong>Linux</strong> — <code>bash install_plugins.sh</code></li>
-    </ul>
-    L'installer individua automaticamente la tua installazione OffGallery e copia i plugin nella posizione corretta.
-  </li>
-  <li><strong>Riavvia OffGallery</strong> — i plugin vengono rilevati automaticamente all'avvio. Nel pannello Log vedrai:
-    <pre>Plugin LLM attivo: Ollama
-Plugin LLM attivo: LM Studio
-BioNomen: plugin disponibile</pre>
-  </li>
-</ol>
-
-<div class="callout tip">
-  <span class="icon">💡</span>
-  <div class="body">
-    <strong>OffGallery non trovato automaticamente?</strong>
-    <p>Se l'installer non riesce a trovare la cartella OffGallery, specifica il percorso manualmente:<br>
-    <code>python install_plugins.py --target "C:/percorso/a/OffGallery"</code></p>
-  </div>
-</div>
-
-<h3>Plugin BioNomen — database specie</h3>
-
-<p>Il database delle specie biologiche <strong>non è incluso</strong> nella repo: va scaricato dall'utente scegliendo i taxa di interesse. Il download avviene da GBIF e richiede internet solo la prima volta; l'uso successivo è completamente offline.</p>
-
-<ol>
-  <li>Avvia OffGallery</li>
-  <li>Vai in <strong>Config → Plugin → BioNomen → Configura</strong></li>
-  <li>Seleziona i taxa di interesse (Aves, Mammalia, Reptilia, Amphibia, Insecta, Plantae)</li>
-  <li>Clicca <strong>Scarica database</strong></li>
-</ol>
+<h3>Modelli consigliati</h3>
+<table>
+  <thead><tr><th>Modello</th><th>Backend</th><th>VRAM richiesta</th><th>Qualità output</th></tr></thead>
+  <tbody>
+    <tr><td><code>qwen3-vl:8b-instruct-q4_K_M</code></td><td>Ollama</td><td>~6 GB</td><td>Eccellente — consigliato</td></tr>
+    <tr><td><code>qwen3-vl:4b-instruct-q4_K_M</code></td><td>Ollama</td><td>~4 GB</td><td>Buona — per GPU con poca VRAM</td></tr>
+    <tr><td><code>llava:7b</code></td><td>Ollama</td><td>~5 GB</td><td>Discreta</td></tr>
+    <tr><td><code>qwen3-VL</code> (qualsiasi quantizzazione)</td><td>LM Studio</td><td>variabile</td><td>Eccellente</td></tr>
+  </tbody>
+</table>
 
 <h3>Come cambiare backend</h3>
 <ol>
@@ -1062,9 +1152,126 @@ BioNomen: plugin disponibile</pre>
   <span class="icon">💡</span>
   <div class="body">
     <strong>Cambio senza riavvio</strong>
-    <p>Il cambio di backend LLM non richiede il riavvio dell'applicazione. I tag e le descrizioni già generati nel database restano invariati indipendentemente dal backend utilizzato.</p>
+    <p>Il cambio di backend LLM non richiede il riavvio dell'applicazione. I tag e le descrizioni già generati nel database restano invariati.</p>
   </div>
 </div>
+
+<h2 id="plugin-dati">9b.2 Plugin Dati — arricchimento contestuale</h2>
+
+<p>Arricchiscono le foto già nel database con informazioni aggiuntive derivate da GPS, data/ora e tassonomia BioCLIP. Si eseguono dalla Gallery (menu contestuale) o in batch dal tab Processing.</p>
+
+<table>
+  <thead><tr><th>Plugin</th><th>Funzione</th><th>Richiede</th><th>Output nel DB</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>GeoNames</strong></td>
+      <td>Gerarchia geografica completa da GPS: Continente → Paese → Regione → Città. Dati GeoNames bundled, nessuna API.</td>
+      <td>GPS nella foto</td>
+      <td>Campo <code>geo_hierarchy</code>. Abilita filtro Luogo e filtro GPS a 4 stati nella Ricerca.</td>
+    </tr>
+    <tr>
+      <td><strong>GeoSpecies</strong></td>
+      <td>Restringe il campo di ricerca di BioCLIP alle sole specie biologiche attese nella posizione GPS (dati GBIF/eBird). Riduce da ~450k specie globali a un sottoinsieme geografico pertinente. Si attiva automaticamente durante l'elaborazione batch — non eseguibile manualmente dalla Gallery.</td>
+      <td>GPS + BioCLIP già eseguito</td>
+      <td>Aggiorna <code>bioclip_taxonomy</code> con classificazione più precisa.</td>
+    </tr>
+    <tr>
+      <td><strong>NaturArea</strong></td>
+      <td>Identifica se la foto è stata scattata in un'area protetta (database WDPA) e il tipo di habitat (ESA WorldCover: bosco, macchia, prato, urbano, acqua…).</td>
+      <td>GPS</td>
+      <td>Campi <code>protected_area</code> e <code>habitat</code>. Abilita filtri Habitat e Area protetta nella Ricerca.</td>
+    </tr>
+    <tr>
+      <td><strong>Meteo</strong></td>
+      <td>Recupera le condizioni meteo storiche (Open-Meteo) al momento esatto dello scatto: temperatura, umidità, vento, precipitazioni, condizione.</td>
+      <td>GPS + data/ora + <strong>connessione internet</strong></td>
+      <td>Campo <code>weather_context</code> (JSON). Abilita filtro Condizione meteo nella Ricerca.</td>
+    </tr>
+    <tr>
+      <td><strong>BioNomen</strong></td>
+      <td>Aggiunge i nomi comuni biologici nella lingua configurata (GBIF, 6 lingue). Esempio: <em>Ardea cinerea</em> → "Airone cenerino" (IT), "Grey Heron" (EN).</td>
+      <td>BioCLIP già eseguito</td>
+      <td>Campo <code>vernacular_name</code>. Abilita filtro Nome comune con autocompletamento nella Ricerca.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Griglia: combinazioni plugin dati e prerequisiti</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Plugin</th>
+      <th>GPS presente</th>
+      <th>BioCLIP eseguito</th>
+      <th>Internet</th>
+      <th>Risultato</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>GeoNames</strong></td><td>✅ Sì</td><td>—</td><td>No</td><td>Gerarchia geografica completa</td></tr>
+    <tr><td><strong>GeoNames</strong></td><td>❌ No</td><td>—</td><td>—</td><td>Saltato — log avviso</td></tr>
+    <tr><td><strong>GeoSpecies</strong></td><td>✅ Sì</td><td>✅ Sì</td><td>No</td><td>BioCLIP raffinato per area geografica</td></tr>
+    <tr><td><strong>GeoSpecies</strong></td><td>❌ No</td><td>✅ Sì</td><td>—</td><td>Saltato — GPS necessario</td></tr>
+    <tr><td><strong>GeoSpecies</strong></td><td>✅ Sì</td><td>❌ No</td><td>—</td><td>Saltato — BioCLIP necessario</td></tr>
+    <tr><td><strong>NaturArea</strong></td><td>✅ Sì</td><td>—</td><td>No</td><td>Area protetta + habitat rilevati</td></tr>
+    <tr><td><strong>NaturArea</strong></td><td>❌ No</td><td>—</td><td>—</td><td>Saltato — GPS necessario</td></tr>
+    <tr><td><strong>Meteo</strong></td><td>✅ Sì</td><td>—</td><td>✅ Sì</td><td>Condizioni meteo storiche recuperate</td></tr>
+    <tr><td><strong>Meteo</strong></td><td>❌ No</td><td>—</td><td>—</td><td>Saltato — GPS necessario</td></tr>
+    <tr><td><strong>Meteo</strong></td><td>✅ Sì</td><td>—</td><td>❌ No</td><td>Errore connessione — log warning</td></tr>
+    <tr><td><strong>BioNomen</strong></td><td>—</td><td>✅ Sì</td><td>No (dopo prima config)</td><td>Nomi comuni aggiunti nella lingua configurata</td></tr>
+    <tr><td><strong>BioNomen</strong></td><td>—</td><td>❌ No</td><td>—</td><td>Saltato — BioCLIP necessario</td></tr>
+  </tbody>
+</table>
+
+<h2 id="plugin-accesso">9b.3 Accesso beta e installazione</h2>
+
+<div class="callout warning">
+  <span class="icon">📬</span>
+  <div class="body">
+    <strong>Accesso beta</strong>
+    <p>Durante il periodo di beta testing tutti i plugin sono distribuiti gratuitamente su richiesta. Scrivere a <strong><a href="mailto:offgallery.ai.info@gmail.com">offgallery.ai.info@gmail.com</a></strong> indicando:</p>
+    <ul>
+      <li>Sistema operativo (Windows / Linux / macOS) e versione</li>
+      <li>RAM di sistema</li>
+      <li>GPU (modello e VRAM) — o "solo CPU" se non si dispone di GPU dedicata</li>
+      <li>Plugin desiderati (LLM: Ollama o LM Studio; dati: elencare quali)</li>
+    </ul>
+    <p style="margin-top:8px; font-size:0.9em;">L'indirizzo sarà utilizzato esclusivamente per l'invio dei plugin e per notifiche di aggiornamento — nessun altro scopo, nessuna condivisione con terze parti.</p>
+  </div>
+</div>
+
+<h3>Installazione plugin (zip ricevuto)</h3>
+
+<ol>
+  <li>Estrarre il contenuto dello zip nella cartella <code>plugins/</code> della propria installazione OffGallery.</li>
+  <li>La struttura risultante deve essere:
+    <pre>plugins/
+└── nome_plugin/
+    ├── manifest.json
+    └── nome_plugin.py  (o file principale indicato nel manifest)</pre>
+  </li>
+  <li><strong>Riavvia OffGallery</strong> — il plugin viene rilevato automaticamente. Nel pannello Log vedrai conferma del caricamento.</li>
+</ol>
+
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>OffGallery non trovato automaticamente?</strong>
+    <p>Se la cartella <code>plugins/</code> non è visibile, verifica di aver estratto lo zip nella cartella corretta e di aver rispettato la struttura indicata sopra.</p>
+  </div>
+</div>
+
+<h3>Plugin BioNomen — configurazione database specie</h3>
+
+<p>Il database delle specie biologiche va scaricato scegliendo i taxa di interesse (richiede internet solo la prima volta):</p>
+
+<ol>
+  <li>Avvia OffGallery</li>
+  <li>Vai nella tab <strong>Plugin</strong> e clicca <strong>Configura</strong> nella card BioNomen</li>
+  <li>Seleziona i taxa di interesse (Aves, Mammalia, Reptilia, Amphibia, Insecta, Plantae)</li>
+  <li>Clicca <strong>Scarica database</strong></li>
+</ol>
 
 <hr>
 
@@ -1192,13 +1399,13 @@ BioNomen: plugin disponibile</pre>
 <h1 id="faq"><span class="section-number">15</span>FAQ — Domande Frequenti</h1>
 
 <h3>Ollama non risponde / timeout</h3>
-<p>Verifica che Ollama sia in esecuzione. Su Windows: cerca "Ollama" nel system tray. Su macOS/Linux: esegui <code>ollama list</code> nel terminale. Assicurati che il modello <code>qwen3.5:4b-q4_K_M</code> sia scaricato (<code>ollama pull qwen3.5:4b-q4_K_M</code>).</p>
+<p>Verifica che Ollama sia in esecuzione. Su Windows: cerca "Ollama" nel system tray. Su macOS/Linux: esegui <code>ollama list</code> nel terminale. Assicurati che il modello configurato sia scaricato (es. <code>ollama pull qwen3-vl:8b-instruct-q4_K_M</code>).</p>
 
 <h3>I tag generati sono in inglese ma voglio l'italiano</h3>
 <p>Vai in <strong>Configurazione → Lingua output LLM</strong> e seleziona "Italiano". Usa poi "Solo Gen. AI" per rigenerare i tag su tutte le foto già nel database.</p>
 
 <h3>La ricerca semantica non trova foto pertinenti</h3>
-<p>Gli embedding CLIP potrebbero essere stati generati con una versione incompatibile del modello. Rielabora le foto con "Riprocessa tutte" dopo aver verificato le versioni delle librerie (vedi INSTALL_GUIDE.md per i requisiti di versione).</p>
+<p>Gli embedding CLIP potrebbero essere stati generati con una versione incompatibile del modello. Rielabora le foto con "Riprocessa tutte" dopo aver verificato le versioni delle librerie (vedi <code>installer/INSTALL_GUIDE_IT.md</code> per i requisiti di versione).</p>
 
 <h3>Una foto RAW non viene elaborata</h3>
 <p>Alcuni formati RAW high-efficiency (es. NEF con compressione loss-less) non contengono un'anteprima JPEG estraibile. In questi casi OffGallery salva i metadati EXIF ma salta embedding e LLM. Controlla il tab Log per i dettagli.</p>
@@ -1207,7 +1414,7 @@ BioNomen: plugin disponibile</pre>
 <p>Scarica il nuovo ZIP da GitHub ed estrai sovrascrivendo la cartella esistente. I tuoi dati (<code>database/</code>, <code>INPUT/</code>, <code>cache/</code>) non sono inclusi nello ZIP e restano intatti. Se hai installato con <code>git clone</code>, basta eseguire <code>git pull</code> dalla cartella di OffGallery.</p>
 
 <h3>Posso usare un modello o backend LLM diverso?</h3>
-<p>Sì. In Configurazione puoi selezionare un backend diverso (Ollama o LM Studio) e cambiare il modello. Modelli testati con Ollama: <code>qwen3.5:4b</code>, <code>llava:7b</code>, <code>minicpm-v</code>, <code>moondream</code>. Con LM Studio: <code>qwen3-VL</code> (consigliato). Risultati migliori con modelli vision multimodali.</p>
+<p>Sì. In Configurazione puoi selezionare un backend diverso (Ollama o LM Studio) e cambiare il modello. Modelli testati con Ollama: <code>qwen3-vl:8b-instruct-q4_K_M</code> (consigliato), <code>qwen3-vl:4b-instruct-q4_K_M</code>, <code>llava:7b</code>, <code>minicpm-v</code>. Con LM Studio: <code>qwen3-VL</code> (consigliato). Risultati migliori con modelli vision multimodali.</p>
 
 <h3>Come passo a LM Studio?</h3>
 <p>Installa LM Studio, scarica un modello vision (consigliato: <code>qwen3-VL</code>) e avvia il server. In OffGallery, vai in <strong>Configurazione</strong> e seleziona <strong>LM Studio</strong>: l'indirizzo si aggiorna automaticamente a <code>http://localhost:1234</code>. Inserisci il nome del modello e clicca <strong>Test</strong>. Nessun file da modificare a mano.</p>
@@ -1276,7 +1483,7 @@ BioNomen: plugin disponibile</pre>
   <span class="icon">⚠️</span>
   <div class="body">
     <strong>Prima di procedere</strong>
-    <p>Esporta i metadati importanti tramite <strong>Tab Esportazione → Export XMP</strong> o <strong>Export CSV</strong> se vuoi conservare tag, descrizioni e rating già generati.</p>
+    <p>Esporta i metadati importanti tramite <strong>Tab Export → Export XMP</strong> o <strong>Export CSV</strong> se vuoi conservare tag, descrizioni e rating già generati.</p>
   </div>
 </div>
 
@@ -1364,7 +1571,7 @@ conda env remove -n OffGallery</code></pre>
 </div>
 
 <p style="text-align:center; color:#8a90a8; font-size:12px; margin-top:60px;">
-  OffGallery &nbsp;·&nbsp; Manuale Utente v1.0 &nbsp;·&nbsp; Marzo 2026 &nbsp;·&nbsp;
+  OffGallery &nbsp;·&nbsp; Manuale Utente v1.0 &nbsp;·&nbsp; Aprile 2026 &nbsp;·&nbsp;
   <a href="https://github.com/HEGOM61ita/OffGallery">github.com/HEGOM61ita/OffGallery</a>
 </p>
 
