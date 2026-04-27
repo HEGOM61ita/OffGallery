@@ -373,7 +373,46 @@ class SearchTab(QWidget):
             conditions.append("is_monochrome = 0")
         elif mono_idx == 2:  # B/N
             conditions.append("is_monochrome = 1")
-            
+
+        # --- METERING MODE ---
+        metering_val = self.metering_combo.currentData()
+        if metering_val is not None:
+            metering_patterns = {
+                "multi":    ["Multi", "Pattern", "Evaluative", "Matrix", "Segment", "Zona"],
+                "center":   ["Center", "Centro"],
+                "spot":     ["Spot", "Puntuale"],
+                "partial":  ["Partial", "Parziale"],
+                "average":  ["Average", "Media"],
+            }
+            patterns = metering_patterns.get(metering_val, [])
+            if patterns:
+                like_clauses = " OR ".join("metering_mode LIKE ?" for _ in patterns)
+                conditions.append(f"({like_clauses})")
+                params.extend(f"%{p}%" for p in patterns)
+
+        # --- FOCUS DISTANCE ---
+        # NULL = dato non disponibile: escluso solo se entrambi i limiti sono attivi
+        fd_min = self.focus_dist_min.value()
+        fd_max = self.focus_dist_max.value()
+        fd_min_active = fd_min > -1.0
+        fd_max_active = fd_max < 9999.0
+        if fd_min_active and fd_max_active:
+            # Entrambi i limiti: escludi NULL (ricerca precisa)
+            conditions.append("(focus_distance >= ? AND focus_distance <= ?)")
+            params.extend([fd_min, fd_max])
+        elif fd_min_active:
+            conditions.append("(focus_distance >= ? OR focus_distance IS NULL)")
+            params.append(fd_min)
+        elif fd_max_active:
+            conditions.append("(focus_distance <= ? OR focus_distance IS NULL)")
+            params.append(fd_max)
+
+        # --- DRIVE MODE ---
+        drive_val = self.drive_mode_combo.currentData()
+        if drive_val is not None:
+            conditions.append("drive_mode = ?")
+            params.append(drive_val)
+
         # --- SYNC STATE (XMP out of sync) ---
         if self.sync_filter.isChecked():
             conditions.append("(last_xmp_mtime IS NULL OR strftime('%s', datetime_modified) > last_xmp_mtime)")
@@ -1097,8 +1136,59 @@ class SearchTab(QWidget):
         self.color_label_filter.setToolTip(t("search.tooltip.color_label"))
         self.color_label_filter.setMinimumWidth(110)
         row7.addWidget(self.color_label_filter)
+        row7.addWidget(QLabel(t("search.label.metering")))
+        self.metering_combo = QComboBox()
+        self.metering_combo.addItem(t("search.combo.metering_all"), None)
+        self.metering_combo.addItem(t("search.combo.metering_multi"), "multi")
+        self.metering_combo.addItem(t("search.combo.metering_center"), "center")
+        self.metering_combo.addItem(t("search.combo.metering_spot"), "spot")
+        self.metering_combo.addItem(t("search.combo.metering_partial"), "partial")
+        self.metering_combo.addItem(t("search.combo.metering_average"), "average")
+        self.metering_combo.setMaxVisibleItems(6)
+        self.metering_combo.setToolTip(t("search.tooltip.metering"))
+        self.metering_combo.setMinimumWidth(120)
+        row7.addWidget(self.metering_combo)
         row7.addStretch()
         layout.addLayout(row7)
+
+        row8 = QHBoxLayout()
+        row8.setSpacing(12)
+        row8.addWidget(QLabel(t("search.label.focus_dist")))
+        self.focus_dist_min = QDoubleSpinBox()
+        self.focus_dist_min.setRange(-1.0, 9999.0)
+        self.focus_dist_min.setValue(-1.0)
+        self.focus_dist_min.setSingleStep(0.1)
+        self.focus_dist_min.setDecimals(1)
+        self.focus_dist_min.setPrefix("≥")
+        self.focus_dist_min.setSuffix(" m")
+        self.focus_dist_min.setFixedWidth(90)
+        self.focus_dist_min.setSpecialValueText("–")
+        self.focus_dist_min.setToolTip(t("search.tooltip.focus_dist"))
+        row8.addWidget(self.focus_dist_min)
+        self.focus_dist_max = QDoubleSpinBox()
+        self.focus_dist_max.setRange(-1.0, 9999.0)
+        self.focus_dist_max.setValue(9999.0)
+        self.focus_dist_max.setSingleStep(0.1)
+        self.focus_dist_max.setDecimals(1)
+        self.focus_dist_max.setPrefix("≤")
+        self.focus_dist_max.setSuffix(" m")
+        self.focus_dist_max.setFixedWidth(100)
+        self.focus_dist_max.setToolTip(t("search.tooltip.focus_dist"))
+        row8.addWidget(self.focus_dist_max)
+        row8.addWidget(QLabel(t("search.label.drive_mode")))
+        self.drive_mode_combo = QComboBox()
+        self.drive_mode_combo.addItem(t("search.combo.drive_all"), None)
+        self.drive_mode_combo.addItem(t("search.combo.drive_single"), "single")
+        self.drive_mode_combo.addItem(t("search.combo.drive_continuous"), "continuous")
+        self.drive_mode_combo.addItem(t("search.combo.drive_bracketing"), "bracketing")
+        self.drive_mode_combo.addItem(t("search.combo.drive_timer"), "timer")
+        self.drive_mode_combo.addItem(t("search.combo.drive_silent"), "silent")
+        self.drive_mode_combo.setMaxVisibleItems(6)
+        self.drive_mode_combo.setToolTip(t("search.tooltip.drive_mode"))
+        self.drive_mode_combo.setMinimumWidth(130)
+        row8.addWidget(self.drive_mode_combo)
+        row8.addStretch()
+        layout.addLayout(row8)
 
         return group
 
@@ -1444,6 +1534,10 @@ class SearchTab(QWidget):
             'location_lat': self.location_lat_filter.text(),
             'location_lon': self.location_lon_filter.text(),
             'monochrome_index': self.monochrome_combo.currentIndex(),
+            'metering_index': self.metering_combo.currentIndex(),
+            'focus_dist_min': self.focus_dist_min.value(),
+            'focus_dist_max': self.focus_dist_max.value(),
+            'drive_mode_index': self.drive_mode_combo.currentIndex(),
             'sync_filter': self.sync_filter.isChecked(),
             'date_filter_enabled': self.date_filter_enabled.isChecked(),
             'date_from': self.date_from.date().toString("yyyy-MM-dd"),
@@ -1470,7 +1564,8 @@ class SearchTab(QWidget):
             'orientation_combo', 'rating_min', 'color_label_filter',
             'aesthetic_min', 'aesthetic_max', 'technical_min', 'technical_max',
             'gps_filter_combo', 'location_text_filter', 'location_lat_filter', 'location_lon_filter',
-            'monochrome_combo', 'sync_filter',
+            'monochrome_combo', 'metering_combo',
+            'focus_dist_min', 'focus_dist_max', 'drive_mode_combo', 'sync_filter',
             'date_filter_enabled', 'date_from', 'date_to',
         ]
         widgets = [getattr(self, n, None) for n in widget_names if getattr(self, n, None)]
@@ -1508,6 +1603,10 @@ class SearchTab(QWidget):
             self.rating_min.setCurrentIndex(params.get('rating_index', 0))
             self.color_label_filter.setCurrentIndex(params.get('color_label_index', 0))
             self.monochrome_combo.setCurrentIndex(params.get('monochrome_index', 0))
+            self.metering_combo.setCurrentIndex(params.get('metering_index', 0))
+            self.focus_dist_min.setValue(params.get('focus_dist_min', -1.0))
+            self.focus_dist_max.setValue(params.get('focus_dist_max', 9999.0))
+            self.drive_mode_combo.setCurrentIndex(params.get('drive_mode_index', 0))
 
             # Spinbox numerici
             self.focal_min.setValue(params.get('focal_min', 0))
@@ -1723,12 +1822,13 @@ class SearchTab(QWidget):
             'search_input': '',
             'camera_combo': 0, 'lens_combo': 0, 'filetype_combo': 0, 'raw_format_combo': 0,
             'flash_combo': 0, 'exposure_combo': 0, 'orientation_combo': 0,
-            'rating_min': 0, 'color_label_filter': 0,  # NUOVO: rating e color label
+            'rating_min': 0, 'color_label_filter': 0, 'monochrome_combo': 0, 'metering_combo': 0,
+            'focus_dist_min': -1.0, 'focus_dist_max': 9999.0, 'drive_mode_combo': 0,
             'focal_min': 0, 'focal_max': 2000, 'iso_min': 0, 'iso_max': 204800,
             'aperture_min': 0.0, 'aperture_max': 64.0, 'focal35_min': 0, 'focal35_max': 2000,
             'ev_min': -5.0, 'ev_max': 5.0, 'aesthetic_min': 0.0, 'aesthetic_max': 10.0,
             'technical_min': 0.0, 'technical_max': 100.0,
-            'gps_filter_combo': 0, 'monochrome_combo': 0, 'sync_filter': False,
+            'gps_filter_combo': 0, 'sync_filter': False,
             'date_filter_enabled': False
         }
         
@@ -2229,7 +2329,21 @@ class SearchTab(QWidget):
         # Filtro B/N
         if self.monochrome_combo.currentIndex() != 0:
             return True
-            
+
+        # Misurazione
+        if self.metering_combo.currentIndex() != 0:
+            return True
+
+        # Distanza fuoco
+        if self.focus_dist_min.value() > -1.0:
+            return True
+        if self.focus_dist_max.value() < 9999.0:
+            return True
+
+        # Modalità scatto
+        if self.drive_mode_combo.currentIndex() != 0:
+            return True
+
         # Sync
         if self.sync_filter.isChecked():
             return True
