@@ -70,6 +70,9 @@ plugins/geospecies/cache/*.json
 !exiftool_files/
 !exiftool_files/*
 !exiftool_files/**/*
+!tools/
+!tools/*
+!tools/**/*
 
 # Cartelle da ignorare (grandi o generate)
 aesthetic/
