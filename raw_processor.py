@@ -953,7 +953,35 @@ class RAWProcessor:
         mapped['flash_mode'] = get_val(['FlashMode'])
         mapped['color_space'] = get_val(['ColorSpace'])
         mapped['orientation'] = self._parse_orientation(get_val(['Orientation']))
-        
+        mapped['drive_mode'] = self._parse_drive_mode(
+            xmp_data.get('MakerNotes:DriveMode')       or  # Olympus
+            xmp_data.get('MakerNotes:ContinuousDrive') or  # Canon
+            xmp_data.get('MakerNotes:ShootingMode')        # Nikon
+        )
+
+        # FocusDistance: priorità per brand, poi fallback universale
+        _make_lower = (mapped.get('camera_make') or '').lower()
+        _fd_raw = None
+        if 'nikon' in _make_lower or 'olympus' in _make_lower:
+            _fd_raw = xmp_data.get('MakerNotes:FocusDistance') or get_val(['SubjectDistance'])
+        elif 'canon' in _make_lower:
+            _upper = self._parse_focus_distance(xmp_data.get('MakerNotes:FocusDistanceUpper'))
+            _lower = self._parse_focus_distance(xmp_data.get('MakerNotes:FocusDistanceLower'))
+            if _upper is not None and _upper != -1.0 and _lower is not None and _lower != -1.0:
+                mapped['focus_distance'] = (_upper + _lower) / 2.0
+            elif _lower is not None:
+                mapped['focus_distance'] = _lower
+            elif _upper is not None:
+                mapped['focus_distance'] = _upper
+            _fd_raw = None  # già gestito
+        if _fd_raw is None and 'focus_distance' not in mapped:
+            _fd_raw = (xmp_data.get('EXIF:SubjectDistance')
+                       or xmp_data.get('XMP:ApproximateFocusDistance')
+                       or xmp_data.get('XMP:SubjectDistance')
+                       or xmp_data.get('MakerNotes:FocusDistance'))
+        if _fd_raw is not None:
+            mapped['focus_distance'] = self._parse_focus_distance(_fd_raw)
+
         # ===== DATE E ORA =====
         mapped['datetime_original'] = self._normalize_datetime(get_val(['DateTimeOriginal', 'CreateDate']))
         mapped['datetime_digitized'] = self._normalize_datetime(get_val(['DateTimeDigitized']))
@@ -1153,6 +1181,55 @@ class RAWProcessor:
         except:
             return None
     
+    def _parse_drive_mode(self, value) -> Optional[str]:
+        """
+        Normalizza la modalità di scatto a uno di: single|continuous|bracketing|timer|silent.
+        Gestisce le stringhe composite di Nikon (es. "Continuous, Exposure Bracketing").
+        Ritorna None se non riconosciuto.
+        """
+        if not value:
+            return None
+        s = str(value).lower()
+        # Bracketing ha priorità su continuous (Nikon può combinare entrambi)
+        if any(x in s for x in ('bracket', 'bkt')):
+            return 'bracketing'
+        if any(x in s for x in ('continuous', 'cont', 'burst', 'high speed', 'low speed')):
+            return 'continuous'
+        if any(x in s for x in ('self-timer', 'selftimer', 'timer', 'delay', 'remote')):
+            return 'timer'
+        if any(x in s for x in ('silent', 'quiet', 'electronic shutter', 'e-shutter')):
+            return 'silent'
+        if any(x in s for x in ('single', 'one shot', 'one-shot', 'single-frame', 'single shot')):
+            return 'single'
+        return None
+
+    def _parse_focus_distance(self, value) -> Optional[float]:
+        """
+        Converte FocusDistance ExifTool in float (metri).
+        Ritorna -1.0 per Infinity, None se non disponibile.
+        Esempi ExifTool: "2.08 m", "0.45 m", "Infinity", "inf", "4294967295 m" (overflow Nikon)
+        """
+        if not value:
+            return None
+        if isinstance(value, str):
+            lower = value.strip().lower()
+            if lower in ('infinity', 'inf', '∞'):
+                return -1.0
+            # Rimuove unità "m" e spazi
+            lower = lower.replace(' m', '').replace('m', '').strip()
+            try:
+                result = float(lower)
+                # Overflow Nikon: valore 4294967295 = "Infinity"
+                if result > 9999.0:
+                    return -1.0
+                return result if result >= 0 else None
+            except (ValueError, TypeError):
+                return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
     def _parse_int(self, value) -> Optional[int]:
         """Converte valore in int con supporto per formati speciali"""
         if not value:
