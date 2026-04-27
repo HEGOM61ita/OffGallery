@@ -293,12 +293,12 @@ Poi reimporta le foto interessate (rielabora la stessa cartella con "Riprocessa 
 
 ### Windows
 
-**Metodo 1 - Doppio Click (Consigliato):**
+**Metodo 1 - Collegamento sul Desktop (Consigliato):**
 
-Nella cartella `installer` trovi il file `OffGallery_Launcher.bat`:
+L'installer crea automaticamente il collegamento **OffGallery.lnk** sul Desktop.
+Fai **doppio click** su di esso per avviare l'app.
 
-1. **Copia** `OffGallery_Launcher.bat` sul **Desktop**
-2. **Doppio click** per avviare l'app
+> **Attenzione**: non copiare o spostare `OffGallery_Launcher.bat` sul Desktop o in altre cartelle — il file `.bat` usa il proprio percorso per trovare l'applicazione e non funziona se spostato. Usa sempre il collegamento `.lnk`. Se lo hai perso: tasto destro su `installer\OffGallery_Launcher.bat` → **Invia a → Desktop (crea collegamento)**.
 
 **Metodo 2 - Da Terminale:**
 
@@ -381,24 +381,55 @@ I modelli vengono scaricati dal repository congelato `HEGOM/OffGallery-models` e
 
 ---
 
-## Ricerche Salvate
+## Plugin (accesso beta)
 
-La scheda **Ricerca** consente di salvare e richiamare configurazioni di ricerca complete, così da non dover reimpostare ogni volta filtri e parametri usati di frequente (es. "uccelli Sardegna, stelle 4+").
+OffGallery include un sistema di plugin per estendere le funzionalità di analisi e arricchimento. Tutti i plugin sono distribuiti separatamente dal codice sorgente durante il periodo di beta testing.
 
-### Salvare una ricerca
+### Plugin LLM — generazione tag, descrizioni e titoli
 
-1. Imposta la ricerca normalmente: query, modalità (semantica/tag), soglia, tutti i filtri EXIF, score, data, GPS, ecc.
-2. Clicca **💾 Salva ricerca** (sotto il tasto RESET).
-3. Inserisci un nome descrittivo e conferma.
-   - Se il nome esiste già, verrà chiesto se sovrascrivere o scegliere un nome diverso.
+Abilitano la generazione automatica di contenuti testuali tramite modelli LLM Vision locali. Sono disponibili due backend:
 
-### Richiamare una ricerca
+| Plugin | Backend | Endpoint default |
+|--------|---------|------------------|
+| **Ollama** | Ollama locale | `http://localhost:11434` |
+| **LM Studio** | LM Studio server | `http://localhost:1234` |
 
-1. Clicca **📋 Ricerche salvate**.
-2. Seleziona la voce desiderata dall'elenco (mostra nome e data di creazione).
-3. Clicca **Carica** oppure fai doppio click — tutti i parametri vengono ripristinati istantaneamente.
+**La generazione LLM è opzionale.** Senza plugin LLM, OffGallery funziona normalmente per CLIP, DINOv2, BioCLIP, score estetico/tecnico, ricerca e geolocalizzazione.
 
-> Le ricerche vengono salvate in `database/saved_searches.json` nella cartella del progetto. Il file può essere copiato insieme al database per portarsi dietro le ricerche su un'altra macchina.
+### Plugin Dati — arricchimento contestuale
+
+Aggiungono informazioni derivate da GPS, data/ora e tassonomia BioCLIP alle foto già nel database:
+
+| Plugin | Funzione |
+|--------|----------|
+| **GeoNames** | Gerarchia geografica completa da GPS (continente → città) |
+| **GeoSpecies** | BioCLIP ristretto alle specie attese nella posizione GPS |
+| **NaturArea** | Area protetta (WDPA) e habitat (ESA WorldCover) |
+| **Meteo** | Condizioni meteo storiche al momento dello scatto |
+| **BioNomen** | Nomi comuni biologici in 6 lingue (GBIF) |
+
+### Come ricevere i plugin
+
+> **Accesso beta**: Durante il periodo di beta testing tutti i plugin sono distribuiti gratuitamente. Per riceverli, scrivere a **offgallery.ai.info@gmail.com** indicando:
+> - Sistema operativo (Windows / Linux / macOS) e versione
+> - RAM di sistema
+> - GPU (modello e VRAM) — o "solo CPU" se non si ha GPU dedicata
+> - Plugin desiderati (LLM: Ollama o LM Studio; plugin dati: elencare quali)
+>
+> L'indirizzo sarà utilizzato esclusivamente per l'invio dei plugin e per eventuali notifiche di aggiornamento, senza altri scopi né condivisione con terze parti.
+
+### Installazione plugin (zip ricevuto)
+
+1. Estrarre il contenuto dello zip nella cartella `plugins/` della propria installazione OffGallery
+2. La struttura risultante deve essere:
+   ```
+   plugins/
+   └── nome_plugin/
+       ├── __init__.py
+       ├── plugin.py       (o file principale indicato nel manifest)
+       └── manifest.json
+   ```
+3. Riavviare OffGallery — il plugin viene rilevato automaticamente
 
 ---
 
