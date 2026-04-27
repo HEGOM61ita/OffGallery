@@ -76,7 +76,8 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 | **Ricerca similarità visiva** | Un semplice click per trovare immagini simili, doppioni, etc. |
 | **Import da catalogo Lightroom** | Elabora direttamente i file indicizzati in un catalogo `.lrcat` come sorgente di input, senza dover specificare cartelle manualmente |
 | **Integrazione con editor fotografici** | Sincronizzazione/export bidirezionale XMP con rating, tag e metadati. Compatibile con **Lightroom** (`.xmp`), **Darktable** (`.EXT.xmp`), **Capture One**, **digiKam**, **ACDSee**, **FastRawViewer** e qualsiasi software che rispetti lo standard XMP. Nessun dato proprietario viene modificato |
-| **Plugin LLM** | Sistema plugin per backend LLM alternativi (Ollama, LM Studio). Auto-discovery all'avvio, cambio backend senza riavvio |
+| **Plugin LLM** | Backend LLM alternativi: Ollama e LM Studio. Auto-discovery all'avvio, cambio backend senza riavvio |
+| **Plugin Dati** | BioNomen (nomi comuni biologici da GBIF), GeoNames (gerarchia geografica), GeoSpecies (BioCLIP contestuale per GPS), NaturArea (aree protette WDPA + habitat ESA), Meteo (contesto meteo storico) |
 | **Valutazione Estetica** | Score automatico della qualità artistica (0-10) |
 | **Identificazione Specie** | BioCLIP2 riconosce ~450.000 specie con tassonomia completa a 7 livelli |
 | **Geotag Offline** | Gerarchia geografica automatica da GPS: paese, regione, città — senza API esterne, dati GeoNames bundled |
@@ -90,26 +91,37 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 
 ## Motori di Analisi
 
-Tutti i componenti girano localmente, completamente offline:
+Tutti i componenti core girano localmente, completamente offline:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        OFFGALLERY                               │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
-│  │   CLIP   │  │  DINOv2  │  │ BioCLIP  │  │ LLM Vision       │ │
-│  │ Ricerca  │  │Similarità│  │  Flora   │  │ (Plugin: Ollama  │ │
-│  │Semantica │  │  Visiva  │  │  Fauna   │  │  o LM Studio)    │ │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ │
-│  ┌──────────────────────┐  ┌────────────────────────────────┐   │
-│  │  Aesthetic Predictor │  │  MUSIQ (Technical Quality)     │   │
-│  │  Valutazione 0-10    │  │  Analisi nitidezza/rumore      │   │
-│  └──────────────────────┘  └────────────────────────────────┘   │
-│  ┌──────────────────────────┐  ┌──────────────────────────┐   │
-│  │  Argos Translate         │  │  Geocoding Inverso       │   │
-│  │  Query EN + tag lingua   │  │  GPS → Paese/Regione/Città│   │
-│  └──────────────────────────┘  └──────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                           OFFGALLERY                                 │
+├──────────────────────────────────────────────────────────────────────┤
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────────┐ │
+│  │   CLIP   │  │  DINOv2  │  │ BioCLIP2 │  │ LLM Vision (Plugin)  │ │
+│  │ Ricerca  │  │Similarità│  │ ~450k    │  │  Ollama · LM Studio  │ │
+│  │Semantica │  │  Visiva  │  │ specie   │  │  tag · desc · titolo │ │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────────────────┘ │
+│  ┌──────────────────────┐  ┌──────────────────────────────────────┐  │
+│  │  Aesthetic Predictor │  │  MUSIQ (Technical Quality)           │  │
+│  │  Score artistico 0-10│  │  Nitidezza · rumore · qualità ottica │  │
+│  └──────────────────────┘  └──────────────────────────────────────┘  │
+│  ┌───────────────────────┐  ┌─────────────────────────────────────┐  │
+│  │  Argos Translate      │  │  GeoNames (Plugin)                  │  │
+│  │  Query CLIP (EN)      │  │  GPS → Continente/Paese/Regione/    │  │
+│  │  + lingua tag offline │  │  Città  (dati GeoNames bundled)     │  │
+│  └───────────────────────┘  └─────────────────────────────────────┘  │
+├──────────────────────────────────────────────────────────────────────┤
+│  Plugin opzionali                                                    │
+│  ┌─────────────────┐  ┌────────────────────┐  ┌──────────────────┐  │
+│  │   GeoSpecies    │  │    NaturArea        │  │  Meteo           │  │
+│  │ BioCLIP locale  │  │ Aree protette WDPA │  │ Condizioni meteo │  │
+│  │ per GPS (GBIF)  │  │ + habitat ESA      │  │ storiche al GPS  │  │
+│  └─────────────────┘  └────────────────────┘  └──────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │  BioNomen — nomi comuni biologici (GBIF, 6 lingue)              │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -128,6 +140,7 @@ OffGallery offre ricerca semantica, analisi immagini con più modelli AI, workfl
 | **Workflow Lightroom** | Import `.lrcat` · Import XMP · Export XMP gerarchico · Copia con struttura |
 | **Solo Gen. AI** | Rigenera solo tag/descrizione/titolo LLM su foto già nel DB, salta EXIF ed embedding |
 | **Plugin LLM** | Seleziona backend LLM (Ollama o LM Studio) dal tab Configurazione; plugin rilevati automaticamente |
+| **Plugin Dati** | BioNomen · GeoNames · GeoSpecies · NaturArea · Meteo — arricchimento contestuale su foto già nel DB, avviabile dalla Gallery o in batch |
 
 ---
 
@@ -225,14 +238,14 @@ Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Pyth
 2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
 3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
 4. Installa ExifTool: `sudo apt install libimage-exiftool-perl` (Ubuntu/Debian) o equivalente
-5. (Opzionale) Installa [Ollama](https://ollama.com/download) e `ollama pull qwen3.5:4b-q4_K_M`
+5. (Opzionale) Installa [Ollama](https://ollama.com/download) e `ollama pull qwen3-vl:8b-instruct-q4_K_M`
 
 **macOS** - usa il wizard `install_offgallery_mac_it.sh` che copre tutti gli step, oppure installa manualmente:
 1. Installa [Miniconda](https://docs.anaconda.com/miniconda/install/) per macOS (scegli la versione arm64 per Apple Silicon, x86_64 per Intel)
 2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
 3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
 4. Installa ExifTool: `brew install exiftool` (richiede [Homebrew](https://brew.sh)) o scarica il `.pkg` da [exiftool.org](https://exiftool.org)
-5. (Opzionale) Installa [Ollama](https://ollama.com/download) e `ollama pull qwen3.5:4b-q4_K_M`
+5. (Opzionale) Installa [Ollama](https://ollama.com/download) e `ollama pull qwen3-vl:8b-instruct-q4_K_M`
 6. Avvia: `conda run -n OffGallery python gui_launcher.py`
 
 ### Istruzioni Dettagliate
@@ -268,46 +281,38 @@ Per la documentazione completa delle opzioni di configurazione, consulta **[CONF
 
 ---
 
-## Plugin LLM
+## Sistema Plugin
 
-OffGallery utilizza un sistema di plugin per la generazione di tag, descrizioni e titoli tramite modelli LLM Vision. I plugin vengono rilevati automaticamente dalla cartella `plugins/` all'avvio dell'applicazione.
+OffGallery include un sistema di plugin auto-discovery: i plugin vengono rilevati automaticamente dalla cartella `plugins/` all'avvio, senza configurazione manuale. Tutti i plugin elencati sono inclusi nel pacchetto principale.
 
-**La generazione LLM è opzionale.** Senza plugin, OffGallery funziona normalmente per tutte le altre funzioni: CLIP, DINOv2, BioCLIP, score estetico/tecnico, ricerca semantica, geo, EXIF. I tag vengono semplicemente lasciati vuoti finché non si installa un plugin.
+I plugin si dividono in due categorie:
 
-### Plugin disponibili
+### Plugin LLM — generazione testo
 
-I plugin LLM sono distribuiti separatamente dal codice sorgente.
+Abilitano la generazione automatica di tag, descrizioni e titoli tramite modelli LLM Vision locali. **La generazione LLM è opzionale**: senza un plugin LLM attivo, OffGallery funziona normalmente per tutte le altre funzioni (CLIP, DINOv2, BioCLIP, score, ricerca, geo, EXIF).
 
 | Plugin | Backend | Endpoint default | Note |
 |--------|---------|------------------|------|
-| **OffGallery Ollama Plugin** | Ollama locale | `http://localhost:11434` | Ottimizzato per qwen3-VL, llava, gemma3. Supporto `think=false`, diagnostica timing, warmup/unload VRAM |
-| **OffGallery LM Studio Plugin** | LM Studio server | `http://localhost:1234` | Ottimizzato per API OpenAI-compatible. Supporto AMD/DirectML, unload via CLI `lms`, modelli VL (qwen3-VL consigliato) |
+| **Ollama** | Ollama locale | `http://localhost:11434` | Ottimizzato per qwen3-VL, llava, gemma3. Supporto `think=false`, diagnostica timing, warmup/unload VRAM |
+| **LM Studio** | LM Studio server | `http://localhost:1234` | API OpenAI-compatible. Supporto AMD/DirectML, unload via CLI `lms`. Consigliato: qwen3-VL |
 
-Per ricevere i plugin, scrivere a: **offgallery.ai.info@gmail.com**
+Il backend attivo si seleziona dal tab **Configurazione → Connessione LLM**. Il cambio non richiede riavvio; i dati già generati nel database restano invariati.
 
-> L'indirizzo email fornito sarà utilizzato esclusivamente per l'invio del plugin richiesto e per eventuali notifiche di aggiornamento. Non verrà usato per altri scopi né condiviso con terze parti.
+> **Accesso beta — Plugin LLM**: Durante il periodo di beta testing i plugin sono distribuiti gratuitamente. Per riceverli, scrivere a **offgallery.ai.info@gmail.com** indicando: sistema operativo, RAM di sistema, GPU (modello e VRAM), e se si preferisce Ollama o LM Studio. L'indirizzo sarà utilizzato esclusivamente per l'invio del plugin e per eventuali notifiche di aggiornamento, senza altri scopi né condivisione con terze parti.
 
-### Installazione plugin (zip ricevuto)
+### Plugin Dati — arricchimento contestuale
 
-1. Estrarre il contenuto dello zip nella cartella `plugins/` della propria installazione OffGallery
-2. La struttura risultante deve essere:
-   ```
-   plugins/
-   └── llm_ollama/          ← cartella estratta dallo zip
-       ├── __init__.py
-       ├── plugin.py
-       └── manifest.json
-   ```
-3. Riavviare OffGallery — il plugin viene rilevato automaticamente, nessuna configurazione aggiuntiva
+Arricchiscono le foto già nel database con informazioni aggiuntive derivate dai metadati (GPS, data, tassonomia BioCLIP). Si avviano dalla Gallery (menu contestuale sulla foto) o in batch dal tab Elaborazione.
 
-### Configurare il backend attivo
+| Plugin | Funzione | Richiede | Output |
+|--------|----------|----------|--------|
+| **GeoNames** | Gerarchia geografica completa da GPS | GPS nella foto | Continente → Paese → Regione → Città; filtro Luogo con autocompletamento |
+| **GeoSpecies** | Restringe BioCLIP alle sole specie attese nella posizione GPS (da GBIF/eBird) | GPS + BioCLIP | Classificazione biologica più precisa in contesti geografici specifici |
+| **NaturArea** | Area protetta (database WDPA) e tipo di habitat (ESA WorldCover) | GPS | Campo `area_protetta`, campo `habitat` (bosco, macchia, acqua, urbano, ecc.) |
+| **Meteo** | Condizioni meteo storiche al momento dello scatto | GPS + data/ora + connessione internet | Temperatura, umidità, vento, precipitazioni, condizione (sereno/nuvoloso/pioggia…) |
+| **BioNomen** | Nomi comuni biologici in 6 lingue (GBIF) | BioCLIP | Nomi comuni aggiunti accanto al nome scientifico nel tooltip e nei tag |
 
-1. Vai nel tab **Configurazione**
-2. Nella sezione **Connessione LLM**, seleziona il backend desiderato dal menu a tendina
-3. Verifica che endpoint e modello siano corretti
-4. Clicca **Test Connessione** per verificare
-
-Il cambio di backend non richiede riavvio. I tag e le descrizioni già generati nel database restano invariati.
+> **Accesso beta — Plugin Dati**: Durante il periodo di beta testing i plugin sono distribuiti gratuitamente. Per riceverli, scrivere a **offgallery.ai.info@gmail.com** indicando: sistema operativo, RAM di sistema, GPU (modello e VRAM), e quali plugin si desidera ricevere. L'indirizzo sarà utilizzato esclusivamente per l'invio e per eventuali notifiche di aggiornamento, senza altri scopi né condivisione con terze parti.
 
 ## Architettura
 
@@ -327,9 +332,16 @@ offgallery/
 ├── geo_enricher.py           # Geolocalizzazione offline GPS → GeOFF
 ├── catalog_readers/          # Lettori cataloghi esterni
 │   └── lightroom_reader.py   # Legge .lrcat (SQLite) → lista file
-├── plugins/                  # Plugin LLM (auto-discovery, distribuzione separata)
+├── plugins/                  # Plugin (auto-discovery all'avvio)
 │   ├── base.py               # Interfaccia pubblica LLMVisionPlugin
-│   └── loader.py             # Auto-detection backend
+│   ├── loader.py             # Auto-detection backend
+│   ├── llm_ollama/           # Plugin LLM: Ollama
+│   ├── llm_lmstudio/         # Plugin LLM: LM Studio
+│   ├── geonames/             # Gerarchia geografica offline
+│   ├── geospecies/           # BioCLIP contestuale per GPS
+│   ├── naturarea/            # Aree protette WDPA + habitat ESA
+│   ├── weather_context/      # Meteo storico (richiede internet)
+│   └── bionomen/             # Nomi comuni biologici GBIF
 ├── utils/                    # Utility cross-platform
 │   ├── paths.py              # Path resolver (script/EXE/WSL)
 │   └── copy_helpers.py       # Copia con struttura multi-disco
@@ -496,7 +508,8 @@ A photographer's tool to catalog thousands of RAW images without sending them to
 | **Visual Similarity** | One click to find similar images or near-duplicates |
 | **Lightroom Catalog Import** | Process files directly from a `.lrcat` catalog — read-only, no catalog modification |
 | **Integration with photo editors** | Bidirectional XMP sync: ratings, tags, metadata. Compatible with **Lightroom** (`.xmp`), **Darktable** (`.EXT.xmp`), **Capture One**, **digiKam**, **ACDSee**, **FastRawViewer** and any XMP-standard compliant software. No proprietary data is modified |
-| **LLM Plugins** | Plugin system for alternative LLM backends (Ollama, LM Studio). Auto-discovery at startup, switch backends without restart |
+| **LLM Plugins** | Alternative LLM backends: Ollama and LM Studio. Auto-discovery at startup, switch backends without restart |
+| **Data Plugins** | BioNomen (biological common names from GBIF), GeoNames (geographic hierarchy), GeoSpecies (GPS-contextual BioCLIP), NaturArea (WDPA protected areas + ESA habitat), Weather (historical weather context) |
 | **Aesthetic Scoring** | Automatic artistic quality score (0–10) |
 | **Species Identification** | BioCLIP2 recognizes ~450,000 species with full 7-level taxonomy |
 | **Offline Geotagging** | Automatic geographic hierarchy from GPS: continent, country, region, city — no external API, bundled GeoNames data |
@@ -506,26 +519,37 @@ A photographer's tool to catalog thousands of RAW images without sending them to
 
 ## AI Engines
 
-All components run locally, completely offline:
+All core components run locally, completely offline:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        OFFGALLERY                               │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
-│  │   CLIP   │  │  DINOv2  │  │ BioCLIP  │  │ LLM Vision       │ │
-│  │ Semantic │  │  Visual  │  │  Flora   │  │ (Plugin: Ollama  │ │
-│  │  Search  │  │Similarity│  │  Fauna   │  │  or LM Studio)   │ │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ │
-│  ┌──────────────────────┐  ┌────────────────────────────────┐   │
-│  │  Aesthetic Predictor │  │  MUSIQ (Technical Quality)     │   │
-│  │  Artistic score 0-10 │  │  Sharpness / noise analysis    │   │
-│  └──────────────────────┘  └────────────────────────────────┘   │
-│  ┌──────────────────────────┐  ┌──────────────────────────┐   │
-│  │  Argos Translate         │  │  Reverse Geocoding       │   │
-│  │  EN query + tag language │  │  GPS → Country/Region/City│   │
-│  └──────────────────────────┘  └──────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                           OFFGALLERY                                 │
+├──────────────────────────────────────────────────────────────────────┤
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────────┐ │
+│  │   CLIP   │  │  DINOv2  │  │ BioCLIP2 │  │ LLM Vision (Plugin)  │ │
+│  │ Semantic │  │  Visual  │  │  ~450k   │  │  Ollama · LM Studio  │ │
+│  │  Search  │  │Similarity│  │  species │  │  tags · desc · title │ │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────────────────┘ │
+│  ┌──────────────────────┐  ┌──────────────────────────────────────┐  │
+│  │  Aesthetic Predictor │  │  MUSIQ (Technical Quality)           │  │
+│  │  Artistic score 0-10 │  │  Sharpness · noise · optical quality │  │
+│  └──────────────────────┘  └──────────────────────────────────────┘  │
+│  ┌───────────────────────┐  ┌─────────────────────────────────────┐  │
+│  │  Argos Translate      │  │  GeoNames (Plugin)                  │  │
+│  │  CLIP query (EN)      │  │  GPS → Continent/Country/Region/    │  │
+│  │  + tag lang. offline  │  │  City  (bundled GeoNames data)      │  │
+│  └───────────────────────┘  └─────────────────────────────────────┘  │
+├──────────────────────────────────────────────────────────────────────┤
+│  Optional plugins                                                    │
+│  ┌─────────────────┐  ┌────────────────────┐  ┌──────────────────┐  │
+│  │   GeoSpecies    │  │    NaturArea        │  │  Weather         │  │
+│  │ GPS-contextual  │  │ WDPA protected areas│  │ Historical meteo │  │
+│  │  BioCLIP (GBIF) │  │ + ESA habitat       │  │ at shoot GPS/time│  │
+│  └─────────────────┘  └────────────────────┘  └──────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │  BioNomen — common biological names (GBIF, 6 languages)         │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -544,6 +568,7 @@ OffGallery provides semantic search, multi-model AI image analysis, full Lightro
 | **Lightroom Workflow** | `.lrcat` import · XMP import · Hierarchical XMP export · Structured copy |
 | **AI Gen. Only** | Regenerate tags/description/title (LLM) on existing DB photos, skip EXIF and embeddings |
 | **LLM Plugins** | Select LLM backend (Ollama or LM Studio) from the Configuration tab; plugins auto-detected |
+| **Data Plugins** | BioNomen · GeoNames · GeoSpecies · NaturArea · Weather — contextual enrichment on existing DB photos, from Gallery or batch |
 
 ---
 
@@ -611,16 +636,16 @@ The wizard installs everything automatically: Miniconda, Python environment, lib
 2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
 3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
 4. Install ExifTool: `sudo apt install libimage-exiftool-perl` (Ubuntu/Debian) or equivalent
-5. (Optional) Install [Ollama](https://ollama.com/download) and `ollama pull qwen3.5:4b-q4_K_M`
+5. (Optional) Install [Ollama](https://ollama.com/download) and `ollama pull qwen3-vl:8b-instruct-q4_K_M`
 
 **macOS:**
 1. Install [Miniconda](https://docs.anaconda.com/miniconda/install/) for macOS (arm64 for Apple Silicon, x86_64 for Intel)
 2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
 3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
 4. Install ExifTool: `brew install exiftool`
-5. (Optional) Install [Ollama](https://ollama.com/download) and `ollama pull qwen3.5:4b-q4_K_M`
+5. (Optional) Install [Ollama](https://ollama.com/download) and `ollama pull qwen3-vl:8b-instruct-q4_K_M`
 
-For a full step-by-step guide see **[installer/INSTALL_GUIDE_IT.md](installer/INSTALL_GUIDE_IT.md)**.
+For a full step-by-step guide see **[installer/INSTALL_GUIDE_EN.md](installer/INSTALL_GUIDE_EN.md)**.
 
 ---
 
@@ -660,46 +685,38 @@ Typical workflow: import a folder or `.lrcat` catalog → process with AI → se
 
 ---
 
-## LLM Plugins
+## Plugin System
 
-OffGallery uses a plugin system for generating tags, descriptions and titles via LLM Vision models. Plugins are auto-detected from the `plugins/` folder at startup.
+OffGallery includes an auto-discovery plugin system: plugins are detected automatically from the `plugins/` folder at startup, with no manual configuration. All plugins listed below are included in the main package.
 
-**LLM generation is optional.** Without a plugin, OffGallery works normally for all other features: CLIP, DINOv2, BioCLIP, aesthetic/technical scores, semantic search, geo, EXIF. Tags are simply left empty until a plugin is installed.
+Plugins fall into two categories:
 
-### Available plugins
+### LLM Plugins — text generation
 
-LLM plugins are distributed separately from the source code.
+Enable automatic generation of tags, descriptions and titles via local LLM Vision models. **LLM generation is optional**: without an active LLM plugin, OffGallery works normally for all other features (CLIP, DINOv2, BioCLIP, scores, search, geo, EXIF).
 
 | Plugin | Backend | Default endpoint | Notes |
 |--------|---------|-----------------|-------|
-| **OffGallery Ollama Plugin** | Local Ollama | `http://localhost:11434` | Optimized for qwen3-VL, llava, gemma3. `think=false` support, timing diagnostics, VRAM warmup/unload |
-| **OffGallery LM Studio Plugin** | LM Studio server | `http://localhost:1234` | Optimized for OpenAI-compatible API. AMD/DirectML support, `lms` CLI unload, VL models (qwen3-VL recommended) |
+| **Ollama** | Local Ollama | `http://localhost:11434` | Optimized for qwen3-VL, llava, gemma3. `think=false` support, timing diagnostics, VRAM warmup/unload |
+| **LM Studio** | LM Studio server | `http://localhost:1234` | OpenAI-compatible API. AMD/DirectML support, `lms` CLI unload. Recommended: qwen3-VL |
 
-To receive the plugins, write to: **offgallery.ai.info@gmail.com**
+The active backend is selected from **Configuration → LLM Connection**. Switching does not require a restart; existing database data is not affected.
 
-> The email address provided will be used exclusively to send the requested plugin and for any necessary update notifications. It will not be used for any other purpose or shared with third parties.
+> **Beta access — LLM Plugins**: During the beta testing period, plugins are distributed free of charge. To receive them, write to **offgallery.ai.info@gmail.com** stating: operating system, system RAM, GPU (model and VRAM), and whether you prefer Ollama or LM Studio. The address will be used solely to send the plugin and for update notifications — never for any other purpose or shared with third parties.
 
-### Installing a plugin (from zip)
+### Data Plugins — contextual enrichment
 
-1. Extract the zip contents into the `plugins/` folder of your OffGallery installation
-2. The resulting structure should be:
-   ```
-   plugins/
-   └── llm_ollama/          ← folder extracted from zip
-       ├── __init__.py
-       ├── plugin.py
-       └── manifest.json
-   ```
-3. Restart OffGallery — the plugin is detected automatically, no additional configuration needed
+Enrich photos already in the database with additional information derived from metadata (GPS, date/time, BioCLIP taxonomy). Run from the Gallery (context menu on a photo) or in batch from the Processing tab.
 
-### Switching backends
+| Plugin | Function | Requires | Output |
+|--------|----------|----------|--------|
+| **GeoNames** | Full geographic hierarchy from GPS | GPS in photo | Continent → Country → Region → City; Location filter with autocomplete |
+| **GeoSpecies** | Restricts BioCLIP to species expected at the GPS location (GBIF/eBird data) | GPS + BioCLIP | More precise biological classification in geographically specific contexts |
+| **NaturArea** | Protected area (WDPA database) and habitat type (ESA WorldCover) | GPS | `protected_area` field, `habitat` field (forest, shrubland, water, urban, etc.) |
+| **Weather** | Historical weather conditions at time of capture | GPS + date/time + internet | Temperature, humidity, wind, precipitation, condition (clear/cloudy/rain…) |
+| **BioNomen** | Common biological names in 6 languages (GBIF) | BioCLIP | Common names added alongside scientific name in tooltip and tags |
 
-1. Open the **Configuration** tab
-2. In the **LLM Connection** section, select the desired backend from the dropdown
-3. Verify that endpoint and model are correct
-4. Click **Test Connection** to verify
-
-Switching backends does not require a restart. Tags and descriptions already in the database are not affected.
+> **Beta access — Data Plugins**: During the beta testing period, plugins are distributed free of charge. To receive them, write to **offgallery.ai.info@gmail.com** stating: operating system, system RAM, GPU (model and VRAM), and which plugins you wish to receive. The address will be used solely to send the plugin and for update notifications — never for any other purpose or shared with third parties.
 
 ## Supported Formats
 
