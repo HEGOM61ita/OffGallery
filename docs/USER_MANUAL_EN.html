@@ -271,7 +271,7 @@
 <ol class="steps">
   <li><p>Start OffGallery using the launcher script in the <code>installer/</code> folder.</p></li>
   <li><p>On first launch a splash screen appears while downloading the AI models. An internet connection is needed only at this point.</p></li>
-  <li><p>Once the download completes the main interface appears with 7 tabs.</p></li>
+  <li><p>Once the download completes the main interface appears with 8 tabs.</p></li>
   <li><p>(Optional) Make sure <strong>Ollama</strong> is running if you want to generate LLM tags and descriptions. On Windows start the Ollama app; on macOS/Linux the daemon starts automatically.</p></li>
 </ol>
 
@@ -286,18 +286,19 @@
 <!-- ===== INTERFACE ===== -->
 <h1 id="interface"><span class="section-number">3</span>Interface Overview</h1>
 
-<p>The interface is organised into <strong>7 horizontal tabs</strong> at the top of the window:</p>
+<p>The interface is organised into <strong>8 horizontal tabs</strong> at the top of the window:</p>
 
 <table>
   <thead><tr><th>Tab</th><th>Main Function</th></tr></thead>
   <tbody>
+    <tr><td><strong>Configuration</strong></td><td>AI model settings, LLM, UI and output language, external editors</td></tr>
     <tr><td><strong>Processing</strong></td><td>AI analysis of images: embeddings, BioCLIP, LLM, aesthetic/technical scores, geotagging</td></tr>
     <tr><td><strong>Search</strong></td><td>Natural language semantic query + EXIF/score/date/colour filters</td></tr>
     <tr><td><strong>Gallery</strong></td><td>Display results with badges, preview and advanced sorting</td></tr>
-    <tr><td><strong>Statistics</strong></td><td>Database analysis: format breakdown, dates, lenses, scores, ratings</td></tr>
     <tr><td><strong>Export</strong></td><td>XMP export, file copy with original structure, Lightroom sync</td></tr>
-    <tr><td><strong>Configuration</strong></td><td>AI model settings, LLM, UI and output language, external editors</td></tr>
+    <tr><td><strong>Statistics</strong></td><td>Database analysis: format breakdown, dates, lenses, scores, ratings</td></tr>
     <tr><td><strong>Log</strong></td><td>Real-time monitoring of processing tasks</td></tr>
+    <tr><td><strong>Plugin</strong></td><td>Standalone plugin management: launch, configure and monitor progress</td></tr>
   </tbody>
 </table>
 
@@ -369,16 +370,16 @@
   <thead><tr><th>Mode</th><th>Behaviour</th></tr></thead>
   <tbody>
     <tr>
-      <td><strong>New only</strong></td>
+      <td><strong>New images only</strong></td>
       <td>Processes only images not yet in the database. Already-analysed photos are skipped.</td>
     </tr>
     <tr>
-      <td><strong>Reprocess all</strong></td>
-      <td>Re-analyses every image in the source, including those already in the database. Useful after updating a model or changing parameters.</td>
+      <td><strong>New + previous errors</strong></td>
+      <td>Processes new images and retries those that encountered an error in a previous session.</td>
     </tr>
     <tr>
-      <td><strong>Reprocess all + AI Gen. Only</strong></td>
-      <td>Special mode: regenerates only tags, description and title (LLM) for images already in the database. Skips EXIF and embeddings. See <a href="#ai-gen-only">§ 4.4</a>.</td>
+      <td><strong>Reprocess all</strong></td>
+      <td>Re-analyses every image in the source, including those already in the database. Useful after updating a model or changing parameters. Selecting this mode reveals the <strong>AI Gen. Only</strong> checkbox: see <a href="#ai-gen-only">§ 4.4</a>.</td>
     </tr>
   </tbody>
 </table>
@@ -449,7 +450,7 @@
 
 <h2 id="ai-gen-only">4.4 "AI Gen. Only" Mode</h2>
 
-<p>The <strong>AI Gen. Only</strong> mode is accessed by first selecting "Reprocess all" and then checking the "AI Gen. Only" checkbox that appears beside it.</p>
+<p>The <strong>AI Gen. Only</strong> checkbox appears beside "Reprocess all" when that mode is selected. Checking it activates a special mode that operates only on LLM generation.</p>
 
 <p>This mode is designed for a very common scenario: <em>you have already analysed your photos but want to update tags, descriptions and titles using a better LLM model, without re-running the full pipeline (EXIF, CLIP/DINOv2 embeddings, BioCLIP, aesthetic score, etc.).</em></p>
 
@@ -1016,7 +1017,7 @@ Destination (e.g. E:\Backup):
       <td><strong>BioNomen</strong></td>
       <td>Adds common biological names in the configured language (GBIF, 6 languages). Example: <em>Ardea cinerea</em> → "Grey Heron" (EN), "Airone cenerino" (IT).</td>
       <td>BioCLIP already run</td>
-      <td><code>common_name</code> field. Enables Common name filter with autocomplete in Search.</td>
+      <td><code>vernacular_name</code> field. Enables Common name filter with autocomplete in Search.</td>
     </tr>
   </tbody>
 </table>
@@ -1073,9 +1074,8 @@ Destination (e.g. E:\Backup):
   <li>The resulting structure should be:
     <pre>plugins/
 └── plugin_name/
-    ├── __init__.py
-    ├── plugin.py       (or the main file indicated in the manifest)
-    └── manifest.json</pre>
+    ├── manifest.json
+    └── plugin_name.py  (or the main file indicated in the manifest)</pre>
   </li>
   <li><strong>Restart OffGallery</strong> — the plugin is detected automatically. The Log panel confirms loading.</li>
 </ol>
@@ -1094,7 +1094,7 @@ Destination (e.g. E:\Backup):
 
 <ol>
   <li>Start OffGallery</li>
-  <li>Go to <strong>Config → Plugin → BioNomen → Configure</strong></li>
+  <li>Go to the <strong>Plugin</strong> tab and click <strong>Configure</strong> in the BioNomen card</li>
   <li>Select the taxa of interest (Aves, Mammalia, Reptilia, Amphibia, Insecta, Plantae)</li>
   <li>Click <strong>Download database</strong></li>
 </ol>
