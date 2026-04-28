@@ -84,7 +84,7 @@ class ImageRetrieval:
                    iso, shutter_speed, width, height, datetime_original,
                    datetime_digitized, datetime_modified, processed_date,
                    aesthetic_score, technical_score, lr_rating, color_label,
-                   bioclip_taxonomy, geo_hierarchy, vernacular_name{plugin_cols}
+                   bioclip_taxonomy, geo_hierarchy{plugin_cols}
             FROM images
             """
             if filters_sql:
