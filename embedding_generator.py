@@ -438,7 +438,12 @@ class EmbeddingGenerator:
             return text_en
         try:
             import argostranslate.translate
-            result = argostranslate.translate.translate(text_en, 'en', self._tag_lang)
+            if ',' in text_en:
+                parts = [p.strip() for p in text_en.split(',')]
+                translated = [argostranslate.translate.translate(p, 'en', self._tag_lang) for p in parts if p]
+                result = ', '.join(translated)
+            else:
+                result = argostranslate.translate.translate(text_en, 'en', self._tag_lang)
             logger.debug(f"Tag query: '{text_en}' → '{result}' ({self._tag_lang})")
             return result
         except Exception as e:
