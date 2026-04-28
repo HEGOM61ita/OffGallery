@@ -1,5 +1,13 @@
 # Guida Installazione OffGallery
 
+> **Cosa ottieni alla fine di questa guida:**
+>
+> ![OffGallery in funzione — galleria con metadati AI, tassonomia BioCLIP, geolocalizzazione e descrizione generata da LLM](../assets/Gallery.png)
+>
+> Catalogazione AI offline di foto naturalistiche: ricerca semantica, classificazione tassonomica, metadati EXIF, geolocalizzazione e score estetico/tecnico — tutto senza connessione internet dopo il primo avvio.
+
+---
+
 ## Requisiti di Sistema
 
 | Componente | Minimo | Consigliato |
@@ -45,9 +53,11 @@ La cartella che contiene `installer\`, `gui\`, `gui_launcher.py` è la root corr
 
 ---
 
-## Installazione Rapida (Consigliata)
+## Installazione — Metodo 1: Wizard (Consigliato)
 
-Il modo piu' semplice per installare OffGallery e' usare il **wizard di installazione**:
+Il wizard gestisce tutto automaticamente: Miniconda, ambiente Python, librerie, ExifTool e (opzionale) Ollama.
+
+> **Se il wizard fallisce o preferisci il controllo manuale**, vai direttamente a [Installazione — Metodo 2: Manuale (Piano B)](#installazione--metodo-2-manuale-piano-b).
 
 ### Windows
 
@@ -75,9 +85,11 @@ Il modo piu' semplice per installare OffGallery e' usare il **wizard di installa
 
 > **Apple Silicon**: il wizard rileva automaticamente l'architettura (arm64 o x86_64) e scarica la versione corretta di Miniconda.
 >
-> **Gatekeeper**: al primo avvio di `OffGallery.app` o `OffGallery.command`, macOS potrebbe mostrare un avviso di sicurezza. Usa **tasto destro → Apri** per confermarlo. L'installer rimuove già l'attributo quarantine, quindi l'avviso normalmente non compare.
+> **Gatekeeper (macOS)**: al primo avvio di `OffGallery.app` o `OffGallery.command`, macOS potrebbe mostrare un avviso di sicurezza. Usa **tasto destro → Apri** per confermarlo. L'installer rimuove già l'attributo quarantine, quindi l'avviso normalmente non compare.
+>
+> **Rieseguibile**: se il wizard viene interrotto, puoi rieseguirlo. Gli step già completati vengono rilevati e saltati automaticamente.
 
-### Cosa fa il wizard
+### Cosa installa il wizard
 
 | | Windows | Linux | macOS |
 |---|---------|-------|-------|
@@ -86,31 +98,31 @@ Il modo piu' semplice per installare OffGallery e' usare il **wizard di installa
 | Librerie Python | Installa tutto da requirements | Installa tutto da requirements | Installa tutto da requirements |
 | ExifTool | Bundled in `exiftool_files/` | Via apt/dnf/pacman/zypper o tar.gz locale | Via Homebrew o tar.gz locale |
 | Ollama | Opzionale | Opzionale | Opzionale (via Homebrew o script ufficiale) |
-| Collegamento | `OffGallery.lnk` sul Desktop | Voce nel menu applicazioni | `OffGallery.app` in `~/Applications` (Spotlight + Launchpad) + `OffGallery.command` sul Desktop |
+| Collegamento | `OffGallery.lnk` sul Desktop | Voce nel menu applicazioni | `OffGallery.app` in `~/Applications` + `OffGallery.command` sul Desktop |
 
-**Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarichera' automaticamente ~6.7 GB di modelli AI. Gli avvii successivi saranno completamente offline.
-
-> **Rieseguibile**: Se il wizard viene interrotto, puoi rieseguirlo. Gli step gia' completati verranno rilevati e saltati automaticamente.
+**Tempo stimato**: variabile in base alla velocità della connessione — la maggior parte del tempo è download. Al primo avvio, OffGallery scaricherà automaticamente ~6.7 GB di modelli AI. Gli avvii successivi saranno completamente offline.
 
 ---
 
-## Installazione Manuale (Alternativa)
+## Installazione — Metodo 2: Manuale (Piano B)
 
-Se preferisci installare i componenti singolarmente, segui gli step qui sotto.
+> **Usa questo metodo solo se il wizard ha avuto problemi**, o se preferisci controllare ogni step singolarmente. Il risultato finale è identico.
 
-### Windows - Script separati
+### Windows — Script separati
 
-| Step | Script | Cosa fa | Tempo |
+Esegui i seguenti script in ordine dalla cartella `installer\`:
+
+| Step | Script | Cosa fa | Tempo stimato |
 |------|--------|---------|-------|
 | 1 | `01_install_miniconda.bat` | Verifica/installa Miniconda | 5 min |
 | 2 | `02_create_env.bat` | Crea ambiente Python | 2 min |
 | 3 | `03_install_packages.bat` | Installa librerie Python | 15-20 min |
 | 4 | `06_setup_ollama.bat` | Installa LLM locale (opzionale) | 5-10 min |
-| - | **Primo avvio app** | Download automatico modelli AI | 10-20 min |
+| — | **Primo avvio app** | Download automatico modelli AI | 10-20 min |
 
-### Linux - Installazione manuale
+Per i dettagli di ogni step, vedi le sezioni seguenti.
 
-Se preferisci non usare il wizard `install_offgallery_linux_it.sh`, puoi eseguire ogni step manualmente:
+### Linux — Comandi manuali
 
 ```bash
 # 1. Installa Miniconda (se non presente)
@@ -138,14 +150,13 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen3-vl:8b-instruct-q4_K_M
 ```
 
-### macOS - Installazione manuale
+### macOS — Comandi manuali
 
 ```bash
 # 1. Installa Miniconda (se non presente)
-#    Scegli arm64 per Apple Silicon, x86_64 per Intel
 # Apple Silicon:
 curl -fSL https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh -o /tmp/miniconda.sh
-# Intel:
+# Intel (decommentare la riga sotto e commentare quella sopra):
 # curl -fSL https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -o /tmp/miniconda.sh
 
 bash /tmp/miniconda.sh -b -p $HOME/miniconda3
@@ -251,7 +262,7 @@ Miniconda è un programma che permette di installare Python e le librerie necess
 Questo step scarica circa **3 GB** di librerie.
 
 1. **Doppio click** su `03_install_packages.bat`
-2. Attendi 15-20 minuti (dipende dalla connessione)
+2. Attendi il completamento (dipende dalla connessione)
 3. Vedrai `[OK] Tutti i pacchetti installati con successo!`
 
 ---
@@ -373,7 +384,7 @@ Al **primo avvio**, OffGallery scarica automaticamente i modelli AI necessari:
 | **BioCLIP v2 + TreeOfLife** | Classificazione flora/fauna | ~4.2 GB |
 | **Argos Translate** | Traduzione IT→EN | ~92 MB |
 
-**Tempo stimato**: 10-20 minuti (dipende dalla connessione)
+**Tempo stimato**: variabile in base alla connessione (~6.7 GB da scaricare)
 
 I modelli vengono scaricati dal repository congelato `HEGOM/OffGallery-models` e salvati nella cartella **`OffGallery/Models/`** (non nella cache di sistema). Gli avvii successivi saranno **completamente offline**.
 
