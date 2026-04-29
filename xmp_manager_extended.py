@@ -485,7 +485,8 @@ class XMPManagerExtended:
             'Title': str(db_metadata.get('title') or ''),
             'Description': str(db_metadata.get('description') or ''),
             'Keywords': keywords,
-            'Rating': rating_val
+            'Rating': rating_val,
+            'ColorLabel': str(db_metadata.get('color_label') or '').strip(),
         }
 
     def analyze_xmp_sync_state(self, file_path: Path, db_metadata: Dict[str, Any]) -> Tuple[XMPSyncState, Dict[str, Any]]:
@@ -886,8 +887,21 @@ class XMPManagerExtended:
             if debug_info: logger.debug(f"XMP Compare MISMATCH: {' | '.join(debug_info)}")
             return False
             
+        # 5. COLOR LABEL
+        def c_val(d):
+            for key in ['Label', 'XMP-xmp:Label', 'XMP:Label', 'ColorLabel', 'color_label']:
+                val = d.get(key)
+                if val is not None:
+                    return str(val).strip()
+            return ''
+        c1, c2 = c_val(d1), c_val(d2)
+        if c1.lower() != c2.lower():
+            debug_info.append(f"ColorLabel differ: XMP='{c1}' vs DB='{c2}'")
+            if debug_info: logger.debug(f"XMP Compare MISMATCH: {' | '.join(debug_info)}")
+            return False
+
         # Se arriviamo qui, tutto coincide
-        logger.debug(f"XMP Compare MATCH: Keywords={len(kw1)}, Desc='{desc1[:30]}...', Title='{t1[:30]}...', Rating={r1}")
+        logger.debug(f"XMP Compare MATCH: Keywords={len(kw1)}, Desc='{desc1[:30]}...', Title='{t1[:30]}...', Rating={r1}, Color='{c1}'")
         return True
     
     def _extract_description_from_dict(self, xmp_dict: Dict[str, Any]) -> str:
