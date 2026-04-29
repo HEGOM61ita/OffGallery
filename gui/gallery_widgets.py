@@ -1357,26 +1357,46 @@ class ImageCard(QFrame):
             if XMP_SUPPORT_AVAILABLE:
                 xmp_menu = menu.addMenu(f"{t('widgets.menu.xmp_sync')}{multi_label}")
 
-                analyze_xmp_action = QAction(t("widgets.action.xmp_compare"), self)
-                analyze_xmp_action.triggered.connect(lambda: self._analyze_xmp_detailed(target_items))
-                xmp_menu.addAction(analyze_xmp_action)
-
-                sync_xmp_action = QAction(t("widgets.action.xmp_import"), self)
-                sync_xmp_action.triggered.connect(lambda: self._import_from_xmp_with_refresh(target_items))
-                xmp_menu.addAction(sync_xmp_action)
-
-                # Label dinamica: sidecar se RAW o sidecar già presente, embedded altrimenti
+                # Fix 1: label dinamica "Confronta" in base a tipo file e presenza sidecar
                 if not is_multi:
                     _is_raw = bool(self.image_data.get('is_raw', False))
                     _has_sidecar = Path(str(self.filepath) + '.xmp').exists() if self.filepath else False
+                    if _is_raw:
+                        _compare_label = t("widgets.action.xmp_compare_sidecar") if _has_sidecar else t("widgets.action.xmp_compare")
+                    else:
+                        _compare_label = t("widgets.action.xmp_compare_both") if _has_sidecar else t("widgets.action.xmp_compare_embedded")
+                else:
+                    _is_raw = False
+                    _has_sidecar = False
+                    _compare_label = f"{t('widgets.action.xmp_compare')} ({len(target_items)} file)"
+
+                analyze_xmp_action = QAction(_compare_label, self)
+                analyze_xmp_action.triggered.connect(lambda: self._analyze_xmp_detailed(target_items))
+                xmp_menu.addAction(analyze_xmp_action)
+
+                # Fix 3: import disabilitato per multi-selezione
+                sync_xmp_action = QAction(t("widgets.action.xmp_import"), self)
+                sync_xmp_action.triggered.connect(lambda: self._import_from_xmp_with_refresh(target_items))
+                sync_xmp_action.setEnabled(not is_multi)
+                if is_multi:
+                    sync_xmp_action.setToolTip(t("widgets.tooltip.xmp_single_only"))
+                xmp_menu.addAction(sync_xmp_action)
+
+                # Fix 1+3+5: label dinamica export + disabilitato per multi + tooltip
+                if not is_multi:
                     if _is_raw or _has_sidecar:
                         _export_label = t("widgets.action.xmp_export_sidecar")
+                        _export_tooltip = t("widgets.tooltip.xmp_export_sidecar")
                     else:
                         _export_label = t("widgets.action.xmp_export_embedded")
+                        _export_tooltip = t("widgets.tooltip.xmp_export_embedded")
                 else:
                     _export_label = t("widgets.action.xmp_export")
+                    _export_tooltip = t("widgets.tooltip.xmp_single_only")
                 export_xmp_action = QAction(_export_label, self)
                 export_xmp_action.triggered.connect(lambda: self._export_to_xmp_with_refresh(target_items))
+                export_xmp_action.setEnabled(not is_multi)
+                export_xmp_action.setToolTip(_export_tooltip)
                 xmp_menu.addAction(export_xmp_action)
 
                 xmp_menu.addSeparator()
@@ -2404,6 +2424,8 @@ class ImageCard(QFrame):
                 sidecar_ai_tags = set()
                 sidecar_desc = ""
                 sidecar_title = ""
+                sidecar_rating = None
+                sidecar_color = None
                 sidecar_exists = sidecar_path.exists()
 
                 if sidecar_exists:
@@ -2411,6 +2433,15 @@ class ImageCard(QFrame):
                     if sidecar_data:
                         sidecar_tags, sidecar_desc, sidecar_title = self._extract_xmp_fields(sidecar_data)
                         sidecar_user_tags, sidecar_ai_tags = self._extract_xmp_tags_by_origin(sidecar_data)
+                        for _k in ('Rating', 'XMP-xmp:Rating', 'XMP:Rating'):
+                            if sidecar_data.get(_k) is not None:
+                                try: sidecar_rating = int(sidecar_data[_k])
+                                except (TypeError, ValueError): pass
+                                break
+                        for _k in ('Label', 'XMP-xmp:Label', 'XMP:Label'):
+                            if sidecar_data.get(_k):
+                                sidecar_color = str(sidecar_data[_k])
+                                break
 
                 # === DATI DA EMBEDDED XMP (solo standard e DNG) ===
                 embedded_tags = set()
@@ -2418,12 +2449,23 @@ class ImageCard(QFrame):
                 embedded_ai_tags = set()
                 embedded_desc = ""
                 embedded_title = ""
+                embedded_rating = None
+                embedded_color = None
 
                 if embedded_supported:
                     embedded_data = self._read_xmp_with_exiftool(filepath)
                     if embedded_data:
                         embedded_tags, embedded_desc, embedded_title = self._extract_xmp_fields(embedded_data)
                         embedded_user_tags, embedded_ai_tags = self._extract_xmp_tags_by_origin(embedded_data)
+                        for _k in ('Rating', 'XMP-xmp:Rating', 'XMP:Rating'):
+                            if embedded_data.get(_k) is not None:
+                                try: embedded_rating = int(embedded_data[_k])
+                                except (TypeError, ValueError): pass
+                                break
+                        for _k in ('Label', 'XMP-xmp:Label', 'XMP:Label'):
+                            if embedded_data.get(_k):
+                                embedded_color = str(embedded_data[_k])
+                                break
 
                 # === FORMATO OUTPUT ===
                 _ev = t("widgets.xmp.empty_value")
@@ -2523,6 +2565,44 @@ class ImageCard(QFrame):
                     sidecar_ai_tags, embedded_ai_tags,
                     "Sidecar", "Embedded"
                 ) + "\n"
+
+                # --- SEZIONE RATING ---
+                _db_r = int(item.image_data.get('lr_rating') or 0)
+                def _fmt_r(r):
+                    return f"{int(r)}★" if r is not None and int(r) > 0 else t("widgets.xmp.no_rating")
+                result += f"\n{t('widgets.xmp.section_rating')}\n"
+                result += f"   DB:       {_fmt_r(_db_r)}\n"
+                if sidecar_exists:
+                    result += f"   Sidecar:  {_fmt_r(sidecar_rating)}\n"
+                if embedded_supported:
+                    result += f"   Embedded: {_fmt_r(embedded_rating)}\n"
+                _sc_r_int = int(sidecar_rating) if sidecar_rating is not None else 0
+                _em_r_int = int(embedded_rating) if embedded_rating is not None else 0
+                _rating_ok = (
+                    (_db_r == _sc_r_int == _em_r_int) if embedded_supported and sidecar_exists else
+                    (_db_r == _sc_r_int) if sidecar_exists else
+                    (_db_r == _em_r_int) if embedded_supported else True
+                )
+                result += f"   {t('widgets.xmp.synced') if _rating_ok else t('widgets.xmp.mismatch')}\n"
+
+                # --- SEZIONE COLORE ---
+                _db_c = (item.image_data.get('color_label') or '').lower()
+                _sc_c_str = (sidecar_color or '').lower()
+                _em_c_str = (embedded_color or '').lower()
+                def _fmt_c(c):
+                    return c if c else t("widgets.xmp.no_color")
+                result += f"\n{t('widgets.xmp.section_color')}\n"
+                result += f"   DB:       {_fmt_c(_db_c)}\n"
+                if sidecar_exists:
+                    result += f"   Sidecar:  {_fmt_c(_sc_c_str)}\n"
+                if embedded_supported:
+                    result += f"   Embedded: {_fmt_c(_em_c_str)}\n"
+                _color_ok = (
+                    (_db_c == _sc_c_str == _em_c_str) if embedded_supported and sidecar_exists else
+                    (_db_c == _sc_c_str) if sidecar_exists else
+                    (_db_c == _em_c_str) if embedded_supported else True
+                )
+                result += f"   {t('widgets.xmp.synced') if _color_ok else t('widgets.xmp.mismatch')}\n"
 
                 results.append(result)
 
@@ -2967,10 +3047,11 @@ class ImageCard(QFrame):
                     logger.error(f"Errore sincronizzazione DB→XMP per elemento {i+1}: {e}", exc_info=True)
                     error_count += 1
 
-            # Refresh badge XMP: il sidecar è stato appena creato/aggiornato
+            # Refresh badge XMP: il sidecar è stato appena creato/aggiornato — usa XMPBadgeIntegration
+            # per invalidare _xmp_state_cache e rilanciare il badge worker
             if success_count > 0:
                 updated_items = [item for item in items if hasattr(item, 'image_id') and item.image_id]
-                self._refresh_after_database_operation(updated_items, "xmp_export")
+                XMPBadgeIntegration.replace_refresh_after_database_operation(updated_items, "xmp_export")
 
             # Report risultati
             result_msg = t("widgets.xmp.export_done")
