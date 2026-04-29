@@ -448,6 +448,7 @@ class DatabaseManager:
         """Bulk check: per ogni filename già in DB ritorna {filename: {field: bool}}.
         Solo i filename presenti in DB compaiono nel risultato.
         I field non presenti nello schema vengono ignorati silenziosamente.
+        Esegue query in batch da 500 per rispettare il limite variabili SQLite.
         """
         if not filenames or not fields:
             return {}
@@ -458,30 +459,33 @@ class DatabaseManager:
             existing_cols = set()
 
         valid_fields = [f for f in fields if f in existing_cols]
-        placeholders = ','.join('?' * len(filenames))
+        fnames_list = list(filenames)
+        result = {}
 
         try:
-            if valid_fields:
-                cols = ', '.join(valid_fields)
-                rows = self.cursor.execute(
-                    f"SELECT filename, {cols} FROM images WHERE filename IN ({placeholders})",
-                    list(filenames)
-                ).fetchall()
-                result = {}
-                for row in rows:
-                    fname = row[0]
-                    presence = {}
-                    for i, field in enumerate(valid_fields):
-                        val = row[i + 1]
-                        presence[field] = val is not None and val not in ('', '[]')
-                    result[fname] = presence
-            else:
-                # Nessun campo valido: registra solo la presenza nel DB
-                rows = self.cursor.execute(
-                    f"SELECT filename FROM images WHERE filename IN ({placeholders})",
-                    list(filenames)
-                ).fetchall()
-                result = {row[0]: {} for row in rows}
+            for i in range(0, len(fnames_list), 500):
+                batch = fnames_list[i:i + 500]
+                placeholders = ','.join('?' * len(batch))
+                if valid_fields:
+                    cols = ', '.join(valid_fields)
+                    rows = self.cursor.execute(
+                        f"SELECT filename, {cols} FROM images WHERE filename IN ({placeholders})",
+                        batch
+                    ).fetchall()
+                    for row in rows:
+                        fname = row[0]
+                        presence = {}
+                        for j, field in enumerate(valid_fields):
+                            val = row[j + 1]
+                            presence[field] = val is not None and val not in ('', '[]')
+                        result[fname] = presence
+                else:
+                    rows = self.cursor.execute(
+                        f"SELECT filename FROM images WHERE filename IN ({placeholders})",
+                        batch
+                    ).fetchall()
+                    for row in rows:
+                        result[row[0]] = {}
         except Exception as e:
             logger.error(f"Errore get_fields_presence_bulk: {e}")
             return {}
