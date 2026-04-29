@@ -352,15 +352,55 @@ class ProcessingWorker(QThread):
 
             self.log_message.emit(f"🔍 Trovate {len(all_images)} immagini uniche", "info")
 
+            # === STEPS RICHIESTI — usati da reprocess_all per smart-skip ===
+            # (db_field, overwrite): un'immagine entra in coda solo se almeno
+            # uno step ha overwrite=True oppure il suo campo è assente nel DB.
+            _required_steps = []
+            _emb_flags_early = self.options.get('embedding_model_flags', {})
+            for _mk, _dbf in [('clip', 'clip_embedding'), ('dinov2', 'dinov2_embedding'),
+                               ('bioclip', 'bioclip_taxonomy'), ('aesthetic', 'aesthetic_score'),
+                               ('technical', 'technical_score')]:
+                _fl = _emb_flags_early.get(_mk, {})
+                if _fl.get('active', False):
+                    _required_steps.append((_dbf, bool(_fl.get('overwrite', False))))
+            for _llm_key, _llm_field in [('tags', 'llm_tags'),
+                                          ('description', 'description'),
+                                          ('title', 'title')]:
+                if llm_gen_config[_llm_key]['enabled']:
+                    _required_steps.append((_llm_field, bool(llm_gen_config[_llm_key]['overwrite'])))
+            for _p in self.pre_llm_plugins:
+                # geo_enricher gira sempre in modalità overwrite nel pipeline
+                _p_ovr = (_p.get('plugin_type') == 'geo_enricher')
+                for _f in _p.get('output_fields', []):
+                    _required_steps.append((_f, _p_ovr))
+
             # === FILTRO MODALITÀ ===
             processing_mode = self.options.get('processing_mode', 'new_only')
+
+            # Bulk pre-check per reprocess_all: una sola query SQL evita I/O
+            # su immagini già complete per tutti gli step selezionati.
+            _fields_bulk = {}
+            if processing_mode == 'reprocess_all' and _required_steps:
+                _all_fnames = [p.name for p in all_images]
+                _check_fields = list(dict.fromkeys(f for f, _ in _required_steps))
+                _fields_bulk = db_manager.get_fields_presence_bulk(_all_fnames, _check_fields)
+
             images_to_process = []
             for image_path in all_images:
                 should = False
                 if processing_mode == 'new_only':
                     should = not db_manager.image_exists(image_path.name)
                 elif processing_mode == 'reprocess_all':
-                    should = True
+                    if not _required_steps:
+                        should = True  # nessun step attivo: processa comunque
+                    elif image_path.name not in _fields_bulk:
+                        should = True  # non in DB: immagine nuova
+                    else:
+                        _ai = _fields_bulk[image_path.name]
+                        should = any(
+                            overwrite or not _ai.get(db_field, False)
+                            for db_field, overwrite in _required_steps
+                        )
                 elif processing_mode == 'new_plus_errors':
                     has_err = hasattr(db_manager, 'had_processing_errors') and db_manager.had_processing_errors(image_path.name)
                     should = not db_manager.image_exists(image_path.name) or has_err

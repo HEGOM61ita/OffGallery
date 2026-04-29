@@ -444,6 +444,49 @@ class DatabaseManager:
             logger.error(f"Errore get_ai_fields_status: {e}")
             return {}
 
+    def get_fields_presence_bulk(self, filenames, fields):
+        """Bulk check: per ogni filename già in DB ritorna {filename: {field: bool}}.
+        Solo i filename presenti in DB compaiono nel risultato.
+        I field non presenti nello schema vengono ignorati silenziosamente.
+        """
+        if not filenames or not fields:
+            return {}
+        try:
+            schema_rows = self.cursor.execute("PRAGMA table_info(images)").fetchall()
+            existing_cols = {row[1] for row in schema_rows}
+        except Exception:
+            existing_cols = set()
+
+        valid_fields = [f for f in fields if f in existing_cols]
+        placeholders = ','.join('?' * len(filenames))
+
+        try:
+            if valid_fields:
+                cols = ', '.join(valid_fields)
+                rows = self.cursor.execute(
+                    f"SELECT filename, {cols} FROM images WHERE filename IN ({placeholders})",
+                    list(filenames)
+                ).fetchall()
+                result = {}
+                for row in rows:
+                    fname = row[0]
+                    presence = {}
+                    for i, field in enumerate(valid_fields):
+                        val = row[i + 1]
+                        presence[field] = val is not None and val not in ('', '[]')
+                    result[fname] = presence
+            else:
+                # Nessun campo valido: registra solo la presenza nel DB
+                rows = self.cursor.execute(
+                    f"SELECT filename FROM images WHERE filename IN ({placeholders})",
+                    list(filenames)
+                ).fetchall()
+                result = {row[0]: {} for row in rows}
+        except Exception as e:
+            logger.error(f"Errore get_fields_presence_bulk: {e}")
+            return {}
+        return result
+
     def hash_exists(self, file_hash):
         """Verifica se hash file già presente (deduplicazione)"""
         if not file_hash:
