@@ -2016,6 +2016,7 @@ class ImageCard(QFrame):
 
             db_success = 0
             db_failures = 0
+            updated_items = []
 
             for item in items:
                 if hasattr(item, 'image_id') and item.image_id:
@@ -2041,6 +2042,7 @@ class ImageCard(QFrame):
                         if hasattr(item, '_cached_semantic_tooltip'):
                             delattr(item, '_cached_semantic_tooltip')
 
+                        updated_items.append(item)
                         db_success += 1
 
                     except Exception as e:
@@ -2048,6 +2050,10 @@ class ImageCard(QFrame):
                         db_failures += 1
                 else:
                     db_failures += 1
+
+            # Ricalcola badge XMP per rilevare divergenza con sidecar
+            if updated_items:
+                XMPBadgeIntegration.replace_refresh_after_database_operation(updated_items, "rating_changed")
 
         except Exception as e:
             print(f"Errore _set_rating: {e}")
@@ -2062,6 +2068,7 @@ class ImageCard(QFrame):
 
             db_success = 0
             db_failures = 0
+            updated_items = []
 
             for item in items:
                 if hasattr(item, 'image_id') and item.image_id:
@@ -2083,6 +2090,7 @@ class ImageCard(QFrame):
                         if hasattr(item, '_cached_semantic_tooltip'):
                             delattr(item, '_cached_semantic_tooltip')
 
+                        updated_items.append(item)
                         db_success += 1
 
                     except Exception as e:
@@ -2090,6 +2098,10 @@ class ImageCard(QFrame):
                         db_failures += 1
                 else:
                     db_failures += 1
+
+            # Ricalcola badge XMP per rilevare divergenza con sidecar
+            if updated_items:
+                XMPBadgeIntegration.replace_refresh_after_database_operation(updated_items, "color_label_changed")
 
         except Exception as e:
             print(f"Errore _set_color_label: {e}")
