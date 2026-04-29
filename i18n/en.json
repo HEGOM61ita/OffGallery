@@ -610,6 +610,8 @@
   "widgets.action.xmp_compare": "🔍 Compare XMP vs DB",
   "widgets.action.xmp_import": "📥 Import XMP → DB",
   "widgets.action.xmp_export": "📤 Export DB → XMP",
+  "widgets.action.xmp_export_sidecar": "📤 Export DB → XMP sidecar",
+  "widgets.action.xmp_export_embedded": "📤 Export DB → into file (embedded)",
   "widgets.action.xmp_show": "📋 Show XMP content",
   "widgets.action.exif_info": "📊 EXIF Info",
   "widgets.msg.files_unreachable_title": "Files unreachable",

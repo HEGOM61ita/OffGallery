@@ -1365,7 +1365,17 @@ class ImageCard(QFrame):
                 sync_xmp_action.triggered.connect(lambda: self._import_from_xmp_with_refresh(target_items))
                 xmp_menu.addAction(sync_xmp_action)
 
-                export_xmp_action = QAction(t("widgets.action.xmp_export"), self)
+                # Label dinamica: sidecar se RAW o sidecar già presente, embedded altrimenti
+                if not is_multi:
+                    _is_raw = bool(self.image_data.get('is_raw', False))
+                    _has_sidecar = Path(str(self.filepath) + '.xmp').exists() if self.filepath else False
+                    if _is_raw or _has_sidecar:
+                        _export_label = t("widgets.action.xmp_export_sidecar")
+                    else:
+                        _export_label = t("widgets.action.xmp_export_embedded")
+                else:
+                    _export_label = t("widgets.action.xmp_export")
+                export_xmp_action = QAction(_export_label, self)
                 export_xmp_action.triggered.connect(lambda: self._export_to_xmp_with_refresh(target_items))
                 xmp_menu.addAction(export_xmp_action)
 
