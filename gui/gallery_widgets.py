@@ -1358,12 +1358,8 @@ class ImageCard(QFrame):
                 xmp_menu = menu.addMenu(f"{t('widgets.menu.xmp_sync')}{multi_label}")
 
                 # Fix 1: label dinamica "Confronta" in base a tipo file e presenza sidecar
-                # Estensioni RAW note (stessa lista di XMPManagerExtended, escluso DNG che supporta embedded)
-                _RAW_EXTS = {'.cr2', '.cr3', '.nef', '.nrw', '.orf', '.arw', '.srf', '.sr2',
-                             '.raf', '.rw2', '.raw', '.pef', '.ptx', '.rwl', '.3fr', '.iiq', '.x3f'}
                 if not is_multi:
-                    _is_raw = (bool(self.image_data.get('is_raw', False)) or
-                               bool(self.filepath and self.filepath.suffix.lower() in _RAW_EXTS))
+                    _is_raw = bool(self.image_data.get('is_raw', False))
                     _has_sidecar = Path(str(self.filepath) + '.xmp').exists() if self.filepath else False
                     if _is_raw:
                         _compare_label = t("widgets.action.xmp_compare_sidecar") if _has_sidecar else t("widgets.action.xmp_compare")
