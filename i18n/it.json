@@ -89,7 +89,7 @@
   "processing.tooltip.source_catalog": "Leggi l'elenco delle immagini dal catalogo Lightroom",
   "processing.tooltip.mode_new_only": "Elabora solo le foto non ancora importate. Le foto già presenti nel catalogo vengono saltate completamente.",
   "processing.tooltip.mode_new_errors": "Elabora le foto nuove e riprova quelle che avevano generato un errore durante un import precedente.",
-  "processing.tooltip.mode_reprocess_all": "Elabora tutte le foto (nuove e catalogate). Con Sovrascrivi OFF: aggiunge solo i dati mancanti — utile per completare un import interrotto o per aggiungere un modello non attivo la volta precedente. Con Sovrascrivi ON: ricalcola tutto da capo.",
+  "processing.tooltip.mode_reprocess_all": "Elabora tutte le foto, nuove e già catalogate.\n\nSovrascrivi OFF → aggiunge solo i dati mancanti.\nUtile per completare un import interrotto o per attivare un modello aggiunto dopo.\n\nSovrascrivi ON → ricalcola tutto da capo.",
   "processing.checkbox.solo_gen_ai": "Solo Gen. AI",
   "processing.tooltip.solo_gen_ai": "Aggiorna solo tag, descrizione e titolo (LLM) sulle immagini già nel database. Salta estrazione EXIF ed embedding.",
   "processing.solo_gen_ai.warn_title": "Solo Gen. AI",

@@ -2569,7 +2569,6 @@ class ProcessingTab(QWidget):
 
         self.mode_reprocess_all = QRadioButton(t("processing.radio.reprocess_all"))
         self.mode_reprocess_all.setToolTip(t("processing.tooltip.mode_reprocess_all"))
-        self.mode_reprocess_all.setStyleSheet("color: #f57500; font-weight: bold;")
         self.processing_mode_group.addButton(self.mode_reprocess_all, 2)
 
         options_layout.addWidget(self.mode_reprocess_all)

@@ -89,7 +89,7 @@
   "processing.tooltip.source_catalog": "Read the image list from the Lightroom catalog",
   "processing.tooltip.mode_new_only": "Process only images not yet in the database",
   "processing.tooltip.mode_new_errors": "Process new images and retry previous errors",
-  "processing.tooltip.mode_reprocess_all": "Reprocess all images, including already processed ones",
+  "processing.tooltip.mode_reprocess_all": "Process all images, both new and already catalogued.\n\nOverwrite OFF → adds only missing data.\nUseful to resume an interrupted import or to run a newly enabled model.\n\nOverwrite ON → recalculates everything from scratch.",
   "processing.checkbox.solo_gen_ai": "AI Gen. Only",
   "processing.tooltip.solo_gen_ai": "Update only tags, description and title (LLM) on images already in the database. Skips EXIF extraction and embedding.",
   "processing.solo_gen_ai.warn_title": "AI Gen. Only",
