@@ -4,6 +4,7 @@ Focus: Salute archivio, Attrezzatura, Tecnica di scatto
 """
 
 import logging
+import sqlite3
 import traceback as _traceback
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from PyQt6.QtWidgets import (
     QLabel, QScrollArea, QFrame, QGridLayout,
     QSizePolicy, QSpacerItem, QTabWidget,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread, QObject, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QPainter
 from gui.directory_dialog import DirectoryTreeWidget
 
@@ -31,6 +32,264 @@ COLORS = {
     'ambra':              '#C88B2E',
     'viola':              '#6A4C93',
 }
+
+
+# ---------------------------------------------------------------------------
+# Worker: tutte le query SQL girano in un thread separato
+# ---------------------------------------------------------------------------
+
+class StatsWorker(QObject):
+    """Esegue tutte le query di statistiche in un thread separato e restituisce i dati via signal."""
+
+    finished = pyqtSignal(dict)   # dati pronti → aggiorna UI
+    error    = pyqtSignal(str)    # messaggio di errore
+
+    def __init__(self, db_path: str, selected_dirs: list):
+        super().__init__()
+        self.db_path       = db_path
+        self.selected_dirs = selected_dirs
+
+    def _path_filter(self):
+        if not self.selected_dirs:
+            return "1=1", []
+        clauses = " OR ".join(["filepath LIKE ?" for _ in self.selected_dirs])
+        params  = [str(d) + "%" for d in self.selected_dirs]
+        return f"({clauses})", params
+
+    def run(self):
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cur  = conn.cursor()
+            pf, pp = self._path_filter()
+            data = {}
+            data.update(self._info_bar(cur, pf, pp))
+            data.update(self._kpis(cur, pf, pp))
+            data.update(self._archivio(cur, pf, pp))
+            data.update(self._attrezzatura(cur, pf, pp))
+            data.update(self._tecnica(cur, pf, pp))
+            self.finished.emit(data)
+        except Exception as e:
+            logger.error(f"StatsWorker errore: {e}", exc_info=True)
+            self.error.emit(str(e))
+        finally:
+            if conn:
+                conn.close()
+
+    # --- info bar ---
+
+    def _info_bar(self, cur, pf, pp):
+        d = {}
+        cur.execute(f"SELECT COUNT(*) FROM images WHERE {pf}", pp)
+        total = cur.fetchone()[0]
+        d["info_total"] = f"{total:,}"
+
+        cur.execute(f"SELECT SUM(file_size) FROM images WHERE {pf} AND file_size IS NOT NULL", pp)
+        size = cur.fetchone()[0] or 0
+        d["info_size"] = f"{size / 1024**3:.1f} GB"
+
+        cur.execute(f"SELECT COUNT(*) FROM images WHERE {pf} AND is_raw = 1", pp)
+        raw = cur.fetchone()[0]
+        d["info_raw"] = f"{raw / total * 100:.0f}%" if total else "—"
+
+        cur.execute(f"""
+            SELECT MAX(COALESCE(datetime_original, datetime_digitized, datetime_modified))
+            FROM images WHERE {pf}
+        """, pp)
+        last = cur.fetchone()[0]
+        d["info_last"] = last[:10] if last else "—"
+        return d
+
+    # --- kpi ---
+
+    def _kpis(self, cur, pf, pp):
+        d = {}
+        cur.execute(f"SELECT COUNT(*) FROM images WHERE {pf}", pp)
+        d["kpi_total"] = f"{cur.fetchone()[0]:,}"
+
+        cur.execute(f"""
+            SELECT AVG(lr_rating), COUNT(*) FROM images
+            WHERE {pf} AND lr_rating IS NOT NULL AND lr_rating > 0
+        """, pp)
+        r = cur.fetchone()
+        d["kpi_rating"]          = f"{r[0]:.1f}★" if r[0] else "—"
+        d["kpi_rating_sub"]      = f"su {r[1]:,} foto valutate" if r[0] else "nessun rating assegnato"
+
+        cur.execute(f"""
+            SELECT AVG(aesthetic_score), COUNT(*) FROM images
+            WHERE {pf} AND aesthetic_score IS NOT NULL
+        """, pp)
+        r = cur.fetchone()
+        d["kpi_aesthetic"]     = f"{r[0]:.1f}" if r[0] else "—"
+        d["kpi_aesthetic_sub"] = f"su {r[1]:,} foto analizzate" if r[0] else "score non ancora calcolato"
+        return d
+
+    # --- archivio ---
+
+    def _archivio(self, cur, pf, pp):
+        d = {}
+
+        cur.execute(f"""
+            SELECT COALESCE(lr_rating, 0), COUNT(*) FROM images WHERE {pf}
+            GROUP BY COALESCE(lr_rating, 0) ORDER BY COALESCE(lr_rating, 0)
+        """, pp)
+        raw = {int(r[0]): r[1] for r in cur.fetchall()}
+        d["rating_chart"] = {
+            ("☆ Nessuno" if s == 0 else "★" * s): raw.get(s, 0)
+            for s in range(0, 6)
+        }
+
+        for key in ("red", "yellow", "green", "blue", "purple"):
+            cur.execute(f"SELECT COUNT(*) FROM images WHERE {pf} AND color_label = ?", pp + [key])
+            d[f"color_{key}"] = f"{cur.fetchone()[0]:,}"
+        cur.execute(f"""
+            SELECT COUNT(*) FROM images WHERE {pf} AND (color_label IS NULL OR color_label = '')
+        """, pp)
+        d["color_none"] = f"{cur.fetchone()[0]:,}"
+
+        cur.execute(f"SELECT COUNT(*) FROM images WHERE {pf}", pp)
+        total = cur.fetchone()[0] or 1
+        for key, cond in [
+            ("with_title",  "title IS NOT NULL AND title != ''"),
+            ("with_desc",   "description IS NOT NULL AND description != ''"),
+            ("with_tags",   "tags IS NOT NULL AND tags != '[]' AND tags != ''"),
+            ("with_rating", "lr_rating IS NOT NULL AND lr_rating > 0"),
+            ("with_gps",    "gps_latitude IS NOT NULL AND gps_longitude IS NOT NULL"),
+        ]:
+            cur.execute(f"SELECT COUNT(*) FROM images WHERE {pf} AND {cond}", pp)
+            n = cur.fetchone()[0]
+            d[f"meta_{key}"] = f"{n / total * 100:.1f}%  ({n:,})"
+
+        cur.execute(f"SELECT AVG(aesthetic_score), COUNT(*) FROM images WHERE {pf} AND aesthetic_score IS NOT NULL", pp)
+        r = cur.fetchone()
+        d["score_aesth_avg"] = f"{r[0]:.2f} / 10" if r[0] else "—"
+        d["score_aesth_cov"] = f"{r[1]:,}  ({r[1] / total * 100:.1f}%)"
+
+        cur.execute(f"SELECT AVG(technical_score), COUNT(*) FROM images WHERE {pf} AND technical_score IS NOT NULL", pp)
+        r = cur.fetchone()
+        d["score_tech_avg"] = f"{r[0]:.1f}" if r[0] else "—"
+        d["score_tech_cov"] = f"{r[1]:,}  ({r[1] / total * 100:.1f}%)"
+
+        cur.execute(f"""
+            SELECT COALESCE(strftime('%Y', datetime_original),
+                            strftime('%Y', datetime_digitized),
+                            strftime('%Y', datetime_modified)) AS yr, COUNT(*)
+            FROM images WHERE {pf}
+            GROUP BY yr HAVING yr IS NOT NULL ORDER BY yr
+        """, pp)
+        d["timeline_chart"] = {r[0]: r[1] for r in cur.fetchall()}
+        return d
+
+    # --- attrezzatura ---
+
+    def _attrezzatura(self, cur, pf, pp):
+        d = {}
+
+        cur.execute(f"SELECT camera_model, COUNT(*) AS n FROM images WHERE {pf} AND camera_model IS NOT NULL GROUP BY camera_model ORDER BY n DESC", pp)
+        d["cameras_chart"] = {r[0]: r[1] for r in cur.fetchall()}
+
+        cur.execute(f"SELECT lens_model, COUNT(*) AS n FROM images WHERE {pf} AND lens_model IS NOT NULL GROUP BY lens_model ORDER BY n DESC", pp)
+        d["lenses_chart"] = {r[0]: r[1] for r in cur.fetchall()}
+
+        cur.execute(f"""
+            SELECT CASE
+                WHEN focal_length < 20  THEN '<20mm'  WHEN focal_length < 35  THEN '20-35mm'
+                WHEN focal_length < 50  THEN '35-50mm' WHEN focal_length < 85  THEN '50-85mm'
+                WHEN focal_length < 135 THEN '85-135mm' WHEN focal_length < 200 THEN '135-200mm'
+                ELSE '>200mm'
+            END AS rng, COUNT(*) AS n
+            FROM images WHERE {pf} AND focal_length IS NOT NULL GROUP BY rng ORDER BY n DESC
+        """, pp)
+        d["focal_chart"] = {r[0]: r[1] for r in cur.fetchall()}
+
+        cur.execute(f"SELECT aperture, COUNT(*) AS n FROM images WHERE {pf} AND aperture IS NOT NULL GROUP BY aperture ORDER BY n DESC LIMIT 8", pp)
+        d["aperture_chart"] = {f"f/{r[0]}": r[1] for r in cur.fetchall()}
+
+        cur.execute(f"SELECT COUNT(DISTINCT camera_model) FROM images WHERE {pf} AND camera_model IS NOT NULL", pp)
+        d["gear_n_cameras"] = str(cur.fetchone()[0])
+
+        cur.execute(f"SELECT COUNT(DISTINCT lens_model) FROM images WHERE {pf} AND lens_model IS NOT NULL", pp)
+        d["gear_n_lenses"] = str(cur.fetchone()[0])
+
+        cur.execute(f"SELECT focal_length, COUNT(*) AS n FROM images WHERE {pf} AND focal_length IS NOT NULL GROUP BY focal_length ORDER BY n DESC LIMIT 1", pp)
+        r = cur.fetchone()
+        d["gear_top_focal"] = f"{int(r[0])}mm" if r else "—"
+
+        cur.execute(f"SELECT MIN(focal_length), MAX(focal_length) FROM images WHERE {pf} AND focal_length IS NOT NULL", pp)
+        r = cur.fetchone()
+        d["gear_focal_range"] = f"{int(r[0])}-{int(r[1])}mm" if (r and r[0]) else "—"
+        return d
+
+    # --- tecnica ---
+
+    def _tecnica(self, cur, pf, pp):
+        d = {}
+
+        cur.execute(f"""
+            SELECT CASE
+                WHEN shutter_speed_decimal >= 1     THEN '≥1s'
+                WHEN shutter_speed_decimal >= 0.5   THEN '1/2s'
+                WHEN shutter_speed_decimal >= 0.1   THEN '1/10s'
+                WHEN shutter_speed_decimal >= 0.02  THEN '1/50s'
+                WHEN shutter_speed_decimal >= 0.008 THEN '1/125s'
+                WHEN shutter_speed_decimal >= 0.004 THEN '1/250s'
+                WHEN shutter_speed_decimal >= 0.002 THEN '1/500s'
+                ELSE '≥1/1000s'
+            END AS rng, COUNT(*) AS n
+            FROM images WHERE {pf} AND shutter_speed_decimal IS NOT NULL GROUP BY rng ORDER BY n DESC
+        """, pp)
+        d["shutter_chart"] = {r[0]: r[1] for r in cur.fetchall()}
+
+        cur.execute(f"""
+            SELECT CASE
+                WHEN iso <= 100  THEN '≤100'   WHEN iso <= 200  THEN '101-200'
+                WHEN iso <= 400  THEN '201-400' WHEN iso <= 800  THEN '401-800'
+                WHEN iso <= 1600 THEN '801-1600' WHEN iso <= 3200 THEN '1601-3200'
+                WHEN iso <= 6400 THEN '3201-6400' ELSE '>6400'
+            END AS rng, COUNT(*) AS n
+            FROM images WHERE {pf} AND iso IS NOT NULL GROUP BY rng ORDER BY n DESC
+        """, pp)
+        d["iso_chart"] = {r[0]: r[1] for r in cur.fetchall()}
+
+        cur.execute(f"SELECT focal_length FROM images WHERE {pf} AND focal_length IS NOT NULL GROUP BY focal_length ORDER BY COUNT(*) DESC LIMIT 1", pp)
+        r = cur.fetchone()
+        d["firma_focal"]   = f"{int(r[0])}mm" if r else "—"
+
+        cur.execute(f"SELECT aperture FROM images WHERE {pf} AND aperture IS NOT NULL GROUP BY aperture ORDER BY COUNT(*) DESC LIMIT 1", pp)
+        r = cur.fetchone()
+        d["firma_aperture"] = f"f/{r[0]}" if r else "—"
+
+        cur.execute(f"SELECT iso FROM images WHERE {pf} AND iso IS NOT NULL GROUP BY iso ORDER BY COUNT(*) DESC LIMIT 1", pp)
+        r = cur.fetchone()
+        d["firma_iso"] = f"ISO {r[0]}" if r else "—"
+
+        cur.execute("PRAGMA table_info(images)")
+        cols = {c[1] for c in cur.fetchall()}
+        if "flash_used" in cols:
+            cur.execute(f"SELECT COUNT(*) FROM images WHERE {pf} AND flash_used = 1", pp)
+            n_flash = cur.fetchone()[0]
+            cur.execute(f"SELECT COUNT(*) FROM images WHERE {pf} AND flash_used IS NOT NULL", pp)
+            n_tot = cur.fetchone()[0]
+            d["firma_flash"] = f"{n_flash / n_tot * 100:.0f}%" if n_tot else "—"
+        else:
+            d["firma_flash"] = "N/A"
+
+        cur.execute(f"SELECT COUNT(*) FROM images WHERE {pf}", pp)
+        total = cur.fetchone()[0] or 1
+        cur.execute(f"SELECT COUNT(*) FROM images WHERE {pf} AND gps_latitude IS NOT NULL AND gps_longitude IS NOT NULL", pp)
+        n_gps = cur.fetchone()[0]
+        d["geo_coverage"] = f"{n_gps / total * 100:.1f}%  ({n_gps:,})"
+
+        cur.execute(f"SELECT COUNT(DISTINCT gps_country) FROM images WHERE {pf} AND gps_country IS NOT NULL AND gps_country != ''", pp)
+        d["geo_countries"] = str(cur.fetchone()[0])
+
+        cur.execute(f"SELECT COUNT(DISTINCT gps_city) FROM images WHERE {pf} AND gps_city IS NOT NULL AND gps_city != ''", pp)
+        d["geo_cities"] = str(cur.fetchone()[0])
+
+        cur.execute(f"SELECT gps_city, COUNT(*) AS n FROM images WHERE {pf} AND gps_city IS NOT NULL AND gps_city != '' GROUP BY gps_city ORDER BY n DESC LIMIT 1", pp)
+        r = cur.fetchone()
+        d["geo_top"] = f"{r[0]} ({r[1]:,})" if r else "—"
+        return d
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +540,11 @@ class StatsTab(QWidget):
         self._dir_widget       = None
         self._dir_inner        = None
         self._dir_status_label = None
+
+        # Thread worker
+        self._stats_thread = None
+        self._stats_worker = None
+        self._refresh_pending = False   # richiesta arrivata mentre giravo già
 
         try:
             self.init_ui()
@@ -775,377 +1039,108 @@ class StatsTab(QWidget):
     def refresh_stats(self):
         if not self.db_manager:
             return
-        try:
-            cursor = self.db_manager.cursor
-            pf, pp = self._path_filter()
-            self._update_info_bar(cursor, pf, pp)
-            self._update_kpis(cursor, pf, pp)
-            self._update_archivio(cursor, pf, pp)
-            self._update_attrezzatura(cursor, pf, pp)
-            self._update_tecnica(cursor, pf, pp)
-        except Exception as e:
-            logger.error(f"Errore refresh stats: {e}")
-            logger.debug(_traceback.format_exc())
+
+        # Se un worker sta già girando, segna la richiesta come pending e aspetta
+        if self._stats_thread and self._stats_thread.isRunning():
+            self._refresh_pending = True
+            return
+
+        self._refresh_pending = False
+        worker = StatsWorker(self.db_manager.db_path, list(self._selected_dirs))
+        thread = QThread(self)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._on_stats_ready)
+        worker.finished.connect(lambda _: thread.quit())
+        worker.error.connect(lambda msg: logger.error(f"StatsWorker: {msg}"))
+        worker.error.connect(lambda _: thread.quit())
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._on_thread_done)
+        self._stats_thread = thread
+        self._stats_worker = worker
+        thread.start()
+
+    def _on_thread_done(self):
+        """Rilancia refresh se era arrivata una richiesta mentre girava il thread."""
+        self._stats_thread = None
+        self._stats_worker = None
+        if self._refresh_pending:
+            self.refresh_stats()
 
     # ------------------------------------------------------------------
-    # Update: info bar
+    # Aggiornamento UI dai dati del worker (main thread)
     # ------------------------------------------------------------------
 
-    def _update_info_bar(self, cursor, pf, pp):
-        try:
-            cursor.execute(f"SELECT COUNT(*) FROM images WHERE {pf}", pp)
-            total = cursor.fetchone()[0]
-            if self._info_total:
-                self._info_total.setText(f"{total:,}")
+    def _on_stats_ready(self, d: dict):
+        """Riceve il dizionario dati dal worker e aggiorna tutti i widget UI."""
+        # Info bar
+        if self._info_total: self._info_total.setText(d.get("info_total", "—"))
+        if self._info_size:  self._info_size.setText(d.get("info_size",  "—"))
+        if self._info_raw:   self._info_raw.setText(d.get("info_raw",   "—"))
+        if self._info_last:  self._info_last.setText(d.get("info_last",  "—"))
 
-            cursor.execute(
-                f"SELECT SUM(file_size) FROM images WHERE {pf} AND file_size IS NOT NULL", pp
-            )
-            size = cursor.fetchone()[0] or 0
-            if self._info_size:
-                self._info_size.setText(f"{size / 1024**3:.1f} GB")
+        # KPI
+        if self.kpi_total:
+            self.kpi_total.update_value(d.get("kpi_total", "—"))
+        if self.kpi_rating:
+            self.kpi_rating.update_value(d.get("kpi_rating", "—"), d.get("kpi_rating_sub", ""))
+        if self.kpi_aesthetic:
+            self.kpi_aesthetic.update_value(d.get("kpi_aesthetic", "—"), d.get("kpi_aesthetic_sub", ""))
 
-            cursor.execute(f"SELECT COUNT(*) FROM images WHERE {pf} AND is_raw = 1", pp)
-            raw = cursor.fetchone()[0]
-            if self._info_raw:
-                self._info_raw.setText(f"{raw / total * 100:.0f}%" if total else "—")
+        # Charts archivio
+        if self.rating_chart:   self.rating_chart.update_data(d.get("rating_chart", {}))
+        if self.timeline_chart: self.timeline_chart.update_data(d.get("timeline_chart", {}))
 
-            cursor.execute(f"""
-                SELECT MAX(COALESCE(datetime_original, datetime_digitized, datetime_modified))
-                FROM images WHERE {pf}
-            """, pp)
-            last = cursor.fetchone()[0]
-            if self._info_last:
-                self._info_last.setText(last[:10] if last else "—")
-        except Exception as e:
-            logger.warning(f"Errore update info bar: {e}", exc_info=True)
+        # Color labels
+        for key in ("red", "yellow", "green", "blue", "purple", "none"):
+            if key in self._color_labels:
+                self._color_labels[key].setText(d.get(f"color_{key}", "—"))
 
-    # ------------------------------------------------------------------
-    # Update: KPI
-    # ------------------------------------------------------------------
+        # Metadata
+        for key in ("with_title", "with_desc", "with_tags", "with_rating", "with_gps"):
+            if key in self._metadata:
+                self._metadata[key].setText(d.get(f"meta_{key}", "—"))
 
-    def _update_kpis(self, cursor, pf, pp):
-        try:
-            cursor.execute(f"SELECT COUNT(*) FROM images WHERE {pf}", pp)
-            total = cursor.fetchone()[0]
-            self.kpi_total.update_value(f"{total:,}")
+        # Scores
+        for key, dkey in [
+            ("aesth_avg", "score_aesth_avg"), ("aesth_cov", "score_aesth_cov"),
+            ("tech_avg",  "score_tech_avg"),  ("tech_cov",  "score_tech_cov"),
+        ]:
+            if key in self._scores:
+                self._scores[key].setText(d.get(dkey, "—"))
 
-            cursor.execute(f"""
-                SELECT AVG(lr_rating), COUNT(*)
-                FROM images
-                WHERE {pf} AND lr_rating IS NOT NULL AND lr_rating > 0
-            """, pp)
-            r = cursor.fetchone()
-            if r and r[0]:
-                self.kpi_rating.update_value(f"{r[0]:.1f}★", f"su {r[1]:,} foto valutate")
-            else:
-                self.kpi_rating.update_value("—", "nessun rating assegnato")
+        # Charts attrezzatura
+        if self.cameras_chart:  self.cameras_chart.update_data(d.get("cameras_chart", {}))
+        if self.lenses_chart:   self.lenses_chart.update_data(d.get("lenses_chart", {}))
+        if self.focal_chart:    self.focal_chart.update_data(d.get("focal_chart", {}))
+        if self.aperture_chart: self.aperture_chart.update_data(d.get("aperture_chart", {}))
 
-            cursor.execute(f"""
-                SELECT AVG(aesthetic_score), COUNT(*)
-                FROM images
-                WHERE {pf} AND aesthetic_score IS NOT NULL
-            """, pp)
-            r = cursor.fetchone()
-            if r and r[0]:
-                self.kpi_aesthetic.update_value(f"{r[0]:.1f}", f"su {r[1]:,} foto analizzate")
-            else:
-                self.kpi_aesthetic.update_value("—", "score non ancora calcolato")
-        except Exception as e:
-            logger.warning(f"Errore update KPIs: {e}", exc_info=True)
+        # Gear summary
+        for key, dkey in [
+            ("n_cameras", "gear_n_cameras"), ("n_lenses", "gear_n_lenses"),
+            ("top_focal", "gear_top_focal"), ("focal_range", "gear_focal_range"),
+        ]:
+            if key in self._gear_summary:
+                self._gear_summary[key].setText(d.get(dkey, "—"))
 
-    # ------------------------------------------------------------------
-    # Update: Archivio
-    # ------------------------------------------------------------------
+        # Charts tecnica
+        if self.shutter_chart: self.shutter_chart.update_data(d.get("shutter_chart", {}))
+        if self.iso_chart:     self.iso_chart.update_data(d.get("iso_chart", {}))
 
-    def _update_archivio(self, cursor, pf, pp):
-        try:
-            # Rating distribution — raggruppa per stelle (0 = senza rating)
-            cursor.execute(f"""
-                SELECT COALESCE(lr_rating, 0), COUNT(*)
-                FROM images WHERE {pf}
-                GROUP BY COALESCE(lr_rating, 0)
-                ORDER BY COALESCE(lr_rating, 0)
-            """, pp)
-            raw = {int(r[0]): r[1] for r in cursor.fetchall()}
-            rating_data = {}
-            for stars in range(0, 6):
-                label = "☆ Nessuno" if stars == 0 else "★" * stars
-                rating_data[label] = raw.get(stars, 0)
-            if self.rating_chart:
-                self.rating_chart.update_data(rating_data)
+        # Firma di scatto
+        for key, dkey in [
+            ("focal_top", "firma_focal"), ("aperture_top", "firma_aperture"),
+            ("iso_top", "firma_iso"),     ("flash", "firma_flash"),
+        ]:
+            if key in self._firma:
+                self._firma[key].setText(d.get(dkey, "—"))
 
-            # Color labels
-            for key, _icon, _name in [
-                ("red", "🔴", "Rossa"), ("yellow", "🟡", "Gialla"),
-                ("green", "🟢", "Verde"), ("blue", "🔵", "Blu"), ("purple", "🟣", "Viola"),
-            ]:
-                cursor.execute(
-                    f"SELECT COUNT(*) FROM images WHERE {pf} AND color_label = ?", pp + [key]
-                )
-                if key in self._color_labels:
-                    self._color_labels[key].setText(f"{cursor.fetchone()[0]:,}")
+        # Geo
+        for key, dkey in [
+            ("gps_coverage", "geo_coverage"), ("countries", "geo_countries"),
+            ("cities", "geo_cities"),         ("top_location", "geo_top"),
+        ]:
+            if key in self._geo:
+                self._geo[key].setText(d.get(dkey, "—"))
 
-            cursor.execute(f"""
-                SELECT COUNT(*) FROM images
-                WHERE {pf} AND (color_label IS NULL OR color_label = '')
-            """, pp)
-            if "none" in self._color_labels:
-                self._color_labels["none"].setText(f"{cursor.fetchone()[0]:,}")
-
-            # Metadata completeness
-            cursor.execute(f"SELECT COUNT(*) FROM images WHERE {pf}", pp)
-            total = cursor.fetchone()[0] or 1
-
-            for key, cond in [
-                ("with_title",  "title IS NOT NULL AND title != ''"),
-                ("with_desc",   "description IS NOT NULL AND description != ''"),
-                ("with_tags",   "tags IS NOT NULL AND tags != '[]' AND tags != ''"),
-                ("with_rating", "lr_rating IS NOT NULL AND lr_rating > 0"),
-                ("with_gps",    "gps_latitude IS NOT NULL AND gps_longitude IS NOT NULL"),
-            ]:
-                cursor.execute(f"SELECT COUNT(*) FROM images WHERE {pf} AND {cond}", pp)
-                n = cursor.fetchone()[0]
-                if key in self._metadata:
-                    self._metadata[key].setText(f"{n / total * 100:.1f}%  ({n:,})")
-
-            # Score qualità AI
-            cursor.execute(f"""
-                SELECT AVG(aesthetic_score), COUNT(*)
-                FROM images WHERE {pf} AND aesthetic_score IS NOT NULL
-            """, pp)
-            r = cursor.fetchone()
-            if "aesth_avg" in self._scores:
-                self._scores["aesth_avg"].setText(f"{r[0]:.2f} / 10" if r[0] else "—")
-            if "aesth_cov" in self._scores:
-                self._scores["aesth_cov"].setText(f"{r[1]:,}  ({r[1] / total * 100:.1f}%)")
-
-            cursor.execute(f"""
-                SELECT AVG(technical_score), COUNT(*)
-                FROM images WHERE {pf} AND technical_score IS NOT NULL
-            """, pp)
-            r = cursor.fetchone()
-            if "tech_avg" in self._scores:
-                self._scores["tech_avg"].setText(f"{r[0]:.1f}" if r[0] else "—")
-            if "tech_cov" in self._scores:
-                self._scores["tech_cov"].setText(f"{r[1]:,}  ({r[1] / total * 100:.1f}%)")
-
-            # Timeline
-            cursor.execute(f"""
-                SELECT
-                    COALESCE(
-                        strftime('%Y', datetime_original),
-                        strftime('%Y', datetime_digitized),
-                        strftime('%Y', datetime_modified)
-                    ) AS yr,
-                    COUNT(*)
-                FROM images WHERE {pf}
-                GROUP BY yr
-                HAVING yr IS NOT NULL
-                ORDER BY yr
-            """, pp)
-            if self.timeline_chart:
-                self.timeline_chart.update_data({r[0]: r[1] for r in cursor.fetchall()})
-
-        except Exception as e:
-            logger.warning(f"Errore update archivio: {e}", exc_info=True)
-
-    # ------------------------------------------------------------------
-    # Update: Attrezzatura
-    # ------------------------------------------------------------------
-
-    def _update_attrezzatura(self, cursor, pf, pp):
-        try:
-            cursor.execute(f"""
-                SELECT camera_model, COUNT(*) AS n FROM images
-                WHERE {pf} AND camera_model IS NOT NULL
-                GROUP BY camera_model ORDER BY n DESC
-            """, pp)
-            if self.cameras_chart:
-                self.cameras_chart.update_data({r[0]: r[1] for r in cursor.fetchall()})
-
-            cursor.execute(f"""
-                SELECT lens_model, COUNT(*) AS n FROM images
-                WHERE {pf} AND lens_model IS NOT NULL
-                GROUP BY lens_model ORDER BY n DESC
-            """, pp)
-            if self.lenses_chart:
-                self.lenses_chart.update_data({r[0]: r[1] for r in cursor.fetchall()})
-
-            cursor.execute(f"""
-                SELECT CASE
-                    WHEN focal_length < 20  THEN '<20mm'
-                    WHEN focal_length < 35  THEN '20-35mm'
-                    WHEN focal_length < 50  THEN '35-50mm'
-                    WHEN focal_length < 85  THEN '50-85mm'
-                    WHEN focal_length < 135 THEN '85-135mm'
-                    WHEN focal_length < 200 THEN '135-200mm'
-                    ELSE '>200mm'
-                END AS rng, COUNT(*) AS n
-                FROM images WHERE {pf} AND focal_length IS NOT NULL
-                GROUP BY rng ORDER BY n DESC
-            """, pp)
-            if self.focal_chart:
-                self.focal_chart.update_data({r[0]: r[1] for r in cursor.fetchall()})
-
-            cursor.execute(f"""
-                SELECT aperture, COUNT(*) AS n FROM images
-                WHERE {pf} AND aperture IS NOT NULL
-                GROUP BY aperture ORDER BY n DESC LIMIT 8
-            """, pp)
-            if self.aperture_chart:
-                self.aperture_chart.update_data({f"f/{r[0]}": r[1] for r in cursor.fetchall()})
-
-            cursor.execute(
-                f"SELECT COUNT(DISTINCT camera_model) FROM images WHERE {pf} AND camera_model IS NOT NULL", pp
-            )
-            if "n_cameras" in self._gear_summary:
-                self._gear_summary["n_cameras"].setText(str(cursor.fetchone()[0]))
-
-            cursor.execute(
-                f"SELECT COUNT(DISTINCT lens_model) FROM images WHERE {pf} AND lens_model IS NOT NULL", pp
-            )
-            if "n_lenses" in self._gear_summary:
-                self._gear_summary["n_lenses"].setText(str(cursor.fetchone()[0]))
-
-            cursor.execute(f"""
-                SELECT focal_length, COUNT(*) AS n FROM images
-                WHERE {pf} AND focal_length IS NOT NULL
-                GROUP BY focal_length ORDER BY n DESC LIMIT 1
-            """, pp)
-            r = cursor.fetchone()
-            if "top_focal" in self._gear_summary:
-                self._gear_summary["top_focal"].setText(f"{int(r[0])}mm" if r else "—")
-
-            cursor.execute(
-                f"SELECT MIN(focal_length), MAX(focal_length) FROM images WHERE {pf} AND focal_length IS NOT NULL", pp
-            )
-            r = cursor.fetchone()
-            if "focal_range" in self._gear_summary:
-                if r and r[0]:
-                    self._gear_summary["focal_range"].setText(f"{int(r[0])}-{int(r[1])}mm")
-                else:
-                    self._gear_summary["focal_range"].setText("—")
-
-        except Exception as e:
-            logger.warning(f"Errore update attrezzatura: {e}", exc_info=True)
-
-    # ------------------------------------------------------------------
-    # Update: Tecnica
-    # ------------------------------------------------------------------
-
-    def _update_tecnica(self, cursor, pf, pp):
-        try:
-            cursor.execute(f"""
-                SELECT CASE
-                    WHEN shutter_speed_decimal >= 1     THEN '≥1s'
-                    WHEN shutter_speed_decimal >= 0.5   THEN '1/2s'
-                    WHEN shutter_speed_decimal >= 0.1   THEN '1/10s'
-                    WHEN shutter_speed_decimal >= 0.02  THEN '1/50s'
-                    WHEN shutter_speed_decimal >= 0.008 THEN '1/125s'
-                    WHEN shutter_speed_decimal >= 0.004 THEN '1/250s'
-                    WHEN shutter_speed_decimal >= 0.002 THEN '1/500s'
-                    ELSE '≥1/1000s'
-                END AS rng, COUNT(*) AS n
-                FROM images WHERE {pf} AND shutter_speed_decimal IS NOT NULL
-                GROUP BY rng ORDER BY n DESC
-            """, pp)
-            if self.shutter_chart:
-                self.shutter_chart.update_data({r[0]: r[1] for r in cursor.fetchall()})
-
-            cursor.execute(f"""
-                SELECT CASE
-                    WHEN iso <= 100  THEN '≤100'
-                    WHEN iso <= 200  THEN '101-200'
-                    WHEN iso <= 400  THEN '201-400'
-                    WHEN iso <= 800  THEN '401-800'
-                    WHEN iso <= 1600 THEN '801-1600'
-                    WHEN iso <= 3200 THEN '1601-3200'
-                    WHEN iso <= 6400 THEN '3201-6400'
-                    ELSE '>6400'
-                END AS rng, COUNT(*) AS n
-                FROM images WHERE {pf} AND iso IS NOT NULL
-                GROUP BY rng ORDER BY n DESC
-            """, pp)
-            if self.iso_chart:
-                self.iso_chart.update_data({r[0]: r[1] for r in cursor.fetchall()})
-
-            # Firma di scatto
-            cursor.execute(f"""
-                SELECT focal_length FROM images
-                WHERE {pf} AND focal_length IS NOT NULL
-                GROUP BY focal_length ORDER BY COUNT(*) DESC LIMIT 1
-            """, pp)
-            r = cursor.fetchone()
-            if "focal_top" in self._firma:
-                self._firma["focal_top"].setText(f"{int(r[0])}mm" if r else "—")
-
-            cursor.execute(f"""
-                SELECT aperture FROM images
-                WHERE {pf} AND aperture IS NOT NULL
-                GROUP BY aperture ORDER BY COUNT(*) DESC LIMIT 1
-            """, pp)
-            r = cursor.fetchone()
-            if "aperture_top" in self._firma:
-                self._firma["aperture_top"].setText(f"f/{r[0]}" if r else "—")
-
-            cursor.execute(f"""
-                SELECT iso FROM images
-                WHERE {pf} AND iso IS NOT NULL
-                GROUP BY iso ORDER BY COUNT(*) DESC LIMIT 1
-            """, pp)
-            r = cursor.fetchone()
-            if "iso_top" in self._firma:
-                self._firma["iso_top"].setText(f"ISO {r[0]}" if r else "—")
-
-            # Flash
-            cursor.execute("PRAGMA table_info(images)")
-            cols = {c[1] for c in cursor.fetchall()}
-            if "flash_used" in cols:
-                cursor.execute(f"SELECT COUNT(*) FROM images WHERE {pf} AND flash_used = 1", pp)
-                n_flash = cursor.fetchone()[0]
-                cursor.execute(f"SELECT COUNT(*) FROM images WHERE {pf} AND flash_used IS NOT NULL", pp)
-                n_tot = cursor.fetchone()[0]
-                if "flash" in self._firma:
-                    self._firma["flash"].setText(f"{n_flash / n_tot * 100:.0f}%" if n_tot else "—")
-            else:
-                if "flash" in self._firma:
-                    self._firma["flash"].setText("N/A")
-
-            # Geo
-            cursor.execute(f"SELECT COUNT(*) FROM images WHERE {pf}", pp)
-            total = cursor.fetchone()[0] or 1
-
-            cursor.execute(f"""
-                SELECT COUNT(*) FROM images
-                WHERE {pf} AND gps_latitude IS NOT NULL AND gps_longitude IS NOT NULL
-            """, pp)
-            n_gps = cursor.fetchone()[0]
-            if "gps_coverage" in self._geo:
-                self._geo["gps_coverage"].setText(f"{n_gps / total * 100:.1f}%  ({n_gps:,})")
-
-            cursor.execute(f"""
-                SELECT COUNT(DISTINCT gps_country) FROM images
-                WHERE {pf} AND gps_country IS NOT NULL AND gps_country != ''
-            """, pp)
-            if "countries" in self._geo:
-                self._geo["countries"].setText(str(cursor.fetchone()[0]))
-
-            cursor.execute(f"""
-                SELECT COUNT(DISTINCT gps_city) FROM images
-                WHERE {pf} AND gps_city IS NOT NULL AND gps_city != ''
-            """, pp)
-            if "cities" in self._geo:
-                self._geo["cities"].setText(str(cursor.fetchone()[0]))
-
-            cursor.execute(f"""
-                SELECT gps_city, COUNT(*) AS n FROM images
-                WHERE {pf} AND gps_city IS NOT NULL AND gps_city != ''
-                GROUP BY gps_city ORDER BY n DESC LIMIT 1
-            """, pp)
-            r = cursor.fetchone()
-            if "top_location" in self._geo:
-                self._geo["top_location"].setText(f"{r[0]} ({r[1]:,})" if r else "—")
-
-        except Exception as e:
-            logger.warning(f"Errore update tecnica: {e}", exc_info=True)
