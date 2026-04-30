@@ -1346,6 +1346,9 @@ class ProcessingWorker(QThread):
                             self.log_message.emit(
                                 f"🌿 BioCLIP {fname}: "
                                 f"{len([l for l in bioclip_taxonomy if l])} livelli", "debug")
+                        else:
+                            # Nessun risultato: segna come elaborata per evitare ri-esecuzioni
+                            update_data['bioclip_taxonomy'] = 'null'
 
                         with self._stats_lock:
                             stats['geospecies_skipped_no_gps'] = emb_gen.geospecies_skipped_no_gps
