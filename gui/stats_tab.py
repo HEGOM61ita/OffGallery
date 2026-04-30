@@ -19,6 +19,22 @@ from PyQt6.QtCore import Qt, QThread, QObject, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QPainter
 from gui.directory_dialog import DirectoryTreeWidget
 
+_MESI_IT = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"]
+
+def _fmt_date_it(date_str: str) -> str:
+    """Converte una data ISO/EXIF in formato italiano leggibile (es. '15 apr 2024')."""
+    if not date_str:
+        return "—"
+    try:
+        from datetime import datetime
+        # EXIF usa "2024:04:15 12:30:00", ISO usa "2024-04-15"
+        clean = date_str[:10].replace(":", "-")
+        dt = datetime.strptime(clean, "%Y-%m-%d")
+        return f"{dt.day} {_MESI_IT[dt.month - 1]} {dt.year}"
+    except Exception:
+        return date_str[:10]
+
+
 COLORS = {
     'grafite':            '#2A2A2A',
     'grafite_light':      '#3A3A3A',
@@ -97,7 +113,7 @@ class StatsWorker(QObject):
             FROM images WHERE {pf}
         """, pp)
         last = cur.fetchone()[0]
-        d["info_last"] = last[:10] if last else "—"
+        d["info_last"] = _fmt_date_it(last)
         return d
 
     # --- kpi ---
@@ -323,7 +339,7 @@ class KPICard(QFrame):
         icon_lbl.setStyleSheet("font-size: 16px; color: rgba(255,255,255,0.8);")
         title_lbl = QLabel(title.upper())
         title_lbl.setStyleSheet(
-            "color: rgba(255,255,255,0.7); font-weight: 600; font-size: 9px; letter-spacing: 0.5px;"
+            "color: rgba(255,255,255,0.95); font-weight: 700; font-size: 10px; letter-spacing: 0.5px;"
         )
         header.addWidget(icon_lbl)
         header.addSpacerItem(QSpacerItem(8, 0))
@@ -374,14 +390,15 @@ class GearBarChart(QWidget):
         sorted_data = sorted(self.data.items(), key=lambda x: x[1], reverse=True)[: self.max_bars]
         max_val = max(v for _, v in sorted_data)
         label_width = 140
-        chart_width = self.width() - label_width - 20
+        val_width   = 70
+        chart_width = self.width() - label_width - val_width - 20
         chart_height = self.height() - 40
         bar_h = max(18, chart_height / len(sorted_data) - 14)
 
         for i, (label, value) in enumerate(sorted_data):
             y = 20 + i * (bar_h + 14)
             x = label_width + 10
-            bw = (value / max_val) * chart_width * 0.8 if max_val else 0
+            bw = (value / max_val) * chart_width if max_val else 0
 
             painter.setBrush(QColor(self.color))
             painter.setPen(Qt.PenStyle.NoPen)
@@ -394,9 +411,9 @@ class GearBarChart(QWidget):
                 painter.setFont(font)
                 painter.setPen(QColor(COLORS['grigio_chiaro']))
                 painter.drawText(
-                    int(x + bw + 5), int(y), 50, int(bar_h),
+                    int(x + bw + 5), int(y), val_width, int(bar_h),
                     Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                    str(value),
+                    f"{value:,}",
                 )
 
             font = painter.font()
@@ -455,14 +472,15 @@ class ProBarChart(QWidget):
         sorted_data = sorted(self.data.items(), key=lambda x: x[1], reverse=True)[: self.max_bars]
         max_val = max(v for _, v in sorted_data)
         label_width = 120
-        chart_width = self.width() - label_width - 20
+        val_width   = 70
+        chart_width = self.width() - label_width - val_width - 20
         chart_height = self.height() - 40
         bar_h = max(12, chart_height / len(sorted_data) - 8)
 
         for i, (label, value) in enumerate(sorted_data):
             y = 20 + i * (bar_h + 8)
             x = label_width + 10
-            bw = (value / max_val) * chart_width * 0.8 if max_val else 0
+            bw = (value / max_val) * chart_width if max_val else 0
 
             painter.setBrush(QColor(self.color))
             painter.setPen(Qt.PenStyle.NoPen)
@@ -475,9 +493,9 @@ class ProBarChart(QWidget):
                 painter.setFont(font)
                 painter.setPen(QColor(COLORS['grigio_chiaro']))
                 painter.drawText(
-                    int(x + bw + 4), int(y), 50, int(bar_h),
+                    int(x + bw + 4), int(y), val_width, int(bar_h),
                     Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                    str(value),
+                    f"{value:,}",
                 )
 
             font = painter.font()
