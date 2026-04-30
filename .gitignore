@@ -120,3 +120,6 @@ tagging_log.txt
 
 # Directory POC / sviluppo locale (non pubblicare)
 llm_plugin_poc/
+
+# Diario di sviluppo — solo locale, mai in push/pull
+DIARY/
