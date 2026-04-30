@@ -84,6 +84,8 @@ class StatsWorker(QObject):
             data.update(self._archivio(cur, pf, pp))
             data.update(self._attrezzatura(cur, pf, pp))
             data.update(self._tecnica(cur, pf, pp))
+            data.update(self._pattern(cur, pf, pp))
+            data.update(self._gear_scores(cur, pf, pp))
             self.finished.emit(data)
         except Exception as e:
             logger.error(f"StatsWorker errore: {e}", exc_info=True)
@@ -309,6 +311,118 @@ class StatsWorker(QObject):
         d["geo_top"] = f"{r[0]} ({r[1]:,})" if r else "—"
         return d
 
+    # --- pattern temporali e stile ---
+
+    # Helper per convertire datetime EXIF "YYYY:MM:DD HH:MM:SS" in ISO per strftime SQLite
+    _DT = "REPLACE(SUBSTR(datetime_original,1,10),':','-') || SUBSTR(datetime_original,11)"
+
+    def _pattern(self, cur, pf, pp):
+        d = {}
+
+        # Ora del giorno → 6 fasce
+        cur.execute(f"""
+            SELECT
+                CASE CAST(strftime('%H', {self._DT}) AS INTEGER)
+                    WHEN 5 THEN 'Alba (5-7)' WHEN 6 THEN 'Alba (5-7)' WHEN 7 THEN 'Alba (5-7)'
+                    WHEN 8 THEN 'Mattina (8-11)' WHEN 9 THEN 'Mattina (8-11)'
+                    WHEN 10 THEN 'Mattina (8-11)' WHEN 11 THEN 'Mattina (8-11)'
+                    WHEN 12 THEN 'Mezzogiorno (12-14)' WHEN 13 THEN 'Mezzogiorno (12-14)'
+                    WHEN 14 THEN 'Mezzogiorno (12-14)'
+                    WHEN 15 THEN 'Pomeriggio (15-17)' WHEN 16 THEN 'Pomeriggio (15-17)'
+                    WHEN 17 THEN 'Pomeriggio (15-17)'
+                    WHEN 18 THEN 'Ora d\'oro (18-20)' WHEN 19 THEN 'Ora d\'oro (18-20)'
+                    WHEN 20 THEN 'Ora d\'oro (18-20)'
+                    ELSE 'Notte/Sera'
+                END AS fascia,
+                COUNT(*) AS n
+            FROM images
+            WHERE {pf} AND datetime_original IS NOT NULL
+            GROUP BY fascia ORDER BY n DESC
+        """, pp)
+        d["pattern_ora"] = {r[0]: r[1] for r in cur.fetchall()}
+
+        # Mese dell'anno
+        _MESI = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"]
+        cur.execute(f"""
+            SELECT CAST(strftime('%m', {self._DT}) AS INTEGER) AS m, COUNT(*) AS n
+            FROM images WHERE {pf} AND datetime_original IS NOT NULL
+            GROUP BY m ORDER BY m
+        """, pp)
+        d["pattern_mese"] = {_MESI[r[0]-1]: r[1] for r in cur.fetchall() if r[0]}
+
+        # Giorno della settimana (SQLite: 0=Dom, 1=Lun, ..., 6=Sab)
+        _GIORNI = {0:"Dom", 1:"Lun", 2:"Mar", 3:"Mer", 4:"Gio", 5:"Ven", 6:"Sab"}
+        cur.execute(f"""
+            SELECT CAST(strftime('%w', {self._DT}) AS INTEGER) AS wd, COUNT(*) AS n
+            FROM images WHERE {pf} AND datetime_original IS NOT NULL
+            GROUP BY wd ORDER BY wd
+        """, pp)
+        # ordina Lun→Dom
+        raw_wd = {r[0]: r[1] for r in cur.fetchall()}
+        d["pattern_giorno"] = {_GIORNI[k]: raw_wd[k] for k in [1,2,3,4,5,6,0] if k in raw_wd}
+
+        # Modalità esposizione
+        cur.execute(f"""
+            SELECT exposure_mode, COUNT(*) AS n FROM images
+            WHERE {pf} AND exposure_mode IS NOT NULL AND exposure_mode != ''
+            GROUP BY exposure_mode ORDER BY n DESC LIMIT 8
+        """, pp)
+        d["pattern_exposure_mode"] = {r[0]: r[1] for r in cur.fetchall()}
+
+        # Drive mode
+        cur.execute(f"""
+            SELECT drive_mode, COUNT(*) AS n FROM images
+            WHERE {pf} AND drive_mode IS NOT NULL AND drive_mode != ''
+            GROUP BY drive_mode ORDER BY n DESC
+        """, pp)
+        d["pattern_drive"] = {r[0]: r[1] for r in cur.fetchall()}
+
+        # B&N
+        cur.execute(f"SELECT COUNT(*) FROM images WHERE {pf} AND is_monochrome = 1", pp)
+        d["bw_count"] = f"{cur.fetchone()[0]:,}"
+
+        return d
+
+    # --- score per attrezzatura ---
+
+    def _gear_scores(self, cur, pf, pp):
+        d = {}
+
+        # Score medio per fotocamera (solo dove abbiamo aesthetic_score)
+        cur.execute(f"""
+            SELECT camera_model, AVG(aesthetic_score) AS avg_s, COUNT(*) AS n
+            FROM images
+            WHERE {pf} AND camera_model IS NOT NULL AND aesthetic_score IS NOT NULL
+            GROUP BY camera_model HAVING n >= 5
+            ORDER BY avg_s DESC LIMIT 8
+        """, pp)
+        rows = cur.fetchall()
+        d["score_per_camera"] = {f"{r[0]}": r[1] for r in rows}
+        d["score_per_camera_n"] = {f"{r[0]}": r[2] for r in rows}
+
+        # Score medio per obiettivo
+        cur.execute(f"""
+            SELECT lens_model, AVG(aesthetic_score) AS avg_s, COUNT(*) AS n
+            FROM images
+            WHERE {pf} AND lens_model IS NOT NULL AND aesthetic_score IS NOT NULL
+            GROUP BY lens_model HAVING n >= 5
+            ORDER BY avg_s DESC LIMIT 8
+        """, pp)
+        rows = cur.fetchall()
+        d["score_per_lens"] = {f"{r[0]}": r[1] for r in rows}
+        d["score_per_lens_n"] = {f"{r[0]}": r[2] for r in rows}
+
+        # Top combinazioni camera + obiettivo
+        cur.execute(f"""
+            SELECT camera_model || '  +  ' || lens_model AS combo, COUNT(*) AS n
+            FROM images
+            WHERE {pf} AND camera_model IS NOT NULL AND lens_model IS NOT NULL
+            GROUP BY combo ORDER BY n DESC LIMIT 8
+        """, pp)
+        d["gear_combos"] = {r[0]: r[1] for r in cur.fetchall()}
+
+        return d
+
 
 # ---------------------------------------------------------------------------
 # Widget: KPI card
@@ -453,11 +567,12 @@ class GearBarChart(QWidget):
 
 class ProBarChart(QWidget):
 
-    def __init__(self, data, color=COLORS['ambra'], max_bars=10):
+    def __init__(self, data, color=COLORS['ambra'], max_bars=10, fmt="{:,}"):
         super().__init__()
         self.data = data
         self.color = color
         self.max_bars = max_bars
+        self.fmt = fmt
         self.setMinimumHeight(180)
         self.setStyleSheet("background-color: transparent;")
 
@@ -501,7 +616,7 @@ class ProBarChart(QWidget):
                 painter.drawText(
                     int(bar_x1 + 4), int(y), val_w, int(bar_h),
                     Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                    f"{value:,}",
+                    self.fmt.format(value),
                 )
 
             font = painter.font()
@@ -542,7 +657,7 @@ class StatsTab(QWidget):
         self.kpi_rating    = None
         self.kpi_aesthetic = None
 
-        # Chart refs
+        # Chart refs — base
         self.rating_chart   = None
         self.timeline_chart = None
         self.cameras_chart  = None
@@ -551,6 +666,18 @@ class StatsTab(QWidget):
         self.aperture_chart = None
         self.shutter_chart  = None
         self.iso_chart      = None
+
+        # Chart refs — pattern temporali
+        self.ora_chart    = None
+        self.mese_chart   = None
+        self.giorno_chart = None
+        self.exp_mode_chart = None
+        self.drive_chart  = None
+
+        # Chart refs — score per gear
+        self.score_camera_chart = None
+        self.score_lens_chart   = None
+        self.combos_chart       = None
 
         # Metric row value labels
         self._color_labels = {}
@@ -779,6 +906,7 @@ class StatsTab(QWidget):
         self.tab_widget.addTab(self._create_archivio_tab(),     "📁 Archivio")
         self.tab_widget.addTab(self._create_attrezzatura_tab(), "📸 Attrezzatura")
         self.tab_widget.addTab(self._create_tecnica_tab(),      "🎯 Tecnica")
+        self.tab_widget.addTab(self._create_ritmo_tab(),        "📅 Ritmo & Stile")
         layout.addWidget(self.tab_widget)
 
     # ------------------------------------------------------------------
@@ -882,6 +1010,7 @@ class StatsTab(QWidget):
             ("Foto con score estetico", "aesth_cov"),
             ("Score tecnico medio",     "tech_avg"),
             ("Foto con score tecnico",  "tech_cov"),
+            ("Foto in B&N",             "bw_count"),
         ]):
             sg_l.addWidget(self._metric_row(label, key, self._scores, i % 2 == 0))
 
@@ -966,6 +1095,42 @@ class StatsTab(QWidget):
         bottom_row.addWidget(sum_g, stretch=1)
         layout.addLayout(bottom_row)
 
+        # Riga 3: score per attrezzatura + combinazioni top
+        scores_row = QHBoxLayout()
+        scores_row.setSpacing(16)
+
+        sc_cam_g = QGroupBox("🏆 Score Estetico per Fotocamera")
+        sc_cam_g.setStyleSheet(self._groupbox_style())
+        sc_cam_l = QVBoxLayout(sc_cam_g)
+        sc_cam_note = QLabel("Media score estetico (min. 5 foto con score)")
+        sc_cam_note.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 9px; padding: 0 8px 4px 8px;")
+        sc_cam_l.addWidget(sc_cam_note)
+        self.score_camera_chart = ProBarChart({}, COLORS['verde'], max_bars=8, fmt="{:.2f}")
+        self.score_camera_chart.setMinimumHeight(220)
+        sc_cam_l.addWidget(self.score_camera_chart)
+
+        sc_lens_g = QGroupBox("🏆 Score Estetico per Obiettivo")
+        sc_lens_g.setStyleSheet(self._groupbox_style())
+        sc_lens_l = QVBoxLayout(sc_lens_g)
+        sc_lens_note = QLabel("Media score estetico (min. 5 foto con score)")
+        sc_lens_note.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 9px; padding: 0 8px 4px 8px;")
+        sc_lens_l.addWidget(sc_lens_note)
+        self.score_lens_chart = ProBarChart({}, COLORS['viola'], max_bars=8, fmt="{:.2f}")
+        self.score_lens_chart.setMinimumHeight(220)
+        sc_lens_l.addWidget(self.score_lens_chart)
+
+        combo_g = QGroupBox("🔗 Combinazioni Camera + Obiettivo")
+        combo_g.setStyleSheet(self._groupbox_style())
+        combo_l = QVBoxLayout(combo_g)
+        self.combos_chart = GearBarChart({}, COLORS['ambra'], max_bars=8)
+        self.combos_chart.setMinimumHeight(220)
+        combo_l.addWidget(self.combos_chart)
+
+        scores_row.addWidget(sc_cam_g)
+        scores_row.addWidget(sc_lens_g)
+        scores_row.addWidget(combo_g)
+        layout.addLayout(scores_row)
+
         return widget
 
     # ------------------------------------------------------------------
@@ -1029,6 +1194,70 @@ class StatsTab(QWidget):
         bottom_row.addWidget(firma_g)
         bottom_row.addWidget(geo_g)
         layout.addLayout(bottom_row)
+
+        return widget
+
+    # ------------------------------------------------------------------
+    # Tab: Ritmo & Stile
+    # ------------------------------------------------------------------
+
+    def _create_ritmo_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
+
+        # Riga 1: ora del giorno + mese
+        row1 = QHBoxLayout()
+        row1.setSpacing(16)
+
+        ora_g = QGroupBox("🌅 Ora del Giorno")
+        ora_g.setStyleSheet(self._groupbox_style())
+        ora_l = QVBoxLayout(ora_g)
+        self.ora_chart = ProBarChart({}, COLORS['ambra'], max_bars=6)
+        self.ora_chart.setMinimumHeight(200)
+        ora_l.addWidget(self.ora_chart)
+
+        mese_g = QGroupBox("📆 Stagionalità (per Mese)")
+        mese_g.setStyleSheet(self._groupbox_style())
+        mese_l = QVBoxLayout(mese_g)
+        self.mese_chart = ProBarChart({}, COLORS['blu_petrolio'], max_bars=12)
+        self.mese_chart.setMinimumHeight(200)
+        mese_l.addWidget(self.mese_chart)
+
+        row1.addWidget(ora_g)
+        row1.addWidget(mese_g)
+        layout.addLayout(row1)
+
+        # Riga 2: giorno settimana + stile scatto
+        row2 = QHBoxLayout()
+        row2.setSpacing(16)
+
+        giorno_g = QGroupBox("📅 Giorno della Settimana")
+        giorno_g.setStyleSheet(self._groupbox_style())
+        giorno_l = QVBoxLayout(giorno_g)
+        self.giorno_chart = ProBarChart({}, COLORS['verde'], max_bars=7)
+        self.giorno_chart.setMinimumHeight(180)
+        giorno_l.addWidget(self.giorno_chart)
+
+        exp_g = QGroupBox("🎛️ Modalità Esposizione")
+        exp_g.setStyleSheet(self._groupbox_style())
+        exp_l = QVBoxLayout(exp_g)
+        self.exp_mode_chart = ProBarChart({}, COLORS['viola'], max_bars=8)
+        self.exp_mode_chart.setMinimumHeight(180)
+        exp_l.addWidget(self.exp_mode_chart)
+
+        drive_g = QGroupBox("📸 Drive Mode")
+        drive_g.setStyleSheet(self._groupbox_style())
+        drive_l = QVBoxLayout(drive_g)
+        self.drive_chart = ProBarChart({}, COLORS['rosso'], max_bars=6)
+        self.drive_chart.setMinimumHeight(180)
+        drive_l.addWidget(self.drive_chart)
+
+        row2.addWidget(giorno_g)
+        row2.addWidget(exp_g)
+        row2.addWidget(drive_g)
+        layout.addLayout(row2)
 
         return widget
 
@@ -1126,10 +1355,11 @@ class StatsTab(QWidget):
             if key in self._metadata:
                 self._metadata[key].setText(d.get(f"meta_{key}", "—"))
 
-        # Scores
+        # Scores + B&W
         for key, dkey in [
             ("aesth_avg", "score_aesth_avg"), ("aesth_cov", "score_aesth_cov"),
             ("tech_avg",  "score_tech_avg"),  ("tech_cov",  "score_tech_cov"),
+            ("bw_count",  "bw_count"),
         ]:
             if key in self._scores:
                 self._scores[key].setText(d.get(dkey, "—"))
@@ -1167,4 +1397,16 @@ class StatsTab(QWidget):
         ]:
             if key in self._geo:
                 self._geo[key].setText(d.get(dkey, "—"))
+
+        # Pattern temporali e stile
+        if self.ora_chart:      self.ora_chart.update_data(d.get("pattern_ora", {}))
+        if self.mese_chart:     self.mese_chart.update_data(d.get("pattern_mese", {}))
+        if self.giorno_chart:   self.giorno_chart.update_data(d.get("pattern_giorno", {}))
+        if self.exp_mode_chart: self.exp_mode_chart.update_data(d.get("pattern_exposure_mode", {}))
+        if self.drive_chart:    self.drive_chart.update_data(d.get("pattern_drive", {}))
+
+        # Score per gear e combinazioni
+        if self.score_camera_chart: self.score_camera_chart.update_data(d.get("score_per_camera", {}))
+        if self.score_lens_chart:   self.score_lens_chart.update_data(d.get("score_per_lens", {}))
+        if self.combos_chart:       self.combos_chart.update_data(d.get("gear_combos", {}))
 
