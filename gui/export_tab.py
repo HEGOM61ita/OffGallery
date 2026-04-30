@@ -1158,13 +1158,13 @@ class ExportTab(QWidget):
                 try:
                     QMessageBox.information(self, t("export.msg.done_title"), message)
                 except Exception as dialog_error:
-                    print(f"❌ Errore dialog finale: {dialog_error}")
+                    logger.error(f"Errore dialog finale export: {dialog_error}", exc_info=True)
 
             except Exception as report_error:
-                print(f"❌ Errore report finale: {report_error}")
+                logger.error(f"Errore report finale export: {report_error}", exc_info=True)
                 try:
                     QMessageBox.information(self, t("export.msg.done_title"), t("export.msg.done_fallback"))
-                except:
+                except Exception:
                     pass
 
             # Segnale completamento
@@ -1179,10 +1179,10 @@ class ExportTab(QWidget):
                 self.export_completed.emit(total_success, format_string)
 
             except Exception as signal_error:
-                print(f"❌ Errore emissione signal: {signal_error}")
+                logger.error(f"Errore emissione signal export: {signal_error}", exc_info=True)
 
         except Exception as e:
-            print(f"❌ Errore globale in _do_export: {e}")
+            logger.error(f"Errore globale in _do_export: {e}", exc_info=True)
             QMessageBox.critical(self, t("export.msg.error_export_title"), t("export.msg.error_export", error=e))
     
     def _write_csv_export(self, image_items, options):
@@ -1366,8 +1366,8 @@ class ExportTab(QWidget):
                 return tags_data
             else:
                 return []
-        except:
-            # Fallback per stringhe malformate
+        except Exception as e:
+            logger.debug(f"Parsing tags CSV fallito ({e!r}), uso fallback stringa")
             if isinstance(tags_data, str):
                 clean_str = tags_data.strip('[]')
                 return [tag.strip(' "\'') for tag in clean_str.split(',') if tag.strip()]
@@ -1391,7 +1391,8 @@ class ExportTab(QWidget):
                         keywords = tags_data
                     else:
                         keywords = []
-                except:
+                except Exception as e:
+                    logger.debug(f"Parsing keywords export XMP: {e}")
                     keywords = []
 
             if keywords:

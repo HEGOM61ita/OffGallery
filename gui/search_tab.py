@@ -1784,8 +1784,8 @@ class SearchTab(QWidget):
             self.threshold_spin.setValue(search_config.get('semantic_threshold', 0.15))
             self.max_results_spin.setValue(search_config.get('max_results', 100))
             self.fuzzy_check.setChecked(search_config.get('fuzzy_enabled', True))
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Caricamento config ricerca fallito: {e}")
     
     def clear_filters(self):
         """

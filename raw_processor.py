@@ -438,7 +438,7 @@ class RAWProcessor:
                     # Chiudi l'immagine per liberare memoria
                     try:
                         bw_image.close()
-                    except:
+                    except Exception:
                         pass
                 else:
                     metadata['is_monochrome'] = 0
@@ -930,8 +930,8 @@ class RAWProcessor:
                         mapped['width'] = self._parse_int(parts[0])
                     if not mapped['height']:
                         mapped['height'] = self._parse_int(parts[1])
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Parsing Composite:ImageSize fallito ({composite_size!r}): {e}")
         
         # ===== PARAMETRI FOTOGRAFICI =====
         mapped['focal_length'] = self._parse_numeric(get_val(['FocalLength']))
@@ -1104,7 +1104,7 @@ class RAWProcessor:
                 # Converti in frazione (es. 0.004 -> "1/250")
                 denominator = round(1 / decimal_value)
                 return f"1/{denominator}"
-        except:
+        except Exception:
             return str(value)
     
     def _parse_exposure_mode(self, exposure_str) -> Optional[int]:
@@ -1178,9 +1178,9 @@ class RAWProcessor:
             if isinstance(value, str):
                 value = value.replace('mm', '').replace(' ', '').replace('°', '')
             return float(value)
-        except:
+        except Exception:
             return None
-    
+
     def _parse_drive_mode(self, value) -> Optional[str]:
         """
         Normalizza la modalità di scatto a uno di: single|continuous|bracketing|timer|silent.
@@ -1237,12 +1237,7 @@ class RAWProcessor:
         try:
             # Se è già un numero
             return int(float(value))
-        except:
-            # Gestisce formato "5184x3888" di Composite:ImageSize
-            if isinstance(value, str) and 'x' in value:
-                # Per width prende il primo numero, per height il secondo
-                # Questo viene gestito nel mapping specifico
-                return None
+        except Exception:
             return None
     
     def _extract_for_bw_analysis(self, file_path: Path) -> Optional[Image.Image]:
@@ -1366,8 +1361,8 @@ class RAWProcessor:
                 
             # Format diretto "0.004"
             return float(shutter_str)
-            
-        except:
+
+        except Exception:
             return None
     
     def _parse_flash_used(self, flash_value) -> Optional[bool]:
@@ -1379,7 +1374,7 @@ class RAWProcessor:
             # Se è un numero, usa il bit 0 per determinare se fired
             flash_int = int(flash_value)
             return bool(flash_int & 1)
-        except:
+        except (ValueError, TypeError):
             # Se è una stringa, analizza il contenuto
             flash_str = str(flash_value).lower()
             
@@ -1473,8 +1468,8 @@ class RAWProcessor:
 
             return decimal
 
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Parsing GPS fallito ({gps_value!r}): {e}")
         return None
     
     def _normalize_datetime(self, dt_value) -> Optional[str]:
@@ -1494,7 +1489,7 @@ class RAWProcessor:
                         return f"{date_part} {parts[1]}"
                     return date_part
             return dt_str
-        except:
+        except Exception:
             return str(dt_value)
     
     def _parse_rating(self, rating_raw) -> Optional[int]:
@@ -1504,7 +1499,7 @@ class RAWProcessor:
         try:
             rating = int(float(rating_raw))
             return rating if 1 <= rating <= 5 else None
-        except:
+        except Exception:
             return None
 
     def _extract_rating_with_priority(self, xmp_data: Dict) -> Optional[int]:

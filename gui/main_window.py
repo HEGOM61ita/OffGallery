@@ -12,7 +12,10 @@ from PyQt6.QtCore import Qt, QSettings, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon, QPalette, QColor, QPixmap, QFont
 from pathlib import Path
 
+import logging
 from utils.paths import get_app_dir
+
+logger = logging.getLogger(__name__)
 
 # Import tab
 from gui.config_tab import ConfigTab
@@ -825,10 +828,10 @@ class MainWindow(QMainWindow):
                     refresh_xmp_badges(selected, "export_completed")
         
         except Exception as e:
-            print(f"❌ ERRORE in on_export_completed: {e}")
+            logger.error(f"Errore on_export_completed: {e}", exc_info=True)
             try:
                 self.update_status(f"Export completato con errori: {count} file")
-            except:
+            except Exception:
                 pass
 
 

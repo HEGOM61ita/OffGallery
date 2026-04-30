@@ -981,6 +981,5 @@ class DatabaseManager:
         """Destructor thread-safe"""
         try:
             self.close()
-        except:
-            # Ignora tutti gli errori nel destructor
+        except Exception:
             pass

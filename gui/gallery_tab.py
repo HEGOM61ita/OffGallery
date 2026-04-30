@@ -75,7 +75,7 @@ class LightweightXMPChecker(QThread):
                     # Aspetta che il main thread completi prima di continuare
                     self.msleep(300)  # 300ms per permettere refresh completo
                 
-            except:
+            except Exception:
                 break
 
     def reset(self):
@@ -886,7 +886,8 @@ class GalleryTab(QWidget):
                     if 'tags' in item.image_data and item.image_data['tags']:
                         try:
                             existing_tags = json.loads(item.image_data['tags'])
-                        except:
+                        except Exception as e:
+                            logger.debug(f"Parsing tags BioCLIP fallito: {e}")
                             existing_tags = []
 
                     clean_tags = [t for t in existing_tags if not any(t.startswith(p) for p in bioclip_prefixes)]
@@ -1236,9 +1237,10 @@ class GalleryTab(QWidget):
                 if 'tags' in item.image_data and item.image_data['tags']:
                     try:
                         existing_tags = json.loads(item.image_data['tags'])
-                    except:
+                    except Exception as e:
+                        logger.debug(f"Parsing tags merge fallito: {e}")
                         existing_tags = []
-                
+
                 _seen = {t.lower() for t in existing_tags}
                 merged = list(existing_tags)
                 for t in new_tags:

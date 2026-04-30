@@ -109,7 +109,7 @@ class SplashLogHandler(logging.Handler):
             try:
                 msg = self.format(record)
                 _splash_instance.add_log(msg)
-            except:
+            except Exception:
                 pass
 
 
@@ -318,7 +318,7 @@ def restore_log_capture():
     # Rimuovi handler
     try:
         logging.getLogger().removeHandler(_log_handler)
-    except:
+    except Exception:
         pass
 
     _splash_instance = None

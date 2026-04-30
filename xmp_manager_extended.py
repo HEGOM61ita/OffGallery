@@ -466,8 +466,11 @@ class XMPManagerExtended:
         if tags_raw is not None:
             if isinstance(tags_raw, str):
                 if tags_raw.startswith('['):
-                    try: keywords = json.loads(tags_raw)
-                    except: keywords = []
+                    try:
+                        keywords = json.loads(tags_raw)
+                    except Exception as e:
+                        logger.debug(f"Parsing tag JSON fallito: {e}")
+                        keywords = []
                 else:
                     keywords = [t.strip() for t in tags_raw.split(',') if t.strip()]
             elif isinstance(tags_raw, list):
@@ -569,9 +572,7 @@ class XMPManagerExtended:
             return XMPSyncState.ERROR, info
         
         except Exception as e:
-            # Qualcosa è andato storto nel parsing, evitiamo il crash totale
-            import traceback
-            print(f"ERROR: {traceback.format_exc()}")
+            logger.error(f"Errore analisi XMP sync per {file_path.name}: {e}", exc_info=True)
             return XMPSyncState.ERROR, {'error': str(e), 'category': category}
 
 
@@ -1095,8 +1096,8 @@ class XMPManagerExtended:
                     if ':' in attr:
                         clean_attr = attr.split(':')[-1]
                         xmp_data[clean_attr] = value
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Parsing XMP XML fallito: {e}")
         
         return xmp_data
 

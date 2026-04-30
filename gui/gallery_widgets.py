@@ -694,7 +694,7 @@ class ImageCard(QFrame):
                 tags = tags_raw
                 
             return len(tags) if isinstance(tags, list) else 0
-        except:
+        except Exception:
             return 0
     
     def get_unified_tags(self):
@@ -748,7 +748,7 @@ class ImageCard(QFrame):
                 tooltip_text = self._build_semantic_tooltip()
                 self.setToolTip(tooltip_text)
         except Exception as e:
-            print(f"Errore mouseMoveEvent: {e}")
+            logger.debug(f"Errore tooltip mouseMoveEvent: {e}")
             
         super().mouseMoveEvent(event)
     
@@ -759,7 +759,7 @@ class ImageCard(QFrame):
             self._current_tooltip_area = 'semantic'
             self.setToolTip(tooltip_text)
         except Exception as e:
-            print(f"Errore enterEvent: {e}")
+            logger.debug(f"Errore tooltip enterEvent: {e}")
             
         super().enterEvent(event)
     
@@ -1541,16 +1541,16 @@ class ImageCard(QFrame):
                         if isinstance(ai_tags, str):
                             ai_tags = json.loads(ai_tags) if ai_tags else []
                         all_tags.extend(ai_tags)
-                    except:
-                        pass
-                        
+                    except Exception as e:
+                        logger.debug(f"Parsing ai_tags display fallito: {e}")
+
                 if user_tags:
                     try:
                         if isinstance(user_tags, str):
                             user_tags = json.loads(user_tags) if user_tags else []
                         all_tags.extend(user_tags)
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Parsing user_tags display fallito: {e}")
                 
                 if all_tags:
                     display_tags = all_tags[:3]
@@ -1578,7 +1578,7 @@ class ImageCard(QFrame):
             self.update()
 
         except Exception as e:
-            print(f"Errore refresh_display: {e}")
+            logger.warning(f"Errore refresh_display: {e}", exc_info=True)
     
     
     def _open_folder(self, items):
@@ -4400,8 +4400,7 @@ class CompleteExifDialog(QDialog):
                             exif_json_str = None
                     
                 except Exception as e:
-                    import traceback
-                    traceback.print_exc()
+                    logger.warning(f"Lettura EXIF dal DB fallita: {e}", exc_info=True)
                     exif_json_str = None
                 
                 if exif_json_str:
@@ -4467,14 +4466,14 @@ class CompleteExifDialog(QDialog):
                 if aesthetic is not None:
                     try:
                         scores.append(f"  🎨 Aesthetic Score: {float(aesthetic):.3f}")
-                    except:
+                    except Exception:
                         pass
-                        
+
                 technical = item.image_data.get('technical_score')
                 if technical is not None:
                     try:
                         scores.append(f"  ⚙️ Technical Score: {float(technical):.1f}")
-                    except:
+                    except Exception:
                         pass
                 
                 if scores:
