@@ -486,160 +486,141 @@ class KPICard(QFrame):
 
 
 # ---------------------------------------------------------------------------
-# Widget: bar chart con etichette multiriga (per nomi attrezzatura lunghi)
+# Widget: bar chart scrollabile con label complete
 # ---------------------------------------------------------------------------
 
-class GearBarChart(QWidget):
+class _BarRow(QWidget):
+    """Singola riga: label completa | barra colorata | valore."""
 
-    def __init__(self, data, color=COLORS['ambra'], max_bars=8):
+    BAR_H = 10
+
+    def __init__(self, label: str, value, max_val, color: str, fmt: str):
         super().__init__()
-        self.data = data
-        self.color = color
-        self.max_bars = max_bars
-        self.setMinimumHeight(280)
-        self.setStyleSheet("background-color: transparent;")
+        self._ratio   = value / max_val if max_val else 0
+        self._color   = QColor(color)
+        self._fmt     = fmt
+        self._value   = value
+        self.setStyleSheet("background: transparent;")
 
-    def update_data(self, new_data):
-        self.data = new_data
-        self.update()
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(4, 4, 4, 4)
+        outer.setSpacing(2)
+
+        # riga superiore: label a sinistra, valore a destra
+        top = QHBoxLayout()
+        top.setContentsMargins(0, 0, 0, 0)
+        top.setSpacing(6)
+
+        lbl = QLabel(label)
+        lbl.setWordWrap(True)
+        lbl.setStyleSheet(
+            f"color: {COLORS['grigio_chiaro']}; font-size: 10px;"
+        )
+        lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        top.addWidget(lbl)
+
+        val_lbl = QLabel(fmt.format(value))
+        val_lbl.setFixedWidth(62)
+        val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        val_lbl.setStyleSheet(
+            f"color: {COLORS['grigio_chiaro']}; font-size: 10px; font-weight: bold;"
+        )
+        top.addWidget(val_lbl)
+        outer.addLayout(top)
+
+        # barra proporzionale (disegnata in paintEvent su un QWidget dedicato)
+        self._bar_widget = _BarPainter(self._ratio, color)
+        self._bar_widget.setFixedHeight(self.BAR_H)
+        outer.addWidget(self._bar_widget)
+
+        # separatore sottile
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("color: rgba(255,255,255,0.06);")
+        sep.setFixedHeight(1)
+        outer.addWidget(sep)
+
+
+class _BarPainter(QWidget):
+    """Disegna solo la barra orizzontale proporzionale."""
+
+    def __init__(self, ratio: float, color: str):
+        super().__init__()
+        self._ratio = ratio
+        self._color = QColor(color)
+        self.setStyleSheet("background: transparent;")
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        if not self.data:
-            painter.setPen(QColor(COLORS['grigio_medio']))
-            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Nessun dato")
-            return
-
-        sorted_data = sorted(self.data.items(), key=lambda x: x[1], reverse=True)[: self.max_bars]
-        max_val = max(v for _, v in sorted_data)
-        label_w = 130
-        val_w   = 58
-        # barre: dal bordo label al bordo valore (valore ancorato a destra)
-        bar_x0  = label_w + 8
-        bar_x1  = self.width() - val_w - 6
-        bar_max = max(1, bar_x1 - bar_x0)
-        chart_height = self.height() - 40
-        bar_h = max(18, chart_height / len(sorted_data) - 14)
-
-        for i, (label, value) in enumerate(sorted_data):
-            y = 20 + i * (bar_h + 14)
-            bw = (value / max_val) * bar_max if max_val else 0
-
-            painter.setBrush(QColor(self.color))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(int(bar_x0), int(y), int(bw), int(bar_h), 4, 4)
-
-            if value > 0:
-                font = painter.font()
-                font.setPointSize(9)
-                font.setWeight(QFont.Weight.Bold)
-                painter.setFont(font)
-                painter.setPen(QColor(COLORS['grigio_chiaro']))
-                # valore ancorato al bordo destro, sempre visibile
-                painter.drawText(
-                    int(bar_x1 + 4), int(y), val_w, int(bar_h),
-                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                    f"{value:,}",
-                )
-
-            font = painter.font()
-            font.setPointSize(8)
-            font.setWeight(QFont.Weight.Normal)
-            painter.setFont(font)
-            painter.setPen(QColor(COLORS['grigio_medio']))
-
-            words = label.split()
-            if len(words) <= 2 and len(label) <= 18:
-                lines = [label]
-            elif len(words) == 2:
-                lines = words
-            else:
-                mid = len(words) // 2
-                lines = [" ".join(words[:mid]), " ".join(words[mid:])]
-            lines = [ln[:20] + ("…" if len(ln) > 20 else "") for ln in lines[:2]]
-
-            lh = 11
-            sy = y + (bar_h - len(lines) * lh) // 2
-            for j, line in enumerate(lines):
-                painter.drawText(
-                    5, int(sy + j * lh), label_w - 10, lh,
-                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                    line,
-                )
+        w = max(1, int(self.width() * self._ratio))
+        painter.setBrush(self._color)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRoundedRect(0, 0, w, self.height(), 3, 3)
 
 
-# ---------------------------------------------------------------------------
-# Widget: bar chart generico (label corte)
-# ---------------------------------------------------------------------------
+class ScrollBarChart(QWidget):
+    """Bar chart con scroll verticale e label complete — sostituisce ProBarChart e GearBarChart."""
 
-class ProBarChart(QWidget):
-
-    def __init__(self, data, color=COLORS['ambra'], max_bars=10, fmt="{:,}"):
+    def __init__(self, data: dict, color=COLORS['ambra'], fmt="{:,}"):
         super().__init__()
-        self.data = data
-        self.color = color
-        self.max_bars = max_bars
-        self.fmt = fmt
-        self.setMinimumHeight(180)
-        self.setStyleSheet("background-color: transparent;")
+        self._color = color
+        self._fmt   = fmt
+        self.setStyleSheet("background: transparent;")
 
-    def update_data(self, new_data):
-        self.data = new_data
-        self.update()
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._scroll.setStyleSheet(
+            "QScrollArea { border: none; background: transparent; }"
+            "QScrollBar:vertical { width: 6px; background: transparent; }"
+            "QScrollBar::handle:vertical { background: rgba(255,255,255,0.18); border-radius: 3px; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
+        )
 
-        if not self.data:
-            painter.setPen(QColor(COLORS['grigio_medio']))
-            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Nessun dato")
+        self._container = QWidget()
+        self._container.setStyleSheet("background: transparent;")
+        self._rows_layout = QVBoxLayout(self._container)
+        self._rows_layout.setContentsMargins(2, 2, 2, 2)
+        self._rows_layout.setSpacing(0)
+
+        self._scroll.setWidget(self._container)
+        root.addWidget(self._scroll)
+
+        if data:
+            self.update_data(data)
+
+    def update_data(self, new_data: dict):
+        # rimuove righe precedenti
+        while self._rows_layout.count():
+            item = self._rows_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not new_data:
+            lbl = QLabel("Nessun dato")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 11px;")
+            self._rows_layout.addWidget(lbl)
             return
 
-        sorted_data = sorted(self.data.items(), key=lambda x: x[1], reverse=True)[: self.max_bars]
+        sorted_data = sorted(new_data.items(), key=lambda x: x[1], reverse=True)
         max_val = max(v for _, v in sorted_data)
-        label_w = 100
-        val_w   = 55
-        bar_x0  = label_w + 8
-        bar_x1  = self.width() - val_w - 6
-        bar_max = max(1, bar_x1 - bar_x0)
-        chart_height = self.height() - 40
-        bar_h = max(12, chart_height / len(sorted_data) - 8)
-
-        for i, (label, value) in enumerate(sorted_data):
-            y = 20 + i * (bar_h + 8)
-            bw = (value / max_val) * bar_max if max_val else 0
-
-            painter.setBrush(QColor(self.color))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(int(bar_x0), int(y), int(bw), int(bar_h), 3, 3)
-
-            if value > 0:
-                font = painter.font()
-                font.setPointSize(9)
-                font.setWeight(QFont.Weight.Bold)
-                painter.setFont(font)
-                painter.setPen(QColor(COLORS['grigio_chiaro']))
-                painter.drawText(
-                    int(bar_x1 + 4), int(y), val_w, int(bar_h),
-                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                    self.fmt.format(value),
-                )
-
-            font = painter.font()
-            font.setPointSize(9)
-            font.setWeight(QFont.Weight.Normal)
-            painter.setFont(font)
-            painter.setPen(QColor(COLORS['grigio_medio']))
-            fm = painter.fontMetrics()
-            display = label if fm.boundingRect(label).width() <= label_w - 10 else label[:14] + "…"
-            painter.drawText(
-                5, int(y), label_w - 10, int(bar_h),
-                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                display,
+        for label, value in sorted_data:
+            self._rows_layout.addWidget(
+                _BarRow(label, value, max_val, self._color, self._fmt)
             )
+        self._rows_layout.addStretch()
+
+
+# Alias per compatibilità con i punti di istanziazione esistenti
+ProBarChart  = ScrollBarChart
+GearBarChart = ScrollBarChart
 
 
 # ---------------------------------------------------------------------------
@@ -976,7 +957,7 @@ class StatsTab(QWidget):
         rg = QGroupBox("⭐ Distribuzione Rating")
         rg.setStyleSheet(self._groupbox_style())
         rg_l = QVBoxLayout(rg)
-        self.rating_chart = ProBarChart({}, COLORS['ambra'], max_bars=6)
+        self.rating_chart = ProBarChart({}, COLORS['ambra'])
         self.rating_chart.setMinimumHeight(200)
         rg_l.addWidget(self.rating_chart)
 
@@ -1033,7 +1014,7 @@ class StatsTab(QWidget):
         tg = QGroupBox("📅 Distribuzione Temporale")
         tg.setStyleSheet(self._groupbox_style())
         tg_l = QVBoxLayout(tg)
-        self.timeline_chart = ProBarChart({}, COLORS['blu_petrolio'], max_bars=20)
+        self.timeline_chart = ProBarChart({}, COLORS['blu_petrolio'])
         self.timeline_chart.setMinimumHeight(200)
         tg_l.addWidget(self.timeline_chart)
         layout.addWidget(tg)
@@ -1084,7 +1065,7 @@ class StatsTab(QWidget):
         ap_g = QGroupBox("🎯 Distribuzione Apertura")
         ap_g.setStyleSheet(self._groupbox_style())
         ap_l = QVBoxLayout(ap_g)
-        self.aperture_chart = ProBarChart({}, COLORS['verde'], max_bars=8)
+        self.aperture_chart = ProBarChart({}, COLORS['verde'])
         self.aperture_chart.setMinimumHeight(200)
         ap_l.addWidget(self.aperture_chart)
 
@@ -1114,7 +1095,7 @@ class StatsTab(QWidget):
         sc_cam_note = QLabel("Media score estetico (min. 5 foto con score)")
         sc_cam_note.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 9px; padding: 0 8px 4px 8px;")
         sc_cam_l.addWidget(sc_cam_note)
-        self.score_camera_chart = ProBarChart({}, COLORS['verde'], max_bars=8, fmt="{:.2f}")
+        self.score_camera_chart = ProBarChart({}, COLORS['verde'], fmt="{:.2f}")
         self.score_camera_chart.setMinimumHeight(220)
         sc_cam_l.addWidget(self.score_camera_chart)
 
@@ -1124,14 +1105,14 @@ class StatsTab(QWidget):
         sc_lens_note = QLabel("Media score estetico (min. 5 foto con score)")
         sc_lens_note.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 9px; padding: 0 8px 4px 8px;")
         sc_lens_l.addWidget(sc_lens_note)
-        self.score_lens_chart = ProBarChart({}, COLORS['viola'], max_bars=8, fmt="{:.2f}")
+        self.score_lens_chart = ProBarChart({}, COLORS['viola'], fmt="{:.2f}")
         self.score_lens_chart.setMinimumHeight(220)
         sc_lens_l.addWidget(self.score_lens_chart)
 
         combo_g = QGroupBox("🔗 Combinazioni Camera + Obiettivo")
         combo_g.setStyleSheet(self._groupbox_style())
         combo_l = QVBoxLayout(combo_g)
-        self.combos_chart = GearBarChart({}, COLORS['ambra'], max_bars=8)
+        self.combos_chart = GearBarChart({}, COLORS['ambra'])
         self.combos_chart.setMinimumHeight(220)
         combo_l.addWidget(self.combos_chart)
 
@@ -1159,13 +1140,13 @@ class StatsTab(QWidget):
         sh_g = QGroupBox("⏱️ Tempi di Scatto")
         sh_g.setStyleSheet(self._groupbox_style())
         sh_l = QVBoxLayout(sh_g)
-        self.shutter_chart = ProBarChart({}, COLORS['ambra'], max_bars=8)
+        self.shutter_chart = ProBarChart({}, COLORS['ambra'])
         sh_l.addWidget(self.shutter_chart)
 
         iso_g = QGroupBox("📊 ISO")
         iso_g.setStyleSheet(self._groupbox_style())
         iso_l = QVBoxLayout(iso_g)
-        self.iso_chart = ProBarChart({}, COLORS['rosso'], max_bars=8)
+        self.iso_chart = ProBarChart({}, COLORS['rosso'])
         iso_l.addWidget(self.iso_chart)
 
         charts_row.addWidget(sh_g)
@@ -1223,14 +1204,14 @@ class StatsTab(QWidget):
         ora_g = QGroupBox("🌅 Ora del Giorno")
         ora_g.setStyleSheet(self._groupbox_style())
         ora_l = QVBoxLayout(ora_g)
-        self.ora_chart = ProBarChart({}, COLORS['ambra'], max_bars=6)
+        self.ora_chart = ProBarChart({}, COLORS['ambra'])
         self.ora_chart.setMinimumHeight(200)
         ora_l.addWidget(self.ora_chart)
 
         mese_g = QGroupBox("📆 Stagionalità (per Mese)")
         mese_g.setStyleSheet(self._groupbox_style())
         mese_l = QVBoxLayout(mese_g)
-        self.mese_chart = ProBarChart({}, COLORS['blu_petrolio'], max_bars=12)
+        self.mese_chart = ProBarChart({}, COLORS['blu_petrolio'])
         self.mese_chart.setMinimumHeight(200)
         mese_l.addWidget(self.mese_chart)
 
@@ -1245,21 +1226,21 @@ class StatsTab(QWidget):
         giorno_g = QGroupBox("📅 Giorno della Settimana")
         giorno_g.setStyleSheet(self._groupbox_style())
         giorno_l = QVBoxLayout(giorno_g)
-        self.giorno_chart = ProBarChart({}, COLORS['verde'], max_bars=7)
+        self.giorno_chart = ProBarChart({}, COLORS['verde'])
         self.giorno_chart.setMinimumHeight(180)
         giorno_l.addWidget(self.giorno_chart)
 
         exp_g = QGroupBox("🎛️ Modalità Esposizione")
         exp_g.setStyleSheet(self._groupbox_style())
         exp_l = QVBoxLayout(exp_g)
-        self.exp_mode_chart = ProBarChart({}, COLORS['viola'], max_bars=8)
+        self.exp_mode_chart = ProBarChart({}, COLORS['viola'])
         self.exp_mode_chart.setMinimumHeight(180)
         exp_l.addWidget(self.exp_mode_chart)
 
         drive_g = QGroupBox("📸 Drive Mode")
         drive_g.setStyleSheet(self._groupbox_style())
         drive_l = QVBoxLayout(drive_g)
-        self.drive_chart = ProBarChart({}, COLORS['rosso'], max_bars=6)
+        self.drive_chart = ProBarChart({}, COLORS['rosso'])
         self.drive_chart.setMinimumHeight(180)
         drive_l.addWidget(self.drive_chart)
 
