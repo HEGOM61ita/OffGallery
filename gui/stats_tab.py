@@ -361,11 +361,20 @@ class StatsWorker(QObject):
         raw_wd = {r[0]: r[1] for r in cur.fetchall()}
         d["pattern_giorno"] = {_GIORNI[k]: raw_wd[k] for k in [1,2,3,4,5,6,0] if k in raw_wd}
 
-        # Modalità esposizione
+        # Modalità esposizione (EXIF tag numerico → etichetta)
         cur.execute(f"""
-            SELECT exposure_mode, COUNT(*) AS n FROM images
+            SELECT
+                CASE CAST(exposure_mode AS INTEGER)
+                    WHEN 0 THEN 'Auto'
+                    WHEN 1 THEN 'Manuale'
+                    WHEN 2 THEN 'Auto bracket'
+                    WHEN 3 THEN 'Manual bracket'
+                    ELSE CAST(exposure_mode AS TEXT)
+                END AS label,
+                COUNT(*) AS n
+            FROM images
             WHERE {pf} AND exposure_mode IS NOT NULL AND exposure_mode != ''
-            GROUP BY exposure_mode ORDER BY n DESC LIMIT 8
+            GROUP BY label ORDER BY n DESC LIMIT 8
         """, pp)
         d["pattern_exposure_mode"] = {r[0]: r[1] for r in cur.fetchall()}
 
@@ -906,7 +915,7 @@ class StatsTab(QWidget):
         self.tab_widget.addTab(self._create_archivio_tab(),     "📁 Archivio")
         self.tab_widget.addTab(self._create_attrezzatura_tab(), "📸 Attrezzatura")
         self.tab_widget.addTab(self._create_tecnica_tab(),      "🎯 Tecnica")
-        self.tab_widget.addTab(self._create_ritmo_tab(),        "📅 Ritmo & Stile")
+        self.tab_widget.addTab(self._create_ritmo_tab(),        "📅 Pattern")
         layout.addWidget(self.tab_widget)
 
     # ------------------------------------------------------------------
