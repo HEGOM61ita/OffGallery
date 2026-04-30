@@ -79,16 +79,16 @@ class StatsWorker(QObject):
             cur  = conn.cursor()
             pf, pp = self._path_filter()
             data = {}
-            data.update(self._info_bar(cur, pf, pp))
-            data.update(self._kpis(cur, pf, pp))
-            data.update(self._archivio(cur, pf, pp))
-            data.update(self._attrezzatura(cur, pf, pp))
-            data.update(self._tecnica(cur, pf, pp))
-            data.update(self._pattern(cur, pf, pp))
-            data.update(self._gear_scores(cur, pf, pp))
+            for method in (self._info_bar, self._kpis, self._archivio,
+                           self._attrezzatura, self._tecnica, self._pattern,
+                           self._gear_scores):
+                try:
+                    data.update(method(cur, pf, pp))
+                except Exception as e:
+                    logger.error(f"StatsWorker {method.__name__} errore: {e}", exc_info=True)
             self.finished.emit(data)
         except Exception as e:
-            logger.error(f"StatsWorker errore: {e}", exc_info=True)
+            logger.error(f"StatsWorker errore fatale: {e}", exc_info=True)
             self.error.emit(str(e))
         finally:
             if conn:
@@ -330,8 +330,8 @@ class StatsWorker(QObject):
                     WHEN 14 THEN 'Mezzogiorno (12-14)'
                     WHEN 15 THEN 'Pomeriggio (15-17)' WHEN 16 THEN 'Pomeriggio (15-17)'
                     WHEN 17 THEN 'Pomeriggio (15-17)'
-                    WHEN 18 THEN 'Ora d\'oro (18-20)' WHEN 19 THEN 'Ora d\'oro (18-20)'
-                    WHEN 20 THEN 'Ora d\'oro (18-20)'
+                    WHEN 18 THEN 'Ora d''oro (18-20)' WHEN 19 THEN 'Ora d''oro (18-20)'
+                    WHEN 20 THEN 'Ora d''oro (18-20)'
                     ELSE 'Notte/Sera'
                 END AS fascia,
                 COUNT(*) AS n
