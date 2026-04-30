@@ -156,7 +156,9 @@ class StatsWorker(QObject):
         }
 
         for key in ("red", "yellow", "green", "blue", "purple"):
-            cur.execute(f"SELECT COUNT(*) FROM images WHERE {pf} AND color_label = ?", pp + [key])
+            cur.execute(
+                f"SELECT COUNT(*) FROM images WHERE {pf} AND LOWER(color_label) = ?", pp + [key]
+            )
             d[f"color_{key}"] = f"{cur.fetchone()[0]:,}"
         cur.execute(f"""
             SELECT COUNT(*) FROM images WHERE {pf} AND (color_label IS NULL OR color_label = '')
@@ -352,7 +354,7 @@ class KPICard(QFrame):
         layout.addWidget(self.value_label)
 
         self.subtitle_label = QLabel("")
-        self.subtitle_label.setStyleSheet("color: rgba(255,255,255,0.45); font-size: 9px;")
+        self.subtitle_label.setStyleSheet("color: rgba(255,255,255,0.80); font-size: 10px;")
         layout.addWidget(self.subtitle_label)
 
     def update_value(self, value, subtitle=""):
@@ -389,20 +391,22 @@ class GearBarChart(QWidget):
 
         sorted_data = sorted(self.data.items(), key=lambda x: x[1], reverse=True)[: self.max_bars]
         max_val = max(v for _, v in sorted_data)
-        label_width = 140
-        val_width   = 70
-        chart_width = self.width() - label_width - val_width - 20
+        label_w = 130
+        val_w   = 58
+        # barre: dal bordo label al bordo valore (valore ancorato a destra)
+        bar_x0  = label_w + 8
+        bar_x1  = self.width() - val_w - 6
+        bar_max = max(1, bar_x1 - bar_x0)
         chart_height = self.height() - 40
         bar_h = max(18, chart_height / len(sorted_data) - 14)
 
         for i, (label, value) in enumerate(sorted_data):
             y = 20 + i * (bar_h + 14)
-            x = label_width + 10
-            bw = (value / max_val) * chart_width if max_val else 0
+            bw = (value / max_val) * bar_max if max_val else 0
 
             painter.setBrush(QColor(self.color))
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(int(x), int(y), int(bw), int(bar_h), 4, 4)
+            painter.drawRoundedRect(int(bar_x0), int(y), int(bw), int(bar_h), 4, 4)
 
             if value > 0:
                 font = painter.font()
@@ -410,8 +414,9 @@ class GearBarChart(QWidget):
                 font.setWeight(QFont.Weight.Bold)
                 painter.setFont(font)
                 painter.setPen(QColor(COLORS['grigio_chiaro']))
+                # valore ancorato al bordo destro, sempre visibile
                 painter.drawText(
-                    int(x + bw + 5), int(y), val_width, int(bar_h),
+                    int(bar_x1 + 4), int(y), val_w, int(bar_h),
                     Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                     f"{value:,}",
                 )
@@ -436,7 +441,7 @@ class GearBarChart(QWidget):
             sy = y + (bar_h - len(lines) * lh) // 2
             for j, line in enumerate(lines):
                 painter.drawText(
-                    5, int(sy + j * lh), label_width - 10, lh,
+                    5, int(sy + j * lh), label_w - 10, lh,
                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
                     line,
                 )
@@ -471,20 +476,21 @@ class ProBarChart(QWidget):
 
         sorted_data = sorted(self.data.items(), key=lambda x: x[1], reverse=True)[: self.max_bars]
         max_val = max(v for _, v in sorted_data)
-        label_width = 120
-        val_width   = 70
-        chart_width = self.width() - label_width - val_width - 20
+        label_w = 100
+        val_w   = 55
+        bar_x0  = label_w + 8
+        bar_x1  = self.width() - val_w - 6
+        bar_max = max(1, bar_x1 - bar_x0)
         chart_height = self.height() - 40
         bar_h = max(12, chart_height / len(sorted_data) - 8)
 
         for i, (label, value) in enumerate(sorted_data):
             y = 20 + i * (bar_h + 8)
-            x = label_width + 10
-            bw = (value / max_val) * chart_width if max_val else 0
+            bw = (value / max_val) * bar_max if max_val else 0
 
             painter.setBrush(QColor(self.color))
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(int(x), int(y), int(bw), int(bar_h), 3, 3)
+            painter.drawRoundedRect(int(bar_x0), int(y), int(bw), int(bar_h), 3, 3)
 
             if value > 0:
                 font = painter.font()
@@ -493,7 +499,7 @@ class ProBarChart(QWidget):
                 painter.setFont(font)
                 painter.setPen(QColor(COLORS['grigio_chiaro']))
                 painter.drawText(
-                    int(x + bw + 4), int(y), val_width, int(bar_h),
+                    int(bar_x1 + 4), int(y), val_w, int(bar_h),
                     Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                     f"{value:,}",
                 )
@@ -504,9 +510,9 @@ class ProBarChart(QWidget):
             painter.setFont(font)
             painter.setPen(QColor(COLORS['grigio_medio']))
             fm = painter.fontMetrics()
-            display = label if fm.boundingRect(label).width() <= label_width - 10 else label[:14] + "…"
+            display = label if fm.boundingRect(label).width() <= label_w - 10 else label[:14] + "…"
             painter.drawText(
-                5, int(y), label_width - 10, int(bar_h),
+                5, int(y), label_w - 10, int(bar_h),
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
                 display,
             )
