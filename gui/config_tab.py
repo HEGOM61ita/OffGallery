@@ -2256,21 +2256,23 @@ class ConfigTab(QWidget):
         return self.config
     
     def on_debug_setting_changed(self, state):
-        """Handler cambio setting debug"""
+        """Handler cambio switch debug/produzione"""
         try:
             debug_enabled = self.debug_checkbox.isChecked()
-            
-            # Notifica LogTab del cambio (senza auto-save per evitare spam)
+
+            # Applica il livello di logging a runtime
+            import log_manager
+            log_manager.set_debug_mode(debug_enabled)
+
+            # Aggiorna i filtri UI nella LogTab
             self.notify_log_tab_config_changed()
-            
-            # Log del cambio
-            status = "abilitati" if debug_enabled else "disabilitati"
+
+            status = "debug (verboso)" if debug_enabled else "produzione (solo WARNING+)"
             if hasattr(self, 'parent_window') and self.parent_window:
-                self.parent_window.log_info(f"Messaggi DEBUG {status} dalla configurazione")
-                
+                self.parent_window.log_info(f"Modalità log impostata: {status}")
+
         except Exception as e:
             print(f"Errore handler debug setting: {e}")
-            # Non crashare per questo
     
     def notify_log_tab_config_changed(self):
         """Notifica la LogTab che la config è cambiata"""

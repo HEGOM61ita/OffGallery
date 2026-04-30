@@ -483,6 +483,13 @@ def run_with_splash():
     splash.finish()
 
     restore_log_capture()
+
+    # Startup completo: applica la modalità log configurata dall'utente
+    import log_manager
+    log_manager.startup_complete(
+        _config.get('logging', {}).get('show_debug', True)
+    )
+
     window.show()
     splash.hide()
     splash.deleteLater()

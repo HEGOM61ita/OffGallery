@@ -7,6 +7,7 @@ Download automatico modelli al primo avvio, poi modalità offline.
 import os
 import sys
 from pathlib import Path
+import log_manager
 
 
 def get_app_dir() -> Path:
@@ -105,6 +106,9 @@ def main():
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
         os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+    # Apre il file di log di sessione prima di qualsiasi altro import
+    log_manager.setup(app_dir)
 
     # Avvio GUI
     from gui.splash_screen import run_with_splash

@@ -196,10 +196,10 @@ class LogTab(QWidget):
         formatter = logging.Formatter('%(name)s - %(message)s')
         self.log_handler.setFormatter(formatter)
         
-        # Aggiungi al root logger
+        # Aggiungi al root logger senza modificare il livello:
+        # il livello è gestito da log_manager (debug vs produzione)
         root_logger = logging.getLogger()
         root_logger.addHandler(self.log_handler)
-        root_logger.setLevel(logging.DEBUG)
         
         # Intercetta print() sostituendo stdout
         self.original_stdout = sys.stdout
@@ -340,19 +340,15 @@ class LogTab(QWidget):
         logging.error(message)
 
     def refresh_debug_filter(self):
-        """Rilegge la config e aggiorna lo stato del filtro DEBUG.
-        Chiamato da config_tab quando la checkbox debug viene modificata."""
+        """Aggiorna i filtri UI DEBUG e INFO in base alla modalità corrente.
+        Chiamato da config_tab quando lo switch debug/produzione viene modificato."""
         try:
-            cb = self.level_filters.get("DEBUG")
-            if cb is None:
-                return
-            # Leggi impostazione debug dal parent (config_tab)
-            debug_enabled = True
-            if self.parent_window and hasattr(self.parent_window, 'config_tab'):
-                ct = self.parent_window.config_tab
-                if hasattr(ct, 'debug_checkbox'):
-                    debug_enabled = ct.debug_checkbox.isChecked()
-            cb.setChecked(debug_enabled)
+            import log_manager
+            debug_mode = log_manager.is_debug_mode()
+            for level in ("DEBUG", "INFO"):
+                cb = self.level_filters.get(level)
+                if cb:
+                    cb.setChecked(debug_mode)
         except Exception:
             pass
 
