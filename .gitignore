@@ -85,6 +85,13 @@ test_*.py
 test_bioclip_llm.py
 INPUT_TEST/
 
+# File privati / personali — mai pushare
+CLAUDE.md
+config_new.yaml
+benchmark_nomi_italiani.py
+upload_clip_to_hf.py
+upload_musiq_to_hf.py
+
 # File di backup
 *_BACKUP_*
 *_OLD*
