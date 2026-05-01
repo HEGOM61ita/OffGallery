@@ -2685,8 +2685,9 @@ class ImageCard(QFrame):
                         continue
 
                     # Check 4: XMP source disponibile?
-                    # Prova convenzione Lightroom (foto.xmp) e Darktable (foto.EXT.xmp)
-                    xmp_source = None
+                    # Prova sidecar (priorità per scalari) e, per formati che lo
+                    # supportano come canale di scrittura, anche embedded.
+                    sidecar_source = None
                     for _candidate in [
                         filepath.with_suffix('.xmp'),
                         filepath.with_suffix('.XMP'),
@@ -2694,21 +2695,21 @@ class ImageCard(QFrame):
                         Path(str(filepath) + '.XMP'),
                     ]:
                         if _candidate.exists():
-                            xmp_source = _candidate
+                            sidecar_source = _candidate
                             break
 
-                    if not xmp_source:
-                        # Check embedded XMP
-                        embedded_formats = {'.jpg', '.jpeg', '.tif', '.tiff', '.dng', '.cr2', '.nef', '.orf', '.arw', '.rw2', '.pef', '.cr3', '.nrw', '.srf', '.sr2'}
-                        if filepath.suffix.lower() in embedded_formats:
-                            xmp_source = filepath
+                    # Embedded XMP: solo DNG, JPG, TIFF — non RAW proprietari
+                    # (per CR2/NEF/ecc. l'XMP embedded è del produttore, non dell'utente;
+                    # se hanno metadati utente usano sempre il sidecar)
+                    _emb_capable = {'.jpg', '.jpeg', '.tif', '.tiff', '.dng'}
+                    embedded_source = filepath if filepath.suffix.lower() in _emb_capable else None
 
-                    if not xmp_source:
+                    if not sidecar_source and not embedded_source:
                         no_xmp_count += 1
                         continue
 
-                    # Check 5: XMP leggibile?
-                    xmp_data = self._read_xmp_with_exiftool(xmp_source)
+                    # Check 5: Leggi e unifica le due sorgenti XMP
+                    xmp_data = self._read_and_merge_xmp_for_import(sidecar_source, embedded_source)
                     if not xmp_data:
                         no_xmp_count += 1
                         continue
@@ -3374,6 +3375,49 @@ class ImageCard(QFrame):
         except Exception as e:
             print(f"❌ Errore ExifTool: {e}")
             return None
+
+    def _read_and_merge_xmp_for_import(self, sidecar_source, embedded_source):
+        """Legge XMP da sidecar e/o embedded e restituisce un dict unificato.
+
+        Regole di merge:
+        - Campi lista (Keywords, Subject, HierarchicalSubject): unione deduplicata
+          case-insensitive; embedded prima, sidecar in append → nessun tag perso.
+        - Campi scalari: sidecar ha priorità; embedded come fallback se sidecar assente.
+        """
+        embedded_data = {}
+        sidecar_data = {}
+
+        if embedded_source:
+            embedded_data = self._read_xmp_with_exiftool(embedded_source) or {}
+        if sidecar_source:
+            sidecar_data = self._read_xmp_with_exiftool(sidecar_source) or {}
+
+        if not embedded_data:
+            return sidecar_data or None
+        if not sidecar_data:
+            return embedded_data or None
+
+        LIST_SUFFIXES = ('Keywords', 'Subject', 'HierarchicalSubject')
+
+        merged = embedded_data.copy()
+        for key, value in sidecar_data.items():
+            if value is None or value == '':
+                continue
+            is_list = any(key == s or key.endswith(':' + s) for s in LIST_SUFFIXES)
+            if is_list:
+                existing = merged.get(key)
+                base = existing if isinstance(existing, list) else ([existing] if existing else [])
+                additions = value if isinstance(value, list) else [value]
+                seen = {str(v).lower() for v in base}
+                for v in additions:
+                    if str(v).lower() not in seen:
+                        base.append(v)
+                        seen.add(str(v).lower())
+                merged[key] = base
+            else:
+                merged[key] = value  # sidecar sovrascrive scalari
+
+        return merged
 
     def _extract_xmp_tags_by_origin(self, xmp_data):
         """Ritorna (user_tags: set, ai_tags: set) separando Subject flat da HierarchicalSubject AI|Tags|"""

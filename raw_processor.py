@@ -882,14 +882,36 @@ class RAWProcessor:
         return {}
     
     def _merge_xmp_data(self, exif_data: Dict, xmp_sidecar_data: Dict) -> Dict[str, Any]:
-        """Merge intelligente dati XMP con priorità sidecar"""
+        """Merge intelligente dati XMP con priorità sidecar.
+
+        Campi lista (Keywords, Subject, HierarchicalSubject): unione con
+        deduplicazione case-insensitive — nessun tag viene perso.
+        Campi scalari: sidecar sovrascrive embedded se non nullo/vuoto.
+        """
+        # Suffissi dei campi che contengono liste di tag/keyword
+        LIST_FIELD_SUFFIXES = ('Keywords', 'Subject', 'HierarchicalSubject')
+
         merged = exif_data.copy()
 
-        # Sovrascrivi con dati sidecar (priorità alta).
-        # Usare `is not None` invece di `if value` per preservare valori
-        # numerici legittimi come 0.0 (es. coordinate GPS sull'equatore/meridiano).
         for key, value in xmp_sidecar_data.items():
-            if value is not None and value != '':
+            if value is None or value == '':
+                continue
+
+            is_list_field = any(key == s or key.endswith(':' + s) for s in LIST_FIELD_SUFFIXES)
+
+            if is_list_field:
+                existing = merged.get(key)
+                existing_list = existing if isinstance(existing, list) else ([existing] if existing else [])
+                new_list = value if isinstance(value, list) else [value]
+                # Unione deduplicata case-insensitive: embedded prima, poi sidecar in append
+                seen_lower = {str(v).lower() for v in existing_list}
+                for v in new_list:
+                    if str(v).lower() not in seen_lower:
+                        existing_list.append(v)
+                        seen_lower.add(str(v).lower())
+                merged[key] = existing_list
+            else:
+                # Scalari: sidecar ha priorità; preserva 0.0 legittimi (GPS equatore/meridiano)
                 merged[key] = value
 
         return merged

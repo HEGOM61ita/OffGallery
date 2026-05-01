@@ -1416,10 +1416,21 @@ class ExportTab(QWidget):
 
             cmd = ["exiftool", "-overwrite_original"]
 
-            # KEYWORDS — azzera Subject se merge disattivo, altrimenti += aggiunge ai presenti
-            if not do_merge_kw:
-                cmd.append("-XMP-dc:Subject=")
+            # KEYWORDS — merge=ON: legge keywords già nel file e unisce con quelli DB
+            # (stesso approccio del sidecar); merge=OFF: sostituisce completamente.
+            # In entrambi i casi: azzera e riscrive in un'unica chiamata ExifTool.
+            if do_merge_kw:
+                existing_emb_kws = self._read_existing_keywords_from_xmp(image_file)
+                seen_kw = {k.lower() for k in existing_emb_kws}
+                merged_kws = list(existing_emb_kws)
+                for kw in keywords:
+                    if kw.lower() not in seen_kw:
+                        merged_kws.append(kw)
+                        seen_kw.add(kw.lower())
+                keywords = merged_kws
 
+            # Azzera e riscrivi in un colpo solo (evita duplicati da += su valori preesistenti)
+            cmd.append("-XMP-dc:Subject=")
             if keywords:
                 for kw in keywords:
                     cmd.append(f"-XMP-dc:Subject+={kw}")
