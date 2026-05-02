@@ -29,6 +29,9 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QScrollArea, QSizePolicy, QProgressBar,
+    QListWidget, QListWidgetItem, QTextEdit, QLineEdit,
+    QGroupBox, QSplitter, QApplication,
+    QDialog,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 
@@ -861,6 +864,514 @@ class PluginCard(QFrame):
         self._refresh_db_status()
 
 
+class PromptContextConfigDialog(QDialog):
+    """Dialog modale di configurazione del plugin Contesto Prompt.
+
+    Permette di selezionare e attivare preset, visualizzare il context_block,
+    eliminare preset utente e generare nuovi preset tramite LLM locale.
+    """
+
+    preset_activated = pyqtSignal(str)
+
+    def __init__(self, manifest: dict, config: dict, config_path: str, parent=None):
+        super().__init__(parent)
+        self._manifest    = manifest
+        self._config      = config or {}
+        self._config_path = config_path
+        self._presets: list[dict] = []
+        self._generated_block: str = ''
+
+        icon = manifest.get('icon', '📋')
+        name = manifest.get('name', 'Contesto Prompt')
+        self.setWindowTitle(f"{icon} {name} — Configurazione")
+        self.setMinimumWidth(700)
+        self.setMinimumHeight(520)
+        self.setModal(True)
+        self._build_ui()
+        self._load_presets()
+
+    # ── helpers ──────────────────────────────────────────────────────────────
+
+    def _plugin_module(self):
+        _pd = str(get_app_dir() / 'plugins')
+        if _pd not in sys.path:
+            sys.path.insert(0, _pd)
+        import importlib
+        return importlib.import_module('plugins.prompt_context.plugin')
+
+    def _save_active_preset(self, preset_id: str):
+        try:
+            import yaml
+            cfg_path = Path(self._config_path)
+            cfg = yaml.safe_load(cfg_path.read_text(encoding='utf-8')) or {}
+            cfg.setdefault('prompt_context', {})['active_preset'] = preset_id
+            cfg['prompt_context']['enabled'] = True
+            with open(cfg_path, 'w', encoding='utf-8') as f:
+                yaml.dump(cfg, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        except Exception as e:
+            logger.warning(f"Errore salvataggio preset attivo: {e}")
+
+    def _active_preset_id(self) -> str:
+        try:
+            import yaml
+            cfg = yaml.safe_load(
+                Path(self._config_path).read_text(encoding='utf-8')
+            ) or {}
+            return cfg.get('prompt_context', {}).get('active_preset', '')
+        except Exception:
+            return self._config.get('prompt_context', {}).get('active_preset', '')
+
+    # ── build UI ─────────────────────────────────────────────────────────────
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
+
+        _grp_style = (
+            f"QGroupBox {{ color: {_COLORS['ambra_light']}; font-weight: bold;"
+            f"  border: 1px solid {_COLORS['grafite_light']}; border-radius: 4px;"
+            f"  margin-top: 6px; padding-top: 4px; }}"
+            f"QGroupBox::title {{ subcontrol-origin: margin; left: 8px; }}"
+        )
+
+        # --- Sezione preset ---
+        preset_group = QGroupBox("Preset disponibili")
+        preset_group.setStyleSheet(_grp_style)
+        preset_outer = QVBoxLayout(preset_group)
+        preset_outer.setContentsMargins(6, 10, 6, 6)
+        preset_outer.setSpacing(6)
+
+        split_row = QHBoxLayout()
+        split_row.setSpacing(8)
+
+        self._preset_list = QListWidget()
+        self._preset_list.setFixedWidth(200)
+        self._preset_list.setFixedHeight(160)
+        self._preset_list.setStyleSheet(
+            f"QListWidget {{ background: {_COLORS['grafite']}; color: {_COLORS['grigio_chiaro']};"
+            f"  border: 1px solid {_COLORS['grafite_light']}; font-size: 11px; }}"
+            f"QListWidget::item:selected {{ background: {_COLORS['blu_petrolio_light']}; }}"
+        )
+        self._preset_list.currentRowChanged.connect(self._on_preset_selected)
+        split_row.addWidget(self._preset_list)
+
+        self._preview = QTextEdit()
+        self._preview.setReadOnly(True)
+        self._preview.setFixedHeight(160)
+        self._preview.setStyleSheet(
+            f"QTextEdit {{ background: {_COLORS['grafite']}; color: {_COLORS['grigio_chiaro']};"
+            f"  border: 1px solid {_COLORS['grafite_light']}; font-size: 10px;"
+            f"  font-family: Consolas, monospace; }}"
+        )
+        self._preview.setPlaceholderText("Seleziona un preset per vedere il contenuto…")
+        split_row.addWidget(self._preview, stretch=1)
+        preset_outer.addLayout(split_row)
+
+        btn_row = QHBoxLayout()
+        self._lbl_active = QLabel("Nessun preset attivo")
+        self._lbl_active.setStyleSheet(
+            f"font-size: 11px; color: {_COLORS['grigio_medio']}; font-style: italic;"
+        )
+        btn_row.addWidget(self._lbl_active, stretch=1)
+
+        self._btn_activate = QPushButton("✅ Attiva")
+        self._btn_activate.setFixedWidth(80)
+        self._btn_activate.setEnabled(False)
+        self._btn_activate.clicked.connect(self._on_activate)
+        self._btn_activate.setStyleSheet(
+            f"QPushButton {{ background: {_COLORS['blu_petrolio']}; color: {_COLORS['grigio_chiaro']};"
+            f"  border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; }}"
+            f"QPushButton:hover {{ background: {_COLORS['blu_petrolio_light']}; }}"
+            f"QPushButton:disabled {{ background: {_COLORS['grafite_light']}; color: #666; }}"
+        )
+        btn_row.addWidget(self._btn_activate)
+
+        self._btn_delete = QPushButton("🗑 Elimina")
+        self._btn_delete.setFixedWidth(80)
+        self._btn_delete.setEnabled(False)
+        self._btn_delete.clicked.connect(self._on_delete)
+        self._btn_delete.setStyleSheet(
+            f"QPushButton {{ background: {_COLORS['grafite_light']}; color: {_COLORS['grigio_chiaro']};"
+            f"  border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; }}"
+            f"QPushButton:hover {{ background: {_COLORS['rosso']}; }}"
+            f"QPushButton:disabled {{ color: #666; }}"
+        )
+        btn_row.addWidget(self._btn_delete)
+        preset_outer.addLayout(btn_row)
+        layout.addWidget(preset_group)
+
+        # --- Sezione genera nuovo ---
+        gen_group = QGroupBox("Genera nuovo preset con LLM")
+        gen_group.setStyleSheet(_grp_style)
+        gen_outer = QVBoxLayout(gen_group)
+        gen_outer.setContentsMargins(6, 10, 6, 6)
+        gen_outer.setSpacing(6)
+
+        gen_outer.addWidget(QLabel(
+            "Descrivi il tuo archivio fotografico in italiano:",
+            styleSheet=f"font-size: 11px; color: {_COLORS['grigio_medio']};"
+        ))
+
+        self._gen_input = QTextEdit()
+        self._gen_input.setFixedHeight(60)
+        self._gen_input.setPlaceholderText(
+            "Es: Archivio naturalistico di uccelli migratori del Mediterraneo, "
+            "con focus su comportamento e habitat riproduttivo…"
+        )
+        self._gen_input.setStyleSheet(
+            f"QTextEdit {{ background: {_COLORS['grafite']}; color: {_COLORS['grigio_chiaro']};"
+            f"  border: 1px solid {_COLORS['grafite_light']}; font-size: 11px; }}"
+        )
+        gen_outer.addWidget(self._gen_input)
+
+        gen_btn_row = QHBoxLayout()
+        self._btn_generate = QPushButton("⚡ Genera con LLM")
+        self._btn_generate.setFixedWidth(140)
+        self._btn_generate.clicked.connect(self._on_generate)
+        self._btn_generate.setStyleSheet(
+            f"QPushButton {{ background: {_COLORS['ambra']}; color: #111;"
+            f"  border: none; border-radius: 4px; padding: 4px 10px;"
+            f"  font-size: 11px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background: {_COLORS['ambra_light']}; }}"
+        )
+        gen_btn_row.addWidget(self._btn_generate)
+        gen_btn_row.addStretch()
+        gen_outer.addLayout(gen_btn_row)
+
+        self._gen_preview = QTextEdit()
+        self._gen_preview.setReadOnly(True)
+        self._gen_preview.setFixedHeight(80)
+        self._gen_preview.setVisible(False)
+        self._gen_preview.setStyleSheet(self._preview.styleSheet())
+        gen_outer.addWidget(self._gen_preview)
+
+        save_row = QHBoxLayout()
+        self._gen_name_input = QLineEdit()
+        self._gen_name_input.setPlaceholderText("Nome del preset (es. Uccelli Sardegna)…")
+        self._gen_name_input.setVisible(False)
+        self._gen_name_input.setStyleSheet(
+            f"QLineEdit {{ background: {_COLORS['grafite']}; color: {_COLORS['grigio_chiaro']};"
+            f"  border: 1px solid {_COLORS['grafite_light']}; padding: 3px 6px;"
+            f"  font-size: 11px; border-radius: 3px; }}"
+        )
+        save_row.addWidget(self._gen_name_input, stretch=1)
+
+        self._btn_save_gen = QPushButton("💾 Salva preset")
+        self._btn_save_gen.setFixedWidth(110)
+        self._btn_save_gen.setVisible(False)
+        self._btn_save_gen.clicked.connect(self._on_save_generated)
+        self._btn_save_gen.setStyleSheet(
+            f"QPushButton {{ background: {_COLORS['blu_petrolio']}; color: {_COLORS['grigio_chiaro']};"
+            f"  border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; }}"
+            f"QPushButton:hover {{ background: {_COLORS['blu_petrolio_light']}; }}"
+        )
+        save_row.addWidget(self._btn_save_gen)
+        gen_outer.addLayout(save_row)
+        layout.addWidget(gen_group)
+
+        # Bottone chiudi
+        close_row = QHBoxLayout()
+        close_row.addStretch()
+        close_btn = QPushButton("Chiudi")
+        close_btn.setFixedWidth(80)
+        close_btn.setStyleSheet(
+            f"QPushButton {{ background: {_COLORS['grafite_light']}; color: {_COLORS['grigio_chiaro']};"
+            f"  border: none; border-radius: 4px; padding: 4px 10px; font-size: 11px; }}"
+            f"QPushButton:hover {{ background: {_COLORS['blu_petrolio']}; }}"
+        )
+        close_btn.clicked.connect(self.accept)
+        close_row.addWidget(close_btn)
+        layout.addLayout(close_row)
+
+    # ── logica preset ─────────────────────────────────────────────────────────
+
+    def _load_presets(self):
+        self._preset_list.blockSignals(True)
+        self._preset_list.clear()
+        self._presets = []
+        try:
+            mod = self._plugin_module()
+            self._presets = mod.load_all_presets()
+        except Exception as e:
+            logger.warning(f"Errore caricamento preset: {e}")
+
+        active_id = self._active_preset_id()
+        active_row = -1
+        for i, p in enumerate(self._presets):
+            icon   = p.get('icon', '')
+            name   = p.get('name', p.get('id', ''))
+            source = ' ★' if p.get('source') == 'user' else ''
+            item   = QListWidgetItem(f"{icon} {name}{source}".strip())
+            item.setData(Qt.ItemDataRole.UserRole, p.get('id', ''))
+            self._preset_list.addItem(item)
+            if p.get('id') == active_id:
+                active_row = i
+
+        self._preset_list.blockSignals(False)
+
+        if active_row >= 0:
+            self._preset_list.setCurrentRow(active_row)
+        else:
+            self._update_active_label(active_id)
+
+    def _on_preset_selected(self, row: int):
+        if row < 0 or row >= len(self._presets):
+            self._preview.clear()
+            self._btn_activate.setEnabled(False)
+            self._btn_delete.setEnabled(False)
+            return
+        p = self._presets[row]
+        self._preview.setPlainText(p.get('context_block', ''))
+        active_id = self._active_preset_id()
+        is_active = (p.get('id') == active_id)
+        # Attiva disabilitato se già attivo, così non appare sempre verde
+        self._btn_activate.setEnabled(not is_active)
+        self._btn_delete.setEnabled(p.get('source') == 'user')
+
+    def _on_activate(self):
+        row = self._preset_list.currentRow()
+        if row < 0 or row >= len(self._presets):
+            return
+        preset_id = self._presets[row].get('id', '')
+        self._save_active_preset(preset_id)
+        self._update_active_label(preset_id)
+        self._btn_activate.setEnabled(False)  # appena attivato: disabilita
+        self.preset_activated.emit(preset_id)
+
+    def _on_delete(self):
+        row = self._preset_list.currentRow()
+        if row < 0 or row >= len(self._presets):
+            return
+        p = self._presets[row]
+        if p.get('source') != 'user':
+            return
+        try:
+            mod = self._plugin_module()
+            mod.delete_user_preset(p.get('id', ''))
+            if p.get('id') == self._active_preset_id():
+                self._save_active_preset('')
+        except Exception as e:
+            logger.warning(f"Errore eliminazione preset: {e}")
+        self._load_presets()
+
+    def _update_active_label(self, preset_id: str):
+        if not preset_id:
+            self._lbl_active.setText("Nessun preset attivo")
+            self._lbl_active.setStyleSheet(
+                f"font-size: 11px; color: {_COLORS['grigio_medio']}; font-style: italic;"
+            )
+            return
+        name = preset_id
+        for p in self._presets:
+            if p.get('id') == preset_id:
+                name = f"{p.get('icon', '')} {p.get('name', preset_id)}".strip()
+                break
+        self._lbl_active.setText(f"✅ Attivo: {name}")
+        self._lbl_active.setStyleSheet(f"font-size: 11px; color: {_COLORS['verde']};")
+
+    # ── generazione ──────────────────────────────────────────────────────────
+
+    def _on_generate(self):
+        user_input = self._gen_input.toPlainText().strip()
+        if not user_input:
+            return
+
+        try:
+            import yaml
+            cfg = yaml.safe_load(
+                Path(self._config_path).read_text(encoding='utf-8')
+            ) or {}
+            llm_cfg  = cfg.get('embedding', {}).get('models', {}).get('llm_vision', {})
+            endpoint = llm_cfg.get('endpoint', 'http://localhost:11434')
+            model    = llm_cfg.get('model', '')
+        except Exception:
+            endpoint = 'http://localhost:11434'
+            model    = ''
+
+        self._btn_generate.setText("⏳ Generazione…")
+        self._btn_generate.setEnabled(False)
+        QApplication.processEvents()
+
+        try:
+            mod = self._plugin_module()
+            result = mod.generate_preset_from_description(
+                user_input, llm_endpoint=endpoint, model=model, timeout=90
+            )
+        except Exception as e:
+            result = None
+            logger.warning(f"Errore generazione preset: {e}")
+
+        self._btn_generate.setText("⚡ Genera con LLM")
+        self._btn_generate.setEnabled(True)
+
+        if result:
+            self._generated_block = result
+            self._gen_preview.setPlainText(result)
+            self._gen_preview.setVisible(True)
+            self._gen_name_input.setVisible(True)
+            self._btn_save_gen.setVisible(True)
+        else:
+            self._gen_preview.setPlainText("⚠️ Generazione fallita — verificare che Ollama sia attivo.")
+            self._gen_preview.setVisible(True)
+            self._gen_name_input.setVisible(False)
+            self._btn_save_gen.setVisible(False)
+
+    def _on_save_generated(self):
+        name = self._gen_name_input.text().strip()
+        if not name or not self._generated_block:
+            return
+        import re
+        preset_id = re.sub(r'[^\w]', '_', name.lower())
+        preset_data = {
+            'id':            preset_id,
+            'name':          name,
+            'description':   f"Preset generato da LLM — {name}",
+            'icon':          '🔖',
+            'author':        'utente',
+            'version':       '1.0',
+            'context_block': self._generated_block,
+        }
+        try:
+            mod = self._plugin_module()
+            mod.save_user_preset(preset_data)
+        except Exception as e:
+            logger.warning(f"Errore salvataggio preset generato: {e}")
+            return
+
+        self._gen_name_input.clear()
+        self._gen_preview.setVisible(False)
+        self._gen_name_input.setVisible(False)
+        self._btn_save_gen.setVisible(False)
+        self._generated_block = ''
+        self._load_presets()
+
+
+class PromptContextPluginCard(QFrame):
+    """Card slim per il plugin prompt_context.
+
+    Mostra nome, versione, descrizione e preset attivo in una singola riga.
+    Il bottone 'Configura ▸' apre PromptContextConfigDialog per la gestione completa.
+    """
+
+    preset_activated = pyqtSignal(str)
+
+    def __init__(self, manifest: dict, config: dict = None, config_path: str = '',
+                 parent=None):
+        super().__init__(parent)
+        self._manifest    = manifest
+        self._config      = config or {}
+        self._config_path = config_path
+
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setFrameShadow(QFrame.Shadow.Raised)
+        self.setStyleSheet(f"""
+            PromptContextPluginCard {{
+                background-color: {_COLORS['grafite_dark']};
+                border: 1px solid {_COLORS['grafite_light']};
+                border-radius: 6px;
+            }}
+        """)
+        self._build_ui()
+        self._refresh_active_label()
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+
+        header_row = QHBoxLayout()
+        header_row.setSpacing(8)
+
+        icon    = self._manifest.get('icon', '📋')
+        name    = self._manifest.get('name', 'Contesto Prompt')
+        version = self._manifest.get('version', '')
+        desc    = self._manifest.get('description', '')
+
+        lbl_name = QLabel(f"{icon} {name}  v{version}")
+        lbl_name.setStyleSheet(
+            f"font-size: 14px; font-weight: bold; color: {_COLORS['ambra_light']};"
+        )
+        header_row.addWidget(lbl_name)
+
+        lbl_desc = QLabel(desc)
+        lbl_desc.setStyleSheet(f"font-size: 11px; color: {_COLORS['grigio_medio']};")
+        header_row.addWidget(lbl_desc)
+        header_row.addStretch()
+
+        self._lbl_active = QLabel("…")
+        self._lbl_active.setStyleSheet(
+            f"font-size: 11px; color: {_COLORS['grigio_medio']}; font-style: italic;"
+        )
+        header_row.addWidget(self._lbl_active)
+
+        btn_configure = QPushButton("Configura ▸")
+        btn_configure.setFixedWidth(100)
+        btn_configure.setStyleSheet(
+            f"QPushButton {{ background-color: {_COLORS['grafite_light']}; "
+            f"color: {_COLORS['grigio_chiaro']}; border: none; border-radius: 4px; "
+            f"padding: 4px 10px; font-size: 11px; }}"
+            f"QPushButton:hover {{ background-color: {_COLORS['blu_petrolio']}; }}"
+        )
+        btn_configure.clicked.connect(self._open_config_dialog)
+        header_row.addWidget(btn_configure)
+
+        layout.addLayout(header_row)
+
+    def _open_config_dialog(self):
+        dlg = PromptContextConfigDialog(
+            manifest=self._manifest,
+            config=self._config,
+            config_path=self._config_path,
+            parent=self,
+        )
+        dlg.preset_activated.connect(self._on_dialog_preset_activated)
+        dlg.exec()
+        self._refresh_active_label()
+
+    def _on_dialog_preset_activated(self, preset_id: str):
+        self._refresh_active_label()
+        self.preset_activated.emit(preset_id)
+
+    def _refresh_active_label(self):
+        """Rilegge la config e aggiorna la label del preset attivo."""
+        try:
+            import yaml
+            cfg = yaml.safe_load(
+                Path(self._config_path).read_text(encoding='utf-8')
+            ) or {}
+            active_id = cfg.get('prompt_context', {}).get('active_preset', '')
+        except Exception:
+            active_id = self._config.get('prompt_context', {}).get('active_preset', '')
+
+        if not active_id:
+            self._lbl_active.setText("Nessun preset")
+            self._lbl_active.setStyleSheet(
+                f"font-size: 11px; color: {_COLORS['grigio_medio']}; font-style: italic;"
+            )
+            return
+
+        try:
+            _pd = str(get_app_dir() / 'plugins')
+            if _pd not in sys.path:
+                sys.path.insert(0, _pd)
+            import importlib
+            mod = importlib.import_module('plugins.prompt_context.plugin')
+            presets = mod.load_all_presets()
+            label = active_id
+            for p in presets:
+                if p.get('id') == active_id:
+                    label = f"{p.get('icon', '')} {p.get('name', active_id)}".strip()
+                    break
+        except Exception:
+            label = active_id
+
+        self._lbl_active.setText(f"▶ {label}")
+        self._lbl_active.setStyleSheet(
+            f"font-size: 11px; color: {_COLORS['verde']}; font-weight: bold;"
+        )
+
+
 class LLMPluginCard(QFrame):
     """
     Card grafica per un plugin LLM backend (type: "llm_backend").
@@ -1016,6 +1527,8 @@ class PluginsTab(QWidget):
 
     # Segnale emesso quando si vuole navigare alla Config Tab
     navigate_to_config = pyqtSignal()
+    # Segnale emesso quando l'utente attiva un preset in PromptContextConfigDialog
+    prompt_context_preset_changed = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1129,6 +1642,18 @@ class PluginsTab(QWidget):
                     parent=self._cards_container,
                 )
                 card.configure_requested.connect(self.navigate_to_config.emit)
+                self._cards_layout.addWidget(card)
+                self._cards.append(card)
+                any_found = True
+
+            elif plugin_type == "prompt_context":
+                card = PromptContextPluginCard(
+                    manifest=manifest,
+                    config=app_config,
+                    config_path=self._config_path,
+                    parent=self._cards_container,
+                )
+                card.preset_activated.connect(self.prompt_context_preset_changed)
                 self._cards_layout.addWidget(card)
                 self._cards.append(card)
                 any_found = True

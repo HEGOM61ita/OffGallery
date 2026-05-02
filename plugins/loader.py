@@ -3,22 +3,24 @@
 # Covered by the Plugin Interface Exception — see plugins/PLUGIN_LICENSE_EXCEPTION.md.
 
 """
-Loader e auto-detection dei plugin LLM Vision.
+Loader e auto-detection dei plugin di OffGallery.
 
-Usato da embedding_generator all'inizializzazione per caricare
-il plugin corretto in base a config['embedding']['models']['llm_vision']['backend'].
-Usato da main_window all'avvio per il check di disponibilità.
+Funzioni esportate:
+  load_plugin(config)               → Optional[LLMVisionPlugin]
+  load_prompt_context_plugin(config)→ Optional[PromptContextPlugin]
+  detect_available_backends()       → dict
 
 Questo file è coperto dalla Plugin Interface Exception dichiarata in base.py:
 i plugin caricati tramite questo loader possono avere licenze diverse dall'AGPLv3,
-a condizione che interagiscano con OffGallery esclusivamente tramite l'interfaccia
-LLMVisionPlugin definita in base.py. Vedere plugins/PLUGIN_LICENSE_EXCEPTION.md.
+a condizione che interagiscano con OffGallery esclusivamente tramite le interfacce
+(LLMVisionPlugin, GeoEnricherPlugin, PromptContextPlugin) definite in base.py.
+Vedere plugins/PLUGIN_LICENSE_EXCEPTION.md.
 """
 
 import logging
 from typing import Optional
 
-from .base import LLMVisionPlugin
+from .base import LLMVisionPlugin, PromptContextPlugin
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +113,39 @@ def detect_available_backends() -> dict:
         pass
 
     return result
+
+
+def load_prompt_context_plugin(config: dict) -> Optional[PromptContextPlugin]:
+    """Carica il plugin PromptContext se presente e abilitato.
+
+    Cerca plugins/prompt_context/ e lo istanzia se disponibile.
+    In assenza del plugin (directory mancante, dipendenze non installate,
+    plugin disabilitato in config) ritorna None senza errori — il sistema
+    funziona normalmente senza blocco CONTEXT nel prompt.
+
+    Args:
+        config: configurazione applicazione (stessa passata a load_plugin)
+
+    Returns:
+        Istanza PromptContextPlugin pronta all'uso, oppure None.
+    """
+    prompt_ctx_config = config.get('prompt_context', {})
+    if not prompt_ctx_config.get('enabled', True):
+        return None
+
+    try:
+        from .prompt_context.plugin import PromptContextPluginImpl
+        plugin = PromptContextPluginImpl(prompt_ctx_config)
+        if plugin.is_available():
+            logger.info(f"Plugin PromptContext attivo: preset '{plugin.get_preset_name()}'")
+            return plugin
+        logger.debug("PromptContextPlugin istanziato ma non disponibile (nessun preset attivo?)")
+    except ImportError:
+        logger.debug("plugins/prompt_context non installato — blocco CONTEXT disabilitato")
+    except Exception as e:
+        logger.warning(f"PromptContextPlugin non caricabile: {e}", exc_info=True)
+
+    return None
 
 
 # --- helpers privati ---

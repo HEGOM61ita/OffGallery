@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QFrame, QCheckBox, QMenu, QDialog, QLineEdit,
     QDialogButtonBox, QApplication, QSizePolicy, QGroupBox,
     QRadioButton, QButtonGroup, QTextEdit, QMessageBox, QScrollArea,
-    QPushButton
+    QPushButton, QSpinBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThreadPool, QRunnable, QObject
 from PyQt6.QtGui import QPixmap, QCursor, QAction
@@ -4581,33 +4581,98 @@ class LLMTagDialog(QDialog):
     def _build_ui(self):
         layout = QVBoxLayout(self)
 
+        # Valori salvati dall'ultimo utilizzo
+        _saved = self.config.get('gallery_llm_dialog', {})
+
         # Info
         info_label = QLabel(t("widgets.label.llm_info", n=self.num_images))
         info_label.setStyleSheet("font-weight: bold; margin-bottom: 15px;")
         layout.addWidget(info_label)
 
-        # Opzioni - Checkbox indipendenti per qualsiasi combinazione
+        # Opzioni — checkbox cosa generare (persistono l'ultimo stato usato)
         options_group = QGroupBox(t("widgets.group.llm_what"))
         options_layout = QVBoxLayout(options_group)
 
         self.gen_title_check = QCheckBox(t("widgets.check.gen_title"))
-        self.gen_title_check.setChecked(True)
+        self.gen_title_check.setChecked(_saved.get('gen_title', True))
         options_layout.addWidget(self.gen_title_check)
 
         self.gen_tags_check = QCheckBox(t("widgets.check.gen_tags"))
-        self.gen_tags_check.setChecked(True)
+        self.gen_tags_check.setChecked(_saved.get('gen_tags', True))
         options_layout.addWidget(self.gen_tags_check)
 
         self.gen_desc_check = QCheckBox(t("widgets.check.gen_description"))
-        self.gen_desc_check.setChecked(True)
+        self.gen_desc_check.setChecked(_saved.get('gen_description', True))
         options_layout.addWidget(self.gen_desc_check)
 
         layout.addWidget(options_group)
 
-        # Info sui parametri
-        params_info = QLabel(t("widgets.label.llm_params_hint"))
-        params_info.setStyleSheet("color: #888; font-size: 10px; font-style: italic; padding: 5px;")
-        layout.addWidget(params_info)
+        # Parametri di lunghezza — override per questo task (persistono)
+        _ai_cfg  = self.config.get('embedding', {}).get('models', {}).get('llm_vision', {})
+        _auto    = _ai_cfg.get('auto_import', {})
+        _def_tags  = _auto.get('tags', {}).get('max_tags', _auto.get('tags', {}).get('max', 10))
+        _def_words = _auto.get('description', {}).get('max_words', _auto.get('description', {}).get('max', 100))
+        _def_title = _auto.get('title', {}).get('max_words', _auto.get('title', {}).get('max', 5))
+
+        params_group = QGroupBox("Parametri")
+        params_layout = QVBoxLayout(params_group)
+        params_layout.setSpacing(4)
+
+        def _spin_row(label_text, default, min_val, max_val):
+            row = QHBoxLayout()
+            row.addWidget(QLabel(label_text))
+            sp = QSpinBox()
+            sp.setRange(min_val, max_val)
+            sp.setValue(default)
+            sp.setFixedWidth(70)
+            row.addWidget(sp)
+            row.addStretch()
+            return row, sp
+
+        row_t, self._spin_title = _spin_row(
+            "Parole titolo:", _saved.get('max_title_words', _def_title), 1, 15)
+        row_g, self._spin_tags  = _spin_row(
+            "Numero tag:",   _saved.get('max_tags', _def_tags),       1, 50)
+        row_d, self._spin_desc  = _spin_row(
+            "Parole descrizione:", _saved.get('max_words_desc', _def_words), 10, 500)
+
+        params_layout.addLayout(row_t)
+        params_layout.addLayout(row_g)
+        params_layout.addLayout(row_d)
+        layout.addWidget(params_group)
+
+        # Contesto prompt — selezione rapida preset
+        self._prompt_preset_combo = None
+        self._prompt_presets: list[dict] = []
+        try:
+            import sys
+            from utils.paths import get_app_dir as _gad
+            _pd = str(_gad() / 'plugins')
+            if _pd not in sys.path:
+                sys.path.insert(0, _pd)
+            from plugins.prompt_context.plugin import load_all_presets
+            self._prompt_presets = load_all_presets()
+        except Exception:
+            self._prompt_presets = []
+
+        if self._prompt_presets:
+            from PyQt6.QtWidgets import QComboBox as _QCB
+            ctx_group = QGroupBox("Contesto prompt")
+            ctx_layout = QHBoxLayout(ctx_group)
+            ctx_layout.setContentsMargins(8, 6, 8, 6)
+
+            self._prompt_preset_combo = _QCB()
+            self._prompt_preset_combo.addItem("(nessuno)", "")
+            active_id = self.config.get('prompt_context', {}).get('active_preset', '')
+            sel_idx = 0
+            for i, p in enumerate(self._prompt_presets, start=1):
+                label = f"{p.get('icon','')} {p.get('name', p.get('id',''))}".strip()
+                self._prompt_preset_combo.addItem(label, p.get('id', ''))
+                if p.get('id') == active_id:
+                    sel_idx = i
+            self._prompt_preset_combo.setCurrentIndex(sel_idx)
+            ctx_layout.addWidget(self._prompt_preset_combo)
+            layout.addWidget(ctx_group)
 
         # Bottoni
         buttons = QDialogButtonBox(
@@ -4618,11 +4683,18 @@ class LLMTagDialog(QDialog):
         layout.addWidget(buttons)
     
     def get_mode(self):
-        """Ottieni selezioni come dizionario {title, tags, description}"""
+        """Ottieni selezioni come dizionario {title, tags, description, preset_id, max_*}"""
+        preset_id = ''
+        if self._prompt_preset_combo is not None:
+            preset_id = self._prompt_preset_combo.currentData() or ''
         return {
-            'title': self.gen_title_check.isChecked(),
-            'tags': self.gen_tags_check.isChecked(),
-            'description': self.gen_desc_check.isChecked()
+            'title':           self.gen_title_check.isChecked(),
+            'tags':            self.gen_tags_check.isChecked(),
+            'description':     self.gen_desc_check.isChecked(),
+            'preset_id':       preset_id,
+            'max_tags':        self._spin_tags.value(),
+            'max_words_desc':  self._spin_desc.value(),
+            'max_title_words': self._spin_title.value(),
         }
 
     def has_selection(self):

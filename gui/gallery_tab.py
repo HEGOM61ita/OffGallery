@@ -969,6 +969,41 @@ class GalleryTab(QWidget):
             if not dialog.has_selection():
                 return  # Nessuna selezione
 
+            # Salva impostazioni dialog in config per il prossimo utilizzo (Fix 4)
+            try:
+                import yaml as _yaml_gc
+                cfg_path = str(self.config_path)
+                cfg = _yaml_gc.safe_load(open(cfg_path, encoding='utf-8').read()) or {}
+                cfg['gallery_llm_dialog'] = {
+                    'gen_title':       gen_options.get('title', True),
+                    'gen_tags':        gen_options.get('tags', True),
+                    'gen_description': gen_options.get('description', True),
+                    'max_tags':        gen_options.get('max_tags', 10),
+                    'max_words_desc':  gen_options.get('max_words_desc', 100),
+                    'max_title_words': gen_options.get('max_title_words', 5),
+                }
+                # Aggiorna anche preset PromptContext se cambiato
+                chosen_preset = gen_options.get('preset_id', '')
+                cfg.setdefault('prompt_context', {})['active_preset'] = chosen_preset
+                cfg['prompt_context']['enabled'] = True
+                with open(cfg_path, 'w', encoding='utf-8') as f:
+                    _yaml_gc.dump(cfg, f, allow_unicode=True, default_flow_style=False,
+                                  sort_keys=False)
+            except Exception as e:
+                logger.warning(f"Errore salvataggio impostazioni gallery dialog: {e}")
+
+            # Propaga preset a runtime all'EmbeddingGenerator se cambiato
+            chosen_preset = gen_options.get('preset_id', '')
+            current_preset = config.get('prompt_context', {}).get('active_preset', '')
+            if chosen_preset != current_preset:
+                if self.ai_models and 'embedding_generator' in self.ai_models:
+                    emb = self.ai_models['embedding_generator']
+                    if hasattr(emb, 'prompt_context_plugin') and emb.prompt_context_plugin:
+                        try:
+                            emb.prompt_context_plugin.set_active_preset(chosen_preset)
+                        except Exception:
+                            pass
+
             # Costruisci testo per titolo progress
             selected = []
             if gen_options.get('title'): selected.append('Titolo')
@@ -1043,19 +1078,10 @@ class GalleryTab(QWidget):
                         else:
                             llm_input = filepath
 
-                # Ottieni parametri dalla config (nuova struttura granulare)
-                llm_config = config.get('embedding', {}).get('models', {}).get('llm_vision', {})
-                auto_import = llm_config.get('auto_import', {})
-
-                # Leggi parametri per ogni tipo
-                tags_cfg = auto_import.get('tags', {})
-                max_tags = tags_cfg.get('max_tags', tags_cfg.get('max', 10))
-
-                desc_cfg = auto_import.get('description', {})
-                max_words = desc_cfg.get('max_words', desc_cfg.get('max', 100))
-
-                title_cfg = auto_import.get('title', {})
-                max_title_words = title_cfg.get('max_words', title_cfg.get('max', 5))
+                # Usa i parametri scelti nel dialog (override sui default config)
+                max_tags        = gen_options.get('max_tags', 10)
+                max_words       = gen_options.get('max_words_desc', 100)
+                max_title_words = gen_options.get('max_title_words', 5)
 
                 # Estrai location_hint dalla gerarchia geografica nel DB
                 location_hint = None

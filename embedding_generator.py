@@ -99,6 +99,10 @@ class EmbeddingGenerator:
         self.llm_plugin = None
         self._init_llm_plugin()
 
+        # Plugin PromptContext (blocco CONTEXT opzionale nel prompt vision)
+        self.prompt_context_plugin = None
+        self._init_prompt_context_plugin()
+
         # Inizializzazione selettiva
         if self.enabled:
             if initialization_mode == 'llm_only':
@@ -133,6 +137,25 @@ class EmbeddingGenerator:
         except Exception as e:
             logger.debug(f"Plugin LLM non disponibile: {e}")
             self.llm_plugin = None
+
+    def _init_prompt_context_plugin(self):
+        """Carica il plugin PromptContext se presente e abilitato.
+
+        Fallisce silenziosamente: se il plugin non è installato o non è
+        disponibile, self.prompt_context_plugin rimane None e il prompt
+        viene costruito senza blocco CONTEXT (comportamento standard).
+        """
+        try:
+            import sys
+            from utils.paths import get_app_dir
+            _plugins_dir = str(get_app_dir() / 'plugins')
+            if _plugins_dir not in sys.path:
+                sys.path.insert(0, _plugins_dir)
+            from plugins.loader import load_prompt_context_plugin
+            self.prompt_context_plugin = load_prompt_context_plugin(self.config)
+        except Exception as e:
+            logger.debug(f"PromptContextPlugin non disponibile: {e}")
+            self.prompt_context_plugin = None
 
     def _init_bioclip_only(self):
         """Inizializza solo BioCLIP"""
@@ -2450,10 +2473,29 @@ class EmbeddingGenerator:
             if 'title' in modes:
                 max_tokens += int(max_title_words * 2) + 10
 
+            # Blocco CONTEXT opzionale dal plugin PromptContext
+            context_block = ''
+            if self.prompt_context_plugin is not None:
+                try:
+                    _meta = {
+                        'modes':            modes,
+                        'lang_code':        lang_code,
+                        'category_hint':    category_hint,
+                        'location_hint':    location_hint,
+                        'vernacular_name':  vernacular_name,
+                    }
+                    _ctx = self.prompt_context_plugin.get_context(_meta)
+                    if _ctx:
+                        context_block = _ctx.strip() + '\n\n'
+                        logger.debug(f"[PromptContext] preset='{self.prompt_context_plugin.get_preset_name()}' ({len(_ctx)} chars)")
+                except Exception:
+                    logger.warning("PromptContextPlugin.get_context() fallita — ignorata", exc_info=True)
+
             prompt = (
                 "/no_think\n"
                 "You are a professional photography cataloging system.\n\n"
                 f"{language_rules}\n"
+                f"{context_block}"
                 f"{analysis_kernel}"
                 "STEP 2 — OUTPUT:\n"
                 "Write ONLY the lines below. Start each line with its label exactly as shown.\n"

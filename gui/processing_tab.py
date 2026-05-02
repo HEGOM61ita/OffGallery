@@ -2055,6 +2055,8 @@ class ProcessingTab(QWidget):
         # Label modalità geo enricher (aggiornata in on_activated)
         self._geo_mode_label: 'QLabel | None' = None
         self._geo_mode_manifest: dict | None = None
+        # Combo preset PromptContext (None se plugin non installato)
+        self._prompt_context_combo: 'QComboBox | None' = None
         # Reader thread attivi durante esecuzione post-import
         self._active_plugin_readers: list[PluginStdoutReader] = []
         # Contatore plugin ancora in esecuzione (per sapere quando sbloccare il tab)
@@ -2115,6 +2117,9 @@ class ProcessingTab(QWidget):
         """
         self._discovered_plugins = self._discover_standalone_plugins()
         if not self._discovered_plugins:
+            # Nessun plugin standalone, ma il dropdown PromptContext va mostrato comunque
+            self._build_prompt_context_row(parent_layout)
+            parent_layout.addStretch()
             return
 
         # Stile progress bar plugin: gradiente blu, distinto dal gold dei modelli
@@ -2240,11 +2245,162 @@ class ProcessingTab(QWidget):
                 parent_layout.addWidget(row_w)
                 self._plugin_rows[plugin_id] = {'check': chk, 'bar': pb}
 
+        # --- Dropdown preset PromptContext (se plugin installato) ---
+        self._build_prompt_context_row(parent_layout)
+
         parent_layout.addStretch()
+
+    def _build_prompt_context_row(self, parent_layout: 'QVBoxLayout'):
+        """Aggiunge il dropdown di selezione preset PromptContext alla colonna plugin.
+
+        Se il plugin prompt_context non è installato o non ha preset, non aggiunge nulla.
+        """
+        try:
+            import sys
+            _pd = str(get_app_dir() / 'plugins')
+            if _pd not in sys.path:
+                sys.path.insert(0, _pd)
+            from plugins.prompt_context.plugin import load_all_presets
+            presets = load_all_presets()
+        except Exception as e:
+            logger.debug(f"PromptContext dropdown non disponibile: {e}")
+            return
+
+        # Separatore sottile prima della riga
+        sep = QWidget()
+        sep.setFixedHeight(1)
+        sep.setStyleSheet("background-color: #3a3a3a;")
+        parent_layout.addWidget(sep)
+
+        row_w = QWidget()
+        row_lay = QHBoxLayout(row_w)
+        row_lay.setContentsMargins(0, 3, 0, 1)
+        row_lay.setSpacing(4)
+
+        lbl = QLabel("📋")
+        lbl.setFixedWidth(18)
+        lbl.setToolTip("Contesto prompt LLM")
+        row_lay.addWidget(lbl)
+
+        from PyQt6.QtWidgets import QComboBox as _QCB
+        combo = _QCB()
+        combo.setFixedHeight(20)
+        combo.setStyleSheet(
+            "QComboBox { font-size: 10px; background: #2a2a2a; color: #ccc;"
+            "  border: 1px solid #555; border-radius: 3px; padding: 1px 4px; }"
+            "QComboBox::drop-down { border: none; }"
+            "QComboBox QAbstractItemView { background: #2a2a2a; color: #ccc; }"
+        )
+        combo.setToolTip("Preset contesto prompt — arricchisce le descrizioni LLM con istruzioni di dominio")
+
+        combo.addItem("(nessun contesto)", "")
+        for p in presets:
+            icon = p.get('icon', '')
+            name = p.get('name', p.get('id', ''))
+            label = f"{icon} {name}".strip()
+            combo.addItem(label, p.get('id', ''))
+
+        # Leggi preset attivo dalla config
+        try:
+            import yaml as _yaml_pc
+            cfg = _yaml_pc.safe_load(
+                (get_app_dir() / 'config_new.yaml').read_text(encoding='utf-8')
+            ) or {}
+            active_id = cfg.get('prompt_context', {}).get('active_preset', '')
+            for i in range(combo.count()):
+                if combo.itemData(i) == active_id:
+                    combo.setCurrentIndex(i)
+                    break
+        except Exception:
+            pass
+
+        combo.currentIndexChanged.connect(self._on_prompt_context_changed)
+        self._prompt_context_combo = combo
+        row_lay.addWidget(combo, stretch=1)
+
+        parent_layout.addWidget(row_w)
+
+    def _on_prompt_context_changed(self, _index: int):
+        """Salva il preset selezionato in config e lo propaga all'EmbeddingGenerator."""
+        if self._prompt_context_combo is None:
+            return
+        preset_id = self._prompt_context_combo.currentData() or ''
+        try:
+            import yaml as _yaml_pc
+            cfg_path = get_app_dir() / 'config_new.yaml'
+            cfg = _yaml_pc.safe_load(cfg_path.read_text(encoding='utf-8')) or {}
+            if 'prompt_context' not in cfg:
+                cfg['prompt_context'] = {}
+            cfg['prompt_context']['enabled'] = True
+            cfg['prompt_context']['active_preset'] = preset_id
+            with open(cfg_path, 'w', encoding='utf-8') as f:
+                _yaml_pc.dump(cfg, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        except Exception as e:
+            logger.warning(f"Errore salvataggio preset prompt_context: {e}")
+
+        # Propaga a runtime all'EmbeddingGenerator se già inizializzato
+        emb = self.embedding_gen
+        if emb is not None and hasattr(emb, 'prompt_context_plugin') and emb.prompt_context_plugin is not None:
+            try:
+                emb.prompt_context_plugin.set_active_preset(preset_id)
+            except Exception as e:
+                logger.warning(f"Errore aggiornamento preset a runtime: {e}")
+
+        preset_label = self._prompt_context_combo.currentText()
+        logger.info(f"Preset contesto prompt: {preset_label!r} (id={preset_id!r})")
+
+    def _refresh_prompt_context_combo(self) -> None:
+        """Rilegge active_preset dalla config e aggiorna il dropdown senza triggerare il save."""
+        if self._prompt_context_combo is None:
+            return
+        try:
+            import yaml as _yaml_rpc
+            cfg = _yaml_rpc.safe_load(
+                (get_app_dir() / 'config_new.yaml').read_text(encoding='utf-8')
+            ) or {}
+            active_id = cfg.get('prompt_context', {}).get('active_preset', '')
+        except Exception:
+            return
+        combo = self._prompt_context_combo
+        combo.blockSignals(True)
+        for i in range(combo.count()):
+            if combo.itemData(i) == active_id:
+                combo.setCurrentIndex(i)
+                break
+        combo.blockSignals(False)
+        # Propaga anche all'EmbeddingGenerator se già caricato
+        emb = self.embedding_gen
+        if emb is not None and hasattr(emb, 'prompt_context_plugin') and emb.prompt_context_plugin:
+            try:
+                emb.prompt_context_plugin.set_active_preset(active_id)
+            except Exception as e:
+                logger.warning(f"Errore propagazione preset a EmbGen: {e}")
+
+    def refresh_prompt_context_preset(self, preset_id: str) -> None:
+        """Slot pubblico: aggiorna dropdown e EmbeddingGenerator con il preset scelto.
+        Chiamato da main_window quando plugins_tab emette prompt_context_preset_changed."""
+        if self._prompt_context_combo is None:
+            return
+        combo = self._prompt_context_combo
+        combo.blockSignals(True)
+        for i in range(combo.count()):
+            if combo.itemData(i) == preset_id:
+                combo.setCurrentIndex(i)
+                break
+        combo.blockSignals(False)
+        emb = self.embedding_gen
+        if emb is not None and hasattr(emb, 'prompt_context_plugin') and emb.prompt_context_plugin:
+            try:
+                emb.prompt_context_plugin.set_active_preset(preset_id)
+            except Exception as e:
+                logger.warning(f"Errore propagazione preset a EmbGen: {e}")
+        logger.info(f"Preset contesto prompt aggiornato da plugins_tab: {preset_id!r}")
 
     def on_activated(self) -> None:
         """Chiamato da main_window quando si passa alla processing tab.
-        Rilegge la config del geo enricher e aggiorna la label modalità."""
+        Rilegge la config del geo enricher e aggiorna la label modalità.
+        Sincronizza anche il dropdown preset prompt_context con la config."""
+        self._refresh_prompt_context_combo()
         if self._geo_mode_label is None or self._geo_mode_manifest is None:
             return
         manifest = self._geo_mode_manifest

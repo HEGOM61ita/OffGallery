@@ -1,9 +1,14 @@
 """
-Interfaccia base per plugin LLM Vision di OffGallery.
+Interfacce base per i plugin di OffGallery.
 
-Ogni plugin deve estendere LLMVisionPlugin e implementare i metodi astratti.
-embedding_generator.py usa esclusivamente questa interfaccia — non conosce
-i dettagli del backend sottostante.
+Ogni plugin deve estendere la classe astratta appropriata e implementare
+i metodi obbligatori. Il core (embedding_generator.py, ProcessingWorker)
+usa esclusivamente queste interfacce — non conosce i dettagli dei backend.
+
+Interfacce disponibili:
+  - LLMVisionPlugin      : backend LLM Vision (Ollama, LM Studio, ...)
+  - GeoEnricherPlugin    : geocodifica inversa (sostituisce geo_enricher builtin)
+  - PromptContextPlugin  : blocco CONTEXT opzionale iniettato nel prompt vision
 
 ---------------------------------------------------------------------------
 PLUGIN INTERFACE EXCEPTION
@@ -20,11 +25,12 @@ a combined work, without requiring those independent modules to be covered
 by the AGPLv3, provided that:
 
   1. The independent module communicates with OffGallery exclusively
-     through the interface defined in this file (LLMVisionPlugin), without
-     modifying any other part of the OffGallery codebase.
+     through the interfaces defined in this file (LLMVisionPlugin,
+     GeoEnricherPlugin, PromptContextPlugin), without modifying any
+     other part of the OffGallery codebase.
 
   2. The independent module does not incorporate any part of OffGallery
-     other than the interface defined in this file and plugins/loader.py.
+     other than the interfaces defined in this file and plugins/loader.py.
 
   3. Distributions of the combined work include a prominent notice stating
      that the independent module is not covered by the AGPLv3 and
@@ -170,3 +176,59 @@ class LLMVisionPlugin(ABC):
         Implementazione opzionale: il default è no-op.
         """
         pass
+
+
+class PromptContextPlugin(ABC):
+    """Fornisce un blocco CONTEXT opzionale da iniettare nel prompt vision.
+
+    Il blocco viene inserito dopo LANGUAGE_RULES e prima del kernel CoT (STEP 1),
+    in modo da arricchire il contesto di analisi senza alterare la struttura
+    portante del prompt (anchor semantici, label di output, parser).
+
+    Il plugin NON può modificare:
+      - /no_think e la frase di apertura
+      - Il blocco STEP 1 (kernel CoT)
+      - La struttura STEP 2 e le label TITLE: TAGS: DESCRIPTION:
+      - L'ordine degli anchor semantici
+
+    Coperto dalla Plugin Interface Exception dichiarata nell'intestazione di questo file.
+    """
+
+    @abstractmethod
+    def is_available(self) -> bool:
+        """True se il plugin è pronto all'uso (preset caricato, configurazione valida).
+
+        Returns:
+            True se il plugin può fornire contesto, False altrimenti.
+        """
+        ...
+
+    @abstractmethod
+    def get_context(self, metadata: dict) -> Optional[str]:
+        """Ritorna il blocco CONTEXT da iniettare nel prompt.
+
+        Args:
+            metadata: dizionario con i seguenti campi (tutti opzionali tranne 'modes'):
+                'image_path'       (str | None)   : percorso file immagine
+                'modes'            (list[str])     : campi richiesti, es. ['tags', 'description']
+                'lang_code'        (str)           : codice lingua output, es. 'it'
+                'bioclip_taxonomy' (list | None)   : tassonomia BioCLIP (7 livelli)
+                'geo_hierarchy'    (str | None)    : gerarchia GeOFF
+                'existing_tags'    (list[str])     : tag già presenti nel DB
+
+        Returns:
+            Testo del blocco CONTEXT (max ~150 parole consigliato), oppure None
+            se il plugin non ha contesto da aggiungere per questa immagine.
+            Il testo viene iniettato così com'è — non serve includere newline finali.
+        """
+        ...
+
+    def get_preset_name(self) -> str:
+        """Nome del preset attivo, usato nel log.
+
+        Implementazione opzionale: il default ritorna il nome della classe.
+
+        Returns:
+            Stringa identificativa del preset corrente.
+        """
+        return type(self).__name__

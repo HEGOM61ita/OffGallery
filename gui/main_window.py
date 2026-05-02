@@ -566,6 +566,9 @@ class MainWindow(QMainWindow):
         self.config_tab.config_saved.connect(self._on_config_saved)
         self.plugins_tab.navigate_to_config.connect(self._navigate_to_config_tab)
         self.processing_tab.plugins_lock.connect(self._on_plugins_lock)
+        self.plugins_tab.prompt_context_preset_changed.connect(
+            self.processing_tab.refresh_prompt_context_preset
+        )
         
         layout.addWidget(self.tabs)
 
