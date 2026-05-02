@@ -390,6 +390,7 @@
     <li><a href="#plugin-llm">Plugin</a></li>
     <li class="sub"><a href="#plugin-llm-backends">Plugin LLM</a></li>
     <li class="sub"><a href="#plugin-dati">Plugin Dati</a></li>
+    <li class="sub"><a href="#plugin-contesto-prompt">Contesto Prompt</a></li>
     <li class="sub"><a href="#plugin-accesso">Accesso beta</a></li>
     <li><a href="#log">Tab Log</a></li>
 
@@ -1324,7 +1325,60 @@ Destinazione (es. E:\Backup):
   </tbody>
 </table>
 
-<h2 id="plugin-accesso">9b.3 Accesso beta e installazione</h2>
+<h2 id="plugin-contesto-prompt">9b.3 Plugin Contesto Prompt — personalizzazione del prompt LLM</h2>
+
+<p>Il plugin <strong>Contesto Prompt</strong> inietta un blocco <code>CONTEXT</code> personalizzato nel prompt Vision-Language di OffGallery, orientando il modello verso il dominio fotografico specifico dell'archivio. Senza un preset attivo il comportamento è identico al prompt standard.</p>
+
+<h3>Preset disponibili</h3>
+
+<table>
+  <thead><tr><th>Icona</th><th>Nome</th><th>Dominio</th></tr></thead>
+  <tbody>
+    <tr><td>⬜</td><td><strong>Standard</strong></td><td>Prompt standard OffGallery — nessun contesto aggiuntivo</td></tr>
+    <tr><td>🦋</td><td>Archivio Naturalistico</td><td>Specie, habitat, comportamento animale — fotografia scientifica</td></tr>
+    <tr><td>🏔</td><td>Paesaggio e Territorio</td><td>Geomorfologia, luce naturale, stagione, contesto geografico</td></tr>
+    <tr><td>🔭</td><td>Astrofotografia</td><td>Oggetti celesti, costellazioni, condizioni atmosferiche</td></tr>
+    <tr><td>🔬</td><td>Macro Scientifico</td><td>Dettaglio estremo, strutture microscopiche, entomologia</td></tr>
+    <tr><td>🐠</td><td>Subacqueo</td><td>Specie marine, comportamento, condizioni di visibilità</td></tr>
+    <tr><td>📰</td><td>Reportage e Documentario</td><td>Contesto sociale, narrativa visiva, documentazione storica</td></tr>
+    <tr><td>🛍</td><td>Commerciale e Prodotto</td><td>Prodotto, brand, comunicazione visiva, composizione tecnica</td></tr>
+    <tr><td>🌆</td><td>Street e Urbano</td><td>Vita urbana, architettura, luce ambientale, interazione sociale</td></tr>
+  </tbody>
+</table>
+
+<h3>Come selezionare un preset</h3>
+
+<ol>
+  <li>Vai nel tab <strong>Plugin</strong> e clicca <strong>Configura ▸</strong> nella card <em>Contesto Prompt</em></li>
+  <li>Seleziona un preset dalla lista</li>
+  <li>Clicca <strong>✅ Attiva</strong> — il preset diventa attivo per tutte le elaborazioni successive</li>
+  <li>Per tornare al prompt standard seleziona <strong>⬜ Standard</strong> e premi <strong>Attiva</strong></li>
+</ol>
+
+<p>Il preset attivo è mostrato accanto alla card nel tab Plugin e nel dropdown <strong>Contesto prompt</strong> del tab Elaborazione. Le impostazioni vengono ricordate tra le sessioni.</p>
+
+<h3>Preset utente</h3>
+
+<p>È possibile generare preset personalizzati tramite il modello LLM locale configurato in OffGallery:</p>
+
+<ol>
+  <li>Nel dialog <em>Configura</em>, espandi la sezione <strong>Genera nuovo preset</strong></li>
+  <li>Descrivi il dominio fotografico nel campo testo (es. <em>"archivio di fotografia subacquea in acque dolci, con focus su invertebrati e alghe"</em>)</li>
+  <li>Clicca <strong>Genera</strong> — il modello LLM crea il blocco CONTEXT ottimizzato</li>
+  <li>Rivedi il testo generato, dai un nome al preset e clicca <strong>Salva</strong></li>
+</ol>
+
+<p>I preset utente sono contrassegnati con ★ nella lista e possono essere eliminati con il pulsante <strong>🗑 Elimina</strong>. I preset built-in non possono essere eliminati.</p>
+
+<div class="callout tip">
+  <span class="icon">💡</span>
+  <div class="body">
+    <strong>Override per singola elaborazione</strong>
+    <p>Dal menu contestuale della Gallery (tasto destro su una foto → <em>Genera con LLM</em>) è possibile selezionare un preset diverso da quello attivo per quella specifica esecuzione, senza modificare il preset globale.</p>
+  </div>
+</div>
+
+<h2 id="plugin-accesso">9b.4 Accesso beta e installazione</h2>
 
 <div class="callout warning">
   <span class="icon">📬</span>

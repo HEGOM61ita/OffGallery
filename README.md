@@ -50,12 +50,10 @@
 
 | Data | Cosa | Note |
 |------|------|------|
+| 3 mag 2026 | **Plugin Contesto Prompt** | Inietta un blocco CONTEXT personalizzato nel prompt LLM Vision per adattare tag, descrizioni e titoli al dominio fotografico specifico dell'archivio. 8 preset built-in (naturalistico, paesaggio, astrofotografia, macro scientifico, subacqueo, reportage, commerciale, street) + generazione preset personalizzati via LLM locale. Preset selezionabile dal tab Plugin o dal menu contestuale in Gallery |
 | 22 apr 2026 | **Compatibilità Darktable e altri editor** | Supporto completo al workflow Darktable: lettura sidecar `.NEF.xmp` / `.ARW.xmp` (convenzione `nomefile.EXT.xmp`), preservazione namespace proprietari nella creazione di nuovi sidecar, import XMP→DB e sync badge dalla Gallery, opzione **Output format: Lightroom / Darktable** nel tab Export. Compatibile con Lightroom, Darktable, Capture One, digiKam, ACDSee, FastRawViewer |
 | 12 apr 2026 | **Filtro tassonomia con autocompletamento** | Il filtro "Nome comune" nella Search Tab propone i nomi già presenti nel DB mentre si digita (QComboBox editabile con ricerca per contenuto, case-insensitive) |
 | 5 apr 2026 | **Plugin GeoNames** | Geolocalizzazione avanzata: gerarchia geografica completa (continente → nazione → regione → città), filtro Luogo con autocompletamento dal DB, filtro GPS a 4 stati (tutti / solo GPS / GPS modificato / senza GPS) |
-| 5 apr 2026 | **Filtro Luogo con autocompletamento** | Il campo Luogo nella Search Tab suggerisce le città/regioni già presenti nel database mentre si digita |
-| 22 mar 2026 | **Allocazione device per-modello con auto-ottimizzazione** | Ogni modello AI (CLIP, DINOv2, BioCLIP, Aesthetic, MUSIQ) può essere assegnato individualmente a GPU o CPU. L'algoritmo di auto-ottimizzazione rileva hardware (CUDA/MPS/DirectML), calcola il budget VRAM (incluso LLM), e distribuisce i modelli bilanciando velocità GPU e parallelismo CPU. Barra budget VRAM in tempo reale nel tab Configurazione |
-| 21 mar 2026 | **Sistema Plugin LLM** | Plugin per backend LLM alternativi: **Ollama** (default) e **LM Studio**. Auto-discovery all'avvio, backend selezionabile dal tab Configurazione. Il backend viene rilevato automaticamente (`auto`) senza configurazione manuale |
 
 Storico completo nelle [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
@@ -653,12 +651,10 @@ For a full step-by-step guide see **[installer/INSTALL_GUIDE_EN.md](installer/IN
 
 | Date | What | Notes |
 |------|------|-------|
+| 3 May 2026 | **Prompt Context Plugin** | Injects a custom CONTEXT block into the LLM Vision prompt to tailor tags, descriptions and titles to the archive's specific photographic domain. 8 built-in presets (wildlife, landscape, astrophotography, scientific macro, underwater, reportage, commercial, street) + generate custom presets via local LLM. Preset selectable from the Plugin tab or the Gallery context menu |
 | 22 Apr 2026 | **Darktable & multi-editor compatibility** | Full Darktable workflow support: reads `.NEF.xmp` / `.ARW.xmp` sidecars (Darktable `filename.EXT.xmp` convention), preserves proprietary namespaces when creating new sidecars, XMP→DB import and badge sync from Gallery, **Output format: Lightroom / Darktable** option in Export tab. Compatible with Lightroom, Darktable, Capture One, digiKam, ACDSee, FastRawViewer |
 | 12 Apr 2026 | **Taxonomy filter with autocomplete** | The "Common name" filter in the Search Tab suggests names already in the DB while typing (editable QComboBox with contains-search, case-insensitive) |
 | 5 Apr 2026 | **GeoNames plugin** | Advanced geolocation: full geographic hierarchy (continent → country → region → city), Location filter with DB autocomplete, GPS filter with 4 states (all / GPS only / GPS modified / no GPS) |
-| 5 Apr 2026 | **Location filter with autocomplete** | The Location field in the Search Tab suggests cities/regions already in the database while typing |
-| 22 Mar 2026 | **Per-model device allocation with auto-optimization** | Each AI model (CLIP, DINOv2, BioCLIP, Aesthetic, MUSIQ) can be individually assigned to GPU or CPU. Auto-optimization detects hardware (CUDA/MPS/DirectML), calculates VRAM budget (including LLM), and balances GPU speed vs CPU parallelism. Real-time VRAM budget bar in Configuration tab |
-| 21 Mar 2026 | **LLM Plugin System** | Plugins for alternative LLM backends: **Ollama** (default) and **LM Studio**. Auto-discovery at startup, backend selectable from the Configuration tab. Backend auto-detected (`auto`) with no manual setup needed |
 
 Full history in [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
