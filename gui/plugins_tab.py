@@ -1086,18 +1086,27 @@ class PromptContextConfigDialog(QDialog):
 
     # ── logica preset ─────────────────────────────────────────────────────────
 
+    # Voce sentinella che rappresenta "nessun contesto aggiuntivo"
+    _STANDARD_PRESET = {
+        'id': '',
+        'name': 'Standard',
+        'icon': '⬜',
+        'source': 'builtin',
+        'context_block': '(Nessun contesto aggiuntivo — prompt standard OffGallery)',
+    }
+
     def _load_presets(self):
         self._preset_list.blockSignals(True)
         self._preset_list.clear()
-        self._presets = []
+        self._presets = [self._STANDARD_PRESET]
         try:
             mod = self._plugin_module()
-            self._presets = mod.load_all_presets()
+            self._presets += mod.load_all_presets()
         except Exception as e:
             logger.warning(f"Errore caricamento preset: {e}")
 
         active_id = self._active_preset_id()
-        active_row = -1
+        active_row = 0  # Standard selezionato di default
         for i, p in enumerate(self._presets):
             icon   = p.get('icon', '')
             name   = p.get('name', p.get('id', ''))
@@ -1109,11 +1118,7 @@ class PromptContextConfigDialog(QDialog):
                 active_row = i
 
         self._preset_list.blockSignals(False)
-
-        if active_row >= 0:
-            self._preset_list.setCurrentRow(active_row)
-        else:
-            self._update_active_label(active_id)
+        self._preset_list.setCurrentRow(active_row)
 
     def _on_preset_selected(self, row: int):
         if row < 0 or row >= len(self._presets):
@@ -1127,6 +1132,7 @@ class PromptContextConfigDialog(QDialog):
         is_active = (p.get('id') == active_id)
         # Attiva disabilitato se già attivo, così non appare sempre verde
         self._btn_activate.setEnabled(not is_active)
+        # Standard e preset builtin non si possono eliminare
         self._btn_delete.setEnabled(p.get('source') == 'user')
 
     def _on_activate(self):
@@ -1157,7 +1163,7 @@ class PromptContextConfigDialog(QDialog):
 
     def _update_active_label(self, preset_id: str):
         if not preset_id:
-            self._lbl_active.setText("Nessun preset attivo")
+            self._lbl_active.setText("▶ Standard")
             self._lbl_active.setStyleSheet(
                 f"font-size: 11px; color: {_COLORS['grigio_medio']}; font-style: italic;"
             )
@@ -1345,7 +1351,7 @@ class PromptContextPluginCard(QFrame):
             active_id = self._config.get('prompt_context', {}).get('active_preset', '')
 
         if not active_id:
-            self._lbl_active.setText("Nessun preset")
+            self._lbl_active.setText("▶ Standard")
             self._lbl_active.setStyleSheet(
                 f"font-size: 11px; color: {_COLORS['grigio_medio']}; font-style: italic;"
             )
