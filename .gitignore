@@ -30,6 +30,13 @@ update_beta.*
 !plugins/
 !plugins/*.py
 !plugins/*.md
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  PERICOLO: plugins/*/ è IGNORATO (non untracked) da questo repo.    ║
+# ║  git checkout da branch che le traccia → le CANCELLA dal disco.     ║
+# ║  NON usare mai branch temporanei nel main working tree per beta.     ║
+# ║  Usare SEMPRE update_beta.bat / update_beta.sh  per il push beta.   ║
+# ║  Recupero: git archive remotes/beta/main -- plugins/NOME/ | tar -x  ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 # Sottodirectory plugin: solo nella repo privata beta, mai nella repo pubblica
 plugins/*/
 plugins/*/*
