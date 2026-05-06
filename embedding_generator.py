@@ -304,7 +304,8 @@ class EmbeddingGenerator:
         return image
 
     def _init_translator(self):
-        """Inizializza traduttore Argos IT->EN dal repo congelato o server ufficiale"""
+        """Inizializza traduttore Argos IT->EN.
+        Priorità: modelli locali (installer) → repo congelato HF → server Argos ufficiale."""
         try:
             import argostranslate.package
             import argostranslate.translate
@@ -339,13 +340,35 @@ class EmbeddingGenerator:
 
                 downloaded = False
 
+                # Step 0: installa da modelli locali scaricati dall'installer
+                # L'installer salva i file raw in {models_dir}/argos-it-en/ ma non chiama
+                # install_from_path(), quindi argostranslate non li "vede" finché non
+                # creiamo noi l'archivio .argosmodel e lo installiamo.
+                argos_local = self._get_models_dir() / argos_subfolder
+                if argos_local.exists() and (argos_local / 'metadata.json').exists():
+                    try:
+                        import zipfile
+                        import tempfile
+                        import shutil as _shutil
+                        _tmp = Path(tempfile.mkdtemp())
+                        _argosmodel = _tmp / "translate-it_en.argosmodel"
+                        with zipfile.ZipFile(_argosmodel, 'w', zipfile.ZIP_DEFLATED) as zf:
+                            for fp in argos_local.rglob('*'):
+                                if fp.is_file():
+                                    zf.write(fp, fp.relative_to(argos_local))
+                        argostranslate.package.install_from_path(str(_argosmodel))
+                        _shutil.rmtree(str(_tmp), ignore_errors=True)
+                        downloaded = True
+                        logger.info("[OK] Argos IT->EN installato da modelli locali")
+                    except Exception as e:
+                        logger.warning(f"Argos: installazione da locale fallita ({e}), provo repo...")
+
                 # Prova repo congelato
-                if frozen_repo:
+                if not downloaded and frozen_repo:
                     try:
                         from huggingface_hub import hf_hub_download
                         import tempfile
                         import shutil
-
 
                         # Scarica metadata per verificare presenza
                         metadata_path = hf_hub_download(
