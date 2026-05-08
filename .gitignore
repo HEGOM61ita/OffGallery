@@ -135,5 +135,12 @@ tagging_log.txt
 # Directory POC / sviluppo locale (non pubblicare)
 llm_plugin_poc/
 
+# Installer GUI — incluso nel repo pubblico
+A_INSTALLER/build/
+A_INSTALLER/dist/
+A_INSTALLER/__pycache__/
+A_INSTALLER/**/__pycache__/
+A_INSTALLER/state/installer_state.json
+
 # Diario di sviluppo — solo locale, mai in push/pull
 DIARY/
