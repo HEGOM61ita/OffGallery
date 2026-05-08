@@ -80,6 +80,7 @@ plugins/geospecies/cache/*.json
 !A_INSTALLER/assets/
 !A_INSTALLER/assets/*.png
 !A_INSTALLER/assets/*.ico
+!A_INSTALLER/requirements_offgallery.txt
 
 # Documentazione (manuale utente e pagine web pubbliche)
 !HTML/
@@ -154,6 +155,9 @@ tagging_log.txt
 
 # Directory POC / sviluppo locale (non pubblicare)
 llm_plugin_poc/
+
+# Vecchio installer manuale — rimosso, sostituito da A_INSTALLER/
+installer/
 
 # Installer GUI — incluso nel repo pubblico
 A_INSTALLER/build/

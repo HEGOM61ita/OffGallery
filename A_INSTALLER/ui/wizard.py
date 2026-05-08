@@ -6,6 +6,7 @@ alla finestra principale. Nessuna finestra propria.
 
 import os
 import platform
+import sys
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -466,8 +467,9 @@ class InstallPage(tk.Frame):
                 self._step("Librerie Python", "in_progress")
                 self._panel.set_step_indeterminate("Rilevamento GPU...")
                 variant  = detect_torch_variant(log_cb=self._log)
-                req_file = os.path.join(self.app.install_path, "installer",
-                                        "requirements_offgallery.txt")
+                _inst_base = sys._MEIPASS if getattr(sys, "frozen", False) \
+                    else os.path.dirname(os.path.dirname(__file__))
+                req_file = os.path.join(_inst_base, "requirements_offgallery.txt")
                 self._panel.set_step_indeterminate(
                     f"Librerie ({torch_variant_label(variant)})...")
                 install_packages(

@@ -4,6 +4,7 @@ Vive dentro AppWindow insieme alle pagine del wizard.
 """
 
 import os
+import sys
 import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -420,8 +421,9 @@ class DashboardPage(tk.Frame):
                 conda_exe  = _find_conda_exe(sm)
                 python_exe = python_executable(conda_exe)
                 variant    = detect_torch_variant()
-                req_file   = os.path.join(sm.install_path, "installer",
-                                          "requirements_offgallery.txt")
+                _inst_base = sys._MEIPASS if getattr(sys, "frozen", False) \
+                    else os.path.dirname(os.path.dirname(__file__))
+                req_file   = os.path.join(_inst_base, "requirements_offgallery.txt")
                 self._set_row("packages", "in_progress", "Reinstallazione...")
                 self._panel.set_step_indeterminate(
                     f"Librerie ({torch_variant_label(variant)})...")

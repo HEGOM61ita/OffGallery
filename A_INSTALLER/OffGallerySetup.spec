@@ -33,6 +33,8 @@ a = Analysis(
         (r"C:\Users\HEGOM\anaconda3\Library\lib\tk8.6",  "tk8.6"),
         # Logo header
         (r"assets\logo_header.png", "assets"),
+        # Requirements pip — bundlato nell'exe, non dipende più da /installer
+        (r"requirements_offgallery.txt", "."),
     ],
     hiddenimports=[
         # tkinter e ttk non sempre rilevati automaticamente
