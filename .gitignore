@@ -61,6 +61,26 @@ plugins/geospecies/cache/*.json
 !installer/*.txt
 !installer/*.json
 
+# Installer GUI (OffGallery Manager)
+!A_INSTALLER/
+!A_INSTALLER/*.py
+!A_INSTALLER/*.md
+!A_INSTALLER/*.bat
+!A_INSTALLER/*.sh
+!A_INSTALLER/*.spec
+!A_INSTALLER/*.txt
+!A_INSTALLER/components/
+!A_INSTALLER/components/*.py
+!A_INSTALLER/state/
+!A_INSTALLER/state/*.py
+!A_INSTALLER/ui/
+!A_INSTALLER/ui/*.py
+!A_INSTALLER/utils/
+!A_INSTALLER/utils/*.py
+!A_INSTALLER/assets/
+!A_INSTALLER/assets/*.png
+!A_INSTALLER/assets/*.ico
+
 # Documentazione (manuale utente e pagine web pubbliche)
 !HTML/
 !HTML/USER_MANUAL_IT.html

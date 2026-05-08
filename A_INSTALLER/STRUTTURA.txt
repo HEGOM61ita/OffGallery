@@ -1,0 +1,104 @@
+A_INSTALLER/
+├── installer.py                  ← entry point, unico tk.Tk()
+│                                    Decide: wizard (prima volta) o dashboard (già installato)
+│
+├── OffGallerySetup.spec          ← spec PyInstaller per la build dell'exe
+├── build.bat                     ← build Windows (doppio clic)
+├── build.sh                      ← build macOS / Linux
+├── DESIGN.md                     ← documento di progetto e stato avanzamento
+├── STRUTTURA.txt                 ← questo file
+│
+├── components/                   ← un modulo per ogni componente installabile
+│   ├── __init__.py
+│   ├── miniconda.py              ← rileva / scarica / installa Miniconda
+│   ├── conda_env.py              ← crea / verifica / ricrea env OffGallery
+│   ├── core.py                   ← scarica sorgente da GitHub, estrae, versioning
+│   ├── packages.py               ← pip install, rilevamento GPU/CUDA, versioni pinnate
+│   ├── models.py                 ← scarica modelli AI da HuggingFace (manifest + resume)
+│   ├── ollama.py                 ← installa Ollama, avvia server, pull modello
+│   └── lmstudio.py               ← installa LM Studio, verifica API
+│
+├── state/                        ← persistenza stato installazione
+│   ├── __init__.py
+│   └── state_manager.py          ← legge/scrive installer_state.json (scrittura atomica)
+│
+├── ui/                           ← interfaccia grafica (tutti tk.Frame, nessun tk.Tk proprio)
+│   ├── __init__.py
+│   ├── wizard.py                 ← 5 pagine del wizard di prima installazione:
+│   │                                  WelcomePage    → scelta profilo (Leggero / Completo / Personalizzato)
+│   │                                  PreflightPage  → controllo sistema (OS, RAM, disco, rete, GPU)
+│   │                                  PathPage       → scelta cartella + rilevamento conda esistente
+│   │                                  InstallPage    → installazione con sidebar step + download panel
+│   │                                  DonePage       → completamento + avvia / gestisci
+│   │
+│   ├── dashboard.py              ← DashboardPage: manutenzione post-installazione
+│   │                                  Mostra stato di ogni componente (✅ ❌ 🔄)
+│   │                                  Permette aggiornare / reinstallare / aggiungere singoli componenti
+│   │
+│   └── progress.py               ← widget riutilizzabili (thread-safe):
+│                                      ProgressBar    → barra con speed e ETA
+│                                      DownloadPanel  → barra file + barra globale + log
+│                                      StepIndicator  → lista fasi con icone animate
+│
+└── utils/                        ← utilità senza dipendenze esterne
+    ├── __init__.py
+    ├── preflight.py              ← check OS / RAM / disco / connessione / GPU
+    └── download.py               ← download chunked con resume, hash SHA256, retry
+
+
+FLUSSO DI NAVIGAZIONE
+─────────────────────
+
+Prima installazione:
+
+  [welcome] → [preflight] → [path] → [install] → [done]
+                                                     │
+                                                     └──→ [dashboard]  (pulsante "Gestisci")
+
+Installazione già presente (rilevata da installer_state.json):
+
+  [dashboard]  (direttamente, salta il wizard)
+
+
+FLUSSO INSTALLAZIONE (InstallPage, thread secondario)
+─────────────────────────────────────────────────────
+
+  FASE 0  Preflight        verifica OS, RAM, disco, rete, GPU
+  FASE 1  Miniconda        rileva nel sistema o scarica/installa silenziosamente
+  FASE 2  Ambiente Python  conda create -n OffGallery python=3.12
+  FASE 3  Codice           scarica ZIP da GitHub main, estrae (strip prefisso OffGallery-main/)
+  FASE 4  Librerie         pip install requirements + PyTorch variante GPU/CPU
+  FASE 5  Modelli AI       scarica da HuggingFace HEGOM/OffGallery-models con resume:
+                               CLIP ViT-L/14        ~580 MB
+                               DINOv2               ~330 MB
+                               Aesthetic Scorer    ~1600 MB
+                               BioCLIP + TreeOfLife ~4200 MB
+                               Argos Translate IT→EN  ~92 MB
+  FASE 6  Ollama           (solo profilo Completo) installa + pull qwen3-vl:8b (~5.2 GB)
+  FASE 7  Collegamento     crea shortcut desktop (.lnk / .command / .desktop)
+
+  Ogni fase scrive il proprio stato in installer_state.json → riprendibile dopo interruzione.
+
+
+STATO PER COMPONENTE (installer_state.json)
+────────────────────────────────────────────
+
+  pending       →  non ancora iniziato
+  in_progress   →  avviato ma non completato (o interrotto)
+  done          →  completato con successo
+  error         →  fallito (messaggio in campo "error")
+  skipped       →  saltato per scelta dell'utente (es. Ollama su profilo Leggero)
+  not_installed →  non presente nel sistema (usato dalla dashboard)
+
+
+PIATTAFORME SUPPORTATE
+───────────────────────
+
+  Windows 10/11  64-bit    →  exe PyInstaller, installer .exe Miniconda/Ollama/LMStudio
+  macOS 12+      arm64     →  bundle .app, Metal/MPS per GPU, Homebrew per Ollama
+  macOS 12+      x86_64    →  bundle .app, CPU-only
+  Linux          x86_64    →  binary PyInstaller, script .sh Miniconda/Ollama, AppImage LMStudio
+
+  Build: compilare con PyInstaller SULLA piattaforma target (non cross-compilazione).
+  Windows → build.bat   |   macOS / Linux → bash build.sh
+  Alternativa CI/CD: GitHub Actions con runner windows-latest / macos-latest / ubuntu-latest.
