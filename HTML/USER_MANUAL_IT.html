@@ -449,10 +449,10 @@
 <!-- ===== PRIMO AVVIO ===== -->
 <h1 id="primo-avvio"><span class="section-number">2</span>Primo Avvio</h1>
 
-<p>Dopo l'installazione (vedi <code>installer/INSTALL_GUIDE_IT.md</code>), avvia OffGallery tramite lo script <code>installer/INSTALLA_OffGallery.bat</code> (Windows) o il launcher corrispondente per macOS/Linux. Al <strong>primo avvio</strong> l'applicazione scarica automaticamente i modelli AI (~6,7 GB totali). Un pannello di progresso mostra l'avanzamento. Questo passaggio avviene una volta sola.</p>
+<p>Dopo l'installazione, avvia OffGallery tramite il collegamento sul Desktop creato dal wizard (<strong>Windows</strong>) o il launcher corrispondente per macOS/Linux (vedi <code>installer/INSTALL_GUIDE_IT.md</code>). Al <strong>primo avvio</strong> l'applicazione scarica automaticamente i modelli AI (~6,7 GB totali). Un pannello di progresso mostra l'avanzamento. Questo passaggio avviene una volta sola.</p>
 
 <ol class="steps">
-  <li><p>Avvia OffGallery tramite lo script launcher nella cartella <code>installer/</code>.</p></li>
+  <li><p><strong>Windows</strong>: usa il collegamento sul Desktop creato da <code>OffGallerySetup.exe</code>. <strong>Linux/macOS</strong>: usa il launcher nella cartella <code>installer/</code>.</p></li>
   <li><p>Al primo avvio appare una splash screen che scarica i modelli AI. Connessione internet necessaria solo in questo momento.</p></li>
   <li><p>Al termine del download l'interfaccia principale appare con 8 tab.</p></li>
   <li><p>(Opzionale) Assicurati che <strong>Ollama</strong> sia in esecuzione se vuoi generare tag e descrizioni LLM. Su Windows avvia l'app Ollama; su macOS/Linux il daemon parte automaticamente.</p></li>
@@ -1564,7 +1564,7 @@ Destinazione (es. E:\Backup):
 <p>Vai in <strong>Configurazione → Lingua output LLM</strong> e seleziona "Italiano". Usa poi "Solo Gen. AI" per rigenerare i tag su tutte le foto già nel database.</p>
 
 <h3>La ricerca semantica non trova foto pertinenti</h3>
-<p>Gli embedding CLIP potrebbero essere stati generati con una versione incompatibile del modello. Rielabora le foto con "Riprocessa tutte" dopo aver verificato le versioni delle librerie (vedi <code>installer/INSTALL_GUIDE_IT.md</code> per i requisiti di versione).</p>
+<p>Gli embedding CLIP potrebbero essere stati generati con una versione incompatibile del modello. Rielabora le foto con "Riprocessa tutte" dopo aver verificato le versioni delle librerie (vedi <code>installer/INSTALL_GUIDE_IT.md</code> per i requisiti di versione — Linux/macOS — oppure reinstalla tramite <code>OffGallerySetup.exe</code> su Windows).</p>
 
 <h3>Una foto RAW non viene elaborata</h3>
 <p>Alcuni formati RAW high-efficiency (es. NEF con compressione loss-less) non contengono un'anteprima JPEG estraibile. In questi casi OffGallery salva i metadati EXIF ma salta embedding e LLM. Controlla il tab Log per i dettagli.</p>
@@ -1636,7 +1636,7 @@ Destinazione (es. E:\Backup):
 
 <h1 id="disinstallazione"><span class="section-number">17</span>Disinstallazione</h1>
 
-<p>OffGallery non ha un installer tradizionale: è una cartella estratta con un ambiente conda associato. La rimozione completa si esegue in due passi: eliminare l'ambiente conda e rimuovere la cartella dell'applicazione.</p>
+<p><strong>Windows</strong>: OffGallerySetup.exe non include una funzione di disinstallazione automatica. La rimozione si esegue manualmente in due passi: eliminare l'ambiente conda e rimuovere la cartella dell'applicazione. <strong>Linux/macOS</strong>: stessa procedura — cartella estratta con ambiente conda associato.</p>
 
 <div class="callout warning">
   <span class="icon">⚠️</span>

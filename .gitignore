@@ -52,14 +52,15 @@ plugins/geospecies/cache/*.json
 !*.yaml
 !*.yml
 
-# Installer
+# Installer (Linux/macOS — script bash e guide)
+# I .bat Windows sono obsoleti (sostituiti da OffGallerySetup.exe) e non tracciati
 !installer/
 !installer/*.py
-!installer/*.bat
 !installer/*.sh
 !installer/*.md
 !installer/*.txt
 !installer/*.json
+installer/*.bat
 
 # Installer GUI (OffGallery Manager)
 !A_INSTALLER/

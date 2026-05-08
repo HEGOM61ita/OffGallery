@@ -193,9 +193,12 @@ git clone https://github.com/HEGOM61ita/OffGallery.git
 
 #### Windows
 
-1. Apri la cartella `installer`
-2. **Doppio click** su **`INSTALLA_OffGallery.bat`**
-3. Segui le istruzioni a schermo
+**[Scarica OffGallerySetup.exe](https://github.com/HEGOM61ita/OffGallery/releases/latest)**, fai doppio click e segui il wizard.
+Nessun terminale, nessuna configurazione manuale.
+
+> **Nota SmartScreen**: al primo avvio Windows potrebbe mostrare un avviso di sicurezza. Clicca **"Ulteriori informazioni" → "Esegui comunque"**. L'avviso è dovuto all'assenza di firma digitale EV, non a problemi di sicurezza.
+
+> **Versioni future per Linux e macOS**: il wizard grafico per Linux e macOS è in lavorazione. Nel frattempo usa il metodo da terminale descritto qui sotto.
 
 #### Linux
 
@@ -219,17 +222,11 @@ git clone https://github.com/HEGOM61ita/OffGallery.git
 >
 > **Nota Gatekeeper**: al primo avvio di `OffGallery.app` o `OffGallery.command`, macOS potrebbe mostrare un avviso di sicurezza. Usa **tasto destro → Apri** per confermarlo. L'installer rimuove già l'attributo quarantine automaticamente, quindi l'avviso normalmente non compare.
 
-Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Python, librerie, ExifTool e opzionalmente Ollama per le descrizioni AI. Al termine crea un collegamento per avviare l'app (`.lnk` sul Desktop su Windows, voce nel menu applicazioni su Linux, `OffGallery.app` in `~/Applications` cercabile via Spotlight e Launchpad su macOS).
+Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Python, librerie, ExifTool e opzionalmente Ollama per le descrizioni AI. Al termine crea un collegamento per avviare l'app (su Windows il wizard crea un collegamento sul Desktop, voce nel menu applicazioni su Linux, `OffGallery.app` in `~/Applications` cercabile via Spotlight e Launchpad su macOS).
 
 > **Tempo stimato**: 20-40 minuti. Al primo avvio, OffGallery scarica automaticamente i modelli AI (~6.7 GB). Gli avvii successivi saranno completamente offline.
 
 ### Installazione manuale (alternativa)
-
-**Windows** - script batch separati:
-1. `installer/01_install_miniconda.bat` - Verifica/installa Miniconda
-2. `installer/02_create_env.bat` - Crea ambiente Python
-3. `installer/03_install_packages.bat` - Installa librerie
-4. `installer/06_setup_ollama.bat` - Ollama + LLM Vision (opzionale)
 
 **Linux** - usa il wizard `install_offgallery_linux_it.sh` che copre tutti gli step, oppure installa manualmente:
 1. Installa [Miniconda](https://docs.anaconda.com/miniconda/install/) per Linux
@@ -248,7 +245,8 @@ Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Pyth
 
 ### Istruzioni Dettagliate
 
-Per una guida passo-passo completa, consulta **[installer/INSTALL_GUIDE_IT.md](installer/INSTALL_GUIDE_IT.md)**.
+- **Windows**: il wizard `OffGallerySetup.exe` guida l'intera installazione — non è necessaria una guida separata.
+- **Linux/macOS**: guida passo-passo completa in **[installer/INSTALL_GUIDE_IT.md](installer/INSTALL_GUIDE_IT.md)**.
 
 ---
 
@@ -262,11 +260,9 @@ Workflow tipico: importa una cartella o un catalogo `.lrcat` → elabora con AI 
 
 | Sistema | Metodo consigliato |
 |---------|-------------------|
-| **Windows** | Doppio click sul collegamento **OffGallery.lnk** creato sul Desktop dall'installer |
+| **Windows** | Doppio click sul collegamento **OffGallery** creato sul Desktop dal wizard `OffGallerySetup.exe` |
 | **macOS** | Apri **OffGallery.app** da `~/Applications` o cerca con Spotlight |
 | **Linux** | Usa la voce nel menu applicazioni, oppure `bash installer/offgallery_launcher_linux.sh` dalla cartella dell'app |
-
-> **Attenzione (Windows):** non copiare o spostare `OffGallery_Launcher.bat` sul Desktop o in altre cartelle — il file `.bat` usa il suo percorso per trovare l'applicazione e non funziona se spostato. Usa sempre il **collegamento** `.lnk` creato dall'installer, che punta al `.bat` originale. Se hai perso il collegamento: tasto destro su `installer\OffGallery_Launcher.bat` → **Invia a → Desktop (crea collegamento)**.
 
 > **Manuale Utente completo (IT):** **[docs/USER_MANUAL_IT.html](docs/USER_MANUAL_IT.html)**
 > — Descrizione dettagliata di ogni tab, opzione, badge, concetti avanzati (BioCLIP, geotag, sync state) e troubleshooting.
@@ -607,9 +603,13 @@ git clone https://github.com/HEGOM61ita/OffGallery.git
 ### 2. Install with the Wizard
 
 #### Windows
-1. Open the `installer` folder
-2. **Double-click** **`INSTALLA_OffGallery.bat`**
-3. Follow the on-screen instructions
+
+**[Download OffGallerySetup.exe](https://github.com/HEGOM61ita/OffGallery/releases/latest)**, double-click it and follow the wizard.
+No terminal, no manual configuration needed.
+
+> **SmartScreen note**: on first launch Windows may show a security warning. Click **"More info" → "Run anyway"**. The warning is due to the absence of an EV code signing certificate, not a security issue.
+
+> **Linux and macOS versions coming soon**: a graphical wizard for Linux and macOS is in development. In the meantime, use the terminal method described below.
 
 #### Linux
 ```bash
@@ -623,7 +623,7 @@ bash installer/install_offgallery_mac_it.sh
 
 > **Apple Silicon (M1/M2/M3/M4)**: PyTorch automatically uses Metal/MPS for GPU acceleration — no extra configuration needed.
 
-The wizard installs everything automatically: Miniconda, Python environment, libraries, ExifTool and optionally Ollama for AI descriptions. On completion it creates a launcher shortcut (Desktop `.lnk` on Windows, application menu entry on Linux, `OffGallery.app` in `~/Applications` on macOS).
+The wizard installs everything automatically: Miniconda, Python environment, libraries, ExifTool and optionally Ollama for AI descriptions. On completion it creates a launcher shortcut (Desktop shortcut on Windows, application menu entry on Linux, `OffGallery.app` in `~/Applications` on macOS).
 
 > **Estimated time**: 20–40 minutes. On first launch OffGallery downloads AI models (~6.7 GB). All subsequent launches are fully offline.
 
@@ -643,7 +643,8 @@ The wizard installs everything automatically: Miniconda, Python environment, lib
 4. Install ExifTool: `brew install exiftool`
 5. (Optional) Install [Ollama](https://ollama.com/download) and `ollama pull qwen3-vl:8b-instruct-q4_K_M`
 
-For a full step-by-step guide see **[installer/INSTALL_GUIDE_EN.md](installer/INSTALL_GUIDE_EN.md)**.
+- **Windows**: the `OffGallerySetup.exe` wizard handles the entire installation — no separate guide needed.
+- **Linux/macOS**: full step-by-step guide in **[installer/INSTALL_GUIDE_EN.md](installer/INSTALL_GUIDE_EN.md)**.
 
 ---
 
@@ -670,11 +671,9 @@ Typical workflow: import a folder or `.lrcat` catalog → process with AI → se
 
 | OS | Recommended method |
 |----|-------------------|
-| **Windows** | Double-click the **OffGallery.lnk** shortcut created on the Desktop by the installer |
+| **Windows** | Double-click the **OffGallery** shortcut created on the Desktop by the `OffGallerySetup.exe` wizard |
 | **macOS** | Open **OffGallery.app** from `~/Applications` or search via Spotlight |
 | **Linux** | Use the application menu entry, or run `bash installer/offgallery_launcher_linux_en.sh` from the app folder |
-
-> **Windows note:** do not copy or move `OffGallery_Launcher.bat` to the Desktop or any other folder — the `.bat` uses its own location to find the application and will fail if moved. Always use the `.lnk` **shortcut** created by the installer, which points to the original `.bat`. If you lost the shortcut: right-click `installer\OffGallery_Launcher_EN.bat` → **Send to → Desktop (create shortcut)**.
 
 > **Full User Manual (EN):** **[docs/USER_MANUAL_EN.html](docs/USER_MANUAL_EN.html)**
 > — Detailed description of every tab, option, badge, advanced concepts (BioCLIP, geotagging, sync state) and troubleshooting.

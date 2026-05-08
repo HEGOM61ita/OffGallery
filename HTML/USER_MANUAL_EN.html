@@ -276,10 +276,10 @@
 <!-- ===== FIRST LAUNCH ===== -->
 <h1 id="first-launch"><span class="section-number">2</span>First Launch</h1>
 
-<p>After installation (see <code>installer/INSTALL_GUIDE_EN.md</code>), start OffGallery using the <code>installer/INSTALL_OffGallery_EN.bat</code> script (Windows) or the corresponding launcher for macOS/Linux. On <strong>first launch</strong>, the application automatically downloads the AI models (~6.7 GB total). A progress panel shows the download status. This happens only once.</p>
+<p>After installation, start OffGallery using the Desktop shortcut created by the wizard (<strong>Windows</strong>) or the corresponding launcher for macOS/Linux (see <code>installer/INSTALL_GUIDE_EN.md</code>). On <strong>first launch</strong>, the application automatically downloads the AI models (~6.7 GB total). A progress panel shows the download status. This happens only once.</p>
 
 <ol class="steps">
-  <li><p>Start OffGallery using the launcher script in the <code>installer/</code> folder.</p></li>
+  <li><p><strong>Windows</strong>: use the Desktop shortcut created by <code>OffGallerySetup.exe</code>. <strong>Linux/macOS</strong>: use the launcher script in the <code>installer/</code> folder.</p></li>
   <li><p>On first launch a splash screen appears while downloading the AI models. An internet connection is needed only at this point.</p></li>
   <li><p>Once the download completes the main interface appears with 8 tabs.</p></li>
   <li><p>(Optional) Make sure <strong>Ollama</strong> is running if you want to generate LLM tags and descriptions. On Windows start the Ollama app; on macOS/Linux the daemon starts automatically.</p></li>
@@ -1390,7 +1390,7 @@ Destination (e.g. E:\Backup):
 <p>Go to <strong>Configuration → LLM output language</strong> and select "English". Then use "AI Gen. Only" to regenerate tags for all photos already in the database.</p>
 
 <h3>Semantic search is not finding relevant photos</h3>
-<p>CLIP embeddings may have been generated with an incompatible library version. Reprocess photos with "Reprocess all" after verifying library versions (see <code>installer/INSTALL_GUIDE_EN.md</code> for version requirements).</p>
+<p>CLIP embeddings may have been generated with an incompatible library version. Reprocess photos with "Reprocess all" after verifying library versions (see <code>installer/INSTALL_GUIDE_EN.md</code> for version requirements — Linux/macOS — or reinstall using <code>OffGallerySetup.exe</code> on Windows).</p>
 
 <h3>A RAW file is not being processed</h3>
 <p>Some high-efficiency RAW formats (e.g. NEF with lossless compression) do not contain an extractable JPEG preview. In these cases OffGallery saves EXIF metadata but skips embeddings and LLM. Check the Log tab for details.</p>
@@ -1462,7 +1462,7 @@ Destination (e.g. E:\Backup):
 
 <h1 id="uninstall"><span class="section-number">17</span>Uninstalling</h1>
 
-<p>OffGallery has no traditional installer: it is an extracted folder with an associated conda environment. Full removal involves two steps: removing the conda environment and deleting the application folder.</p>
+<p><strong>Windows</strong>: OffGallerySetup.exe does not include an automatic uninstaller. Removal is done manually in two steps: removing the conda environment and deleting the application folder. <strong>Linux/macOS</strong>: same procedure — an extracted folder with an associated conda environment.</p>
 
 <div class="callout warning">
   <span class="icon">⚠️</span>
