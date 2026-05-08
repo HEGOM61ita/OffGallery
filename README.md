@@ -50,6 +50,7 @@
 
 | Data | Cosa | Note |
 |------|------|------|
+| 8 mag 2026 | **OffGallery Manager — installer one-click per Windows** | Nessun terminale, nessuna configurazione manuale. Scarica [`OffGallerySetup.exe`](https://github.com/HEGOM61ita/OffGallery/releases/latest), fai doppio click e segui il wizard in 5 schermate. Installa Miniconda, ambiente Python, librerie, modelli AI (~8 GB) e opzionalmente Ollama. Rilevamento GPU automatico (NVIDIA/AMD/CPU). Linux e macOS: wizard in sviluppo, usare gli script nella cartella `installer/` |
 | 3 mag 2026 | **Plugin Contesto Prompt** | Inietta un blocco CONTEXT personalizzato nel prompt LLM Vision per adattare tag, descrizioni e titoli al dominio fotografico specifico dell'archivio. 8 preset built-in (naturalistico, paesaggio, astrofotografia, macro scientifico, subacqueo, reportage, commerciale, street) + generazione preset personalizzati via LLM locale. Preset selezionabile dal tab Plugin o dal menu contestuale in Gallery |
 | 22 apr 2026 | **Compatibilità Darktable e altri editor** | Supporto completo al workflow Darktable: lettura sidecar `.NEF.xmp` / `.ARW.xmp` (convenzione `nomefile.EXT.xmp`), preservazione namespace proprietari nella creazione di nuovi sidecar, import XMP→DB e sync badge dalla Gallery, opzione **Output format: Lightroom / Darktable** nel tab Export. Compatibile con Lightroom, Darktable, Capture One, digiKam, ACDSee, FastRawViewer |
 | 12 apr 2026 | **Filtro tassonomia con autocompletamento** | Il filtro "Nome comune" nella Search Tab propone i nomi già presenti nel DB mentre si digita (QComboBox editabile con ricerca per contenuto, case-insensitive) |
@@ -67,6 +68,7 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 
 | Funzionalità | Descrizione |
 |--------------|-------------|
+| **Installazione one-click (Windows)** | [`OffGallerySetup.exe`](https://github.com/HEGOM61ita/OffGallery/releases/latest) installa tutto in automatico: Miniconda, Python, librerie, modelli AI (~8 GB) e Ollama. Nessun terminale. Linux e macOS: script guidato incluso nella cartella `installer/` |
 | **100% Offline** | Nessun dato lascia mai il tuo computer. Tutti i modelli AI girano localmente |
 | **Supporto multilingua** | GUI, output LLM e ricerca tag indipendenti: 6 lingue (IT, EN, FR, DE, ES, PT). Tag e descrizioni nella lingua che preferisci, anche diversa dalla lingua dell'interfaccia |
 | **Potente ricerca Semantica /tags/Exif/+vari** | Cerca con linguaggio naturale e/o combo complesse; traduzione automatica query per CLIP (EN) e per tag (lingua contenuti); salva e richiama ricerche preferite in un click |
@@ -495,6 +497,7 @@ A photographer's tool to catalog thousands of RAW images without sending them to
 
 | Feature | Description |
 |---------|-------------|
+| **One-click installer (Windows)** | [`OffGallerySetup.exe`](https://github.com/HEGOM61ita/OffGallery/releases/latest) installs everything automatically: Miniconda, Python, libraries, AI models (~8 GB) and Ollama. No terminal needed. Linux and macOS: guided script included in the `installer/` folder |
 | **100% Offline** | No data ever leaves your computer. All AI models run locally |
 | **Multilingual** | GUI, LLM output and tag search are independent: 6 languages (IT, EN, FR, DE, ES, PT). Tags and descriptions in any language, different from the UI language if you prefer |
 | **Powerful Search** | Natural language semantic search + tag/EXIF/score filters; automatic query translation for CLIP (EN) and tag matching (content language); save and recall favorite searches in one click |
@@ -652,6 +655,7 @@ The wizard installs everything automatically: Miniconda, Python environment, lib
 
 | Date | What | Notes |
 |------|------|-------|
+| 8 May 2026 | **OffGallery Manager — one-click installer for Windows** | No terminal, no manual setup. Download [`OffGallerySetup.exe`](https://github.com/HEGOM61ita/OffGallery/releases/latest), double-click and follow the 5-step wizard. Installs Miniconda, Python environment, libraries, AI models (~8 GB) and optionally Ollama. Automatic GPU detection (NVIDIA/AMD/CPU). Linux and macOS: wizard in development, use the scripts in the `installer/` folder |
 | 3 May 2026 | **Prompt Context Plugin** | Injects a custom CONTEXT block into the LLM Vision prompt to tailor tags, descriptions and titles to the archive's specific photographic domain. 8 built-in presets (wildlife, landscape, astrophotography, scientific macro, underwater, reportage, commercial, street) + generate custom presets via local LLM. Preset selectable from the Plugin tab or the Gallery context menu |
 | 22 Apr 2026 | **Darktable & multi-editor compatibility** | Full Darktable workflow support: reads `.NEF.xmp` / `.ARW.xmp` sidecars (Darktable `filename.EXT.xmp` convention), preserves proprietary namespaces when creating new sidecars, XMP→DB import and badge sync from Gallery, **Output format: Lightroom / Darktable** option in Export tab. Compatible with Lightroom, Darktable, Capture One, digiKam, ACDSee, FastRawViewer |
 | 12 Apr 2026 | **Taxonomy filter with autocomplete** | The "Common name" filter in the Search Tab suggests names already in the DB while typing (editable QComboBox with contains-search, case-insensitive) |
