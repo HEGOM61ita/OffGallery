@@ -30,7 +30,7 @@ def load_plugin(config: dict) -> Optional[LLMVisionPlugin]:
 
     Legge config['embedding']['models']['llm_vision']['backend']:
         'ollama'    → carica OllamaPlugin (errore se non raggiungibile)
-        'lmstudio'  → carica LMStudioPlugin (non ancora implementato)
+        'lmstudio'  → carica LMStudioPlugin
         'auto'      → prova Ollama, poi LM Studio, avvisa se nessuno trovato
         'none'      → nessun plugin, LLM disabilitato
 
