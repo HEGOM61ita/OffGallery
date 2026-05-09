@@ -11,9 +11,62 @@
 #         dist/OffGallerySetup.app  (macOS)
 
 import sys
+import os
+import tkinter
 from pathlib import Path
 
 ROOT = Path(SPECPATH)   # directory di questo .spec
+
+# ---------------------------------------------------------------------------
+# Rilevamento automatico Tcl/Tk — indipendente da utente e piattaforma
+# ---------------------------------------------------------------------------
+# tkinter conosce sempre dove sono i suoi file di runtime.
+# Funziona su Windows, macOS e Linux senza percorsi hardcoded.
+
+_TCL_DIR = Path(tkinter.__file__).parent  # es. .../lib/tkinter
+
+# Su Windows con Conda/Anaconda, le DLL e i dati Tcl/Tk stanno in
+# Library/bin e Library/lib sotto la root dell'ambiente.
+# Usiamo CONDA_PREFIX se disponibile, altrimenti risaliamo da tkinter.
+_CONDA_PREFIX = Path(os.environ.get("CONDA_PREFIX", "") or sys.prefix)
+
+def _find_tcltk_binaries():
+    """Trova le DLL Tcl/Tk su Windows. Restituisce lista di tuple (src, dest)."""
+    if sys.platform != "win32":
+        return []
+    candidates = [
+        _CONDA_PREFIX / "Library" / "bin" / "tcl86t.dll",
+        _CONDA_PREFIX / "Library" / "bin" / "tk86t.dll",
+        _CONDA_PREFIX / "Library" / "bin" / "tcl90.dll",
+        _CONDA_PREFIX / "Library" / "bin" / "tk90.dll",
+    ]
+    return [(str(p), ".") for p in candidates if p.exists()]
+
+def _find_tcltk_datas():
+    """Trova le directory dati Tcl/Tk. Restituisce lista di tuple (src, dest)."""
+    results = []
+    lib_dir = _CONDA_PREFIX / "Library" / "lib"
+    for name in ("tcl8.6", "tk8.6", "tcl9.0", "tk9.0"):
+        p = lib_dir / name
+        if p.exists():
+            results.append((str(p), name))
+    # Fallback: cerca accanto a _tkinter.pyd / _tkinter.so
+    if not results:
+        tkdir = Path(tkinter.__file__).parent
+        for name in ("tcl8.6", "tk8.6", "tcl9.0", "tk9.0"):
+            p = tkdir / name
+            if p.exists():
+                results.append((str(p), name))
+    return results
+
+_tcl_binaries = _find_tcltk_binaries()
+_tcl_datas    = _find_tcltk_datas()
+
+# Verifica che abbiamo trovato qualcosa di necessario su Windows
+if sys.platform == "win32" and not _tcl_binaries:
+    print("ATTENZIONE: DLL Tcl/Tk non trovate automaticamente.")
+    print(f"  CONDA_PREFIX cercato: {_CONDA_PREFIX}")
+    print("  Assicurati di eseguire la build dall'ambiente conda corretto.")
 
 # ---------------------------------------------------------------------------
 # Analisi dei moduli
@@ -22,19 +75,12 @@ ROOT = Path(SPECPATH)   # directory di questo .spec
 a = Analysis(
     [str(ROOT / "installer.py")],
     pathex=[str(ROOT)],
-    binaries=[
-        # DLL Tcl/Tk — necessarie per tkinter su Windows
-        (r"C:\Users\HEGOM\anaconda3\Library\bin\tcl86t.dll", "."),
-        (r"C:\Users\HEGOM\anaconda3\Library\bin\tk86t.dll",  "."),
-    ],
-    datas=[
-        # Tcl/Tk runtime — necessario per tkinter
-        (r"C:\Users\HEGOM\anaconda3\Library\lib\tcl8.6", "tcl8.6"),
-        (r"C:\Users\HEGOM\anaconda3\Library\lib\tk8.6",  "tk8.6"),
+    binaries=_tcl_binaries,
+    datas=_tcl_datas + [
         # Logo header
-        (r"assets\logo_header.png", "assets"),
+        ("assets/logo_header.png", "assets"),
         # Requirements pip — bundlato nell'exe, non dipende più da /installer
-        (r"requirements_offgallery.txt", "."),
+        ("requirements_offgallery.txt", "."),
     ],
     hiddenimports=[
         # tkinter e ttk non sempre rilevati automaticamente
