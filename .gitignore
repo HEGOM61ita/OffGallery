@@ -167,5 +167,28 @@ A_INSTALLER/__pycache__/
 A_INSTALLER/**/__pycache__/
 A_INSTALLER/state/installer_state.json
 
+# Installer Linux (B_INSTALLER) — solo locale fino al test completo
+!B_INSTALLER/
+!B_INSTALLER/*.py
+!B_INSTALLER/*.md
+!B_INSTALLER/*.sh
+!B_INSTALLER/*.spec
+!B_INSTALLER/*.txt
+!B_INSTALLER/components/
+!B_INSTALLER/components/*.py
+!B_INSTALLER/state/
+!B_INSTALLER/state/*.py
+!B_INSTALLER/ui/
+!B_INSTALLER/ui/*.py
+!B_INSTALLER/utils/
+!B_INSTALLER/utils/*.py
+!B_INSTALLER/assets/
+!B_INSTALLER/assets/*.png
+B_INSTALLER/build/
+B_INSTALLER/dist/
+B_INSTALLER/__pycache__/
+B_INSTALLER/**/__pycache__/
+B_INSTALLER/state/installer_state.json
+
 # Diario di sviluppo — solo locale, mai in push/pull
 DIARY/
