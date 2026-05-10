@@ -528,7 +528,8 @@ class InstallPage(tk.Frame):
 
             # Collegamento desktop
             self._step("Collegamento desktop", "in_progress")
-            _create_shortcut(self.app.install_path, log_cb=self._log)
+            _create_shortcut(self.app.install_path, log_cb=self._log,
+                             manager_exe=sys.executable)
             sm.mark_done("shortcut")
             self._step("Collegamento desktop", "done")
             self._results["Collegamento desktop"] = True
@@ -672,15 +673,9 @@ def _python_exe_from_state(sm: StateManager) -> str:
     return "python"
 
 
-def _create_shortcut(install_path: str, log_cb=None):
-    system = platform.system()
+def _create_shortcut(install_path: str, log_cb=None, manager_exe: str = ""):
     try:
-        if system == "Windows":
-            _shortcut_windows(install_path)
-        elif system == "Darwin":
-            _shortcut_macos(install_path)
-        elif system == "Linux":
-            _shortcut_linux(install_path)
+        _shortcut_windows(install_path, manager_exe=manager_exe)
         if log_cb:
             log_cb("Collegamento desktop creato.")
     except Exception as exc:
@@ -688,40 +683,47 @@ def _create_shortcut(install_path: str, log_cb=None):
             log_cb(f"Attenzione: collegamento non creato: {exc}")
 
 
-def _shortcut_windows(install_path: str):
-    try:
-        import winshell
-        from win32com.client import Dispatch
-        desktop  = winshell.desktop()
-        lnk_path = os.path.join(desktop, "OffGallery.lnk")
-        shell    = Dispatch("WScript.Shell")
-        sc       = shell.CreateShortCut(lnk_path)
-        sc.Targetpath       = os.path.join(install_path, "installer", "OffGallery_Launcher.bat")
-        sc.WorkingDirectory = install_path
-        sc.Description      = "Avvia OffGallery"
-        sc.save()
-    except ImportError:
-        import shutil
-        src = os.path.join(install_path, "installer", "OffGallery_Launcher.bat")
-        dst = os.path.join(os.path.expanduser("~"), "Desktop", "OffGallery.bat")
-        if os.path.isfile(src):
-            shutil.copy2(src, dst)
+def _shortcut_windows(install_path: str, manager_exe: str = ""):
+    import shutil as _shutil
+
+    # Copia il binario Manager in una posizione stabile
+    stable_manager = os.path.join(install_path, "OffGallerySetup.exe")
+    if (getattr(sys, "frozen", False)
+            and manager_exe
+            and os.path.isfile(manager_exe)
+            and os.path.abspath(manager_exe) != os.path.abspath(stable_manager)):
+        _shutil.copy2(manager_exe, stable_manager)
+
+    def _make_lnk(lnk_path, target, workdir, description):
+        try:
+            import winshell
+            from win32com.client import Dispatch
+            shell = Dispatch("WScript.Shell")
+            sc = shell.CreateShortCut(lnk_path)
+            sc.Targetpath       = target
+            sc.WorkingDirectory = workdir
+            sc.Description      = description
+            sc.save()
+        except ImportError:
+            # Fallback: copia il target sul desktop se è un .bat
+            if target.endswith(".bat") and os.path.isfile(target):
+                _shutil.copy2(target, lnk_path.replace(".lnk", ".bat"))
+
+    desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+
+    _make_lnk(
+        lnk_path    = os.path.join(desktop, "OffGallery.lnk"),
+        target      = os.path.join(install_path, "installer", "OffGallery_Launcher.bat"),
+        workdir     = install_path,
+        description = "Avvia OffGallery",
+    )
+
+    if os.path.isfile(stable_manager):
+        _make_lnk(
+            lnk_path    = os.path.join(desktop, "OffGallery Manager.lnk"),
+            target      = stable_manager,
+            workdir     = install_path,
+            description = "Gestisci i componenti di OffGallery",
+        )
 
 
-def _shortcut_macos(install_path: str):
-    import shutil
-    src = os.path.join(install_path, "installer", "offgallery_launcher_mac.sh")
-    dst = os.path.join(os.path.expanduser("~"), "Desktop", "OffGallery.command")
-    if os.path.isfile(src):
-        shutil.copy2(src, dst)
-        os.chmod(dst, 0o755)
-
-
-def _shortcut_linux(install_path: str):
-    desktop_dir = os.path.join(os.path.expanduser("~"),
-                               ".local", "share", "applications")
-    os.makedirs(desktop_dir, exist_ok=True)
-    launcher = os.path.join(install_path, "installer", "offgallery_launcher_linux.sh")
-    with open(os.path.join(desktop_dir, "offgallery.desktop"), "w") as f:
-        f.write(f"[Desktop Entry]\nName=OffGallery\n"
-                f"Exec=bash {launcher}\nTerminal=false\nType=Application\n")
