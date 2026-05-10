@@ -273,7 +273,7 @@ class DashboardPage(tk.Frame):
         ttk.Button(btn_frame, text="▶  Avvia OffGallery",
                    command=self._launch).pack(side="left", ipadx=10, ipady=4)
         ttk.Button(btn_frame, text="↻  Aggiorna stato",
-                   width=18, command=self._refresh_all).pack(side="right", ipadx=10, ipady=4)
+                   width=22, command=self._refresh_all).pack(side="right", ipadx=10, ipady=4)
 
     def _build_section(self, title: str, items: list):
         tk.Label(self._comp_frame, text=title,
