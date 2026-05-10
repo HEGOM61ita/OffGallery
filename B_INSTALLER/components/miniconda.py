@@ -14,6 +14,18 @@ from utils.download import download_file, DownloadProgress, ProgressCallback
 
 _CNW = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
 
+_PROGRESS_CHARS = frozenset("━█▉▊▋▌▍▎▏▕◼◾#|")
+
+def _is_progress_line(line: str) -> bool:
+    if "\x1b" in line:
+        return True
+    stripped = line.strip()
+    if not stripped:
+        return True
+    if len(stripped) > 4 and all(c in _PROGRESS_CHARS or c == " " for c in stripped):
+        return True
+    return False
+
 # ---------------------------------------------------------------------------
 # URL ufficiali Miniconda (latest)
 # ---------------------------------------------------------------------------
@@ -183,7 +195,9 @@ def install(
             creationflags=_CNW,
         )
         for line in proc.stdout:
-            _log(log_cb, line.rstrip())
+            line = line.replace("\r", "").rstrip()
+            if line and not _is_progress_line(line):
+                _log(log_cb, line)
         proc.wait(timeout=300)
 
         if proc.returncode != 0:

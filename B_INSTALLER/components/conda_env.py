@@ -11,6 +11,18 @@ from typing import Optional
 ENV_NAME       = "OffGallery"
 PYTHON_VERSION = "3.12"
 
+_PROGRESS_CHARS = frozenset("━█▉▊▋▌▍▎▏▕◼◾#|")
+
+def _is_progress_line(line: str) -> bool:
+    if "\x1b" in line:
+        return True
+    stripped = line.strip()
+    if not stripped:
+        return True
+    if len(stripped) > 4 and all(c in _PROGRESS_CHARS or c == " " for c in stripped):
+        return True
+    return False
+
 
 # ---------------------------------------------------------------------------
 # Ispezione
@@ -188,6 +200,8 @@ def _run(
     timeout:   int = 300,
 ):
     cmd = [conda_exe] + args
+    if "--quiet" not in args and "-q" not in args:
+        cmd = cmd + ["--quiet"]
     _log(log_cb, f"$ {' '.join(cmd)}")
 
     flags = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
@@ -202,7 +216,7 @@ def _run(
         )
         for line in proc.stdout:
             line = line.replace("\r", "").rstrip()
-            if line:
+            if line and not _is_progress_line(line):
                 _log(log_cb, line)
         proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:

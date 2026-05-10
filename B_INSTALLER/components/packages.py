@@ -247,6 +247,9 @@ def _run_pip(
     Chiama progress_cb(current, total, package_name) quando rileva
     "Installing collected packages: a, b, c" nell'output di pip.
     """
+    if "install" in cmd and "--progress-bar" not in cmd:
+        cmd = cmd + ["--progress-bar", "off"]
+
     _log(log_cb, f"$ {' '.join(cmd)}")
 
     flags = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
