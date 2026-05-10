@@ -115,21 +115,9 @@ MODELS: list[ModelSpec] = [
             ModelFile(remote_path="musiq/musiq_koniq_ckpt-e95806b9.pth", local_name="musiq_koniq_ckpt-e95806b9.pth", size_mb=104),
         ],
     ),
-    ModelSpec(
-        key="argos",
-        label="Argos Translate IT→EN",
-        subdir="argos-it-en",
-        files=[
-            ModelFile(remote_path="argos-it-en/metadata.json",                        local_name="metadata.json",                        size_mb=0),
-            ModelFile(remote_path="argos-it-en/README.md",                            local_name="README.md",                            size_mb=0),
-            ModelFile(remote_path="argos-it-en/sentencepiece.model",                  local_name="sentencepiece.model",                  size_mb=0),
-            ModelFile(remote_path="argos-it-en/model/model.bin",                      local_name="model/model.bin",                      size_mb=80),
-            ModelFile(remote_path="argos-it-en/model/shared_vocabulary.txt",          local_name="model/shared_vocabulary.txt",          size_mb=0),
-            ModelFile(remote_path="argos-it-en/stanza/resources.json",                local_name="stanza/resources.json",                size_mb=0),
-            ModelFile(remote_path="argos-it-en/stanza/it/tokenize/isdt.pt",           local_name="stanza/it/tokenize/isdt.pt",           size_mb=12),
-        ],
-    ),
 ]
+# Nota: Argos Translate non è qui — viene installato via argostranslate.package
+# in components/argos_install.py (usa ~/.local/share/argos-translate/packages/)
 
 
 # ---------------------------------------------------------------------------

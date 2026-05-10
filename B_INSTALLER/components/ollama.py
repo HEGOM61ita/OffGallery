@@ -30,7 +30,12 @@ OLLAMA_API     = f"http://localhost:{OLLAMA_PORT}"
 _DOWNLOAD_URLS = {
     "Windows": "https://ollama.com/download/OllamaSetup.exe",
     "Darwin":  "https://ollama.com/download/Ollama-darwin.zip",
-    "Linux":   "https://ollama.com/install.sh",
+}
+
+# Binari Linux da GitHub releases (no sudo, installati in ~/.local/)
+_LINUX_URLS = {
+    "x86_64":  "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-amd64.tgz",
+    "aarch64": "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-arm64.tgz",
 }
 
 # Percorsi standard dell'eseguibile ollama
@@ -46,6 +51,7 @@ _OLLAMA_PATHS = {
                      "Contents", "MacOS", "ollama"),
     ],
     "Linux": [
+        os.path.join(os.path.expanduser("~"), ".local", "bin", "ollama"),
         "/usr/local/bin/ollama",
         "/usr/bin/ollama",
     ],
@@ -148,10 +154,16 @@ def install_ollama(
     """
     system = platform.system()
 
-    if system not in _DOWNLOAD_URLS:
+    if system == "Linux":
+        machine = platform.machine()
+        url = _LINUX_URLS.get(machine)
+        if not url:
+            raise RuntimeError(f"Architettura Linux non supportata: {machine}")
+    elif system in _DOWNLOAD_URLS:
+        url = _DOWNLOAD_URLS[system]
+    else:
         raise RuntimeError(f"Piattaforma non supportata per Ollama: {system}")
 
-    url = _DOWNLOAD_URLS[system]
     _log(log_cb, f"Download Ollama da: {url}")
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -244,24 +256,33 @@ def _install_macos(zip_path: str, log_cb: Optional[Callable]):
         subprocess.run(["xattr", "-cr", app_path], capture_output=True)
 
 
-def _install_linux(script_path: str, log_cb: Optional[Callable]):
-    """Installa Ollama su Linux eseguendo lo script ufficiale."""
-    _log(log_cb, "Installazione Ollama (Linux)...")
-    os.chmod(script_path, 0o755)
+def _install_linux(tgz_path: str, log_cb: Optional[Callable]):
+    """
+    Installa Ollama su Linux estraendo il tgz in ~/.local/ (senza sudo).
+    Il tgz ufficiale contiene bin/ollama e lib/ollama/, che finiscono in
+    ~/.local/bin/ollama e ~/.local/lib/ollama/.
+    """
+    import tarfile
+
+    local_dir = os.path.expanduser("~/.local")
+    bin_dir   = os.path.join(local_dir, "bin")
+    os.makedirs(bin_dir, exist_ok=True)
+
+    _log(log_cb, f"Estrazione Ollama in {local_dir}...")
     try:
-        proc = subprocess.Popen(
-            ["bash", script_path],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True,
+        with tarfile.open(tgz_path, "r:gz") as tf:
+            tf.extractall(local_dir)
+    except Exception as exc:
+        raise RuntimeError(f"Errore durante l'estrazione di Ollama: {exc}")
+
+    ollama_bin = os.path.join(bin_dir, "ollama")
+    if not os.path.isfile(ollama_bin):
+        raise RuntimeError(
+            f"Binario ollama non trovato dopo l'estrazione: {ollama_bin}"
         )
-        for line in proc.stdout:
-            _log(log_cb, line.rstrip())
-        proc.wait(timeout=300)
-        if proc.returncode != 0:
-            raise RuntimeError(f"Script Ollama terminato con codice {proc.returncode}.")
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        raise RuntimeError("Timeout durante l'installazione di Ollama.")
+
+    os.chmod(ollama_bin, 0o755)
+    _log(log_cb, f"Ollama installato in: {ollama_bin}")
 
 
 # ---------------------------------------------------------------------------

@@ -1,106 +1,124 @@
 """
-Installazione di ExifTool su Linux tramite package manager di sistema.
-Rileva automaticamente apt, dnf o pacman e installa il pacchetto corretto.
-Richiede sudo — la password viene chiesta dal terminale sottostante.
+Installazione di ExifTool su Linux scaricando il tarball standalone da exiftool.org.
+Installa in ~/.local/ — nessun sudo richiesto.
 """
 
 import os
 import shutil
-import subprocess
+import stat
+import tarfile
+import tempfile
+import urllib.request
 from typing import Optional, Callable
 
 
-# Pacchetti ExifTool per distribution family
-_PACKAGE_MANAGERS = [
-    # (eseguibile pm, comando install, nome pacchetto)
-    ("apt-get", ["sudo", "apt-get", "install", "-y", "libimage-exiftool-perl"], "libimage-exiftool-perl"),
-    ("dnf",     ["sudo", "dnf",     "install", "-y", "perl-Image-ExifTool"],    "perl-Image-ExifTool"),
-    ("yum",     ["sudo", "yum",     "install", "-y", "perl-Image-ExifTool"],    "perl-Image-ExifTool"),
-    ("pacman",  ["sudo", "pacman",  "-S",      "--noconfirm", "perl-image-exiftool"], "perl-image-exiftool"),
-    ("zypper",  ["sudo", "zypper",  "install", "-y", "perl-Image-ExifTool"],    "perl-Image-ExifTool"),
-]
+_VER_URL     = "https://exiftool.org/ver.txt"
+_TAR_URL     = "https://exiftool.org/Image-ExifTool-{version}.tar.gz"
+_INSTALL_DIR = os.path.expanduser("~/.local/lib/exiftool")
+_BIN_WRAPPER = os.path.expanduser("~/.local/bin/exiftool")
 
 
 def is_installed() -> bool:
-    """True se exiftool è disponibile nel PATH."""
-    return shutil.which("exiftool") is not None
+    """True se exiftool è disponibile nel PATH o nel percorso locale."""
+    return shutil.which("exiftool") is not None or os.path.isfile(_BIN_WRAPPER)
 
 
-def detect_package_manager() -> Optional[tuple[str, list[str], str]]:
-    """
-    Rileva il primo package manager disponibile nel sistema.
-    Restituisce (nome_pm, comando_install, nome_pacchetto) o None.
-    """
-    for pm, cmd, pkg in _PACKAGE_MANAGERS:
-        if shutil.which(pm):
-            return pm, cmd, pkg
+def detect_package_manager():
+    """Mantenuto per compatibilità con dashboard.py — non più usato."""
     return None
 
 
 def install_exiftool(log_cb: Optional[Callable] = None) -> bool:
     """
-    Installa ExifTool tramite il package manager di sistema.
+    Scarica ExifTool standalone da exiftool.org e installa in ~/.local/.
+    Non richiede sudo.
     Restituisce True se l'installazione ha avuto successo.
-
-    Richiede sudo: la password viene richiesta direttamente al terminale
-    dal processo sudo — l'installer non gestisce credenziali.
     """
     if is_installed():
         _log(log_cb, "ExifTool già installato.")
         return True
 
-    pm_info = detect_package_manager()
-    if pm_info is None:
-        _log(log_cb,
-             "⚠  Package manager non rilevato (apt/dnf/pacman/zypper).\n"
-             "   Installa ExifTool manualmente:\n"
-             "   - Debian/Ubuntu: sudo apt-get install libimage-exiftool-perl\n"
-             "   - Fedora/RHEL:   sudo dnf install perl-Image-ExifTool\n"
-             "   - Arch Linux:    sudo pacman -S perl-image-exiftool\n"
-             "   - openSUSE:      sudo zypper install perl-Image-ExifTool")
-        return False
-
-    pm_name, cmd, pkg = pm_info
-    _log(log_cb, f"Installazione ExifTool tramite {pm_name} (richiede sudo)...")
-    _log(log_cb, f"$ {' '.join(cmd)}")
-
     try:
-        # stdin=None: sudo può leggere la password dal terminale reale
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            stdin=None,
-        )
-        for line in proc.stdout:
-            line = line.rstrip()
-            if line:
-                _log(log_cb, line)
-        proc.wait(timeout=120)
+        version = _latest_version()
+        _log(log_cb, f"ExifTool ultima versione: {version}")
 
-        if proc.returncode != 0:
-            _log(log_cb,
-                 f"⚠  {pm_name} terminato con codice {proc.returncode}.\n"
-                 f"   Installa manualmente: sudo {pm_name} install {pkg}")
-            return False
+        url = _TAR_URL.format(version=version)
+        _log(log_cb, f"Download da: {url}")
 
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        _log(log_cb, "⚠  Timeout durante l'installazione di ExifTool.")
-        return False
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tar_path = os.path.join(tmp_dir, f"Image-ExifTool-{version}.tar.gz")
+            _download(url, tar_path, log_cb)
+            _extract_and_install(tar_path, version, log_cb)
+
     except Exception as exc:
         _log(log_cb, f"⚠  Errore installazione ExifTool: {exc}")
         return False
 
     if is_installed():
-        _log(log_cb, "✓  ExifTool installato correttamente.")
+        _log(log_cb, f"✓  ExifTool installato: {_BIN_WRAPPER}")
         return True
-    else:
-        _log(log_cb,
-             "⚠  Installazione completata ma 'exiftool' non trovato nel PATH.\n"
-             "   Potrebbe essere necessario riaprire il terminale.")
-        return False
+
+    _log(log_cb, "⚠  Installazione completata ma exiftool non trovato nel PATH.")
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Helper privati
+# ---------------------------------------------------------------------------
+
+def _latest_version() -> str:
+    with urllib.request.urlopen(_VER_URL, timeout=10) as resp:
+        return resp.read().decode().strip()
+
+
+def _download(url: str, dest: str, log_cb: Optional[Callable]):
+    with urllib.request.urlopen(url, timeout=120) as resp:
+        total = int(resp.headers.get("Content-Length", 0))
+        done  = 0
+        with open(dest, "wb") as f:
+            while True:
+                chunk = resp.read(65536)
+                if not chunk:
+                    break
+                f.write(chunk)
+                done += len(chunk)
+    _log(log_cb, f"  scaricati {done // 1024} KB")
+
+
+def _extract_and_install(tar_path: str, version: str, log_cb: Optional[Callable]):
+    """Estrae il tarball in _INSTALL_DIR e crea un wrapper in ~/.local/bin/."""
+    os.makedirs(_INSTALL_DIR, exist_ok=True)
+    os.makedirs(os.path.dirname(_BIN_WRAPPER), exist_ok=True)
+
+    prefix = f"Image-ExifTool-{version}/"
+    _log(log_cb, f"Estrazione in {_INSTALL_DIR}...")
+
+    with tarfile.open(tar_path, "r:gz") as tf:
+        for member in tf.getmembers():
+            if not member.name.startswith(prefix):
+                continue
+            rel = member.name[len(prefix):]
+            if not rel:
+                continue
+            dest = os.path.join(_INSTALL_DIR, rel)
+            if member.isdir():
+                os.makedirs(dest, exist_ok=True)
+            elif member.isfile():
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with tf.extractfile(member) as src, open(dest, "wb") as out:
+                    shutil.copyfileobj(src, out)
+
+    # Rendi eseguibile lo script principale
+    et_script = os.path.join(_INSTALL_DIR, "exiftool")
+    if os.path.isfile(et_script):
+        os.chmod(et_script,
+                 os.stat(et_script).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    # Wrapper in ~/.local/bin/ che richiama lo script con perl
+    with open(_BIN_WRAPPER, "w") as f:
+        f.write(f'#!/bin/sh\nexec perl "{_INSTALL_DIR}/exiftool" "$@"\n')
+    os.chmod(_BIN_WRAPPER, 0o755)
+    _log(log_cb, f"  wrapper: {_BIN_WRAPPER}")
 
 
 def _log(cb: Optional[Callable], msg: str):

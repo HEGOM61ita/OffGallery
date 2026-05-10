@@ -5,6 +5,7 @@ Supporta Windows, macOS (arm64 e x86_64) e Linux.
 
 import os
 import platform
+import shutil
 import subprocess
 import tempfile
 from typing import Optional
@@ -146,7 +147,14 @@ def install(
     Su macOS/Linux: script .sh con -b -p <path>
     """
     system = platform.system()
-    os.makedirs(install_path, exist_ok=True)
+
+    if system == "Windows":
+        # Windows: l'installer crea la directory da solo
+        pass
+    else:
+        # Linux/macOS: lo script miniconda fallisce se la directory esiste già
+        if os.path.exists(install_path):
+            shutil.rmtree(install_path)
 
     if system == "Windows":
         cmd = [
@@ -160,6 +168,7 @@ def install(
         cmd = [
             "bash", installer_path,
             "-b",                      # batch (non interattivo)
+            "-u",                      # update se la directory esiste già
             "-p", install_path,        # prefix
         ]
 
@@ -240,7 +249,11 @@ def ensure_miniconda(
         _log(log_cb, f"Miniconda già installato in: {install_path} (v{ver})")
         return conda_exe, True
 
-    # 4. Scarica e installa
+    # 4. Scarica e installa — se c'è una directory parziale la rimuoviamo
+    if os.path.exists(install_path):
+        _log(log_cb, f"Installazione parziale trovata in {install_path}, rimozione...")
+        shutil.rmtree(install_path)
+
     _log(log_cb, "Miniconda non trovato. Avvio download...")
     with tempfile.TemporaryDirectory() as tmp_dir:
         installer = download_installer(tmp_dir, progress_cb=progress_cb)

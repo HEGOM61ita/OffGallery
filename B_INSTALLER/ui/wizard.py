@@ -12,6 +12,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import TYPE_CHECKING, Optional
 
+from components.argos_install import install_argos, is_installed as argos_installed
 from components.conda_env    import ensure_env, python_executable
 from components.core         import ensure_core
 from components.exiftool_linux import install_exiftool, is_installed as exiftool_installed
@@ -54,6 +55,7 @@ STEPS = [
     "Codice OffGallery",
     "Librerie Python",
     "Modelli AI",
+    "Argos Translate",
     "Ollama / LM Studio",
     "Collegamento desktop",
 ]
@@ -526,6 +528,20 @@ class InstallPage(tk.Frame):
             else:
                 self._step("Modelli AI", "done", "(già presenti)")
 
+            # Argos Translate IT→EN
+            if not sm.is_model_done("argos"):
+                self._step("Argos Translate", "in_progress")
+                self._panel.set_step_indeterminate("Download Argos Translate IT→EN (~92 MB)...")
+                ok = install_argos(python_exe=python_exe, log_cb=self._log)
+                sm.set_model_status("argos", "done" if ok else "error")
+                self._step("Argos Translate",
+                           "done" if ok else "error",
+                           "" if ok else "traduzione non disponibile")
+                self._results["Argos Translate IT→EN"] = ok
+            else:
+                self._step("Argos Translate", "done", "(già presente)")
+                self._results["Argos Translate IT→EN"] = True
+
             # Ollama / LM Studio
             if self.app.profile == "completo":
                 self._step("Ollama / LM Studio", "in_progress")
@@ -734,3 +750,12 @@ def _shortcut_linux(install_path: str):
         with open(desktop_file, "w", encoding="utf-8") as f:
             f.write(desktop_content)
         os.chmod(desktop_file, 0o755)
+        # GNOME richiede che i .desktop sul Desktop siano marcati "trusted"
+        # prima di poterli lanciare con un click singolo.
+        try:
+            subprocess.run(
+                ["gio", "set", desktop_file, "metadata::trusted", "true"],
+                capture_output=True, timeout=5,
+            )
+        except Exception:
+            pass

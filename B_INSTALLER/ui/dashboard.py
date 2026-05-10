@@ -228,7 +228,7 @@ class DashboardPage(tk.Frame):
         body.pack(fill="both", expand=True)
 
         # Colonna sinistra: lista componenti
-        left = tk.Frame(body, bg=BG, width=420)
+        left = tk.Frame(body, bg=BG, width=500)
         left.pack(side="left", fill="y", padx=(16, 8), pady=12)
         left.pack_propagate(False)
 
@@ -594,7 +594,7 @@ class _ComponentRow(tk.Frame):
 
         tk.Label(self, textvariable=self._val_var, font=FONT_MONO,
                  bg=BG, fg="#555", width=16, anchor="w").pack(side="left")
-        self._btn = ttk.Button(self, text="", width=9, command=self._on_action)
+        self._btn = ttk.Button(self, text="", width=11, command=self._on_action)
         self._btn.pack(side="right", padx=2)
         self._btn.pack_forget()
 
