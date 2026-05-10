@@ -564,7 +564,8 @@ class InstallPage(tk.Frame):
 
             # Collegamento desktop
             self._step("Collegamento desktop", "in_progress")
-            _create_shortcut(self.app.install_path, log_cb=self._log)
+            _create_shortcut(self.app.install_path, log_cb=self._log,
+                             manager_exe=sys.executable)
             sm.mark_done("shortcut")
             self._step("Collegamento desktop", "done")
             self._results["Collegamento desktop"] = True
@@ -704,9 +705,9 @@ def _python_exe_from_state(sm: StateManager) -> str:
     return "python"
 
 
-def _create_shortcut(install_path: str, log_cb=None):
+def _create_shortcut(install_path: str, log_cb=None, manager_exe: str = ""):
     try:
-        _shortcut_linux(install_path)
+        _shortcut_linux(install_path, manager_exe=manager_exe)
         if log_cb:
             log_cb("Collegamento desktop creato.")
     except Exception as exc:
@@ -714,48 +715,82 @@ def _create_shortcut(install_path: str, log_cb=None):
             log_cb(f"Attenzione: collegamento non creato: {exc}")
 
 
-def _shortcut_linux(install_path: str):
+def _shortcut_linux(install_path: str, manager_exe: str = ""):
     """
-    Crea il collegamento desktop Linux:
-    1. File .desktop in ~/.local/share/applications/ (menu di sistema XDG)
-    2. Copia del file .desktop in ~/Desktop/ se la cartella esiste
+    Crea due collegamenti desktop Linux:
+      1. OffGallery         → offgallery_launcher_linux.sh
+      2. OffGallery Manager → binario OffGallerySetup (copiato in install_path)
+
+    I .desktop vengono scritti in ~/.local/share/applications/ (XDG)
+    e in ~/Desktop/ se la cartella esiste.
     """
-    launcher_sh = os.path.join(install_path, "installer", "offgallery_launcher_linux.sh")
-    icon_path   = os.path.join(install_path, "assets", "logo_header.png")
+    import shutil as _shutil
 
-    desktop_content = (
-        "[Desktop Entry]\n"
-        "Name=OffGallery\n"
-        "Comment=Catalogazione e ricerca semantica di immagini fotografiche\n"
-        f"Exec=bash {launcher_sh}\n"
-        f"Icon={icon_path}\n"
-        "Terminal=false\n"
-        "Type=Application\n"
-        "Categories=Graphics;Photography;\n"
-        "StartupNotify=true\n"
-    )
+    launcher_sh  = os.path.join(install_path, "installer", "offgallery_launcher_linux.sh")
+    icon_path    = os.path.join(install_path, "assets", "logo_header.png")
 
-    # 1. Menu applicazioni (XDG standard)
-    apps_dir = os.path.join(os.path.expanduser("~"), ".local", "share", "applications")
-    os.makedirs(apps_dir, exist_ok=True)
-    apps_file = os.path.join(apps_dir, "offgallery.desktop")
-    with open(apps_file, "w", encoding="utf-8") as f:
-        f.write(desktop_content)
-    os.chmod(apps_file, 0o755)
+    # Copia il binario Manager in una posizione stabile dentro install_path
+    stable_manager = os.path.join(install_path, "OffGallerySetup")
+    if (getattr(sys, "frozen", False)
+            and manager_exe
+            and os.path.isfile(manager_exe)
+            and os.path.abspath(manager_exe) != os.path.abspath(stable_manager)):
+        _shutil.copy2(manager_exe, stable_manager)
+        os.chmod(stable_manager, 0o755)
 
-    # 2. Desktop (se ~/Desktop esiste — non tutte le distro lo usano)
+    entries = [
+        (
+            "offgallery.desktop",
+            "OffGallery.desktop",
+            "[Desktop Entry]\n"
+            "Name=OffGallery\n"
+            "Comment=Catalogazione e ricerca semantica di immagini fotografiche\n"
+            f"Exec=bash {launcher_sh}\n"
+            f"Icon={icon_path}\n"
+            "Terminal=false\n"
+            "Type=Application\n"
+            "Categories=Graphics;Photography;\n"
+            "StartupNotify=true\n",
+        ),
+    ]
+
+    if os.path.isfile(stable_manager):
+        entries.append((
+            "offgallery-manager.desktop",
+            "OffGallery Manager.desktop",
+            "[Desktop Entry]\n"
+            "Name=OffGallery Manager\n"
+            "Comment=Gestisci i componenti di OffGallery\n"
+            f"Exec={stable_manager}\n"
+            f"Icon={icon_path}\n"
+            "Terminal=false\n"
+            "Type=Application\n"
+            "Categories=Graphics;Photography;\n"
+            "StartupNotify=true\n",
+        ))
+
+    apps_dir    = os.path.join(os.path.expanduser("~"), ".local", "share", "applications")
     desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
-    if os.path.isdir(desktop_dir):
-        desktop_file = os.path.join(desktop_dir, "OffGallery.desktop")
-        with open(desktop_file, "w", encoding="utf-8") as f:
-            f.write(desktop_content)
-        os.chmod(desktop_file, 0o755)
-        # GNOME richiede che i .desktop sul Desktop siano marcati "trusted"
-        # prima di poterli lanciare con un click singolo.
-        try:
-            subprocess.run(
-                ["gio", "set", desktop_file, "metadata::trusted", "true"],
-                capture_output=True, timeout=5,
-            )
-        except Exception:
-            pass
+    os.makedirs(apps_dir, exist_ok=True)
+
+    for xdg_name, desk_name, content in entries:
+        # Menu applicazioni XDG
+        p = os.path.join(apps_dir, xdg_name)
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.chmod(p, 0o755)
+
+        # Desktop
+        if os.path.isdir(desktop_dir):
+            p = os.path.join(desktop_dir, desk_name)
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(content)
+            os.chmod(p, 0o755)
+            # GNOME richiede che i .desktop sul Desktop siano marcati "trusted"
+            try:
+                subprocess.run(
+                    ["gio", "set", p, "metadata::trusted", "true"],
+                    capture_output=True, timeout=5,
+                )
+            except Exception:
+                pass
