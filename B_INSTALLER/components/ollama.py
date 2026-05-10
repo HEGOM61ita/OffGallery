@@ -32,10 +32,11 @@ _DOWNLOAD_URLS = {
     "Darwin":  "https://ollama.com/download/Ollama-darwin.zip",
 }
 
-# Binari Linux da GitHub releases (no sudo, installati in ~/.local/)
+# Binari Linux da GitHub releases (no sudo, installati in ~/.local/bin/)
+# Nota: Ollama distribuisce un binario diretto, non più un .tgz
 _LINUX_URLS = {
-    "x86_64":  "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-amd64.tgz",
-    "aarch64": "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-arm64.tgz",
+    "x86_64":  "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-amd64",
+    "aarch64": "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-arm64",
 }
 
 # Percorsi standard dell'eseguibile ollama
@@ -256,31 +257,15 @@ def _install_macos(zip_path: str, log_cb: Optional[Callable]):
         subprocess.run(["xattr", "-cr", app_path], capture_output=True)
 
 
-def _install_linux(tgz_path: str, log_cb: Optional[Callable]):
+def _install_linux(bin_path: str, log_cb: Optional[Callable]):
     """
-    Installa Ollama su Linux estraendo il tgz in ~/.local/ (senza sudo).
-    Il tgz ufficiale contiene bin/ollama e lib/ollama/, che finiscono in
-    ~/.local/bin/ollama e ~/.local/lib/ollama/.
+    Installa Ollama su Linux copiando il binario in ~/.local/bin/ (senza sudo).
     """
-    import tarfile
-
-    local_dir = os.path.expanduser("~/.local")
-    bin_dir   = os.path.join(local_dir, "bin")
+    bin_dir    = os.path.expanduser("~/.local/bin")
     os.makedirs(bin_dir, exist_ok=True)
 
-    _log(log_cb, f"Estrazione Ollama in {local_dir}...")
-    try:
-        with tarfile.open(tgz_path, "r:gz") as tf:
-            tf.extractall(local_dir)
-    except Exception as exc:
-        raise RuntimeError(f"Errore durante l'estrazione di Ollama: {exc}")
-
     ollama_bin = os.path.join(bin_dir, "ollama")
-    if not os.path.isfile(ollama_bin):
-        raise RuntimeError(
-            f"Binario ollama non trovato dopo l'estrazione: {ollama_bin}"
-        )
-
+    shutil.copy2(bin_path, ollama_bin)
     os.chmod(ollama_bin, 0o755)
     _log(log_cb, f"Ollama installato in: {ollama_bin}")
 
