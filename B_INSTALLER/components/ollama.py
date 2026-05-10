@@ -32,11 +32,11 @@ _DOWNLOAD_URLS = {
     "Darwin":  "https://ollama.com/download/Ollama-darwin.zip",
 }
 
-# Binari Linux da GitHub releases (no sudo, installati in ~/.local/bin/)
-# Nota: Ollama distribuisce un binario diretto, non più un .tgz
+# Binari Linux da GitHub releases (no sudo, installati in ~/.local/)
+# Formato: .tar.zst — estratto con tar (zstd nativo su Linux moderno)
 _LINUX_URLS = {
-    "x86_64":  "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-amd64",
-    "aarch64": "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-arm64",
+    "x86_64":  "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-amd64.tar.zst",
+    "aarch64": "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-arm64.tar.zst",
 }
 
 # Percorsi standard dell'eseguibile ollama
@@ -257,15 +257,32 @@ def _install_macos(zip_path: str, log_cb: Optional[Callable]):
         subprocess.run(["xattr", "-cr", app_path], capture_output=True)
 
 
-def _install_linux(bin_path: str, log_cb: Optional[Callable]):
+def _install_linux(tgz_path: str, log_cb: Optional[Callable]):
     """
-    Installa Ollama su Linux copiando il binario in ~/.local/bin/ (senza sudo).
+    Installa Ollama su Linux estraendo il .tar.zst in ~/.local/ (senza sudo).
+    Richiede tar con supporto zstd (incluso in Ubuntu 20.04+).
+    L'archivio contiene bin/ollama e lib/ollama/.
     """
-    bin_dir    = os.path.expanduser("~/.local/bin")
-    os.makedirs(bin_dir, exist_ok=True)
+    local_dir = os.path.expanduser("~/.local")
+    os.makedirs(local_dir, exist_ok=True)
 
-    ollama_bin = os.path.join(bin_dir, "ollama")
-    shutil.copy2(bin_path, ollama_bin)
+    _log(log_cb, f"Estrazione Ollama in {local_dir}...")
+    try:
+        result = subprocess.run(
+            ["tar", "--zstd", "-xf", tgz_path, "-C", local_dir],
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip() or "tar fallito")
+    except FileNotFoundError:
+        raise RuntimeError("tar non trovato. Installa tar sul sistema.")
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Timeout durante l'estrazione di Ollama.")
+
+    ollama_bin = os.path.join(local_dir, "bin", "ollama")
+    if not os.path.isfile(ollama_bin):
+        raise RuntimeError(f"Binario ollama non trovato dopo l'estrazione: {ollama_bin}")
+
     os.chmod(ollama_bin, 0o755)
     _log(log_cb, f"Ollama installato in: {ollama_bin}")
 
