@@ -122,6 +122,8 @@ def install_core(
         if os.path.isfile(zip_path):
             os.remove(zip_path)
 
+    _ensure_plugins_dir(install_path, log_cb)
+
     version = installed_version(install_path) or "sconosciuta"
     _log(log_cb, f"OffGallery Core installato. Versione: {version}")
     return version
@@ -268,6 +270,33 @@ def _should_preserve(rel_path: str) -> bool:
         if rel_path == pattern or rel_path.startswith(pattern):
             return True
     return False
+
+
+def _ensure_plugins_dir(install_path: str, log_cb: Optional[Callable]):
+    """Crea plugins/ con un README se non esiste già (o è vuota)."""
+    plugins_dir = os.path.join(install_path, "plugins")
+    readme_path = os.path.join(plugins_dir, "README_plugins.txt")
+    os.makedirs(plugins_dir, exist_ok=True)
+    if not os.path.isfile(readme_path):
+        readme = (
+            "PLUGIN OFFGALLERY\n"
+            "=================\n\n"
+            "Questa cartella contiene i plugin aggiuntivi di OffGallery.\n\n"
+            "Per installare un plugin:\n"
+            "  1. Ricevi il file ZIP del plugin (es. via email)\n"
+            "  2. Estrai il contenuto dello ZIP direttamente in questa cartella\n"
+            "  3. Riavvia OffGallery\n\n"
+            "Ogni plugin occupa una sottocartella con il proprio nome.\n"
+            "Esempio:\n"
+            "  plugins/\n"
+            "    llm_ollama/\n"
+            "    geonames/\n"
+            "    ...\n\n"
+            "Per informazioni sui plugin disponibili: offgallery@example.com\n"
+        )
+        with open(readme_path, "w", encoding="utf-8") as f:
+            f.write(readme)
+        _log(log_cb, "Cartella plugins/ creata.")
 
 
 def _log(cb: Optional[Callable], msg: str):
