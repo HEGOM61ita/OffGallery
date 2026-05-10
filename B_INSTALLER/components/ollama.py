@@ -366,7 +366,6 @@ def pull_model(
 
         for line in proc.stdout:
             line = line.rstrip()
-            _log(log_cb, line)
 
             # Parsing del progresso da output ollama
             # Formato tipico: "pulling sha256:abc... 45% ▕████    ▏ 2.3 GB/5.1 GB"
@@ -381,6 +380,8 @@ def pull_model(
                     elapsed_sec=0,
                     eta_sec=-1,
                 ))
+            elif line:
+                _log(log_cb, line)
 
         proc.wait(timeout=7200)   # 2 ore max
         if proc.returncode != 0:
