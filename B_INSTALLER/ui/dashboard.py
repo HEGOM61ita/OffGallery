@@ -271,9 +271,9 @@ class DashboardPage(tk.Frame):
         btn_frame = tk.Frame(right, bg=BG, pady=8)
         btn_frame.pack(fill="x")
         ttk.Button(btn_frame, text="▶  Avvia OffGallery",
-                   width=18, command=self._launch).pack(side="left", ipadx=6, ipady=4)
+                   width=26, command=self._launch).pack(side="left", ipadx=10, ipady=4)
         ttk.Button(btn_frame, text="↻  Aggiorna stato",
-                   width=26, command=self._refresh_all).pack(side="right", ipadx=10, ipady=4)
+                   width=18, command=self._refresh_all).pack(side="right", ipadx=6, ipady=4)
 
     def _build_section(self, title: str, items: list):
         tk.Label(self._comp_frame, text=title,
