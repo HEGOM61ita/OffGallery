@@ -372,7 +372,15 @@ def pull_model(
             # Formato tipico: "pulling sha256:abc... 45% ▕████    ▏ 2.3 GB/5.1 GB"
             progress = _parse_pull_progress(line)
             if progress and progress_cb:
-                progress_cb(*progress)
+                bytes_done, bytes_total, layer = progress
+                progress_cb(DownloadProgress(
+                    filename=layer,
+                    bytes_done=bytes_done,
+                    bytes_total=bytes_total,
+                    speed_bps=0,
+                    elapsed_sec=0,
+                    eta_sec=-1,
+                ))
 
         proc.wait(timeout=7200)   # 2 ore max
         if proc.returncode != 0:
