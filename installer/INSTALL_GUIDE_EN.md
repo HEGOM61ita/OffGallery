@@ -70,12 +70,13 @@ No terminal, no manual configuration needed. Automatically installs Miniconda, P
 
 ### Linux
 
-1. Open a terminal in the OffGallery folder
-2. Run:
-   ```bash
-   bash installer/install_offgallery_linux_en.sh
-   ```
-3. Follow the on-screen instructions (answer y/n to questions)
+**[Download OffGallerySetup](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup)**, make it executable and run it:
+```bash
+chmod +x OffGallerySetup && ./OffGallerySetup
+```
+The wizard installs everything graphically — no terminal needed after launch.
+
+> **Alternative method — terminal script**: open a terminal in the OffGallery folder and run `bash installer/install_offgallery_linux_en.sh`, then follow the on-screen instructions (answer y/n to questions).
 
 ### macOS
 

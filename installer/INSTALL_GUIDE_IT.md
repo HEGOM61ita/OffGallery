@@ -70,12 +70,13 @@ Nessun terminale, nessuna configurazione manuale. Installa automaticamente Minic
 
 ### Linux
 
-1. Apri un terminale nella cartella OffGallery
-2. Esegui:
-   ```bash
-   bash installer/install_offgallery_linux_it.sh
-   ```
-3. Segui le istruzioni a schermo (rispondi s/n alle domande)
+**[Scarica OffGallerySetup](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup)**, rendilo eseguibile e avvialo:
+```bash
+chmod +x OffGallerySetup && ./OffGallerySetup
+```
+Il wizard installa tutto graficamente — nessun terminale necessario dopo l'avvio.
+
+> **Metodo alternativo — script da terminale**: apri un terminale nella cartella OffGallery ed esegui `bash installer/install_offgallery_linux_it.sh`, poi segui le istruzioni a schermo (rispondi s/n alle domande).
 
 ### macOS
 
