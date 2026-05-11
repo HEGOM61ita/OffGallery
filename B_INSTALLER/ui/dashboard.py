@@ -286,7 +286,7 @@ class DashboardPage(tk.Frame):
         backend_row.pack(fill="x", pady=(0, 4))
         tk.Label(backend_row, text="  Backend:", font=FONT_BODY,
                  bg=BG, width=10, anchor="w").pack(side="left")
-        for val, lbl in [("ollama", "Ollama"), ("lmstudio", "LM Studio")]:
+        for val, lbl in [("ollama", "Ollama  (consigliato)"), ("lmstudio", "LM Studio")]:
             tk.Radiobutton(backend_row, variable=self._backend_var, value=val,
                            text=lbl, font=FONT_BODY, bg=BG,
                            activebackground=BG,
