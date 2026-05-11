@@ -156,8 +156,49 @@ def _try_load_ollama(llm_config: dict) -> Optional[LLMVisionPlugin]:
         plugin = OllamaPlugin(llm_config)
         if plugin.is_available():
             return plugin
+
+        # Server non risponde — prova ad avviarlo automaticamente
+        ollama_exe = _find_ollama_exe()
+        if ollama_exe:
+            logger.info(f"Avvio automatico Ollama: {ollama_exe}")
+            import subprocess, time
+            subprocess.Popen(
+                [ollama_exe, "serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            for _ in range(15):
+                time.sleep(1)
+                if plugin.is_available():
+                    logger.info("Ollama avviato correttamente.")
+                    return plugin
+            logger.warning("Ollama avviato ma non risponde dopo 15 secondi.")
+        else:
+            logger.debug("Ollama non trovato nel sistema — avvio automatico non possibile.")
     except Exception as e:
         logger.debug(f"Ollama plugin non caricabile: {e}")
+    return None
+
+
+def _find_ollama_exe() -> Optional[str]:
+    import shutil, os, platform
+    found = shutil.which("ollama")
+    if found:
+        return found
+    candidates = [
+        os.path.expanduser("~/.local/bin/ollama"),
+        "/usr/local/bin/ollama",
+        "/usr/bin/ollama",
+    ]
+    if platform.system() == "Windows":
+        candidates += [
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe"),
+            r"C:\Program Files\Ollama\ollama.exe",
+        ]
+    for p in candidates:
+        if p and os.path.isfile(p):
+            return p
     return None
 
 
