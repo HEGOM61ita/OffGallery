@@ -22,6 +22,7 @@ from components.ollama       import (ensure_ollama, find_ollama, ollama_version,
 from components.lmstudio     import (ensure_lmstudio, find_lmstudio,
                                      is_running as lm_running, api_models,
                                      POST_INSTALL_INSTRUCTIONS)
+from utils.config_yaml       import read_llm_backend, write_llm_backend, config_exists
 from components.packages     import detect_torch_variant, install_packages, torch_variant_label
 from state.state_manager     import StateManager
 from ui.progress             import DownloadPanel
@@ -203,22 +204,13 @@ TOOLTIP_TEXT: dict[str, str] = {
     "model_llm": (
         f"Modello LLM vision per la generazione automatica di descrizioni,\n"
         f"titoli e tag fotografici.\n\n"
-        f"Modello: {OLLAMA_MODEL}\n"
-        f"Dimensione: ~5.2 GB\n\n"
-        "Richiede Ollama installato e in esecuzione.\n"
-        "Puoi scaricarlo o aggiornarlo in qualsiasi momento."
-    ),
-    "model_lms": (
-        "Modello LLM vision caricato in LM Studio.\n\n"
-        "A differenza di Ollama, LM Studio non supporta il download\n"
-        "automatico dei modelli da installer.\n\n"
-        "Per caricare un modello:\n"
-        "1. Apri LM Studio\n"
-        "2. Vai in 'Discover' e scarica un modello vision\n"
-        "   (es. Qwen2-VL, LLaVA, o qwen3-vl)\n"
-        "3. Vai in 'Local Server' e avvia il server\n"
-        "4. Torna qui — il modello verrà rilevato automaticamente.\n\n"
-        "Clicca [Istruzioni] per rivedere i passaggi."
+        f"Backend Ollama — Modello: {OLLAMA_MODEL}  (~5.2 GB)\n"
+        f"  Scaricato automaticamente dall'installer.\n\n"
+        "Backend LM Studio — il modello va scaricato manualmente:\n"
+        "  1. Apri LM Studio → Discover → scarica un modello vision\n"
+        "  2. Local Server → carica il modello → Start Server\n"
+        "  3. Torna qui — verrà rilevato automaticamente.\n\n"
+        "Cambia backend con i pulsanti radio qui sopra."
     ),
 }
 
@@ -229,9 +221,14 @@ class DashboardPage(tk.Frame):
         super().__init__(parent, bg=BG, **kw)
         self.app = app
         self._rows: dict[str, "_ComponentRow"] = {}
+        self._backend_var = tk.StringVar(value="ollama")
         self._build()
 
     def on_enter(self):
+        if self.app.state:
+            self._backend_var.set(
+                read_llm_backend(self.app.state.install_path)
+            )
         self._refresh_all()
 
     # ------------------------------------------------------------------
@@ -281,12 +278,30 @@ class DashboardPage(tk.Frame):
         self._build_section("MODELLI AI", [
             (f"model_{m.key}", m.label) for m in MODELS
         ])
-        self._build_section("LLM (opzionale)", [
+        # Sezione LLM — costruita manualmente per aggiungere il selettore backend
+        tk.Label(self._comp_frame, text="LLM (opzionale)",
+                 font=FONT_HEAD, bg=BG, anchor="w", pady=6).pack(fill="x")
+
+        backend_row = tk.Frame(self._comp_frame, bg=BG)
+        backend_row.pack(fill="x", pady=(0, 4))
+        tk.Label(backend_row, text="  Backend:", font=FONT_BODY,
+                 bg=BG, width=10, anchor="w").pack(side="left")
+        for val, lbl in [("ollama", "Ollama"), ("lmstudio", "LM Studio")]:
+            tk.Radiobutton(backend_row, variable=self._backend_var, value=val,
+                           text=lbl, font=FONT_BODY, bg=BG,
+                           activebackground=BG,
+                           command=self._on_backend_change).pack(side="left", padx=8)
+
+        for key, label in [
             ("ollama",    "Ollama"),
-            ("model_llm", "Modello LLM vision"),
             ("lmstudio",  "LM Studio"),
-            ("model_lms", "Modello LM Studio"),
-        ])
+            ("model_llm", "Modello LLM"),
+        ]:
+            row = _ComponentRow(self._comp_frame, key=key, label=label,
+                                dashboard=self, tooltip=TOOLTIP_TEXT.get(key, ""))
+            row.pack(fill="x", pady=2)
+            self._rows[key] = row
+        ttk.Separator(self._comp_frame, orient="horizontal").pack(fill="x", pady=6)
 
         # Colonna destra: download panel + bottoni
         right = tk.Frame(body, bg=BG)
@@ -400,27 +415,27 @@ class DashboardPage(tk.Frame):
                       action_label="Reinstalla" if lm_exe else "Installa",
                       action=lambda: self._action_install("lmstudio"))
 
-        model_ok = is_model_pulled(OLLAMA_MODEL) if ollama_exe else False
-        self._set_row("model_llm",
-                      "done" if model_ok else ("not_installed" if ollama_exe else "pending"),
-                      OLLAMA_MODEL.split(":")[0] if model_ok else ("—" if ollama_exe else "Richiede Ollama"),
-                      action_label="Riscarica" if model_ok else ("Scarica" if ollama_exe else None),
-                      action=self._action_pull_llm_model if ollama_exe else None)
-
-        lms_models = api_models() if lm_exe and lm_run else []
-        if not lm_exe:
-            lms_status, lms_value, lms_btn = "pending", "Richiede LM Studio", None
-        elif not lm_run:
-            lms_status, lms_value, lms_btn = "not_installed", "Server non attivo", "Istruzioni"
-        elif lms_models:
-            lms_status, lms_value, lms_btn = "done", lms_models[0].split("/")[-1], "Istruzioni"
+        backend = self._backend_var.get()
+        if backend == "ollama":
+            model_ok = is_model_pulled(OLLAMA_MODEL) if ollama_exe else False
+            self._set_row("model_llm",
+                          "done" if model_ok else ("not_installed" if ollama_exe else "pending"),
+                          OLLAMA_MODEL.split(":")[0] if model_ok else ("—" if ollama_exe else "Richiede Ollama"),
+                          action_label="Riscarica" if model_ok else ("Scarica" if ollama_exe else None),
+                          action=self._action_pull_llm_model if ollama_exe else None)
         else:
-            lms_status, lms_value, lms_btn = "warning", "Nessun modello caricato", "Istruzioni"
-        self._set_row("model_lms",
-                      lms_status,
-                      lms_value,
-                      action_label=lms_btn,
-                      action=self._action_lms_instructions if lms_btn else None)
+            lms_models = api_models() if lm_exe and lm_run else []
+            if not lm_exe:
+                st, val, btn = "pending", "Richiede LM Studio", None
+            elif not lm_run:
+                st, val, btn = "not_installed", "Server non attivo", "Istruzioni"
+            elif lms_models:
+                st, val, btn = "done", lms_models[0].split("/")[-1], "Istruzioni"
+            else:
+                st, val, btn = "warning", "Nessun modello caricato", "Istruzioni"
+            self._set_row("model_llm", st, val,
+                          action_label=btn,
+                          action=self._action_lms_instructions if btn else None)
 
     def _set_row(self, key, status, value, action_label=None, action=None):
         row = self._rows.get(key)
@@ -596,6 +611,16 @@ class DashboardPage(tk.Frame):
             except Exception as exc:
                 self._panel.log(f"❌ {exc}")
         self._run_bg(_do)
+
+    def _on_backend_change(self):
+        backend = self._backend_var.get()
+        if self.app.state and config_exists(self.app.state.install_path):
+            ok = write_llm_backend(self.app.state.install_path, backend)
+            if ok:
+                self._panel.log(f"Backend LLM impostato: {backend}")
+            else:
+                self._panel.log(f"⚠ config_new.yaml non trovato — backend non salvato.")
+        self._refresh_all()
 
     def _action_lms_instructions(self):
         messagebox.showinfo("Modello LM Studio", POST_INSTALL_INSTRUCTIONS)
