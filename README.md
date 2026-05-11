@@ -128,7 +128,7 @@ Tutti i componenti core girano localmente, completamente offline:
 
 ## Funzionalità
 
-OffGallery offre ricerca semantica, analisi immagini con più modelli AI, workflow completo con Lightroom e export XMP. Consulta il **[Manuale Utente completo →](docs/USER_MANUAL_IT.html)** per la descrizione dettagliata di ogni funzione, tab e opzione.
+OffGallery offre ricerca semantica, analisi immagini con più modelli AI, workflow completo con Lightroom e export XMP. Consulta il **[Manuale Utente completo →](HTML/USER_MANUAL_IT.html)** per la descrizione dettagliata di ogni funzione, tab e opzione.
 
 | Funzione | Descrizione rapida |
 |----------|--------------------|
@@ -266,7 +266,7 @@ Workflow tipico: importa una cartella o un catalogo `.lrcat` → elabora con AI 
 | **macOS** | Apri **OffGallery.app** da `~/Applications` o cerca con Spotlight |
 | **Linux** | Usa la voce nel menu applicazioni, oppure `bash installer/offgallery_launcher_linux.sh` dalla cartella dell'app |
 
-> **Manuale Utente completo (IT):** **[docs/USER_MANUAL_IT.html](docs/USER_MANUAL_IT.html)**
+> **Manuale Utente completo (IT):** **[HTML/USER_MANUAL_IT.html](HTML/USER_MANUAL_IT.html)**
 > — Descrizione dettagliata di ogni tab, opzione, badge, concetti avanzati (BioCLIP, geotag, sync state) e troubleshooting.
 
 ---
@@ -553,7 +553,7 @@ All core components run locally, completely offline:
 
 ## Features
 
-OffGallery provides semantic search, multi-model AI image analysis, full Lightroom workflow and XMP export. See the **[Full User Manual →](docs/USER_MANUAL_EN.html)** for a detailed description of every feature, tab and option.
+OffGallery provides semantic search, multi-model AI image analysis, full Lightroom workflow and XMP export. See the **[Full User Manual →](HTML/USER_MANUAL_EN.html)** for a detailed description of every feature, tab and option.
 
 | Feature | Quick description |
 |---------|-------------------|
@@ -679,7 +679,7 @@ Typical workflow: import a folder or `.lrcat` catalog → process with AI → se
 | **macOS** | Open **OffGallery.app** from `~/Applications` or search via Spotlight |
 | **Linux** | Use the application menu entry, or run `bash installer/offgallery_launcher_linux_en.sh` from the app folder |
 
-> **Full User Manual (EN):** **[docs/USER_MANUAL_EN.html](docs/USER_MANUAL_EN.html)**
+> **Full User Manual (EN):** **[HTML/USER_MANUAL_EN.html](HTML/USER_MANUAL_EN.html)**
 > — Detailed description of every tab, option, badge, advanced concepts (BioCLIP, geotagging, sync state) and troubleshooting.
 
 ---

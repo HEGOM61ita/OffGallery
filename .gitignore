@@ -157,9 +157,6 @@ tagging_log.txt
 # Directory POC / sviluppo locale (non pubblicare)
 llm_plugin_poc/
 
-# Vecchio installer manuale — rimosso, sostituito da A_INSTALLER/
-installer/
-
 # Installer GUI — incluso nel repo pubblico
 A_INSTALLER/build/
 A_INSTALLER/dist/

@@ -1,0 +1,53 @@
+# ============================================
+# OffGallery - Dipendenze Python
+# Ambiente: OffGallery (Python 3.12)
+# ============================================
+
+# === CORE AI / DEEP LEARNING ===
+# PyTorch: installato dall'installer con GPU auto-rilevata (CUDA o CPU)
+# Non specificare l'index-url qui: viene gestito da INSTALLA_OffGallery.bat
+torch
+torchvision
+
+# Transformers (HuggingFace) per CLIP, DINOv2, Aesthetic
+# VERSIONI PINNATE: get_image_features() e get_text_features() hanno comportamenti
+# diversi tra versioni — un mismatch causa score CLIP vicini a zero nella ricerca semantica
+transformers==4.57.3
+huggingface-hub==0.36.0
+safetensors
+timm
+
+# BioCLIP v2 per classificazione flora/fauna
+pybioclip>=1.0
+open-clip-torch==3.2.0
+
+# MUSIQ - Valutazione qualità tecnica (sostituisce BRISQUE)
+pyiqa
+
+# Geocoding offline (dati GeoNames bundled, ~3MB, nessuna API)
+reverse_geocoder
+
+# === IMAGE PROCESSING ===
+pillow
+pillow-heif
+rawpy
+opencv-python-headless
+numpy
+
+# === TRANSLATION ===
+argostranslate
+
+# === UI ===
+PyQt6
+
+# === UTILITIES ===
+pyyaml
+requests
+tqdm
+ftfy
+regex
+psutil
+
+# === NOTA ===
+# Questo file contiene SOLO le dipendenze realmente utilizzate.
+# Le dipendenze transitive vengono installate automaticamente da pip.
