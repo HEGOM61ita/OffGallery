@@ -371,6 +371,10 @@ def pull_model(
         if not start_server(ollama_exe, log_cb):
             raise RuntimeError("Impossibile avviare Ollama per il download del modello.")
 
+    if force and is_model_pulled(model):
+        _log(log_cb, f"Rimozione modello '{model}' per riscarica...")
+        subprocess.run([ollama_exe, "rm", model], capture_output=True)
+
     _log(log_cb, f"Download modello '{model}' (~5.2 GB)...")
 
     try:
