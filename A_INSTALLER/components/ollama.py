@@ -113,18 +113,37 @@ def api_version() -> Optional[str]:
 
 
 def is_model_pulled(model: str = OLLAMA_MODEL) -> bool:
-    """True se il modello è già presente nella libreria locale di Ollama."""
+    """True se il modello è già presente nella libreria locale di Ollama.
+    Prova in ordine: API (server attivo) → filesystem (~/.ollama/models/)."""
+    # 1. API — funziona solo se il server è avviato
     try:
         req = urllib.request.Request(
             f"{OLLAMA_API}/api/tags",
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
         models = [m.get("name", "") for m in data.get("models", [])]
-        return any(model in m for m in models)
+        if any(model in m for m in models):
+            return True
     except Exception:
-        return False
+        pass
+
+    # 2. Filesystem — funziona senza server
+    # Ollama salva i manifest in ~/.ollama/models/manifests/registry.ollama.ai/library/<name>/<tag>
+    # oppure in $OLLAMA_MODELS se impostato
+    base_dir = os.environ.get("OLLAMA_MODELS", os.path.expanduser("~/.ollama/models"))
+    manifests_dir = os.path.join(base_dir, "manifests")
+    if os.path.isdir(manifests_dir):
+        name, _, tag = model.partition(":")
+        tag = tag or "latest"
+        for root, _dirs, files in os.walk(manifests_dir):
+            if name in os.path.basename(root) or name in root:
+                if tag in files or any(tag in f for f in files):
+                    return True
+            if name in files or any(name in f for f in files):
+                return True
+    return False
 
 
 def port_in_use(port: int = OLLAMA_PORT) -> bool:

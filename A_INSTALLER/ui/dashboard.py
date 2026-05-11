@@ -14,8 +14,13 @@ from components.conda_env  import ensure_env, python_executable
 from components.core       import ensure_core, installed_version, update_available
 from components.miniconda  import conda_executable, find_conda, conda_version
 from components.models     import MODELS, download_models, model_exists
-from components.ollama     import ensure_ollama, find_ollama, ollama_version, is_running as ollama_running
-from components.lmstudio   import ensure_lmstudio, find_lmstudio, is_running as lm_running
+from components.ollama     import (ensure_ollama, find_ollama, ollama_version,
+                                   is_running as ollama_running, is_model_pulled,
+                                   pull_model, start_server, OLLAMA_MODEL)
+from components.lmstudio   import (ensure_lmstudio, find_lmstudio,
+                                   is_running as lm_running, api_models,
+                                   POST_INSTALL_INSTRUCTIONS)
+from utils.config_yaml     import read_llm_backend, write_llm_backend, config_exists
 from components.packages   import detect_torch_variant, install_packages, torch_variant_label
 from state.state_manager   import StateManager
 from ui.progress           import DownloadPanel
@@ -44,6 +49,7 @@ STATUS_ICONS = {
     "skipped":       ("—",  "#aaa"),
     "not_installed": ("❌", ERROR_COL),
     "update":        ("🔄", WARN_COL),
+    "warning":       ("⚠️",  WARN_COL),
 }
 
 # ---------------------------------------------------------------------------
@@ -185,6 +191,17 @@ TOOLTIP_TEXT: dict[str, str] = {
         "Non installato ora? Puoi aggiungerlo in qualsiasi momento "
         "cliccando [Installa] da questa schermata."
     ),
+    "model_llm": (
+        f"Modello LLM vision per la generazione automatica di descrizioni,\n"
+        f"titoli e tag fotografici.\n\n"
+        f"Backend Ollama — Modello: {OLLAMA_MODEL}  (~5.2 GB)\n"
+        f"  Scaricato automaticamente dall'installer.\n\n"
+        "Backend LM Studio — il modello va scaricato manualmente:\n"
+        "  1. Apri LM Studio → Discover → scarica un modello vision\n"
+        "  2. Local Server → carica il modello → Start Server\n"
+        "  3. Torna qui — verrà rilevato automaticamente.\n\n"
+        "Cambia backend con i pulsanti radio qui sopra."
+    ),
 }
 
 
@@ -194,9 +211,14 @@ class DashboardPage(tk.Frame):
         super().__init__(parent, bg=BG, **kw)
         self.app = app
         self._rows: dict[str, "_ComponentRow"] = {}
+        self._backend_var = tk.StringVar(value="ollama")
         self._build()
 
     def on_enter(self):
+        if self.app.state:
+            self._backend_var.set(
+                read_llm_backend(self.app.state.install_path)
+            )
         self._refresh_all()
 
     # ------------------------------------------------------------------
@@ -243,14 +265,34 @@ class DashboardPage(tk.Frame):
         self._build_section("MODELLI AI", [
             (f"model_{m.key}", m.label) for m in MODELS
         ])
-        self._build_section("LLM (opzionale)", [
-            ("ollama",   "Ollama"),
-            ("lmstudio", "LM Studio"),
-        ])
+        # Sezione LLM — costruita manualmente per aggiungere il selettore backend
+        tk.Label(self._comp_frame, text="LLM (opzionale)",
+                 font=FONT_HEAD, bg=BG, anchor="w", pady=6).pack(fill="x")
+
+        backend_row = tk.Frame(self._comp_frame, bg=BG)
+        backend_row.pack(fill="x", pady=(0, 4))
+        tk.Label(backend_row, text="  Backend:", font=FONT_BODY,
+                 bg=BG, width=10, anchor="w").pack(side="left")
+        for val, lbl in [("ollama", "Ollama  (consigliato)"), ("lmstudio", "LM Studio")]:
+            tk.Radiobutton(backend_row, variable=self._backend_var, value=val,
+                           text=lbl, font=FONT_BODY, bg=BG,
+                           activebackground=BG,
+                           command=self._on_backend_change).pack(side="left", padx=8)
+
+        for key, label in [
+            ("ollama",    "Ollama"),
+            ("lmstudio",  "LM Studio"),
+            ("model_llm", "Modello LLM"),
+        ]:
+            row = _ComponentRow(self._comp_frame, key=key, label=label,
+                                dashboard=self, tooltip=TOOLTIP_TEXT.get(key, ""))
+            row.pack(fill="x", pady=2)
+            self._rows[key] = row
+        ttk.Separator(self._comp_frame, orient="horizontal").pack(fill="x", pady=6)
 
         # Colonna destra: download panel + bottoni
         right = tk.Frame(body, bg=BG)
-        right.pack(side="left", fill="both", expand=True, padx=(8, 16), pady=12)
+        right.pack(side="left", fill="both", expand=True, padx=(8, 4), pady=12)
 
         self._panel = DownloadPanel(right, bg=BG)
         self._panel.pack(fill="both", expand=True)
@@ -277,9 +319,10 @@ class DashboardPage(tk.Frame):
     # ------------------------------------------------------------------
 
     def _refresh_all(self):
-        sm  = self.app.state
+        sm = self.app.state
         if not sm:
             return
+        self._sync_backend_rows()
 
         ver     = installed_version(sm.install_path)
         new_ver = None
@@ -353,6 +396,32 @@ class DashboardPage(tk.Frame):
                       ("installato" + (" ▶" if lm_run else "")) if lm_exe else "—",
                       action_label="Reinstalla" if lm_exe else "Installa",
                       action=lambda: self._action_install("lmstudio"))
+
+        backend = self._backend_var.get()
+        if backend == "ollama":
+            state_ok = sm.is_done("ollama_model")
+            live_ok  = is_model_pulled(OLLAMA_MODEL) if (ollama_exe and not state_ok) else False
+            model_ok = state_ok or live_ok
+            if live_ok and not state_ok:
+                sm.mark_done("ollama_model")
+            self._set_row("model_llm",
+                          "done" if model_ok else ("not_installed" if ollama_exe else "pending"),
+                          OLLAMA_MODEL.split(":")[0] if model_ok else ("—" if ollama_exe else "Richiede Ollama"),
+                          action_label="Riscarica" if model_ok else ("Scarica" if ollama_exe else None),
+                          action=self._action_pull_llm_model if ollama_exe else None)
+        else:
+            lms_models = api_models() if lm_exe and lm_run else []
+            if not lm_exe:
+                st, val, btn = "pending", "Richiede LM Studio", None
+            elif not lm_run:
+                st, val, btn = "not_installed", "Server non attivo", "Istruzioni"
+            elif lms_models:
+                st, val, btn = "done", lms_models[0].split("/")[-1], "Istruzioni"
+            else:
+                st, val, btn = "warning", "Nessun modello caricato", "Istruzioni"
+            self._set_row("model_llm", st, val,
+                          action_label=btn,
+                          action=self._action_lms_instructions if btn else None)
 
     def _set_row(self, key, status, value, action_label=None, action=None):
         row = self._rows.get(key)
@@ -489,7 +558,7 @@ class DashboardPage(tk.Frame):
                 sm = self.app.state
                 if component == "ollama":
                     self._set_row("ollama", "in_progress", "Installazione...")
-                    res = ensure_ollama(install_if_missing=True, pull_model_flag=True,
+                    res = ensure_ollama(install_if_missing=True, pull_model_flag=False,
                                         progress_cb=self._panel.on_download_progress,
                                         log_cb=self._panel.log)
                     sm.mark_done("ollama", version=res.get("version", ""))
@@ -511,6 +580,50 @@ class DashboardPage(tk.Frame):
                         log_cb=self._panel.log)
                     sm.mark_done("miniconda",
                                  path=os.path.dirname(os.path.dirname(conda_exe)))
+            except Exception as exc:
+                self._panel.log(f"❌ {exc}")
+        self._run_bg(_do)
+
+    def _on_backend_change(self):
+        backend = self._backend_var.get()
+        if self.app.state and config_exists(self.app.state.install_path):
+            ok = write_llm_backend(self.app.state.install_path, backend)
+            if ok:
+                self._panel.log(f"Backend LLM impostato: {backend}")
+            else:
+                self._panel.log("⚠ config_new.yaml non trovato — backend non salvato.")
+        self._sync_backend_rows()
+        self._refresh_all()
+
+    def _sync_backend_rows(self):
+        backend = self._backend_var.get()
+        for key, show in [("ollama", backend == "ollama"),
+                          ("lmstudio", backend == "lmstudio")]:
+            row = self._rows.get(key)
+            if row:
+                if show:
+                    row.pack(fill="x", pady=2)
+                else:
+                    row.pack_forget()
+
+    def _action_lms_instructions(self):
+        messagebox.showinfo("Modello LM Studio", POST_INSTALL_INSTRUCTIONS)
+
+    def _action_pull_llm_model(self):
+        def _do():
+            try:
+                ollama_exe = find_ollama()
+                if not ollama_exe:
+                    self._panel.log("❌ Ollama non installato. Installa prima Ollama.")
+                    return
+                self._set_row("model_llm", "in_progress", "Download...")
+                if not ollama_running():
+                    self._panel.log("Avvio Ollama...")
+                    start_server(ollama_exe, log_cb=self._panel.log)
+                ok = pull_model(ollama_exe, log_cb=self._panel.log,
+                                progress_cb=self._panel.on_download_progress)
+                if ok:
+                    self.app.state.mark_done("ollama_model")
             except Exception as exc:
                 self._panel.log(f"❌ {exc}")
         self._run_bg(_do)
