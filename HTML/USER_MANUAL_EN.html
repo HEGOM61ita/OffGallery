@@ -1390,7 +1390,7 @@ Destination (e.g. E:\Backup):
 <p>Go to <strong>Configuration → LLM output language</strong> and select "English". Then use "AI Gen. Only" to regenerate tags for all photos already in the database.</p>
 
 <h3>Semantic search is not finding relevant photos</h3>
-<p>CLIP embeddings may have been generated with an incompatible library version. Reprocess photos with "Reprocess all" after verifying library versions (see <code>installer/INSTALL_GUIDE_EN.md</code> for version requirements — Linux/macOS — or reinstall using <code>OffGallerySetup.exe</code> on Windows).</p>
+<p>CLIP embeddings may have been generated with an incompatible library version. Reprocess photos with "Reprocess all" after verifying library versions. On Windows and Linux reinstall using the wizard (<code>OffGallerySetup.exe</code> or <code>OffGallerySetup</code>); on macOS see <code>installer/INSTALL_GUIDE_EN.md</code> for version requirements.</p>
 
 <h3>A RAW file is not being processed</h3>
 <p>Some high-efficiency RAW formats (e.g. NEF with lossless compression) do not contain an extractable JPEG preview. In these cases OffGallery saves EXIF metadata but skips embeddings and LLM. Check the Log tab for details.</p>

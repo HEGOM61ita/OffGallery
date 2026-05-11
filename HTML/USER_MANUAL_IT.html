@@ -1564,7 +1564,7 @@ Destinazione (es. E:\Backup):
 <p>Vai in <strong>Configurazione → Lingua output LLM</strong> e seleziona "Italiano". Usa poi "Solo Gen. AI" per rigenerare i tag su tutte le foto già nel database.</p>
 
 <h3>La ricerca semantica non trova foto pertinenti</h3>
-<p>Gli embedding CLIP potrebbero essere stati generati con una versione incompatibile del modello. Rielabora le foto con "Riprocessa tutte" dopo aver verificato le versioni delle librerie (vedi <code>installer/INSTALL_GUIDE_IT.md</code> per i requisiti di versione — Linux/macOS — oppure reinstalla tramite <code>OffGallerySetup.exe</code> su Windows).</p>
+<p>Gli embedding CLIP potrebbero essere stati generati con una versione incompatibile del modello. Rielabora le foto con "Riprocessa tutte" dopo aver verificato le versioni delle librerie. Su Windows e Linux reinstalla tramite il wizard (<code>OffGallerySetup.exe</code> o <code>OffGallerySetup</code>); su macOS vedi <code>installer/INSTALL_GUIDE_IT.md</code> per i requisiti di versione.</p>
 
 <h3>Una foto RAW non viene elaborata</h3>
 <p>Alcuni formati RAW high-efficiency (es. NEF con compressione loss-less) non contengono un'anteprima JPEG estraibile. In questi casi OffGallery salva i metadati EXIF ma salta embedding e LLM. Controlla il tab Log per i dettagli.</p>
