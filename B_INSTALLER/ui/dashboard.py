@@ -643,6 +643,14 @@ class DashboardPage(tk.Frame):
         messagebox.showinfo("Modello LM Studio", POST_INSTALL_INSTRUCTIONS)
 
     def _action_pull_llm_model(self):
+        model_ok = self.app.state.is_done("ollama_model") if self.app.state else False
+        if model_ok:
+            if not messagebox.askyesno(
+                "Riscarica modello",
+                f"Il modello '{OLLAMA_MODEL}' è già presente.\n"
+                f"Riscaricarlo da zero?"
+            ):
+                return
         def _do():
             try:
                 ollama_exe = find_ollama()
@@ -654,7 +662,8 @@ class DashboardPage(tk.Frame):
                     self._panel.log("Avvio Ollama...")
                     start_server(ollama_exe, log_cb=self._panel.log)
                 ok = pull_model(ollama_exe, log_cb=self._panel.log,
-                                progress_cb=self._panel.on_download_progress)
+                                progress_cb=self._panel.on_download_progress,
+                                force=model_ok)
                 if ok:
                     self.app.state.mark_done("ollama_model")
             except Exception as exc:

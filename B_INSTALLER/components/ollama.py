@@ -356,13 +356,14 @@ def pull_model(
     model:       str = OLLAMA_MODEL,
     log_cb:      Optional[Callable] = None,
     progress_cb: Optional[Callable] = None,
+    force:       bool = False,
 ) -> bool:
     """
     Scarica il modello Ollama con `ollama pull`.
     Chiama progress_cb(bytes_done, bytes_total, layer_name) durante il download.
     Restituisce True se completato con successo.
     """
-    if is_model_pulled(model):
+    if not force and is_model_pulled(model):
         _log(log_cb, f"Modello '{model}' già presente.")
         return True
 
