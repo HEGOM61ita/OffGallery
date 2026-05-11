@@ -120,16 +120,33 @@ def api_version() -> Optional[str]:
 
 
 def is_model_pulled(model: str = OLLAMA_MODEL) -> bool:
-    """True se il modello è già presente nella libreria locale di Ollama."""
+    """True se il modello è già presente nella libreria locale di Ollama.
+    Prova prima l'API (server in esecuzione), poi la CLI come fallback."""
+    # 1. API — funziona solo se il server è avviato
     try:
         req = urllib.request.Request(
             f"{OLLAMA_API}/api/tags",
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
         models = [m.get("name", "") for m in data.get("models", [])]
         return any(model in m for m in models)
+    except Exception:
+        pass
+
+    # 2. CLI — funziona anche senza server avviato
+    ollama_exe = find_ollama()
+    if not ollama_exe:
+        return False
+    try:
+        out = subprocess.check_output(
+            [ollama_exe, "list"],
+            text=True, stderr=subprocess.DEVNULL, timeout=10,
+            creationflags=_CNW,
+        )
+        base = model.split(":")[0]
+        return any(base in line for line in out.splitlines())
     except Exception:
         return False
 
