@@ -333,6 +333,7 @@ class DashboardPage(tk.Frame):
         sm = self.app.state
         if not sm:
             return
+        self._sync_backend_rows()
 
         ver     = installed_version(sm.install_path)
         new_ver = None
@@ -619,8 +620,20 @@ class DashboardPage(tk.Frame):
             if ok:
                 self._panel.log(f"Backend LLM impostato: {backend}")
             else:
-                self._panel.log(f"⚠ config_new.yaml non trovato — backend non salvato.")
+                self._panel.log("⚠ config_new.yaml non trovato — backend non salvato.")
+        self._sync_backend_rows()
         self._refresh_all()
+
+    def _sync_backend_rows(self):
+        backend = self._backend_var.get()
+        for key, show in [("ollama", backend == "ollama"),
+                          ("lmstudio", backend == "lmstudio")]:
+            row = self._rows.get(key)
+            if row:
+                if show:
+                    row.pack(fill="x", pady=2)
+                else:
+                    row.pack_forget()
 
     def _action_lms_instructions(self):
         messagebox.showinfo("Modello LM Studio", POST_INSTALL_INSTRUCTIONS)
