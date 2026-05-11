@@ -372,15 +372,16 @@ def pull_model(
             progress = _parse_pull_progress(line)
             if progress and progress_cb:
                 bytes_done, bytes_total, layer = progress
+                label = model if layer.startswith("sha256:") else layer
                 progress_cb(DownloadProgress(
-                    filename=layer,
+                    filename=f"Modello LLM: {label}",
                     bytes_done=bytes_done,
                     bytes_total=bytes_total,
                     speed_bps=0,
                     elapsed_sec=0,
                     eta_sec=-1,
                 ))
-            elif line:
+            elif line and not any(c in line for c in ("▕", "▏", "█", "\r")):
                 _log(log_cb, line)
 
         proc.wait(timeout=7200)   # 2 ore max

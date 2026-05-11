@@ -16,8 +16,12 @@ from components.core         import ensure_core, installed_version, update_avail
 from components.exiftool_linux import is_installed as exiftool_installed, install_exiftool
 from components.miniconda    import conda_executable, find_conda, conda_version
 from components.models       import MODELS, download_models, model_exists
-from components.ollama       import ensure_ollama, find_ollama, ollama_version, is_running as ollama_running
-from components.lmstudio     import ensure_lmstudio, find_lmstudio, is_running as lm_running
+from components.ollama       import (ensure_ollama, find_ollama, ollama_version,
+                                     is_running as ollama_running, is_model_pulled,
+                                     pull_model, start_server, OLLAMA_MODEL)
+from components.lmstudio     import (ensure_lmstudio, find_lmstudio,
+                                     is_running as lm_running, api_models,
+                                     POST_INSTALL_INSTRUCTIONS)
 from components.packages     import detect_torch_variant, install_packages, torch_variant_label
 from state.state_manager     import StateManager
 from ui.progress             import DownloadPanel
@@ -46,6 +50,7 @@ STATUS_ICONS = {
     "skipped":       ("—",  "#aaa"),
     "not_installed": ("❌", ERROR_COL),
     "update":        ("🔄", WARN_COL),
+    "warning":       ("⚠️",  WARN_COL),
 }
 
 # ---------------------------------------------------------------------------
@@ -195,6 +200,26 @@ TOOLTIP_TEXT: dict[str, str] = {
         "Non installato ora? Puoi aggiungerlo in qualsiasi momento "
         "cliccando [Installa] da questa schermata."
     ),
+    "model_llm": (
+        f"Modello LLM vision per la generazione automatica di descrizioni,\n"
+        f"titoli e tag fotografici.\n\n"
+        f"Modello: {OLLAMA_MODEL}\n"
+        f"Dimensione: ~5.2 GB\n\n"
+        "Richiede Ollama installato e in esecuzione.\n"
+        "Puoi scaricarlo o aggiornarlo in qualsiasi momento."
+    ),
+    "model_lms": (
+        "Modello LLM vision caricato in LM Studio.\n\n"
+        "A differenza di Ollama, LM Studio non supporta il download\n"
+        "automatico dei modelli da installer.\n\n"
+        "Per caricare un modello:\n"
+        "1. Apri LM Studio\n"
+        "2. Vai in 'Discover' e scarica un modello vision\n"
+        "   (es. Qwen2-VL, LLaVA, o qwen3-vl)\n"
+        "3. Vai in 'Local Server' e avvia il server\n"
+        "4. Torna qui — il modello verrà rilevato automaticamente.\n\n"
+        "Clicca [Istruzioni] per rivedere i passaggi."
+    ),
 }
 
 
@@ -257,13 +282,15 @@ class DashboardPage(tk.Frame):
             (f"model_{m.key}", m.label) for m in MODELS
         ])
         self._build_section("LLM (opzionale)", [
-            ("ollama",   "Ollama"),
-            ("lmstudio", "LM Studio"),
+            ("ollama",    "Ollama"),
+            ("model_llm", "Modello LLM vision"),
+            ("lmstudio",  "LM Studio"),
+            ("model_lms", "Modello LM Studio"),
         ])
 
         # Colonna destra: download panel + bottoni
         right = tk.Frame(body, bg=BG)
-        right.pack(side="left", fill="both", expand=True, padx=(8, 16), pady=12)
+        right.pack(side="left", fill="both", expand=True, padx=(8, 4), pady=12)
 
         self._panel = DownloadPanel(right, bg=BG)
         self._panel.pack(fill="both", expand=True)
@@ -372,6 +399,28 @@ class DashboardPage(tk.Frame):
                       ("installato" + (" ▶" if lm_run else "")) if lm_exe else "—",
                       action_label="Reinstalla" if lm_exe else "Installa",
                       action=lambda: self._action_install("lmstudio"))
+
+        model_ok = is_model_pulled(OLLAMA_MODEL) if ollama_exe else False
+        self._set_row("model_llm",
+                      "done" if model_ok else ("not_installed" if ollama_exe else "pending"),
+                      OLLAMA_MODEL.split(":")[0] if model_ok else ("—" if ollama_exe else "Richiede Ollama"),
+                      action_label="Riscarica" if model_ok else ("Scarica" if ollama_exe else None),
+                      action=self._action_pull_llm_model if ollama_exe else None)
+
+        lms_models = api_models() if lm_exe and lm_run else []
+        if not lm_exe:
+            lms_status, lms_value, lms_btn = "pending", "Richiede LM Studio", None
+        elif not lm_run:
+            lms_status, lms_value, lms_btn = "not_installed", "Server non attivo", "Istruzioni"
+        elif lms_models:
+            lms_status, lms_value, lms_btn = "done", lms_models[0].split("/")[-1], "Istruzioni"
+        else:
+            lms_status, lms_value, lms_btn = "warning", "Nessun modello caricato", "Istruzioni"
+        self._set_row("model_lms",
+                      lms_status,
+                      lms_value,
+                      action_label=lms_btn,
+                      action=self._action_lms_instructions if lms_btn else None)
 
     def _set_row(self, key, status, value, action_label=None, action=None):
         row = self._rows.get(key)
@@ -522,7 +571,7 @@ class DashboardPage(tk.Frame):
                 sm = self.app.state
                 if component == "ollama":
                     self._set_row("ollama", "in_progress", "Installazione...")
-                    res = ensure_ollama(install_if_missing=True, pull_model_flag=True,
+                    res = ensure_ollama(install_if_missing=True, pull_model_flag=False,
                                         progress_cb=self._panel.on_download_progress,
                                         log_cb=self._panel.log)
                     sm.mark_done("ollama", version=res.get("version", ""))
@@ -544,6 +593,26 @@ class DashboardPage(tk.Frame):
                         log_cb=self._panel.log)
                     sm.mark_done("miniconda",
                                  path=os.path.dirname(os.path.dirname(conda_exe)))
+            except Exception as exc:
+                self._panel.log(f"❌ {exc}")
+        self._run_bg(_do)
+
+    def _action_lms_instructions(self):
+        messagebox.showinfo("Modello LM Studio", POST_INSTALL_INSTRUCTIONS)
+
+    def _action_pull_llm_model(self):
+        def _do():
+            try:
+                ollama_exe = find_ollama()
+                if not ollama_exe:
+                    self._panel.log("❌ Ollama non installato. Installa prima Ollama.")
+                    return
+                self._set_row("model_llm", "in_progress", "Download...")
+                if not ollama_running():
+                    self._panel.log("Avvio Ollama...")
+                    start_server(ollama_exe, log_cb=self._panel.log)
+                pull_model(ollama_exe, log_cb=self._panel.log,
+                           progress_cb=self._panel.on_download_progress)
             except Exception as exc:
                 self._panel.log(f"❌ {exc}")
         self._run_bg(_do)

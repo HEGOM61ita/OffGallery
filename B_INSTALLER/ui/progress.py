@@ -185,7 +185,7 @@ class DownloadPanel(tk.Frame):
 
         # -- Log
         log_frame = tk.Frame(self, bg=bg)
-        log_frame.pack(fill="both", expand=True, padx=12, pady=(4, 12))
+        log_frame.pack(fill="both", expand=True, padx=(12, 4), pady=(4, 12))
 
         tk.Label(log_frame, text="Dettagli:", anchor="w",
                  font=("Segoe UI", 9), bg=bg).pack(anchor="w")
@@ -195,10 +195,9 @@ class DownloadPanel(tk.Frame):
             font=("Consolas", 8), bg="#1e1e1e", fg="#d4d4d4",
             relief="flat", wrap="word",
         )
-        self._log_text.pack(fill="both", expand=True, side="left")
-
         scrollbar = ttk.Scrollbar(log_frame, command=self._log_text.yview)
         scrollbar.pack(side="right", fill="y")
+        self._log_text.pack(fill="both", expand=True, side="left")
         self._log_text.configure(yscrollcommand=scrollbar.set)
 
     # ---- Aggiornamenti download modello ----
