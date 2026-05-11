@@ -616,12 +616,12 @@ No terminal, no manual configuration needed.
 
 #### Linux
 ```bash
-bash installer/install_offgallery_linux_it.sh
+bash installer/install_offgallery_linux_en.sh
 ```
 
 #### macOS
 ```bash
-bash installer/install_offgallery_mac_it.sh
+bash installer/install_offgallery_mac_en.sh
 ```
 
 > **Apple Silicon (M1/M2/M3/M4)**: PyTorch automatically uses Metal/MPS for GPU acceleration — no extra configuration needed.
