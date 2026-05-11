@@ -361,6 +361,88 @@ def _check_for_updates(parent_window):
         pass  # Fallimento silenzioso — non bloccare l'avvio
 
 
+def _ensure_llm_backend(config: dict, splash: "SplashScreen"):
+    """Verifica che il backend LLM configurato sia in esecuzione.
+    Se non risponde e il binario è installato, lo avvia automaticamente.
+    Chiamato nello splash prima di EmbeddingGenerator.
+    """
+    import shutil, os, platform, subprocess, time, urllib.request
+
+    llm_cfg = config.get('embedding', {}).get('models', {}).get('llm_vision', {})
+    if not llm_cfg.get('enabled', False):
+        return
+
+    backend  = llm_cfg.get('backend', 'auto')
+    endpoint = llm_cfg.get('endpoint', '')
+
+    def _is_up(url: str, timeout: int = 3) -> bool:
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as r:
+                return r.status == 200
+        except Exception:
+            return False
+
+    def _find_exe(candidates: list) -> str | None:
+        for p in candidates:
+            if p and os.path.isfile(p):
+                return p
+        return None
+
+    if backend in ('ollama', 'auto'):
+        api_url = endpoint if endpoint else 'http://localhost:11434'
+        if _is_up(f"{api_url}/api/tags"):
+            return  # già in esecuzione
+
+        candidates = [
+            shutil.which("ollama"),
+            os.path.expanduser("~/.local/bin/ollama"),
+            "/usr/local/bin/ollama",
+            "/usr/bin/ollama",
+        ]
+        if platform.system() == "Windows":
+            candidates += [
+                os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe"),
+                r"C:\Program Files\Ollama\ollama.exe",
+            ]
+        ollama_exe = _find_exe([p for p in candidates if p])
+
+        if ollama_exe:
+            splash.add_log("🚀 Avvio Ollama in background...")
+            subprocess.Popen(
+                [ollama_exe, "serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            for _ in range(15):
+                time.sleep(1)
+                if _is_up(f"{api_url}/api/tags"):
+                    splash.add_log("✅ Ollama avviato correttamente")
+                    return
+            splash.add_log("⚠️ Ollama non risponde dopo 15 secondi — LLM disabilitato")
+        elif backend == 'ollama':
+            splash.add_log("⚠️ Ollama non trovato nel sistema — LLM disabilitato")
+
+    if backend in ('lmstudio', 'auto'):
+        api_url = endpoint if endpoint else 'http://localhost:1234'
+        if _is_up(f"{api_url}/v1/models"):
+            return  # già in esecuzione
+
+        candidates = [
+            shutil.which("lmstudio"),
+            os.path.expanduser("~/.local/bin/lmstudio"),
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "LM Studio", "LM Studio.exe"),
+            r"C:\Program Files\LM Studio\LM Studio.exe",
+        ]
+        lms_exe = _find_exe([p for p in candidates if p])
+
+        if lms_exe:
+            splash.add_log("⚠️ LM Studio è installato ma il server locale non è attivo.")
+            splash.add_log("   Aprilo, vai in 'Local Server' e avvia il server, poi riavvia OffGallery.")
+        elif backend == 'lmstudio':
+            splash.add_log("⚠️ LM Studio non trovato nel sistema — LLM disabilitato")
+
+
 def run_with_splash():
     """Avvia applicazione con splash screen"""
     # Carica lingua prima di creare qualsiasi widget
@@ -450,6 +532,8 @@ def run_with_splash():
     # su tutte le piattaforme (segfault Cocoa/Metal su macOS, xcb su Linux,
     # MKL/OpenMP su Windows). Il caricamento sincrono blocca la UI ma è
     # l'unico approccio stabile.
+
+    _ensure_llm_backend(_config, splash)
 
     try:
         from gui.main_window import MainWindow, shutdown_badge_manager
