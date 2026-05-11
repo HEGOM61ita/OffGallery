@@ -418,7 +418,11 @@ class DashboardPage(tk.Frame):
 
         backend = self._backend_var.get()
         if backend == "ollama":
-            model_ok = is_model_pulled(OLLAMA_MODEL) if ollama_exe else False
+            state_ok = sm.is_done("ollama_model")
+            live_ok  = is_model_pulled(OLLAMA_MODEL) if (ollama_exe and not state_ok) else False
+            model_ok = state_ok or live_ok
+            if live_ok and not state_ok:
+                sm.mark_done("ollama_model")
             self._set_row("model_llm",
                           "done" if model_ok else ("not_installed" if ollama_exe else "pending"),
                           OLLAMA_MODEL.split(":")[0] if model_ok else ("—" if ollama_exe else "Richiede Ollama"),
@@ -649,8 +653,10 @@ class DashboardPage(tk.Frame):
                 if not ollama_running():
                     self._panel.log("Avvio Ollama...")
                     start_server(ollama_exe, log_cb=self._panel.log)
-                pull_model(ollama_exe, log_cb=self._panel.log,
-                           progress_cb=self._panel.on_download_progress)
+                ok = pull_model(ollama_exe, log_cb=self._panel.log,
+                                progress_cb=self._panel.on_download_progress)
+                if ok:
+                    self.app.state.mark_done("ollama_model")
             except Exception as exc:
                 self._panel.log(f"❌ {exc}")
         self._run_bg(_do)

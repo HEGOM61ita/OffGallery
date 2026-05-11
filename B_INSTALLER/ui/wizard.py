@@ -550,6 +550,7 @@ class InstallPage(tk.Frame):
                                     log_cb=self._log)
                 if res["model_ok"]:
                     sm.mark_done("ollama", version=res.get("version", ""))
+                    sm.mark_done("ollama_model")
                     self._step("Ollama / LM Studio", "done")
                     self._results["Ollama + modello LLM vision"] = True
                 else:
