@@ -81,6 +81,11 @@
 - Link: https://python-pillow.org/
 - Usage: Image pre-processing before embedding generation
 
+**PyInstaller — PyInstaller Development Team**
+- Licenza / License: GPL v2 + exception
+- Link: https://pyinstaller.org/
+- Usage: Packaging Python app into standalone .exe / binary installers
+
 **NumPy / SciPy — NumPy/SciPy Contributors**
 - Licenza / License: BSD-3-Clause
 - Link: https://numpy.org/ · https://scipy.org/
