@@ -287,7 +287,7 @@ Abilitano la generazione automatica di tag, descrizioni e titoli tramite modelli
 | Plugin | Backend | Endpoint default | Note |
 |--------|---------|------------------|------|
 | **Ollama** | Ollama locale | `http://localhost:11434` | Ottimizzato per qwen3-VL, llava, gemma3. Supporto `think=false`, diagnostica timing, warmup/unload VRAM |
-| **LM Studio** | LM Studio server | `http://localhost:1234` | API OpenAI-compatible. Supporto AMD/DirectML, unload via CLI `lms`. Consigliato: qwen3-VL |
+| **LM Studio** | LM Studio server | `http://localhost:1234` | API OpenAI-compatible. Supporto AMD/DirectML, unload via CLI `lms`. Consigliato: qwen3-VL. Plugin sviluppato da Riccardo Merlotti |
 
 Il backend attivo si seleziona dal tab **Configurazione → Connessione LLM**. Il cambio non richiede riavvio; i dati già generati nel database restano invariati.
 
@@ -717,7 +717,7 @@ Enable automatic generation of tags, descriptions and titles via local LLM Visio
 | Plugin | Backend | Default endpoint | Notes |
 |--------|---------|-----------------|-------|
 | **Ollama** | Local Ollama | `http://localhost:11434` | Optimized for qwen3-VL, llava, gemma3. `think=false` support, timing diagnostics, VRAM warmup/unload |
-| **LM Studio** | LM Studio server | `http://localhost:1234` | OpenAI-compatible API. AMD/DirectML support, `lms` CLI unload. Recommended: qwen3-VL |
+| **LM Studio** | LM Studio server | `http://localhost:1234` | OpenAI-compatible API. AMD/DirectML support, `lms` CLI unload. Recommended: qwen3-VL. Plugin developed by Riccardo Merlotti |
 
 The active backend is selected from **Configuration → LLM Connection**. Switching does not require a restart; existing database data is not affected.
 
