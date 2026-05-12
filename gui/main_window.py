@@ -881,7 +881,12 @@ class MainWindow(QMainWindow):
             • EXIF completi + GPS
             </p>
             <hr>
-            <p style="font-size: 10px; color: {COLORS['ambra']};">© 2024 - MIT License</p>
+            <p style="font-size: 10px; color: {COLORS['ambra']};">© 2024–2026 Michele Mulè — GNU AGPLv3</p>
+            <p style="font-size: 9px; color: {COLORS['grigio_medio']};">
+            Il codice sorgente è disponibile su
+            <a href="https://github.com/HEGOM61ita/OffGallery" style="color: {COLORS['grigio_medio']};">GitHub</a>.
+            Licenze componenti di terze parti: file THIRD_PARTY.md incluso nella distribuzione.
+            </p>
             </div>
         """)
         about_box.setStyleSheet(f"""

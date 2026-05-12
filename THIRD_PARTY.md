@@ -32,6 +32,11 @@
 - Link: https://github.com/google-research/google-research/tree/master/musiq
 - Usage: Technical image quality assessment via pyiqa
 
+**pyiqa — chaofengc**
+- Licenza / License: Apache-2.0
+- Link: https://github.com/chaofengc/IQA-PyTorch
+- Usage: Python interface for MUSIQ and other IQA models
+
 **Ollama**
 - Licenza / License: MIT
 - Link: https://ollama.com/

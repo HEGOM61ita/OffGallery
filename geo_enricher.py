@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 Michele Mulè <hegomm@gmail.com>
 """
 Geo Enricher - Arricchimento geografico offline da coordinate GPS.
 Usa reverse_geocoder (offline, dati GeoNames bundled) per ottenere

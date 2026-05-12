@@ -23,6 +23,9 @@ a = Analysis(
         ('exiftool_files', 'exiftool_files'),
         # Utils module
         ('utils', 'utils'),
+        # Licenze (obbligatorio per compliance AGPLv3, GPL, CC BY 4.0)
+        ('LICENSE', '.'),
+        ('THIRD_PARTY.md', '.'),
     ],
     hiddenimports=[
         # PyQt6

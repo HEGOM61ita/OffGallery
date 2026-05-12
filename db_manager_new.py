@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 Michele Mulè <hegomm@gmail.com>
 """
 Database Manager - Schema definitivo con campi separati
 Versione pulita senza migrazioni - richiede database ricreato da zero

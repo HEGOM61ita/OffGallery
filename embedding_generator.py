@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 Michele Mulè <hegomm@gmail.com>
 """
 Embedding Generator - Generazione embedding per ricerca semantica e similarita
 Modelli: CLIP (semantica), DINOv2 (visiva), Aesthetic, MUSIQ (qualità tecnica), BioCLIP (natura)
