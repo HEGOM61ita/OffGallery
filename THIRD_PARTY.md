@@ -148,6 +148,7 @@
 **Gemini — Google DeepMind** — https://gemini.google.com/  
 **Perplexity AI** — https://www.perplexity.ai/  
 **LM Studio** — https://lmstudio.ai/  
+**LM Studio plugin for OffGallery** — Plugin developed by Riccardo Merlotti  
 
 ---
 
