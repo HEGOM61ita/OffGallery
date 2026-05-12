@@ -89,6 +89,10 @@ installer/*.bat
 !HTML/USER_MANUAL_EN.html
 !HTML/index.html
 !HTML/features.html
+!HTML/CNAME
+!HTML/sitemap.xml
+!HTML/assets/
+!HTML/assets/*
 
 # ESSENZIALI PER L'APP - Includere nel repo
 !i18n/
