@@ -449,7 +449,7 @@ Vedi **[plugins/PLUGIN_LICENSE_EXCEPTION.md](plugins/PLUGIN_LICENSE_EXCEPTION.md
 - [SQLite](https://sqlite.org/) — Database locale · Public Domain
 
 **Assistenti AI usati nello sviluppo**
-- [Claude / Claude Code](https://claude.ai/) (Anthropic) · [ChatGPT](https://chatgpt.com/) (OpenAI) · [Gemini](https://gemini.google.com/) (Google) · [Perplexity AI](https://www.perplexity.ai/)
+- [Claude / Claude Code](https://claude.ai/) (Anthropic) · [ChatGPT](https://chatgpt.com/) (OpenAI) · [Gemini](https://gemini.google.com/) (Google) · [Perplexity AI](https://www.perplexity.ai/) · [LM Studio](https://lmstudio.ai/)
 
 Il testo completo di ogni licenza è disponibile nel file [`THIRD_PARTY.md`](THIRD_PARTY.md) e nei rispettivi repository ufficiali.
 
@@ -814,7 +814,7 @@ See **[plugins/PLUGIN_LICENSE_EXCEPTION.md](plugins/PLUGIN_LICENSE_EXCEPTION.md)
 - [SQLite](https://sqlite.org/) — Local database · Public Domain
 
 **AI Assistants used in development**
-- [Claude / Claude Code](https://claude.ai/) (Anthropic) · [ChatGPT](https://chatgpt.com/) (OpenAI) · [Gemini](https://gemini.google.com/) (Google) · [Perplexity AI](https://www.perplexity.ai/)
+- [Claude / Claude Code](https://claude.ai/) (Anthropic) · [ChatGPT](https://chatgpt.com/) (OpenAI) · [Gemini](https://gemini.google.com/) (Google) · [Perplexity AI](https://www.perplexity.ai/) · [LM Studio](https://lmstudio.ai/)
 
 Full license text for each component is available in [`THIRD_PARTY.md`](THIRD_PARTY.md) and in the respective official repositories.
 

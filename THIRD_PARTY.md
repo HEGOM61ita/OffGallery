@@ -137,6 +137,7 @@
 **ChatGPT — OpenAI** — https://chatgpt.com/  
 **Gemini — Google DeepMind** — https://gemini.google.com/  
 **Perplexity AI** — https://www.perplexity.ai/  
+**LM Studio** — https://lmstudio.ai/  
 
 ---
 
