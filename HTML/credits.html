@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OffGallery — Crediti e Ringraziamenti</title>
+  <meta name="description" content="OffGallery — Crediti, ringraziamenti e licenze dei componenti open source e dei modelli AI utilizzati." />
+  <meta property="og:title" content="OffGallery — Crediti e Ringraziamenti" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://offgallery.app/credits.html" />
+  <link rel="canonical" href="https://offgallery.app/credits.html" />
+  <link rel="alternate" hreflang="it" href="https://offgallery.app/credits.html" />
+  <link rel="alternate" hreflang="en" href="https://offgallery.app/credits.html" />
+  <link rel="alternate" hreflang="x-default" href="https://offgallery.app/credits.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:           #f5f7fb;
+      --surface:      #ffffff;
+      --surface-2:    #eef3fb;
+      --text:         #0f172a;
+      --text-soft:    #475569;
+      --text-faint:   #64748b;
+      --line:         rgba(15,23,42,0.08);
+      --brand-navy:   #071b49;
+      --brand-blue:   #0a5bff;
+      --brand-cyan:   #22d3ee;
+      --shadow-sm:    0 8px 22px rgba(15,23,42,0.06);
+      --shadow-md:    0 18px 48px rgba(15,23,42,0.10);
+      --radius-sm:    12px;
+      --radius-full:  999px;
+      --container:    960px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: "Inter", system-ui, sans-serif;
+      background: linear-gradient(180deg, #f8fbff 0%, #f4f7fc 100%);
+      color: var(--text); line-height: 1.6;
+      padding-left: 100px;
+    }
+    img { display: block; max-width: 100%; height: auto; }
+    a { color: inherit; text-decoration: none; }
+    .container { width: min(var(--container), calc(100% - 32px)); margin: 0 auto; }
+
+    /* ── SIDENAV ── */
+    .sidenav {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: 100px; z-index: 200;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 18px 0 24px;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(16px);
+      border-right: 1px solid var(--line);
+      box-shadow: 2px 0 18px rgba(7,27,73,0.06);
+    }
+    .sidenav-logo {
+      display: flex; align-items: center; justify-content: center;
+      width: 44px; height: 44px; border-radius: 14px;
+      background: var(--brand-navy);
+      box-shadow: 0 6px 18px rgba(7,27,73,0.28);
+      margin-bottom: 10px; flex-shrink: 0;
+    }
+    .sidenav-logo img { height: 26px; width: auto; }
+    .sidenav-divider {
+      width: 28px; height: 1px;
+      background: var(--line); margin: 8px 0 12px; flex-shrink: 0;
+    }
+    .sidenav-items {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 4px;
+      flex: 1; width: 100%;
+    }
+    .sidenav-item {
+      position: relative; display: flex; align-items: center; justify-content: center;
+      width: 100%; height: 62px;
+      color: var(--text-faint); transition: color 0.15s, background 0.15s;
+    }
+    .sidenav-item svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .sidenav-item:hover, .sidenav-item.active { color: var(--brand-blue); background: rgba(10,91,255,0.05); }
+    .sidenav-item.active { color: var(--brand-navy); }
+    .sidenav-item.active::before {
+      content: ''; position: absolute; left: 0; top: 50%; translate: 0 -50%;
+      width: 3px; height: 28px; border-radius: 0 3px 3px 0;
+      background: var(--brand-blue);
+    }
+    .sidenav-item .sn-tip {
+      position: absolute; left: calc(100% + 10px); white-space: nowrap;
+      background: var(--brand-navy); color: #fff;
+      padding: 5px 10px; border-radius: 7px; font-size: 0.78rem; font-weight: 500;
+      pointer-events: none; opacity: 0; translate: -6px 0;
+      transition: opacity 0.15s, translate 0.15s;
+    }
+    .sidenav-item .sn-tip::before {
+      content: ''; position: absolute; right: 100%; top: 50%; translate: 0 -50%;
+      border: 5px solid transparent; border-right-color: var(--brand-navy);
+    }
+    .sidenav-item:hover .sn-tip { opacity: 1; translate: 0 0; }
+
+    /* ── HEADER ── */
+    .site-header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--line);
+      box-shadow: 0 2px 12px rgba(7,27,73,0.06);
+    }
+    .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .nav-left { display: flex; align-items: center; gap: 14px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-badge {
+      padding: 6px 10px; border-radius: 10px;
+      background: var(--brand-navy);
+    }
+    .brand-badge img { height: 22px; width: auto; }
+    .brand-meta { display: flex; flex-direction: column; }
+    .brand-name { font-size: 1rem; font-weight: 700; color: var(--text); line-height: 1.2; }
+    .brand-subtitle { font-size: 0.72rem; color: var(--text-faint); font-weight: 400; }
+    .lang-toggle {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: var(--radius-full);
+      border: 1px solid var(--line); background: var(--surface);
+      font-size: 0.82rem; font-weight: 600; color: var(--text-soft);
+      cursor: pointer; transition: border-color 0.15s, color 0.15s;
+    }
+    .lang-toggle:hover { border-color: var(--brand-blue); color: var(--brand-blue); }
+
+    /* ── PAGE INTRO ── */
+    .page-intro {
+      padding: 64px 0 40px;
+    }
+    .page-intro h1 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 800; color: var(--brand-navy);
+      line-height: 1.15; margin-bottom: 16px;
+    }
+    .page-intro h1 .accent { color: var(--brand-blue); }
+    .page-intro p {
+      font-size: 1rem; color: var(--text-soft); max-width: 680px; line-height: 1.7;
+    }
+
+    /* ── SECTION TITLES ── */
+    .section-title {
+      font-size: 1.1rem; font-weight: 700; color: var(--brand-navy);
+      letter-spacing: 0.04em; text-transform: uppercase;
+      border-bottom: 2px solid var(--brand-cyan);
+      padding-bottom: 8px; margin: 48px 0 24px;
+      display: inline-block;
+    }
+
+    /* ── CREDIT GRID ── */
+    .credit-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 18px;
+      margin-bottom: 16px;
+    }
+    .credit-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 20px 22px;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .credit-card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: rgba(10,91,255,0.18);
+    }
+    .credit-card-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+    }
+    .credit-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; flex-shrink: 0;
+    }
+    .credit-name {
+      font-size: 0.95rem; font-weight: 700; color: var(--text);
+    }
+    .credit-author {
+      font-size: 0.78rem; color: var(--text-faint); margin-top: 1px;
+    }
+    .credit-desc {
+      font-size: 0.83rem; color: var(--text-soft); line-height: 1.55; margin-bottom: 12px;
+    }
+    .credit-tags {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;
+    }
+    .tag-license {
+      font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 100px;
+      background: rgba(10,91,255,0.08); color: var(--brand-blue);
+    }
+    .tag-use {
+      font-size: 0.72rem; font-weight: 500; padding: 2px 8px; border-radius: 100px;
+      background: rgba(34,211,238,0.10); color: #0891b2;
+    }
+    .credit-link {
+      font-size: 0.78rem; font-weight: 600; color: var(--brand-blue);
+      display: inline-flex; align-items: center; gap: 4px;
+      transition: opacity 0.15s;
+    }
+    .credit-link:hover { opacity: 0.75; }
+    .credit-link svg { flex-shrink: 0; }
+
+    /* ── NOTE BOX ── */
+    .note-box {
+      background: var(--surface-2);
+      border: 1px solid rgba(10,91,255,0.12);
+      border-left: 4px solid var(--brand-blue);
+      border-radius: var(--radius-sm);
+      padding: 16px 20px;
+      font-size: 0.85rem; color: var(--text-soft);
+      line-height: 1.65; margin: 32px 0;
+    }
+    .note-box strong { color: var(--text); }
+
+    /* ── FOOTER ── */
+    footer {
+      padding: 48px 0 56px;
+      border-top: 1px solid var(--line);
+      margin-top: 72px;
+    }
+    .footer-inner {
+      display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: start;
+    }
+    .footer-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .footer-brand-badge { padding: 7px 12px; border-radius: 12px; background: var(--brand-navy); }
+    .footer-brand-badge img { height: 26px; width: auto; max-width: none; }
+    .footer-brand-name { font-size: 1rem; font-weight: 700; color: var(--text); }
+    .footer-desc { color: var(--text-faint); font-size: 0.86rem; max-width: 360px; margin-bottom: 18px; }
+    .footer-links { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 18px; }
+    .footer-links a { font-size: 0.86rem; color: var(--text-faint); font-weight: 500; transition: color 0.15s; }
+    .footer-links a:hover { color: var(--brand-blue); }
+    .footer-legal { font-size: 0.78rem; color: var(--text-faint); }
+    .footer-donate { text-align: right; }
+    .footer-donate-label {
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 10px;
+    }
+    .footer-donate p { font-size: 0.88rem; color: var(--text-soft); margin-bottom: 14px; line-height: 1.5; }
+    .btn-kofi {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: var(--radius-full);
+      background: #ff5e5b; color: #fff;
+      font-size: 0.88rem; font-weight: 600;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .btn-kofi:hover { background: #e04e4b; box-shadow: 0 4px 14px rgba(255,94,91,0.35); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 700px) {
+      body { padding-left: 0; padding-bottom: 80px; }
+      .sidenav {
+        top: auto; bottom: 0; left: 0; right: 0; height: 72px; width: 100%;
+        flex-direction: row; padding: 0 12px;
+        border-right: none; border-top: 1px solid var(--line);
+        box-shadow: 0 -2px 12px rgba(7,27,73,0.06);
+      }
+      .sidenav-logo { display: none; }
+      .sidenav-divider { display: none; }
+      .sidenav-items { flex-direction: row; gap: 0; justify-content: space-around; width: 100%; }
+      .sidenav-item { width: 64px; height: 64px; }
+      .sidenav-item .sn-tip { translate: -50% 0; bottom: calc(100% + 8px); left: 50%; top: auto; }
+      .sidenav-item:hover .sn-tip { translate: -50% 0; }
+      .sidenav-item .sn-tip::before { display: none; }
+      .sidenav-item.active::before { display: none; }
+      .credit-grid { grid-template-columns: 1fr; }
+      .footer-inner { grid-template-columns: 1fr; }
+      .footer-donate { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── SIDENAV ── -->
+<nav class="sidenav" aria-label="Navigazione principale">
+  <a href="index.html" class="sidenav-logo" aria-label="OffGallery Home">
+    <img src="assets/logo3.jpg" alt="OffGallery" />
+  </a>
+  <div class="sidenav-divider"></div>
+  <div class="sidenav-items">
+
+    <a href="index.html" class="sidenav-item" id="sn-home">
+      <svg viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="sn-tip" data-i18n="nav_home">Home</span>
+    </a>
+
+    <a href="index.html#features" class="sidenav-item" id="sn-features">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      <span class="sn-tip" data-i18n="nav_features">Funzionalità</span>
+    </a>
+
+    <a href="index.html#plugins" class="sidenav-item" id="sn-plugins">
+      <svg viewBox="0 0 24 24"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+      <span class="sn-tip" data-i18n="nav_plugins">Plugin</span>
+    </a>
+
+    <a href="index.html#beta" class="sidenav-item" id="sn-beta">
+      <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      <span class="sn-tip" data-i18n="nav_beta">Accesso plugin</span>
+    </a>
+
+    <a href="features.html" class="sidenav-item" id="sn-allfeatures">
+      <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      <span class="sn-tip" data-i18n="nav_allfeatures">Tutte le feature</span>
+    </a>
+
+    <a href="USER_MANUAL_IT.html" class="sidenav-item" id="sn-manual">
+      <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      <span class="sn-tip" data-i18n="nav_manual">Manuale</span>
+    </a>
+
+    <a href="credits.html" class="sidenav-item active" id="sn-credits">
+      <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      <span class="sn-tip" data-i18n="nav_credits">Crediti</span>
+    </a>
+
+  </div>
+</nav>
+
+<!-- ── HEADER ── -->
+<header class="site-header">
+  <div class="container nav">
+    <div class="nav-left">
+      <a href="index.html" class="brand" aria-label="OffGallery Home">
+        <span class="brand-badge">
+          <img src="assets/logo3.jpg" alt="Logo OffGallery" width="866" height="402" loading="eager" />
+        </span>
+        <span class="brand-meta">
+          <span class="brand-name">OffGallery</span>
+          <span class="brand-subtitle" data-i18n="brand_subtitle">Catalogazione fotografica con AI locale, offline</span>
+        </span>
+      </a>
+    </div>
+    <div class="nav-actions">
+      <button class="lang-toggle" id="langToggle" aria-label="Cambia lingua">
+        <svg id="flagIcon" width="22" height="15" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="40" fill="#012169"/>
+          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="8"/>
+          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="4.8"/>
+          <path d="M30,0 V40 M0,20 H60" stroke="#fff" stroke-width="13.3"/>
+          <path d="M30,0 V40 M0,20 H60" stroke="#C8102E" stroke-width="8"/>
+        </svg>
+        <span id="langLabel">EN</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ── MAIN ── -->
+<main>
+<div class="container">
+
+  <div class="page-intro">
+    <h1 data-i18n="page_title">Crediti e <span class="accent">Ringraziamenti</span></h1>
+    <p data-i18n="page_intro">OffGallery è possibile grazie a straordinari progetti open source e alla ricerca accademica pubblica. Questa pagina elenca tutti i componenti di terze parti, con i rispettivi autori, licenze e link ufficiali.</p>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       MODELLI AI
+  ═════════════════════════════════════════════ -->
+  <div class="section-title" data-i18n="sec_models">Modelli AI e Vision</div>
+
+  <div class="credit-grid">
+
+    <!-- CLIP -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#f0f4ff;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0a5bff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">CLIP (ViT-L/14)</div>
+          <div class="credit-author">OpenAI</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="clip_desc">Modello vision-language per ricerca semantica: converte immagini e testi in vettori comparabili nello stesso spazio di rappresentazione. Usato per la ricerca per descrizione testuale libera.</p>
+      <div class="credit-tags">
+        <span class="tag-license">MIT License</span>
+        <span class="tag-use" data-i18n="tag_semantic">Ricerca semantica</span>
+      </div>
+      <a class="credit-link" href="https://github.com/openai/CLIP" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        github.com/openai/CLIP
+      </a>
+    </div>
+
+    <!-- DINOv2 -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#fff3e6;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f57c00" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">DINOv2</div>
+          <div class="credit-author">Meta AI (Facebook Research)</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="dino_desc">Modello vision foundation per similarità visiva basata su self-supervised learning. Cattura composizione, texture e forma senza supervisionare la semantica. Usato per la ricerca di immagini visivamente simili.</p>
+      <div class="credit-tags">
+        <span class="tag-license">Apache 2.0</span>
+        <span class="tag-use" data-i18n="tag_visual">Similarità visiva</span>
+      </div>
+      <a class="credit-link" href="https://github.com/facebookresearch/dinov2" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        github.com/facebookresearch/dinov2
+      </a>
+    </div>
+
+    <!-- BioCLIP -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#e8f5e9;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="M12 12C12 12 8 8 4 6s6-4 8 2"/><path d="M12 12c0 0 4-4 8-6s-6-4-8 2"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">BioCLIP v2</div>
+          <div class="credit-author">Imageomics Institute (Ohio State University)</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="bioclip_desc">Modello CLIP specializzato per il riconoscimento biologico su oltre 450.000 specie del Tree of Life. Produce una gerarchia tassonomica completa (regno, phylum, classe, ordine, famiglia, genere, specie).</p>
+      <div class="credit-tags">
+        <span class="tag-license">MIT License</span>
+        <span class="tag-use" data-i18n="tag_bio">Flora e fauna</span>
+      </div>
+      <a class="credit-link" href="https://github.com/Imageomics/bioclip" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        github.com/Imageomics/bioclip
+      </a>
+    </div>
+
+    <!-- Aesthetic Predictor -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#fce4ec;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c62828" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">Aesthetic Predictor V2.5</div>
+          <div class="credit-author">Shiki Suen / christoph-schuhmann</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="aesthetic_desc">Modello di scoring estetico basato su CLIP, addestrato su dataset LAION Aesthetics. Assegna un punteggio 0–10 sulla qualità artistica e compositiva dell'immagine.</p>
+      <div class="credit-tags">
+        <span class="tag-license">Apache 2.0</span>
+        <span class="tag-use" data-i18n="tag_aesthetic">Punteggio estetico</span>
+      </div>
+      <a class="credit-link" href="https://github.com/christophschuhmann/improved-aesthetic-predictor" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        github.com/christophschuhmann/improved-aesthetic-predictor
+      </a>
+    </div>
+
+    <!-- MUSIQ -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#e8eaf6;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3949ab" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">MUSIQ</div>
+          <div class="credit-author">Google Research</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="musiq_desc">Multi-Scale Image Quality Transformer: valuta la qualità tecnica della foto (nitidezza, rumore, esposizione) producendo un punteggio su scala continua. Implementato via libreria <em>pyiqa</em>.</p>
+      <div class="credit-tags">
+        <span class="tag-license">Apache 2.0</span>
+        <span class="tag-use" data-i18n="tag_quality">Qualità tecnica</span>
+      </div>
+      <a class="credit-link" href="https://github.com/google-research/google-research/tree/master/musiq" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        google-research / musiq
+      </a>
+    </div>
+
+    <!-- Ollama / LLM Vision -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#f3e8ff;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">Ollama + Qwen-VL</div>
+          <div class="credit-author">Ollama Inc. · Alibaba Cloud (Qwen)</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="ollama_desc">Ollama è il runtime locale per modelli LLM. Il modello Qwen-VL (Vision-Language) genera tag descrittivi, titoli e descrizioni testuali analizzando il contenuto visivo delle foto, interamente offline.</p>
+      <div class="credit-tags">
+        <span class="tag-license">MIT (Ollama)</span>
+        <span class="tag-license">Apache 2.0 (Qwen)</span>
+        <span class="tag-use" data-i18n="tag_llm">Generazione testi AI</span>
+      </div>
+      <a class="credit-link" href="https://ollama.com/" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        ollama.com
+      </a>
+    </div>
+
+  </div><!-- /credit-grid modelli -->
+
+  <!-- ════════════════════════════════════════════
+       LIBRERIE CORE
+  ═════════════════════════════════════════════ -->
+  <div class="section-title" data-i18n="sec_libs">Librerie Python Core</div>
+
+  <div class="credit-grid">
+
+    <!-- PyTorch -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#fff3e0;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e65100" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">PyTorch</div>
+          <div class="credit-author">Meta AI / PyTorch Foundation</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="pytorch_desc">Framework di deep learning che costituisce il motore di esecuzione di tutti i modelli neurali (CLIP, DINOv2, Aesthetic, BioCLIP). Supporta accelerazione GPU via CUDA.</p>
+      <div class="credit-tags">
+        <span class="tag-license">BSD-3-Clause</span>
+        <span class="tag-use" data-i18n="tag_inference">Inferenza modelli</span>
+      </div>
+      <a class="credit-link" href="https://pytorch.org/" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        pytorch.org
+      </a>
+    </div>
+
+    <!-- Transformers -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#fff8e1;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f9a825" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">Hugging Face Transformers</div>
+          <div class="credit-author">Hugging Face</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="transformers_desc">Libreria che fornisce accesso ai modelli pre-addestrati (CLIP ViT-L/14, DINOv2). Include tokenizer, processori e API di inferenza standardizzata.</p>
+      <div class="credit-tags">
+        <span class="tag-license">Apache 2.0</span>
+        <span class="tag-use" data-i18n="tag_models">Caricamento modelli</span>
+      </div>
+      <a class="credit-link" href="https://huggingface.co/docs/transformers" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        huggingface.co/transformers
+      </a>
+    </div>
+
+    <!-- open_clip_torch -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#e3f2fd;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1565c0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">OpenCLIP</div>
+          <div class="credit-author">LAION · mlfoundations</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="openclip_desc">Reimplementazione open source di CLIP con supporto a numerose architetture (ViT-L/14 inclusa). Usata da BioCLIP come base architetturale per l'addestramento biologico.</p>
+      <div class="credit-tags">
+        <span class="tag-license">MIT License</span>
+        <span class="tag-use" data-i18n="tag_bioclip_base">Base BioCLIP</span>
+      </div>
+      <a class="credit-link" href="https://github.com/mlfoundations/open_clip" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        github.com/mlfoundations/open_clip
+      </a>
+    </div>
+
+    <!-- PyQt6 -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#e8f5e9;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#388e3c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">PyQt6</div>
+          <div class="credit-author">Riverbank Computing</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="pyqt_desc">Binding Python per il framework Qt6. Fornisce l'intera interfaccia grafica di OffGallery: finestre, pannelli, tab, galleria immagini, dialoghi e tutti i widget interattivi.</p>
+      <div class="credit-tags">
+        <span class="tag-license">GPL v3</span>
+        <span class="tag-use" data-i18n="tag_gui">Interfaccia grafica</span>
+      </div>
+      <a class="credit-link" href="https://www.riverbankcomputing.com/software/pyqt/" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        riverbankcomputing.com/pyqt
+      </a>
+    </div>
+
+    <!-- rawpy + libraw -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#fafafa;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#424242" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">rawpy + LibRaw</div>
+          <div class="credit-author">Unmanaged Software · LibRaw LLC</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="rawpy_desc">rawpy è il binding Python per LibRaw, la libreria C++ per la decodifica di oltre 1000 formati RAW (Canon CR2/CR3, Nikon NEF, Sony ARW, ecc.). Permette l'estrazione delle anteprime e dei metadati dai file RAW.</p>
+      <div class="credit-tags">
+        <span class="tag-license">MIT (rawpy)</span>
+        <span class="tag-license">LGPL v2.1 (LibRaw)</span>
+        <span class="tag-use" data-i18n="tag_raw">Decodifica RAW</span>
+      </div>
+      <a class="credit-link" href="https://github.com/letmaik/rawpy" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        github.com/letmaik/rawpy
+      </a>
+    </div>
+
+    <!-- Pillow -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#fffde7;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f9a825" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">Pillow</div>
+          <div class="credit-author">Jeffrey A. Clark · Contributors</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="pillow_desc">La Python Imaging Library modernizzata. Usata per aprire, ridimensionare, convertire e ottimizzare immagini per la pipeline AI (pre-processing prima degli embedding).</p>
+      <div class="credit-tags">
+        <span class="tag-license">HPND License</span>
+        <span class="tag-use" data-i18n="tag_imaging">Elaborazione immagini</span>
+      </div>
+      <a class="credit-link" href="https://python-pillow.org/" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        python-pillow.org
+      </a>
+    </div>
+
+  </div><!-- /credit-grid libs -->
+
+  <!-- ════════════════════════════════════════════
+       DATI E METADATI
+  ═════════════════════════════════════════════ -->
+  <div class="section-title" data-i18n="sec_meta">Metadati, Dati Geografici e Traduzione</div>
+
+  <div class="credit-grid">
+
+    <!-- ExifTool -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#f3f4f6;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">ExifTool</div>
+          <div class="credit-author">Phil Harvey</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="exiftool_desc">Lo strumento definitivo per la lettura e scrittura di metadati fotografici (EXIF, IPTC, XMP, GPS) su oltre 300 formati. Usato per estrarre tutti i metadati e scrivere i tag AI su file XMP sidecar.</p>
+      <div class="credit-tags">
+        <span class="tag-license">Perl Artistic License</span>
+        <span class="tag-use" data-i18n="tag_exif">EXIF / XMP</span>
+      </div>
+      <a class="credit-link" href="https://exiftool.org/" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        exiftool.org
+      </a>
+    </div>
+
+    <!-- reverse_geocoder + GeoNames -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#e0f7fa;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00838f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 6.9 8 11.7z"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">reverse_geocoder + GeoNames</div>
+          <div class="credit-author">Ajay Thampi · GeoNames.org</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="geo_desc">Libreria Python per geocodifica inversa offline: converte coordinate GPS (lat/lon) in nome di città, regione e paese. I dati geografici (oltre 300.000 località) provengono dal dataset GeoNames, bundled nella libreria senza richiesta di rete.</p>
+      <div class="credit-tags">
+        <span class="tag-license">MIT License (libreria)</span>
+        <span class="tag-license">CC BY 4.0 (GeoNames data)</span>
+        <span class="tag-use" data-i18n="tag_geo">Geolocalizzazione</span>
+      </div>
+      <a class="credit-link" href="https://github.com/thampiman/reverse-geocoder" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        github.com/thampiman/reverse-geocoder
+      </a>
+    </div>
+
+    <!-- Argos Translate -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#f0fdf4;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">Argos Translate</div>
+          <div class="credit-author">Argos Open Tech</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="argos_desc">Motore di traduzione automatica completamente offline basato su modelli OpenNMT. Usato per tradurre le query di ricerca dall'italiano all'inglese prima della codifica CLIP, migliorando la qualità della ricerca semantica.</p>
+      <div class="credit-tags">
+        <span class="tag-license">MIT License</span>
+        <span class="tag-use" data-i18n="tag_translate">Traduzione offline</span>
+      </div>
+      <a class="credit-link" href="https://github.com/argosopentech/argos-translate" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        github.com/argosopentech/argos-translate
+      </a>
+    </div>
+
+    <!-- Miniconda / Conda -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#e8f5e9;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="1"/><circle cx="7" cy="12" r="1"/><circle cx="17" cy="12" r="1"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">Miniconda / conda</div>
+          <div class="credit-author">Anaconda, Inc.</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="conda_desc">Sistema di gestione degli ambienti Python e dei pacchetti. Usato dall'installer di OffGallery per creare un ambiente isolato e ripetibile con tutte le dipendenze, senza conflitti con altri software Python installati.</p>
+      <div class="credit-tags">
+        <span class="tag-license">BSD-3-Clause</span>
+        <span class="tag-use" data-i18n="tag_env">Gestione ambienti</span>
+      </div>
+      <a class="credit-link" href="https://docs.conda.io/en/latest/miniconda.html" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        docs.conda.io/miniconda
+      </a>
+    </div>
+
+    <!-- NumPy / SciPy -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#fffde7;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f57f17" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">NumPy · SciPy</div>
+          <div class="credit-author">NumPy / SciPy Contributors</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="numpy_desc">Librerie fondamentali per il calcolo scientifico in Python. NumPy gestisce gli array di embedding float32; SciPy fornisce algoritmi di distanza e clustering usati nella ricerca semantica.</p>
+      <div class="credit-tags">
+        <span class="tag-license">BSD-3-Clause</span>
+        <span class="tag-use" data-i18n="tag_compute">Calcolo vettoriale</span>
+      </div>
+      <a class="credit-link" href="https://numpy.org/" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        numpy.org
+      </a>
+    </div>
+
+    <!-- SQLite -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#e8eaf6;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3949ab" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">SQLite</div>
+          <div class="credit-author">D. Richard Hipp</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="sqlite_desc">Database relazionale embedded, senza server. Tutta la catalogazione di OffGallery (metadati EXIF, embedding vettoriali, tag, score) viene salvata in un singolo file SQLite locale, senza installazione di server di database.</p>
+      <div class="credit-tags">
+        <span class="tag-license">Public Domain</span>
+        <span class="tag-use" data-i18n="tag_db">Database locale</span>
+      </div>
+      <a class="credit-link" href="https://sqlite.org/" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        sqlite.org
+      </a>
+    </div>
+
+  </div><!-- /credit-grid meta -->
+
+  <!-- ════════════════════════════════════════════
+       INTEGRAZIONE LIGHTROOM
+  ═════════════════════════════════════════════ -->
+  <div class="section-title" data-i18n="sec_lr">Integrazione Lightroom / darktable</div>
+
+  <div class="credit-grid" style="grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));">
+
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#e3f2fd;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1565c0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">XMP / Dublin Core Standard</div>
+          <div class="credit-author">Adobe Systems · IPTC · Dublin Core Initiative</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="xmp_desc">OffGallery scrive i metadati AI (tag, descrizioni, gerarchia biologica e geografica) in file XMP sidecar compatibili con lo standard Adobe XMP. I tag gerarchici usano la proprietà <code>lr:hierarchicalSubject</code>, standard di fatto nel workflow Lightroom.</p>
+      <div class="credit-tags">
+        <span class="tag-license">Open Standard</span>
+        <span class="tag-use" data-i18n="tag_xmp">Interoperabilità XMP</span>
+      </div>
+      <a class="credit-link" href="https://www.adobe.com/products/xmp.html" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        adobe.com/xmp
+      </a>
+    </div>
+
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       SVILUPPATORE
+  ═════════════════════════════════════════════ -->
+  <div class="section-title" data-i18n="sec_author">Sviluppatore</div>
+
+  <div class="credit-grid" style="grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));">
+    <div class="credit-card" style="border-left: 4px solid var(--brand-blue);">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:linear-gradient(135deg,#071b49,#0a5bff); color:#fff; font-size:1.1rem; font-weight:700;">MM</div>
+        <div>
+          <div class="credit-name">Michele Mulè</div>
+          <div class="credit-author" data-i18n="author_role">Ideatore e sviluppatore principale</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="author_desc">OffGallery nasce da una passione personale per la fotografia naturalistica e la privacy digitale. Progettato, sviluppato e mantenuto come progetto open source indipendente.</p>
+      <div class="credit-tags">
+        <span class="tag-use">Python · PyQt6 · AI/ML</span>
+        <span class="tag-license">AGPLv3</span>
+      </div>
+      <a class="credit-link" href="https://github.com/HEGOM61ita/OffGallery" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        github.com/HEGOM61ita/OffGallery
+      </a>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       STRUMENTI AI USATI NELLO SVILUPPO
+  ═════════════════════════════════════════════ -->
+  <div class="section-title" data-i18n="sec_aitools">Assistenti AI usati nello sviluppo</div>
+  <p style="font-size:0.88rem; color:var(--text-soft); margin-bottom:24px;" data-i18n="aitools_intro">OffGallery è stato sviluppato con il supporto di vari assistenti AI per la scrittura di codice, revisione architetturale, generazione di documentazione e problem solving.</p>
+
+  <div class="credit-grid">
+
+    <!-- Claude Code / Anthropic -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#fdf4ff;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9333ea" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 8v4l3 3"/><circle cx="19" cy="5" r="3"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">Claude / Claude Code</div>
+          <div class="credit-author">Anthropic</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="claude_desc">Assistente AI principale per lo sviluppo interattivo. Claude Code ha supportato la progettazione dell'architettura, la scrittura e revisione del codice Python/PyQt6, il debugging, la generazione della documentazione e del sito web.</p>
+      <div class="credit-tags">
+        <span class="tag-use" data-i18n="tag_coding">Sviluppo codice</span>
+        <span class="tag-use" data-i18n="tag_docs">Documentazione</span>
+      </div>
+      <a class="credit-link" href="https://claude.ai/" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        claude.ai · anthropic.com
+      </a>
+    </div>
+
+    <!-- ChatGPT / OpenAI -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#f0fdf4;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">ChatGPT</div>
+          <div class="credit-author">OpenAI</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="chatgpt_desc">Usato per ricerca, brainstorming e confronto di approcci architetturali nelle fasi iniziali del progetto. Utile per esplorare soluzioni alternative e ottenere una seconda opinione tecnica.</p>
+      <div class="credit-tags">
+        <span class="tag-use" data-i18n="tag_research">Ricerca e brainstorming</span>
+      </div>
+      <a class="credit-link" href="https://chatgpt.com/" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        chatgpt.com
+      </a>
+    </div>
+
+    <!-- Gemini / Google -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#eff6ff;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="8.5" x2="22" y2="8.5"/><line x1="2" y1="15.5" x2="22" y2="15.5"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">Gemini</div>
+          <div class="credit-author">Google DeepMind</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="gemini_desc">Usato per ricerca tecnica e valutazione di librerie, in particolare per l'integrazione con l'ecosistema HuggingFace e per l'analisi di formati dati complessi.</p>
+      <div class="credit-tags">
+        <span class="tag-use" data-i18n="tag_research">Ricerca tecnica</span>
+      </div>
+      <a class="credit-link" href="https://gemini.google.com/" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        gemini.google.com
+      </a>
+    </div>
+
+    <!-- Perplexity -->
+    <div class="credit-card">
+      <div class="credit-card-header">
+        <div class="credit-icon" style="background:#f0fdfa;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </div>
+        <div>
+          <div class="credit-name">Perplexity AI</div>
+          <div class="credit-author">Perplexity AI, Inc.</div>
+        </div>
+      </div>
+      <p class="credit-desc" data-i18n="perplexity_desc">Usato come motore di ricerca AI per trovare rapidamente documentazione tecnica, paper accademici, confronti tra librerie e risposte a domande specifiche durante lo sviluppo.</p>
+      <div class="credit-tags">
+        <span class="tag-use" data-i18n="tag_search">Ricerca documentazione</span>
+      </div>
+      <a class="credit-link" href="https://www.perplexity.ai/" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        perplexity.ai
+      </a>
+    </div>
+
+  </div><!-- /credit-grid aitools -->
+
+  <!-- ════════════════════════════════════════════
+       NOTE LEGALI
+  ═════════════════════════════════════════════ -->
+  <div class="note-box" data-i18n="legal_note">
+    <strong data-i18n="legal_title">Note sulle licenze</strong><br>
+    OffGallery è distribuito con licenza <strong>AGPLv3</strong>. I componenti di terze parti elencati in questa pagina mantengono le proprie licenze originali, ciascuna indicata nelle rispettive schede. Il testo completo di ogni licenza è reperibile nei repository ufficiali di ogni progetto o nel file <code>THIRD_PARTY.md</code> incluso nel codice sorgente di OffGallery.<br><br>
+    I marchi registrati citati (OpenAI, Meta, Google, Adobe, Hugging Face, Anaconda, ecc.) sono di proprietà dei rispettivi titolari e vengono menzionati a solo scopo informativo/di attribuzione.
+  </div>
+
+</div><!-- /container -->
+</main>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <span class="footer-brand-badge">
+            <img src="assets/logo3.jpg" alt="OffGallery" width="866" height="402" loading="lazy" />
+          </span>
+          <span class="footer-brand-name">OffGallery</span>
+        </div>
+        <p class="footer-desc" data-i18n="footer_desc">Catalogazione fotografica intelligente, offline e privata. Open source, AGPLv3.</p>
+        <div class="footer-links">
+          <a href="https://github.com/HEGOM61ita/OffGallery" data-i18n="footer_github">GitHub</a>
+          <a href="features.html" data-i18n="footer_features">Funzionalità</a>
+          <a href="USER_MANUAL_IT.html" id="footer-manual-link" data-i18n="footer_manual">Manuale utente</a>
+          <a href="credits.html" data-i18n="footer_credits">Crediti</a>
+          <a href="mailto:OffGallery.AI.info@gmail.com" data-i18n="footer_contact">Contatto</a>
+        </div>
+        <p class="footer-legal">© 2025 OffGallery — <span data-i18n="footer_license">Licenza AGPLv3 — Software libero</span></p>
+      </div>
+      <div class="footer-donate">
+        <p class="footer-donate-label" data-i18n="donate_label">Supporta il progetto</p>
+        <p data-i18n="donate_footer_text">OffGallery è sviluppato nel tempo libero.<br />Una donazione fa la differenza.</p>
+        <a href="https://ko-fi.com/offgallery" class="btn-kofi" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+          <span data-i18n="donate_btn">Supporta su Ko-fi</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+const i18n = {
+  it: {
+    brand_subtitle: "Catalogazione fotografica con AI locale, offline",
+    nav_home: "Home", nav_features: "Funzionalità", nav_plugins: "Plugin",
+    nav_beta: "Accesso plugin", nav_allfeatures: "Tutte le feature",
+    nav_manual: "Manuale", nav_credits: "Crediti",
+    page_title: "Crediti e Ringraziamenti",
+    page_intro: "OffGallery è possibile grazie a straordinari progetti open source e alla ricerca accademica pubblica. Questa pagina elenca tutti i componenti di terze parti, con i rispettivi autori, licenze e link ufficiali.",
+    sec_models: "Modelli AI e Vision",
+    sec_libs: "Librerie Python Core",
+    sec_meta: "Metadati, Dati Geografici e Traduzione",
+    sec_lr: "Integrazione Lightroom / darktable",
+    clip_desc: "Modello vision-language per ricerca semantica: converte immagini e testi in vettori comparabili nello stesso spazio di rappresentazione. Usato per la ricerca per descrizione testuale libera.",
+    dino_desc: "Modello vision foundation per similarità visiva basata su self-supervised learning. Cattura composizione, texture e forma senza supervisionare la semantica. Usato per la ricerca di immagini visivamente simili.",
+    bioclip_desc: "Modello CLIP specializzato per il riconoscimento biologico su oltre 450.000 specie del Tree of Life. Produce una gerarchia tassonomica completa (regno, phylum, classe, ordine, famiglia, genere, specie).",
+    aesthetic_desc: "Modello di scoring estetico basato su CLIP, addestrato su dataset LAION Aesthetics. Assegna un punteggio 0–10 sulla qualità artistica e compositiva dell'immagine.",
+    musiq_desc: "Multi-Scale Image Quality Transformer: valuta la qualità tecnica della foto (nitidezza, rumore, esposizione) producendo un punteggio su scala continua. Implementato via libreria <em>pyiqa</em>.",
+    ollama_desc: "Ollama è il runtime locale per modelli LLM. Il modello Qwen-VL (Vision-Language) genera tag descrittivi, titoli e descrizioni testuali analizzando il contenuto visivo delle foto, interamente offline.",
+    pytorch_desc: "Framework di deep learning che costituisce il motore di esecuzione di tutti i modelli neurali (CLIP, DINOv2, Aesthetic, BioCLIP). Supporta accelerazione GPU via CUDA.",
+    transformers_desc: "Libreria che fornisce accesso ai modelli pre-addestrati (CLIP ViT-L/14, DINOv2). Include tokenizer, processori e API di inferenza standardizzata.",
+    openclip_desc: "Reimplementazione open source di CLIP con supporto a numerose architetture (ViT-L/14 inclusa). Usata da BioCLIP come base architetturale per l'addestramento biologico.",
+    pyqt_desc: "Binding Python per il framework Qt6. Fornisce l'intera interfaccia grafica di OffGallery: finestre, pannelli, tab, galleria immagini, dialoghi e tutti i widget interattivi.",
+    rawpy_desc: "rawpy è il binding Python per LibRaw, la libreria C++ per la decodifica di oltre 1000 formati RAW (Canon CR2/CR3, Nikon NEF, Sony ARW, ecc.). Permette l'estrazione delle anteprime e dei metadati dai file RAW.",
+    pillow_desc: "La Python Imaging Library modernizzata. Usata per aprire, ridimensionare, convertire e ottimizzare immagini per la pipeline AI (pre-processing prima degli embedding).",
+    exiftool_desc: "Lo strumento definitivo per la lettura e scrittura di metadati fotografici (EXIF, IPTC, XMP, GPS) su oltre 300 formati. Usato per estrarre tutti i metadati e scrivere i tag AI su file XMP sidecar.",
+    geo_desc: "Libreria Python per geocodifica inversa offline: converte coordinate GPS (lat/lon) in nome di città, regione e paese. I dati geografici (oltre 300.000 località) provengono dal dataset GeoNames, bundled nella libreria senza richiesta di rete.",
+    argos_desc: "Motore di traduzione automatica completamente offline basato su modelli OpenNMT. Usato per tradurre le query di ricerca dall'italiano all'inglese prima della codifica CLIP, migliorando la qualità della ricerca semantica.",
+    conda_desc: "Sistema di gestione degli ambienti Python e dei pacchetti. Usato dall'installer di OffGallery per creare un ambiente isolato e ripetibile con tutte le dipendenze, senza conflitti con altri software Python installati.",
+    numpy_desc: "Librerie fondamentali per il calcolo scientifico in Python. NumPy gestisce gli array di embedding float32; SciPy fornisce algoritmi di distanza e clustering usati nella ricerca semantica.",
+    sqlite_desc: "Database relazionale embedded, senza server. Tutta la catalogazione di OffGallery (metadati EXIF, embedding vettoriali, tag, score) viene salvata in un singolo file SQLite locale, senza installazione di server di database.",
+    xmp_desc: "OffGallery scrive i metadati AI (tag, descrizioni, gerarchia biologica e geografica) in file XMP sidecar compatibili con lo standard Adobe XMP. I tag gerarchici usano la proprietà <code>lr:hierarchicalSubject</code>, standard di fatto nel workflow Lightroom.",
+    tag_semantic: "Ricerca semantica", tag_visual: "Similarità visiva", tag_bio: "Flora e fauna",
+    tag_aesthetic: "Punteggio estetico", tag_quality: "Qualità tecnica", tag_llm: "Generazione testi AI",
+    tag_inference: "Inferenza modelli", tag_models: "Caricamento modelli", tag_bioclip_base: "Base BioCLIP",
+    tag_gui: "Interfaccia grafica", tag_raw: "Decodifica RAW", tag_imaging: "Elaborazione immagini",
+    tag_exif: "EXIF / XMP", tag_geo: "Geolocalizzazione", tag_translate: "Traduzione offline",
+    tag_env: "Gestione ambienti", tag_compute: "Calcolo vettoriale", tag_db: "Database locale", tag_xmp: "Interoperabilità XMP",
+    tag_coding: "Sviluppo codice", tag_docs: "Documentazione", tag_research: "Ricerca e brainstorming", tag_search: "Ricerca documentazione",
+    sec_author: "Sviluppatore",
+    author_role: "Ideatore e sviluppatore principale",
+    author_desc: "OffGallery nasce da una passione personale per la fotografia naturalistica e la privacy digitale. Progettato, sviluppato e mantenuto come progetto open source indipendente.",
+    sec_aitools: "Assistenti AI usati nello sviluppo",
+    aitools_intro: "OffGallery è stato sviluppato con il supporto di vari assistenti AI per la scrittura di codice, revisione architetturale, generazione di documentazione e problem solving.",
+    claude_desc: "Assistente AI principale per lo sviluppo interattivo. Claude Code ha supportato la progettazione dell'architettura, la scrittura e revisione del codice Python/PyQt6, il debugging, la generazione della documentazione e del sito web.",
+    chatgpt_desc: "Usato per ricerca, brainstorming e confronto di approcci architetturali nelle fasi iniziali del progetto. Utile per esplorare soluzioni alternative e ottenere una seconda opinione tecnica.",
+    gemini_desc: "Usato per ricerca tecnica e valutazione di librerie, in particolare per l'integrazione con l'ecosistema HuggingFace e per l'analisi di formati dati complessi.",
+    perplexity_desc: "Usato come motore di ricerca AI per trovare rapidamente documentazione tecnica, paper accademici, confronti tra librerie e risposte a domande specifiche durante lo sviluppo.",
+    legal_title: "Note sulle licenze",
+    legal_note: "<strong>Note sulle licenze</strong><br>OffGallery è distribuito con licenza <strong>AGPLv3</strong>. I componenti di terze parti elencati in questa pagina mantengono le proprie licenze originali, ciascuna indicata nelle rispettive schede. Il testo completo di ogni licenza è reperibile nei repository ufficiali di ogni progetto o nel file <code>THIRD_PARTY.md</code> incluso nel codice sorgente di OffGallery.<br><br>I marchi registrati citati (OpenAI, Meta, Google, Adobe, Hugging Face, Anaconda, ecc.) sono di proprietà dei rispettivi titolari e vengono menzionati a solo scopo informativo/di attribuzione.",
+    footer_desc: "Catalogazione fotografica intelligente, offline e privata. Open source, AGPLv3.",
+    footer_github: "GitHub", footer_features: "Funzionalità",
+    footer_manual: "Manuale utente", footer_credits: "Crediti", footer_contact: "Contatto",
+    footer_license: "Licenza AGPLv3 — Software libero",
+    donate_label: "Supporta il progetto",
+    donate_footer_text: "OffGallery è sviluppato nel tempo libero.<br />Una donazione fa la differenza.",
+    donate_btn: "Supporta su Ko-fi"
+  },
+  en: {
+    brand_subtitle: "Photo cataloging with local AI, offline",
+    nav_home: "Home", nav_features: "Features", nav_plugins: "Plugins",
+    nav_beta: "Plugin access", nav_allfeatures: "All features",
+    nav_manual: "Manual", nav_credits: "Credits",
+    page_title: "Credits &amp; Acknowledgements",
+    page_intro: "OffGallery is made possible by extraordinary open source projects and public academic research. This page lists all third-party components with their authors, licenses, and official links.",
+    sec_models: "AI and Vision Models",
+    sec_libs: "Core Python Libraries",
+    sec_meta: "Metadata, Geographic Data &amp; Translation",
+    sec_lr: "Lightroom / darktable Integration",
+    clip_desc: "Vision-language model for semantic search: converts images and text into comparable vectors in the same representation space. Used for free-text description search.",
+    dino_desc: "Vision foundation model for self-supervised visual similarity. Captures composition, texture and shape without semantic supervision. Used for visually similar image search.",
+    bioclip_desc: "CLIP model specialized for biological recognition across 450,000+ Tree of Life species. Produces a full taxonomic hierarchy (kingdom, phylum, class, order, family, genus, species).",
+    aesthetic_desc: "CLIP-based aesthetic scoring model trained on the LAION Aesthetics dataset. Assigns a 0–10 score for artistic and compositional quality.",
+    musiq_desc: "Multi-Scale Image Quality Transformer: evaluates the technical quality of a photo (sharpness, noise, exposure) producing a continuous score. Implemented via the <em>pyiqa</em> library.",
+    ollama_desc: "Ollama is the local LLM runtime. The Qwen-VL (Vision-Language) model generates descriptive tags, titles and textual descriptions by analysing photo content, entirely offline.",
+    pytorch_desc: "Deep learning framework that powers all neural model inference (CLIP, DINOv2, Aesthetic, BioCLIP). Supports GPU acceleration via CUDA.",
+    transformers_desc: "Library providing access to pre-trained models (CLIP ViT-L/14, DINOv2). Includes tokenizers, processors and a standardised inference API.",
+    openclip_desc: "Open source reimplementation of CLIP supporting many architectures (including ViT-L/14). Used by BioCLIP as the architectural backbone for biological training.",
+    pyqt_desc: "Python bindings for the Qt6 framework. Provides the entire OffGallery GUI: windows, panels, tabs, image gallery, dialogs and all interactive widgets.",
+    rawpy_desc: "rawpy is the Python binding for LibRaw, the C++ library for decoding 1000+ RAW formats (Canon CR2/CR3, Nikon NEF, Sony ARW, etc.). Enables thumbnail and metadata extraction from RAW files.",
+    pillow_desc: "The modernised Python Imaging Library. Used to open, resize, convert and optimise images for the AI pipeline (pre-processing before embedding generation).",
+    exiftool_desc: "The definitive tool for reading and writing photographic metadata (EXIF, IPTC, XMP, GPS) across 300+ formats. Used to extract all metadata and write AI tags to XMP sidecar files.",
+    geo_desc: "Python library for offline reverse geocoding: converts GPS coordinates (lat/lon) to city, region and country names. Geographic data (300,000+ locations) comes from the GeoNames dataset, bundled in the library — no network request required.",
+    argos_desc: "Fully offline machine translation engine based on OpenNMT models. Used to translate search queries from Italian to English before CLIP encoding, improving semantic search quality.",
+    conda_desc: "Python environment and package manager. Used by the OffGallery installer to create an isolated, reproducible environment with all dependencies, without conflicting with other installed Python software.",
+    numpy_desc: "Foundational scientific computing libraries for Python. NumPy manages float32 embedding arrays; SciPy provides distance and clustering algorithms used in semantic search.",
+    sqlite_desc: "Embedded, server-less relational database. All OffGallery cataloging (EXIF metadata, vector embeddings, tags, scores) is saved in a single local SQLite file, with no database server required.",
+    xmp_desc: "OffGallery writes AI metadata (tags, descriptions, biological and geographic hierarchies) to XMP sidecar files compatible with the Adobe XMP standard. Hierarchical tags use the <code>lr:hierarchicalSubject</code> property, the de facto standard in the Lightroom workflow.",
+    tag_semantic: "Semantic search", tag_visual: "Visual similarity", tag_bio: "Flora &amp; fauna",
+    tag_aesthetic: "Aesthetic score", tag_quality: "Technical quality", tag_llm: "AI text generation",
+    tag_inference: "Model inference", tag_models: "Model loading", tag_bioclip_base: "BioCLIP backbone",
+    tag_gui: "Graphical UI", tag_raw: "RAW decoding", tag_imaging: "Image processing",
+    tag_exif: "EXIF / XMP", tag_geo: "Geolocation", tag_translate: "Offline translation",
+    tag_env: "Environment management", tag_compute: "Vector compute", tag_db: "Local database", tag_xmp: "XMP interoperability",
+    tag_coding: "Code development", tag_docs: "Documentation", tag_research: "Research &amp; brainstorming", tag_search: "Documentation research",
+    sec_author: "Developer",
+    author_role: "Creator and lead developer",
+    author_desc: "OffGallery was born from a personal passion for nature photography and digital privacy. Designed, developed and maintained as an independent open source project.",
+    sec_aitools: "AI Assistants used in development",
+    aitools_intro: "OffGallery was developed with the support of various AI assistants for code writing, architectural review, documentation generation and problem solving.",
+    claude_desc: "Main AI assistant for interactive development. Claude Code supported architecture design, Python/PyQt6 code writing and review, debugging, documentation generation and website creation.",
+    chatgpt_desc: "Used for research, brainstorming and architectural approach comparison in the early stages of the project. Useful for exploring alternative solutions and getting a second technical opinion.",
+    gemini_desc: "Used for technical research and library evaluation, particularly for HuggingFace ecosystem integration and complex data format analysis.",
+    perplexity_desc: "Used as an AI search engine to quickly find technical documentation, academic papers, library comparisons and answers to specific questions during development.",
+    legal_title: "License notes",
+    legal_note: "<strong>License notes</strong><br>OffGallery is distributed under the <strong>AGPLv3</strong> license. Third-party components listed on this page retain their original licenses, each indicated on their respective cards. The full text of each license can be found in the official repository of each project or in the <code>THIRD_PARTY.md</code> file included in the OffGallery source code.<br><br>Registered trademarks mentioned (OpenAI, Meta, Google, Adobe, Hugging Face, Anaconda, etc.) are the property of their respective owners and are referenced solely for informational/attribution purposes.",
+    footer_desc: "Intelligent photo cataloging, offline and private. Open source, AGPLv3.",
+    footer_github: "GitHub", footer_features: "Features",
+    footer_manual: "User manual", footer_credits: "Credits", footer_contact: "Contact",
+    footer_license: "AGPLv3 License — Free software",
+    donate_label: "Support the project",
+    donate_footer_text: "OffGallery is developed in free time.<br />A donation makes a difference.",
+    donate_btn: "Support on Ko-fi"
+  }
+};
+
+function applyLang(l) {
+  const t = i18n[l];
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    if (t[k] !== undefined) el.innerHTML = t[k];
+  });
+  document.documentElement.lang = l;
+  const flagIcon = document.getElementById('flagIcon');
+  const langLabel = document.getElementById('langLabel');
+  const manualLink = document.getElementById('sn-manual');
+  const footerManual = document.getElementById('footer-manual-link');
+  if (l === 'it') {
+    flagIcon.innerHTML = `<rect width="60" height="40" fill="#012169"/>
+      <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="8"/>
+      <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="4.8"/>
+      <path d="M30,0 V40 M0,20 H60" stroke="#fff" stroke-width="13.3"/>
+      <path d="M30,0 V40 M0,20 H60" stroke="#C8102E" stroke-width="8"/>`;
+    langLabel.textContent = 'EN';
+  } else {
+    flagIcon.innerHTML = `<rect width="20" height="40" fill="#009246"/>
+      <rect x="20" width="20" height="40" fill="#fff"/>
+      <rect x="40" width="20" height="40" fill="#ce2b37"/>`;
+    langLabel.textContent = 'IT';
+  }
+  if (manualLink) manualLink.href = l === 'it' ? 'USER_MANUAL_IT.html' : 'USER_MANUAL_EN.html';
+  if (footerManual) footerManual.href = l === 'it' ? 'USER_MANUAL_IT.html' : 'USER_MANUAL_EN.html';
+  localStorage.setItem('og_lang', l);
+}
+
+document.getElementById('langToggle').addEventListener('click', () => {
+  const cur = localStorage.getItem('og_lang') || 'it';
+  applyLang(cur === 'it' ? 'en' : 'it');
+});
+
+applyLang(localStorage.getItem('og_lang') || 'it');
+</script>
+</body>
+</html>

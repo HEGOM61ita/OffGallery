@@ -21,6 +21,16 @@
   </url>
 
   <url>
+    <loc>https://offgallery.app/credits.html</loc>
+    <lastmod>2026-05-12</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://offgallery.app/credits.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://offgallery.app/credits.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://offgallery.app/credits.html"/>
+  </url>
+
+  <url>
     <loc>https://offgallery.app/USER_MANUAL_IT.html</loc>
     <lastmod>2026-05-01</lastmod>
     <changefreq>monthly</changefreq>

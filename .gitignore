@@ -89,6 +89,7 @@ installer/*.bat
 !HTML/USER_MANUAL_EN.html
 !HTML/index.html
 !HTML/features.html
+!HTML/credits.html
 !HTML/CNAME
 !HTML/sitemap.xml
 !HTML/assets/

@@ -50,10 +50,10 @@
 
 | Data | Cosa | Note |
 |------|------|------|
-| 8 mag 2026 | **OffGallery Manager — installer one-click per Windows e Linux** | Nessun terminale, nessuna configurazione manuale. Scarica [`OffGallerySetup.exe`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup.exe) (Windows) o [`OffGallerySetup`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup) (Linux) e segui il wizard. Installa Miniconda, ambiente Python, librerie, modelli AI (~8 GB) e opzionalmente Ollama. Rilevamento GPU automatico (NVIDIA/AMD/CPU). macOS: wizard in sviluppo, usare gli script nella cartella `installer/` |
+| 8 mag 2026 | **Installer guidato Windows — [`OffGallerySetup.exe`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup.exe)** | Wizard in 5 schermate: rileva la GPU (NVIDIA/AMD/CPU), installa Miniconda, Python, librerie, modelli AI (~8 GB) e opzionalmente Ollama. Nessun terminale, nessuna configurazione manuale. Crea collegamento sul Desktop. |
+| 8 mag 2026 | **Installer guidato Linux — [`OffGallerySetup`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup)** | Wizard grafico nativo per Linux (Ubuntu, Fedora, Arch e compatibili). `chmod +x OffGallerySetup && ./OffGallerySetup` — installa tutto e crea la voce nel menu applicazioni. Nessun terminale necessario. |
 | 3 mag 2026 | **Plugin Contesto Prompt** | Inietta un blocco CONTEXT personalizzato nel prompt LLM Vision per adattare tag, descrizioni e titoli al dominio fotografico specifico dell'archivio. 8 preset built-in (naturalistico, paesaggio, astrofotografia, macro scientifico, subacqueo, reportage, commerciale, street) + generazione preset personalizzati via LLM locale. Preset selezionabile dal tab Plugin o dal menu contestuale in Gallery |
 | 22 apr 2026 | **Compatibilità Darktable e altri editor** | Supporto completo al workflow Darktable: lettura sidecar `.NEF.xmp` / `.ARW.xmp` (convenzione `nomefile.EXT.xmp`), preservazione namespace proprietari nella creazione di nuovi sidecar, import XMP→DB e sync badge dalla Gallery, opzione **Output format: Lightroom / Darktable** nel tab Export. Compatibile con Lightroom, Darktable, Capture One, digiKam, ACDSee, FastRawViewer |
-| 12 apr 2026 | **Filtro tassonomia con autocompletamento** | Il filtro "Nome comune" nella Search Tab propone i nomi già presenti nel DB mentre si digita (QComboBox editabile con ricerca per contenuto, case-insensitive) |
 | 5 apr 2026 | **Plugin GeoNames** | Geolocalizzazione avanzata: gerarchia geografica completa (continente → nazione → regione → città), filtro Luogo con autocompletamento dal DB, filtro GPS a 4 stati (tutti / solo GPS / GPS modificato / senza GPS) |
 
 Storico completo nelle [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
@@ -422,14 +422,36 @@ Vedi **[plugins/PLUGIN_LICENSE_EXCEPTION.md](plugins/PLUGIN_LICENSE_EXCEPTION.md
 
 ---
 
-## Ringraziamenti
+## Ringraziamenti e Crediti
 
-- [OpenAI CLIP](https://github.com/openai/CLIP) - Ricerca semantica
-- [Meta DINOv2](https://github.com/facebookresearch/dinov2) - Embedding visivi
-- [BioCLIP](https://github.com/Imageomics/bioclip) - Classificazione flora/fauna
-- [Ollama](https://ollama.com) - LLM locali
-- [ExifTool](https://exiftool.org/) - Metadati EXIF/XMP
-- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) - Framework UI
+> Pagina completa con licenze e descrizioni: **[offgallery.app/credits.html](https://offgallery.app/credits.html)**
+
+**Modelli AI**
+- [OpenAI CLIP (ViT-L/14)](https://github.com/openai/CLIP) — Ricerca semantica · MIT
+- [Meta DINOv2](https://github.com/facebookresearch/dinov2) — Embedding visivi · Apache 2.0
+- [BioCLIP v2](https://github.com/Imageomics/bioclip) — Classificazione flora/fauna · MIT
+- [Aesthetic Predictor V2.5](https://github.com/christophschuhmann/improved-aesthetic-predictor) — Punteggio estetico · Apache 2.0
+- [MUSIQ (Google Research)](https://github.com/google-research/google-research/tree/master/musiq) — Qualità tecnica · Apache 2.0
+- [Ollama](https://ollama.com) + [Qwen-VL](https://github.com/QwenLM/Qwen-VL) — LLM locali · MIT / Apache 2.0
+
+**Librerie Python**
+- [PyTorch](https://pytorch.org/) — Framework deep learning · BSD-3-Clause
+- [Hugging Face Transformers](https://huggingface.co/docs/transformers) — Caricamento modelli · Apache 2.0
+- [OpenCLIP](https://github.com/mlfoundations/open_clip) — Base BioCLIP · MIT
+- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) — Interfaccia grafica · GPL v3
+- [rawpy](https://github.com/letmaik/rawpy) + [LibRaw](https://www.libraw.org/) — Decodifica RAW · MIT / LGPL v2.1
+- [Pillow](https://python-pillow.org/) — Elaborazione immagini · HPND
+
+**Metadati e dati geografici**
+- [ExifTool](https://exiftool.org/) (Phil Harvey) — EXIF/IPTC/XMP · Perl Artistic License
+- [reverse_geocoder](https://github.com/thampiman/reverse-geocoder) + [GeoNames](https://www.geonames.org/) — Geocodifica offline · MIT / CC BY 4.0
+- [Argos Translate](https://github.com/argosopentech/argos-translate) — Traduzione offline · MIT
+- [SQLite](https://sqlite.org/) — Database locale · Public Domain
+
+**Assistenti AI usati nello sviluppo**
+- [Claude / Claude Code](https://claude.ai/) (Anthropic) · [ChatGPT](https://chatgpt.com/) (OpenAI) · [Gemini](https://gemini.google.com/) (Google) · [Perplexity AI](https://www.perplexity.ai/)
+
+Il testo completo di ogni licenza è disponibile nel file [`THIRD_PARTY.md`](THIRD_PARTY.md) e nei rispettivi repository ufficiali.
 
 ---
 
@@ -653,10 +675,10 @@ The wizard installs everything automatically: Miniconda, Python environment, lib
 
 | Date | What | Notes |
 |------|------|-------|
-| 8 May 2026 | **OffGallery Manager — one-click installer for Windows and Linux** | No terminal, no manual setup. Download [`OffGallerySetup.exe`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup.exe) (Windows) or [`OffGallerySetup`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup) (Linux) and follow the wizard. Installs Miniconda, Python environment, libraries, AI models (~8 GB) and optionally Ollama. Automatic GPU detection (NVIDIA/AMD/CPU). macOS: wizard in development, use the scripts in the `installer/` folder |
+| 8 May 2026 | **Guided installer for Windows — [`OffGallerySetup.exe`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup.exe)** | 5-step wizard: detects your GPU (NVIDIA/AMD/CPU), installs Miniconda, Python, libraries, AI models (~8 GB) and optionally Ollama. No terminal, no manual configuration. Creates a Desktop shortcut. |
+| 8 May 2026 | **Guided installer for Linux — [`OffGallerySetup`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup)** | Native graphical wizard for Linux (Ubuntu, Fedora, Arch and compatible distros). `chmod +x OffGallerySetup && ./OffGallerySetup` — installs everything and creates an application menu entry. No terminal needed. |
 | 3 May 2026 | **Prompt Context Plugin** | Injects a custom CONTEXT block into the LLM Vision prompt to tailor tags, descriptions and titles to the archive's specific photographic domain. 8 built-in presets (wildlife, landscape, astrophotography, scientific macro, underwater, reportage, commercial, street) + generate custom presets via local LLM. Preset selectable from the Plugin tab or the Gallery context menu |
 | 22 Apr 2026 | **Darktable & multi-editor compatibility** | Full Darktable workflow support: reads `.NEF.xmp` / `.ARW.xmp` sidecars (Darktable `filename.EXT.xmp` convention), preserves proprietary namespaces when creating new sidecars, XMP→DB import and badge sync from Gallery, **Output format: Lightroom / Darktable** option in Export tab. Compatible with Lightroom, Darktable, Capture One, digiKam, ACDSee, FastRawViewer |
-| 12 Apr 2026 | **Taxonomy filter with autocomplete** | The "Common name" filter in the Search Tab suggests names already in the DB while typing (editable QComboBox with contains-search, case-insensitive) |
 | 5 Apr 2026 | **GeoNames plugin** | Advanced geolocation: full geographic hierarchy (continent → country → region → city), Location filter with DB autocomplete, GPS filter with 4 states (all / GPS only / GPS modified / no GPS) |
 
 Full history in [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
@@ -765,14 +787,36 @@ See **[plugins/PLUGIN_LICENSE_EXCEPTION.md](plugins/PLUGIN_LICENSE_EXCEPTION.md)
 
 ---
 
-## Acknowledgements
+## Acknowledgements & Credits
 
-- [OpenAI CLIP](https://github.com/openai/CLIP) — Semantic search
-- [Meta DINOv2](https://github.com/facebookresearch/dinov2) — Visual embeddings
-- [BioCLIP](https://github.com/Imageomics/bioclip) — Flora/fauna classification
-- [Ollama](https://ollama.com) — Local LLMs
-- [ExifTool](https://exiftool.org/) — EXIF/XMP metadata
-- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) — UI framework
+> Full page with licenses and descriptions: **[offgallery.app/credits.html](https://offgallery.app/credits.html)**
+
+**AI Models**
+- [OpenAI CLIP (ViT-L/14)](https://github.com/openai/CLIP) — Semantic search · MIT
+- [Meta DINOv2](https://github.com/facebookresearch/dinov2) — Visual embeddings · Apache 2.0
+- [BioCLIP v2](https://github.com/Imageomics/bioclip) — Flora/fauna classification · MIT
+- [Aesthetic Predictor V2.5](https://github.com/christophschuhmann/improved-aesthetic-predictor) — Aesthetic scoring · Apache 2.0
+- [MUSIQ (Google Research)](https://github.com/google-research/google-research/tree/master/musiq) — Technical quality · Apache 2.0
+- [Ollama](https://ollama.com) + [Qwen-VL](https://github.com/QwenLM/Qwen-VL) — Local LLMs · MIT / Apache 2.0
+
+**Python Libraries**
+- [PyTorch](https://pytorch.org/) — Deep learning framework · BSD-3-Clause
+- [Hugging Face Transformers](https://huggingface.co/docs/transformers) — Model loading · Apache 2.0
+- [OpenCLIP](https://github.com/mlfoundations/open_clip) — BioCLIP backbone · MIT
+- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) — Graphical UI · GPL v3
+- [rawpy](https://github.com/letmaik/rawpy) + [LibRaw](https://www.libraw.org/) — RAW decoding · MIT / LGPL v2.1
+- [Pillow](https://python-pillow.org/) — Image processing · HPND
+
+**Metadata & Geographic Data**
+- [ExifTool](https://exiftool.org/) (Phil Harvey) — EXIF/IPTC/XMP · Perl Artistic License
+- [reverse_geocoder](https://github.com/thampiman/reverse-geocoder) + [GeoNames](https://www.geonames.org/) — Offline geocoding · MIT / CC BY 4.0
+- [Argos Translate](https://github.com/argosopentech/argos-translate) — Offline translation · MIT
+- [SQLite](https://sqlite.org/) — Local database · Public Domain
+
+**AI Assistants used in development**
+- [Claude / Claude Code](https://claude.ai/) (Anthropic) · [ChatGPT](https://chatgpt.com/) (OpenAI) · [Gemini](https://gemini.google.com/) (Google) · [Perplexity AI](https://www.perplexity.ai/)
+
+Full license text for each component is available in [`THIRD_PARTY.md`](THIRD_PARTY.md) and in the respective official repositories.
 
 ---
 
