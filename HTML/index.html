@@ -511,6 +511,34 @@
     }
     .footer-donate p { font-size: 0.88rem; color: var(--text-soft); margin-bottom: 14px; line-height: 1.5; }
 
+    /* ── COMPARISON TABLE ── */
+    .comparison-section { padding: 56px 0 48px; }
+    .comparison-section .section-head { margin-bottom: 32px; }
+    .comparison-section .section-head p { margin-top: 8px; }
+    .comp-updated { font-size: 0.78rem; color: var(--text-faint); margin-top: 6px; }
+    .comp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
+    .comp-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; background: var(--surface); }
+    .comp-table thead tr { background: var(--brand-navy); color: #fff; }
+    .comp-table thead th { padding: 12px 16px; font-weight: 600; font-size: 0.82rem; text-align: center; border: none; letter-spacing: 0.02em; white-space: nowrap; }
+    .comp-table thead th:first-child { text-align: left; width: 32%; }
+    .comp-table thead th.col-og { background: #0a3baa; }
+    .comp-group th { background: #1e3a6e; color: #c8d8ff; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 16px; text-align: left; border: none; }
+    .comp-table tbody td { padding: 10px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; line-height: 1.4; color: var(--text-soft); }
+    .comp-table tbody td:first-child { color: var(--text); font-weight: 500; }
+    .comp-table tbody td:nth-child(2) { background: rgba(10,91,255,0.04); border-left: 2px solid var(--brand-blue); border-right: 2px solid rgba(10,91,255,0.15); }
+    .comp-table tbody tr:last-child td { border-bottom: none; }
+    .comp-table tbody tr:hover td { background: var(--surface-2); }
+    .comp-table tbody tr:hover td:nth-child(2) { background: rgba(10,91,255,0.08); }
+    .comp-table small { font-size: 0.75rem; color: var(--text-faint); display: block; margin-top: 2px; }
+    .ct-yes  { color: #16a34a; font-weight: 700; }
+    .ct-no   { color: #dc2626; font-weight: 700; }
+    .ct-part { color: #d97706; font-weight: 700; }
+    .ct-excl { display: inline-block; font-size: 0.7rem; font-weight: 700; color: #7c3aed; background: #f3e8ff; border-radius: 4px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; white-space: nowrap; }
+    .comp-legend { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 14px; font-size: 0.8rem; color: var(--text-faint); align-items: center; }
+    .comp-legend span { display: flex; align-items: center; gap: 5px; }
+    .comp-note { margin-top: 14px; font-size: 0.78rem; color: var(--text-faint); line-height: 1.7; border-top: 1px solid var(--line); padding-top: 12px; }
+    .comp-note strong { color: var(--text-soft); }
+
     /* ── RESPONSIVE ── */
     @media (max-width: 1080px) {
       .hero-grid, .feature-grid, .plugins-grid, .problem-grid { grid-template-columns: 1fr; }
@@ -774,6 +802,218 @@
       </div>
       <div class="features-cta">
         <a href="features.html" class="btn btn-secondary" data-i18n="feat_cta">Vai alla documentazione tecnica</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <!-- ── COMPARISON TABLE ── -->
+  <section id="comparison" class="comparison-section">
+    <div class="container">
+      <div class="section-head">
+        <h2>OffGallery vs. i competitor</h2>
+        <p style="color:var(--text-soft);font-size:1rem;">Un confronto onesto, basato su codice sorgente e documentazione ufficiale.</p>
+        <p class="comp-updated">Aggiornato al 13 maggio 2026 — Immich · digiKam · Mylio Photos</p>
+      </div>
+
+      <div class="comp-scroll">
+        <table class="comp-table">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th class="col-og">OffGallery</th>
+              <th>Immich</th>
+              <th>digiKam</th>
+              <th>Mylio Photos</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- RICERCA -->
+            <tr class="comp-group"><th colspan="5">Ricerca e Retrieval</th></tr>
+            <tr>
+              <td>Ricerca semantica in linguaggio naturale<small>("tramonto sul mare con barca")</small></td>
+              <td><span class="ct-yes">✅</span> CLIP ViT-L/14</td>
+              <td><span class="ct-yes">✅</span> CLIP (ViT-B/32 default)</td>
+              <td><span class="ct-no">❌</span> solo keyword/tag</td>
+              <td><span class="ct-part">⚠</span> SmartTags proprietari, no query libera</td>
+            </tr>
+            <tr>
+              <td>Slider bilanciamento semantica / testo<small>(peso CLIP vs tag/descrizione/titolo — "Deep Search")</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ ESCLUSIVA</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Traduzione automatica query offline<small>(argostranslate locale — CLIP lavora sempre in EN)</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Ricerca per similarità visiva deep learning<small>("trova foto simili a questa")</small></td>
+              <td><span class="ct-yes">✅</span> DINOv2</td>
+              <td><span class="ct-yes">✅</span> CLIP-based</td>
+              <td><span class="ct-part">⚠</span> Haar/Wavelets (non deep learning)</td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Filtro per qualità AI<small>(aesthetic score + technical score)</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Ricerca per gerarchia geografica strutturata<small>(Continente › Paese › Regione › Città)</small></td>
+              <td><span class="ct-yes">✅</span> GeOFF gerarchico</td>
+              <td><span class="ct-part">⚠</span> per luogo, non strutturato</td>
+              <td><span class="ct-part">⚠</span> GPS/mappa, no gerarchia</td>
+              <td><span class="ct-part">⚠</span> mappa drag-and-drop</td>
+            </tr>
+            <!-- AI -->
+            <tr class="comp-group"><th colspan="5">AI e Analisi Automatica</th></tr>
+            <tr>
+              <td>Tassonomia biologica automatica<small>(7 livelli, ~450.000 specie flora/fauna — BioCLIP v2)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ ESCLUSIVA</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Descrizione e titolo automatici in linguaggio naturale<small>(LLM Vision locale via Ollama/LMStudio)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ ESCLUSIVA</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Lingua di output LLM configurabile<small>(tag/descrizioni/titoli nella lingua scelta dall'utente)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ ESCLUSIVA</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Aesthetic score + Technical score AI</td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Culling guidato da AI<small>(filtra per score AI + stelle + colore; "trova simili" DINOv2 con soglia e finestra sessione; preset salvabili per workflow ripetibili)</small></td>
+              <td><span class="ct-yes">✅</span> guidato da AI</td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Geolocalizzazione inversa offline<small>(GPS → Continente/Paese/Città senza API esterne)</small></td>
+              <td><span class="ct-yes">✅</span> reverse_geocoder bundled</td>
+              <td><span class="ct-part">⚠</span> richiede connessione iniziale</td>
+              <td><span class="ct-part">⚠</span> usa servizio online</td>
+              <td><span class="ct-yes">✅</span> offline</td>
+            </tr>
+            <!-- PRIVACY -->
+            <tr class="comp-group"><th colspan="5">Privacy e Architettura</th></tr>
+            <tr>
+              <td>Completamente offline<small>(nessun dato inviato a cloud, nemmeno per AI)</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-yes">✅</span> self-hosted</td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-yes">✅</span> <small>[*1]</small></td>
+            </tr>
+            <tr>
+              <td>Nessun abbonamento obbligatorio</td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-yes">✅</span> open source</td>
+              <td><span class="ct-yes">✅</span> open source</td>
+              <td><span class="ct-no">❌</span> abbonamento mensile</td>
+            </tr>
+            <tr>
+              <td>Architettura plugin estensibile</td>
+              <td><span class="ct-yes">✅</span> sistema plugin nativo</td>
+              <td><span class="ct-part">⚠</span> limitato</td>
+              <td><span class="ct-yes">✅</span> C++/Python</td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <!-- METADATI -->
+            <tr class="comp-group"><th colspan="5">Metadati ed Export</th></tr>
+            <tr>
+              <td>XMP read/write<small>(round-trip con Lightroom/Capture One/darktable)</small></td>
+              <td><span class="ct-yes">✅</span> con preservazione selettiva campi</td>
+              <td><span class="ct-yes">✅</span> <small>[*2]</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-yes">✅</span></td>
+            </tr>
+            <tr>
+              <td>Export con selezione sorgente indipendente dalla gallery<small>(gallery oppure directory/intero DB — senza cercare prima)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ ESCLUSIVA</span></td>
+              <td><span class="ct-part">⚠</span> export automatico su tutti i file, no selezione arbitraria</td>
+              <td><span class="ct-part">⚠</span> solo selezione destinazione</td>
+              <td><span class="ct-part">⚠</span> selezione manuale foto per foto</td>
+            </tr>
+            <tr>
+              <td>Export CSV dei metadati<small>(con esclusione GPS/EXIF per privacy)</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-part">⚠</span> solo gerarchia tag</td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Import catalogo Lightroom Classic<small>(.lrcat — rating, color label, percorsi file)</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-part">⚠</span> solo file, no catalogo</td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <!-- CONFIGURAZIONE -->
+            <tr class="comp-group"><th colspan="5">Configurazione</th></tr>
+            <tr>
+              <td>Allocazione modelli AI su CPU/GPU con budget VRAM<small>(per modello, slider VRAM, rilevamento GPU automatico)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ ESCLUSIVA</span> granulare per modello</td>
+              <td><span class="ct-part">⚠</span> selezione GPU, worker — no budget VRAM</td>
+              <td><span class="ct-part">⚠</span> OpenCL on/off</td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Selezione modelli AI individuali<small>(qualsiasi modello compatibile scaricato localmente, abilitabile da Config Tab)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ ESCLUSIVA</span> nessun vincolo</td>
+              <td><span class="ct-part">⚠</span> CLIP e face recognition — no LLM</td>
+              <td><span class="ct-no">❌</span> modelli non selezionabili</td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Backend LLM configurabile<small>(Ollama o LMStudio, endpoint, modello, parametri avanzati, lingua output)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ ESCLUSIVA</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Soglie ricerca e similarità configurabili numericamente<small>(threshold CLIP, soglia DINOv2, max risultati, fuzzy matching on/off)</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-part">⚠</span> solo soglia duplicati</td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-part">⚠</span> slider qualitativo</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="comp-legend">
+        <span><span class="ct-yes">✅</span> Presente e verificato</span>
+        <span><span class="ct-part">⚠</span> Parziale o con limitazioni</span>
+        <span><span class="ct-no">❌</span> Assente</span>
+        <span><span class="ct-excl">★ ESCLUSIVA</span> Non presente in nessun competitor</span>
+      </div>
+      <div class="comp-note">
+        <strong>[*1]</strong> Mylio: AI locale confermata, ma alcune funzioni di sync richiedono account Mylio. &nbsp;
+        <strong>[*2]</strong> Immich: scrittura XMP sidecar confermata, ma in librerie read-only non può scrivere.<br>
+        <strong>Fonti verificate:</strong> docs.immich.app · docs.digikam.org · manual.mylio.com · codice sorgente OffGallery.
       </div>
     </div>
   </section>
