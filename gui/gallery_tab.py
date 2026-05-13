@@ -195,9 +195,9 @@ def _parse_db_datetime(value) -> "datetime | None":
     # es. "2024:06:15 14:30:00" → "2024-06-15 14:30:00"
     if len(s) >= 10 and s[4] == ':' and s[7] == ':':
         s = s[:4] + '-' + s[5:7] + '-' + s[8:]
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+    for fmt, expected_len in (("%Y-%m-%d %H:%M:%S", 19), ("%Y-%m-%d %H:%M", 16), ("%Y-%m-%d", 10)):
         try:
-            return datetime.strptime(s[:len(fmt)], fmt)
+            return datetime.strptime(s[:expected_len], fmt)
         except ValueError:
             continue
     return None
