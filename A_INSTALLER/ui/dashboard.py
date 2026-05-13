@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from installer import AppWindow
 
 from ui import _add_logo
+from ui.wizard import _create_shortcut
 
 
 BG        = "#f0f4f8"
@@ -301,6 +302,8 @@ class DashboardPage(tk.Frame):
         btn_frame.pack(fill="x")
         ttk.Button(btn_frame, text="▶  Avvia OffGallery",
                    command=self._launch).pack(side="left", ipadx=10, ipady=4)
+        ttk.Button(btn_frame, text="🔗  Ricrea collegamenti",
+                   command=self._action_create_shortcuts).pack(side="left", padx=8, ipady=4)
         ttk.Button(btn_frame, text="↻  Aggiorna stato",
                    command=self._refresh_all).pack(side="right")
 
@@ -636,6 +639,22 @@ class DashboardPage(tk.Frame):
             except Exception as exc:
                 self._panel.log(f"❌ {exc}")
         self._run_bg(_do)
+
+    def _action_create_shortcuts(self):
+        sm = self.app.state
+        if not sm:
+            return
+        manager_exe = sys.executable if getattr(sys, "frozen", False) else ""
+        _create_shortcut(sm.install_path,
+                         log_cb=self._panel.log,
+                         manager_exe=manager_exe)
+        sm.mark_done("shortcut")
+        messagebox.showinfo(
+            "Collegamenti creati",
+            "I collegamenti sul Desktop sono stati creati:\n\n"
+            "• OffGallery — avvia l'applicazione\n"
+            "• OffGallery Manager — gestisci i componenti"
+        )
 
     def _launch(self):
         import subprocess
