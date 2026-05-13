@@ -25,6 +25,9 @@ from state.state_manager import StateManager
 from ui.dashboard        import DashboardPage
 from ui.wizard           import (WelcomePage, PreflightPage, PathPage,
                                   InstallPage, DonePage)
+from components.miniconda  import find_conda, conda_version, conda_executable
+from components.conda_env  import env_exists, python_version_ok
+from components.models     import MODELS, model_exists
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +115,65 @@ class AppWindow:
 
 
 # ---------------------------------------------------------------------------
+# Rilevamento installazioni legacy (senza installer_state.json)
+# ---------------------------------------------------------------------------
+
+def _detect_legacy_install(install_path: str) -> Optional[StateManager]:
+    """
+    Cerca un'installazione OffGallery fatta con i vecchi .bat (nessun installer_state.json).
+    Se trova conda + env + gui_launcher.py, ricostruisce lo stato e lo salva.
+    Restituisce un StateManager già salvato, oppure None se non trova nulla.
+    """
+    # Condizione minima: gui_launcher.py nella cartella
+    if not os.path.isfile(os.path.join(install_path, "gui_launcher.py")):
+        return None
+
+    # Cerca conda nel sistema
+    conda_exe = find_conda()
+    if not conda_exe:
+        return None
+
+    # Verifica env OffGallery
+    if not env_exists(conda_exe):
+        return None
+
+    # Installazione legacy confermata — ricostruiamo lo stato
+    sm = StateManager(install_path)
+    sm.load_or_create()  # crea un file nuovo con tutti pending
+
+    # Miniconda
+    import os as _os
+    miniconda_path = _os.path.dirname(_os.path.dirname(conda_exe))
+    ver = conda_version(conda_exe) or ""
+    sm.mark_done("miniconda", path=miniconda_path, conda_version=ver, found_in_system=True)
+
+    # Ambiente Python
+    if python_version_ok(conda_exe):
+        sm.mark_done("conda_env", python_version="3.12")
+    else:
+        sm.mark_done("conda_env", python_version="?")
+
+    # Codice OffGallery (gui_launcher.py già verificato sopra)
+    sm.mark_done("core", version="legacy")
+
+    # Librerie Python — considerate presenti se l'env esiste e ha python
+    sm.mark_done("packages", torch_variant="unknown")
+
+    # Modelli AI — verifica file per file
+    for spec in MODELS:
+        if model_exists(install_path, spec.key):
+            sm.set_model_status(spec.key, "done")
+
+    # Ollama e shortcut — non gestiti dal vecchio installer, lasciamo pending
+    sm.mark_skipped("lmstudio")
+
+    sm.set_profile("leggero")
+    sm.set_install_path(install_path)
+
+    return sm
+
+
+# ---------------------------------------------------------------------------
 # Avvio
 # ---------------------------------------------------------------------------
 
@@ -123,12 +185,18 @@ def main():
     already_installed = state.load_or_create()
 
     if already_installed and state.has_partial_install():
-        # Installazione parziale o completa → dashboard
+        # Installazione parziale o completa (con installer_state.json) → dashboard
         app.state = state
         app.show_page("dashboard")
     else:
-        # Prima volta → wizard dal benvenuto
-        app.show_page("welcome")
+        # Nessun installer_state.json — cerca installazione legacy
+        legacy_state = _detect_legacy_install(app.install_path)
+        if legacy_state:
+            app.state = legacy_state
+            app.show_page("dashboard")
+        else:
+            # Prima volta → wizard dal benvenuto
+            app.show_page("welcome")
 
     app.run()
 
