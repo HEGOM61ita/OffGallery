@@ -538,6 +538,28 @@
     .comp-legend span { display: flex; align-items: center; gap: 5px; }
     .comp-note { margin-top: 14px; font-size: 0.78rem; color: var(--text-faint); line-height: 1.7; border-top: 1px solid var(--line); padding-top: 12px; }
     .comp-note strong { color: var(--text-soft); }
+    .comp-plugin-callout {
+      margin-bottom: 28px;
+      padding: 20px 24px;
+      background: linear-gradient(135deg, rgba(10,91,255,0.06) 0%, rgba(124,58,237,0.06) 100%);
+      border: 1px solid rgba(10,91,255,0.18);
+      border-left: 4px solid var(--brand-blue);
+      border-radius: var(--radius-sm);
+    }
+    .comp-plugin-callout h3 { font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .comp-plugin-callout p { font-size: 0.875rem; color: var(--text-soft); line-height: 1.6; margin-bottom: 10px; }
+    .comp-plugin-callout .excl-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .comp-plugin-callout .excl-pill {
+      font-size: 0.78rem; font-weight: 600;
+      color: #7c3aed; background: #f3e8ff;
+      border-radius: var(--radius-full); padding: 3px 10px;
+    }
+    .comp-plugin-callout a.comp-plugin-link {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.82rem; font-weight: 600; color: var(--brand-blue);
+      text-decoration: none; transition: opacity 0.15s;
+    }
+    .comp-plugin-callout a.comp-plugin-link:hover { opacity: 0.75; }
 
     /* ── RESPONSIVE ── */
     @media (max-width: 1080px) {
@@ -817,6 +839,21 @@
         <p class="comp-updated">Aggiornato al 13 maggio 2026 — Immich · digiKam · Mylio Photos</p>
       </div>
 
+      <div class="comp-plugin-callout">
+        <h3>★ Feature esclusive disponibili tramite plugin</h3>
+        <p>Alcune delle capacità più uniche di OffGallery sono disponibili attraverso il sistema plugin. Tra queste, il <strong>generatore AI di prompt specializzati</strong>: l'utente descrive in linguaggio libero il tipo di fotografia o soggetto, e il sistema genera automaticamente un prompt ottimizzato per guidare l'LLM nella produzione di tag, titoli e descrizioni — una funzione che non esiste in nessun altro software di catalogazione fotografica.</p>
+        <div class="excl-list">
+          <span class="excl-pill">Generatore AI di prompt da linguaggio libero</span>
+          <span class="excl-pill">Nomi comuni biologici multilingua (BioNomen)</span>
+          <span class="excl-pill">Dati geografici da databank pubblici</span>
+          <span class="excl-pill">Backend LLM intercambiabile (Ollama · LM Studio)</span>
+        </div>
+        <a href="#plugins" class="comp-plugin-link">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+          Scopri tutti i plugin →
+        </a>
+      </div>
+
       <div class="comp-scroll">
         <table class="comp-table">
           <thead>
@@ -920,7 +957,7 @@
             <!-- PRIVACY -->
             <tr class="comp-group"><th colspan="5">Privacy e Architettura</th></tr>
             <tr>
-              <td>Completamente offline<small>(nessun dato inviato a cloud, nemmeno per AI)</small></td>
+              <td>Le immagini non lasciano mai il dispositivo<small>(nessuna foto trasmessa a servizi esterni — alcuni plugin possono fare richieste spot a databank pubblici per arricchire i metadati)</small></td>
               <td><span class="ct-yes">✅</span></td>
               <td><span class="ct-yes">✅</span> self-hosted</td>
               <td><span class="ct-yes">✅</span></td>
@@ -1013,6 +1050,7 @@
       <div class="comp-note">
         <strong>[*1]</strong> Mylio: AI locale confermata, ma alcune funzioni di sync richiedono account Mylio. &nbsp;
         <strong>[*2]</strong> Immich: scrittura XMP sidecar confermata, ma in librerie read-only non può scrivere.<br>
+        <strong>Nota privacy plugin:</strong> le immagini non lasciano mai il dispositivo. Alcuni plugin possono effettuare richieste spot a databank pubblici (es. GBIF, GeoNames) per arricchire i metadati — mai per trasmettere foto.<br>
         <strong>Fonti verificate:</strong> docs.immich.app · docs.digikam.org · manual.mylio.com · codice sorgente OffGallery.
       </div>
     </div>
