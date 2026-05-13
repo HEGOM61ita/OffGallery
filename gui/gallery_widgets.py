@@ -63,9 +63,9 @@ COLORS = {
     'accento': '#E67E22',
     # Nuovi colori per uniformità UI
     'marrone_chiaro': '#A67C52',  # Per badge ranking
-    'popup_bg': '#2c3e50',        # Sfondo popup (blu-grigio scuro)
-    'popup_text': '#ecf0f1',      # Testo popup (grigio chiaro)
-    'popup_border': '#3498db',    # Bordo popup (blu)
+    'popup_bg': '#2A2A2A',        # Sfondo popup (grigio scuro, uguale a grafite)
+    'popup_text': '#E3E3E3',      # Testo popup (grigio chiaro)
+    'popup_border': '#1C4F63',    # Bordo popup (blu petrolio scuro)
     # Rating stars
     'rating_star': '#87CEEB',     # Stelle rating (celeste chiaro/sky blue)
 }
@@ -122,6 +122,32 @@ POPUP_STYLE = f"""
     QProgressBar::chunk {{
         background-color: {COLORS['popup_border']};
         border-radius: 3px;
+    }}
+    QMenu {{
+        background-color: {COLORS['popup_bg']};
+        color: {COLORS['popup_text']};
+        border: 1px solid {COLORS['popup_border']};
+        border-radius: 6px;
+        padding: 4px;
+    }}
+    QMenu::item {{
+        padding: 5px 20px 5px 12px;
+        border-radius: 3px;
+    }}
+    QMenu::item:selected {{
+        background-color: {COLORS['popup_border']};
+        color: white;
+    }}
+    QMenu::item:disabled {{
+        color: {COLORS['grigio_medio']};
+    }}
+    QMenu::separator {{
+        height: 1px;
+        background-color: {COLORS['popup_border']};
+        margin: 3px 8px;
+    }}
+    QMenu::right-arrow {{
+        image: none;
     }}
 """
 
@@ -1139,6 +1165,7 @@ class ImageCard(QFrame):
                 is_multi = False
             
             menu = QMenu(self)
+            apply_popup_style(menu)
 
             # ═══ FILE & NAVIGAZIONE ═══
             file_menu = menu.addMenu(f"{t('widgets.menu.file')}{multi_label}")
@@ -3829,6 +3856,7 @@ class BioCLIPTaxonomyDialog(QDialog):
         self.setMinimumWidth(550)
         self.setModal(True)
         self.input_fields = {}
+        apply_popup_style(self)
         self._build_ui()
         self._load_current_taxonomy()
 
@@ -3842,7 +3870,7 @@ class BioCLIPTaxonomyDialog(QDialog):
         else:
             info_text = t("widgets.label.bioclip_for_multi", n=len(self.items))
         info_label = QLabel(info_text)
-        info_label.setStyleSheet("font-weight: bold; color: #2A6A82; margin-bottom: 10px;")
+        info_label.setStyleSheet("font-weight: bold; color: #4a9cc4; margin-bottom: 10px;")
         layout.addWidget(info_label)
 
         # Campi tassonomici
@@ -3946,6 +3974,7 @@ class UserTagDialog(QDialog):
 
         self.setMinimumWidth(500)
         self.setModal(True)
+        apply_popup_style(self)
 
         self._build_ui()
         self._load_current_tags()
@@ -3964,7 +3993,7 @@ class UserTagDialog(QDialog):
             info_text = t("widgets.label.manage_tags_multi", n=len(self.items))
 
         info_label = QLabel(info_text)
-        info_label.setStyleSheet("font-weight: bold; color: #2A6A82; margin-bottom: 10px;")
+        info_label.setStyleSheet("font-weight: bold; color: #4a9cc4; margin-bottom: 10px;")
         layout.addWidget(info_label)
 
         if self.tag_field == 'llm_tags':
@@ -4036,7 +4065,8 @@ class RemoveTagDialog(QDialog):
         self.setWindowTitle(t("widgets.dialog.remove_tags_title", n=len(self.items)))
         self.setMinimumWidth(400)
         self.setModal(True)
-        
+        apply_popup_style(self)
+
         self._build_ui()
         self._load_available_tags()
     
@@ -4109,7 +4139,8 @@ class DescriptionDialog(QDialog):
         self.setWindowTitle(t("widgets.dialog.description_title", n=len(self.items)))
         self.setMinimumWidth(500)
         self.setModal(True)
-        
+        apply_popup_style(self)
+
         self._build_ui()
         self._load_current_description()
     
@@ -4124,7 +4155,7 @@ class DescriptionDialog(QDialog):
             info_text = t("widgets.label.manage_desc_multi", n=len(self.items))
             
         info_label = QLabel(info_text)
-        info_label.setStyleSheet("font-weight: bold; color: #2A6A82; margin-bottom: 10px;")
+        info_label.setStyleSheet("font-weight: bold; color: #4a9cc4; margin-bottom: 10px;")
         layout.addWidget(info_label)
         
         # Campo descrizione
@@ -4191,6 +4222,7 @@ class TitleDialog(QDialog):
         self.setWindowTitle(t("widgets.dialog.title_dialog_title", n=len(self.items)))
         self.setMinimumWidth(450)
         self.setModal(True)
+        apply_popup_style(self)
 
         self._build_ui()
         self._load_current_title()
@@ -4206,7 +4238,7 @@ class TitleDialog(QDialog):
             info_text = t("widgets.label.manage_title_multi", n=len(self.items))
 
         info_label = QLabel(info_text)
-        info_label.setStyleSheet("font-weight: bold; color: #2A6A82; margin-bottom: 10px;")
+        info_label.setStyleSheet("font-weight: bold; color: #4a9cc4; margin-bottom: 10px;")
         layout.addWidget(info_label)
 
         # Campo titolo (QLineEdit per singola riga)
@@ -4275,7 +4307,8 @@ class CompleteExifDialog(QDialog):
         self.setMaximumSize(800, 500)  # Limita dimensioni massime
         self.resize(700, 450)  # Dimensione predefinita ragionevole
         self.setModal(True)
-        
+        apply_popup_style(self)
+
         self._build_ui()
         self._load_exif_data()
     
@@ -4290,7 +4323,7 @@ class CompleteExifDialog(QDialog):
             info_text = t("widgets.label.exif_multi", n=len(self.items))
             
         info_label = QLabel(info_text)
-        info_label.setStyleSheet("font-weight: bold; color: #2A6A82; margin-bottom: 10px;")
+        info_label.setStyleSheet("font-weight: bold; color: #4a9cc4; margin-bottom: 10px;")
         layout.addWidget(info_label)
         
         # Text area scrollabile
@@ -4568,6 +4601,7 @@ class LLMTagDialog(QDialog):
         self.setWindowTitle(t("widgets.dialog.llm_tag_title", n=self.num_images))
         self.setMinimumWidth(500)
         self.setModal(True)
+        apply_popup_style(self)
 
         self._build_ui()
 
