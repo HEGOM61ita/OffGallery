@@ -757,8 +757,7 @@ class GalleryTab(QWidget):
         
             ref_id = item.image_id
             db_manager.cursor.execute(
-                "SELECT dinov2_embedding, datetime_original, datetime_digitized, datetime_modified FROM images WHERE id = ?",
-                (ref_id,)
+                "SELECT dinov2_embedding FROM images WHERE id = ?", (ref_id,)
             )
             row = db_manager.cursor.fetchone()
 
@@ -768,9 +767,12 @@ class GalleryTab(QWidget):
                 db_manager.close()
                 return
 
-            # Estrai data di riferimento (fallback su digitized/modified)
-            ref_date_str = row[1] or row[2] or row[3]
+            # Data di riferimento già disponibile nella card (evita seconda query e problemi di parsing)
+            ref_date_str = (item.image_data.get('datetime_original')
+                            or item.image_data.get('datetime_digitized')
+                            or item.image_data.get('datetime_modified'))
             ref_dt = _parse_db_datetime(ref_date_str)
+            logger.debug(f"Filtro sessione — data riferimento raw: {ref_date_str!r} → parsed: {ref_dt}")
 
             # Se il filtro sessione è attivo ma la foto di riferimento non ha data → avviso e annulla filtro
             if filter_session and ref_dt is None:
