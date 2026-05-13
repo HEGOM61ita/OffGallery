@@ -86,10 +86,10 @@ class ExportTab(QWidget):
         scroll_layout.setContentsMargins(12, 12, 12, 12)
 
         # === SEZIONI ===
+        scroll_layout.addWidget(self._selection_group())
         scroll_layout.addWidget(self._export_format_group())
         scroll_layout.addWidget(self._export_path_group())
         scroll_layout.addWidget(self._advanced_group())
-        scroll_layout.addWidget(self._selection_group())
         scroll_layout.addWidget(self._export_group())
 
         scroll_layout.addStretch(1)
@@ -616,10 +616,11 @@ class ExportTab(QWidget):
 
     def _update_export_btn(self):
         """Abilita il pulsante export se c'è una sorgente valida."""
+        if not hasattr(self, 'export_btn'):
+            return
         if self.src_gallery_radio.isChecked():
             self.export_btn.setEnabled(len(self.images_to_export) > 0)
         else:
-            # Con sorgente directory: abilitato se c'è un DB
             self.export_btn.setEnabled(self.db_manager is not None)
 
     def _load_dir_filter(self):
