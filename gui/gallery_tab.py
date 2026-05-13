@@ -4,11 +4,12 @@ Logica principale: ricerca, BioCLIP, gestione tag, XMP Sync
 """
 
 from pathlib import Path
+from datetime import datetime, timedelta
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QScrollArea, QPushButton, QMessageBox,
     QApplication, QProgressDialog, QSizePolicy, QComboBox,
-    QDialog, QFormLayout, QDoubleSpinBox, QSpinBox, QDialogButtonBox
+    QDialog, QFormLayout, QDoubleSpinBox, QSpinBox, QDialogButtonBox, QCheckBox
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap
@@ -176,6 +177,30 @@ class ViewportXMPManager:
 
         return visible_cards
 #----------------------------------------------------------------
+
+
+def _parse_db_datetime(value) -> "datetime | None":
+    """
+    Converte una stringa data dal DB in datetime.
+    Gestisce i formati prodotti da _normalize_datetime:
+      - ISO:  "YYYY-MM-DD HH:MM:SS"  (output standard dopo normalizzazione)
+      - EXIF: "YYYY:MM:DD HH:MM:SS"  (raro, se scritto prima della normalizzazione)
+      - Solo data: "YYYY-MM-DD" / "YYYY:MM:DD"
+    Restituisce None se il valore è assente o non parsabile.
+    """
+    if not value:
+        return None
+    s = str(value).strip()
+    # Sostituisce separatori data EXIF ":" con "-" solo nella parte data
+    # es. "2024:06:15 14:30:00" → "2024-06-15 14:30:00"
+    if len(s) >= 10 and s[4] == ':' and s[7] == ':':
+        s = s[:4] + '-' + s[5:7] + '-' + s[8:]
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s[:len(fmt)], fmt)
+        except ValueError:
+            continue
+    return None
 
 
 class GalleryTab(QWidget):
@@ -685,6 +710,20 @@ class GalleryTab(QWidget):
             spin_max.setToolTip(t("gallery.dialog.dinov2_max_tooltip"))
             form.addRow(t("gallery.dialog.dinov2_max_label"), spin_max)
 
+            chk_session = QCheckBox()
+            chk_session.setChecked(False)
+            chk_session.setToolTip(t("gallery.dialog.dinov2_session_tooltip"))
+            form.addRow(t("gallery.dialog.dinov2_session_label"), chk_session)
+
+            spin_minutes = QSpinBox()
+            spin_minutes.setRange(1, 1440)
+            spin_minutes.setValue(60)
+            spin_minutes.setEnabled(False)
+            spin_minutes.setToolTip(t("gallery.dialog.dinov2_session_minutes_tooltip"))
+            form.addRow(t("gallery.dialog.dinov2_session_minutes_label"), spin_minutes)
+
+            chk_session.toggled.connect(spin_minutes.setEnabled)
+
             buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
             buttons.accepted.connect(dlg.accept)
             buttons.rejected.connect(dlg.reject)
@@ -695,6 +734,8 @@ class GalleryTab(QWidget):
 
             threshold = spin_threshold.value()
             max_results = spin_max.value()
+            filter_session = chk_session.isChecked()
+            session_minutes = spin_minutes.value()
 
             progress = QProgressDialog(self)
             progress.setWindowTitle(t("gallery.progress.similar_title"))
@@ -716,16 +757,26 @@ class GalleryTab(QWidget):
         
             ref_id = item.image_id
             db_manager.cursor.execute(
-                "SELECT dinov2_embedding FROM images WHERE id = ?", (ref_id,)
+                "SELECT dinov2_embedding, datetime_original, datetime_digitized, datetime_modified FROM images WHERE id = ?",
+                (ref_id,)
             )
             row = db_manager.cursor.fetchone()
-        
+
             if not row or not row[0]:
                 progress.close()
                 QMessageBox.warning(self, t("gallery.msg.error_title"), t("gallery.msg.no_dinov2"))
                 db_manager.close()
                 return
-        
+
+            # Estrai data di riferimento (fallback su digitized/modified)
+            ref_date_str = row[1] or row[2] or row[3]
+            ref_dt = _parse_db_datetime(ref_date_str)
+
+            # Se il filtro sessione è attivo ma la foto di riferimento non ha data → avviso e annulla filtro
+            if filter_session and ref_dt is None:
+                QMessageBox.warning(self, t("gallery.msg.error_title"), t("gallery.msg.no_ref_date"))
+                filter_session = False
+
             try:
                 # Deserializzazione corretta: raw float32 bytes (768 float = 3072 bytes)
                 # oppure pickle (formato legacy)
@@ -744,37 +795,47 @@ class GalleryTab(QWidget):
                 progress.close()
                 db_manager.close()
                 return
-        
+
             ref_norm = ref_embedding / np.linalg.norm(ref_embedding)
-        
+            session_delta = timedelta(minutes=session_minutes) if filter_session else None
+
             progress.setLabelText(t("gallery.progress.similar_comparing"))
             QApplication.processEvents()
-        
+
             db_manager.cursor.execute(
                 "SELECT * FROM images WHERE dinov2_embedding IS NOT NULL",
                 ()
             )
             columns = [desc[0] for desc in db_manager.cursor.description]
             all_rows = db_manager.cursor.fetchall()
-            
+
             progress.setRange(0, len(all_rows))
             progress.setLabelText(t("gallery.progress.similar_analysis", n=len(all_rows)))
-            
+
             results = []
             for i, row in enumerate(all_rows):
                 if progress.wasCanceled():
                     db_manager.close()
                     return
-                
+
                 progress.setValue(i)
                 QApplication.processEvents()
-                
+
                 image_data = dict(zip(columns, row))
                 emb_blob = image_data.get('dinov2_embedding')
-                
+
                 if not emb_blob:
                     continue
-                
+
+                # Filtro sessione: scarta foto senza data o fuori finestra temporale
+                if session_delta is not None:
+                    img_date_str = (image_data.get('datetime_original')
+                                    or image_data.get('datetime_digitized')
+                                    or image_data.get('datetime_modified'))
+                    img_dt = _parse_db_datetime(img_date_str)
+                    if img_dt is None or abs((img_dt - ref_dt).total_seconds()) > session_delta.total_seconds():
+                        continue
+
                 try:
                     # Deserializzazione corretta: raw float32 bytes (formato nuovo)
                     # oppure pickle (formato legacy)
