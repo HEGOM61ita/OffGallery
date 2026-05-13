@@ -772,7 +772,7 @@ class GalleryTab(QWidget):
                             or item.image_data.get('datetime_digitized')
                             or item.image_data.get('datetime_modified'))
             ref_dt = _parse_db_datetime(ref_date_str)
-            logger.debug(f"Filtro sessione — data riferimento raw: {ref_date_str!r} → parsed: {ref_dt}")
+            import logging as _logging; _logging.getLogger(__name__).debug(f"Filtro sessione — data riferimento raw: {ref_date_str!r} → parsed: {ref_dt}")
 
             # Se il filtro sessione è attivo ma la foto di riferimento non ha data → avviso e annulla filtro
             if filter_session and ref_dt is None:
