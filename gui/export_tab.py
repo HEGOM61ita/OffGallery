@@ -30,6 +30,7 @@ import json
 from datetime import datetime
 import logging
 from gui.gallery_widgets import apply_popup_style
+from gui.directory_dialog import DirectoryTreeWidget
 from xmp_badge_manager import refresh_xmp_badges
 from utils.copy_helpers import compute_common_roots, compute_dest_path
 from utils.subprocess_utils import subprocess_creation_kwargs
@@ -50,8 +51,12 @@ class ExportTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.main_window = None
+        self.db_manager = None
         self.images_to_export = []
         self.config_path = self._get_config_path()
+        self._selected_dirs: list = []
+        self._dir_widget = None
+        self._dir_status_label = None
         # Colonne CSV aggiuntive dai plugin: lista di (field_name, header_label)
         self._plugin_csv_columns: list = self._discover_plugin_csv_columns()
         self._build_ui()
@@ -59,6 +64,10 @@ class ExportTab(QWidget):
 
     def set_main_window(self, main_window):
         self.main_window = main_window
+
+    def set_database_manager(self, db_manager):
+        self.db_manager = db_manager
+        self._load_dir_filter()
 
     # ------------------------------------------------------------------
     # UI ROOT
@@ -97,21 +106,14 @@ class ExportTab(QWidget):
         root_layout.addWidget(scroll)
 
     def set_images(self, images):
-        """
-        Imposta immagini da esportare (chiamato da Gallery)
-    
-        Args:
-            images: Lista ImageCard selezionate
-        """
+        """Imposta immagini da esportare (chiamato da Gallery)."""
         self.images_to_export = images
         count = len(images)
-    
         if count == 0:
             self.selection_info.setText(t("export.label.no_selection"))
-            self.export_btn.setEnabled(False)
         else:
             self.selection_info.setText(t("export.label.selection_count", count=count))
-            self.export_btn.setEnabled(True)
+        self._update_export_btn()
 
 
 
@@ -548,11 +550,122 @@ class ExportTab(QWidget):
     def _selection_group(self) -> QGroupBox:
         box = QGroupBox(t("export.group.selection"))
         layout = QVBoxLayout(box)
+        layout.setSpacing(8)
+        layout.setContentsMargins(12, 10, 12, 10)
 
+        # --- Radio: sorgente ---
+        self.src_gallery_radio = QRadioButton(t("export.radio.src_gallery"))
+        self.src_gallery_radio.setChecked(True)
+        self.src_dir_radio = QRadioButton(t("export.radio.src_directory"))
+        self._src_group = QButtonGroup(self)
+        self._src_group.addButton(self.src_gallery_radio, 0)
+        self._src_group.addButton(self.src_dir_radio, 1)
+
+        radio_row = QHBoxLayout()
+        radio_row.setSpacing(16)
+        radio_row.addWidget(self.src_gallery_radio)
+        radio_row.addWidget(self.src_dir_radio)
+        radio_row.addStretch()
+        layout.addLayout(radio_row)
+
+        # --- Label info selezione gallery ---
         self.selection_info = QLabel(t("export.label.no_selection"))
+        self.selection_info.setStyleSheet("color: #888; font-style: italic; font-size: 11px;")
         layout.addWidget(self.selection_info)
-    
+
+        # --- Albero directory (visibile solo con src_dir_radio) ---
+        self._dir_group_widget = QWidget()
+        dir_layout = QVBoxLayout(self._dir_group_widget)
+        dir_layout.setContentsMargins(0, 4, 0, 0)
+        dir_layout.setSpacing(4)
+
+        self._dir_status_label = QLabel(t("export.label.dir_all_db"))
+        self._dir_status_label.setStyleSheet("color: #C88B2E; font-size: 11px; font-weight: bold;")
+        dir_layout.addWidget(self._dir_status_label)
+
+        self._dir_widget = DirectoryTreeWidget(self._dir_group_widget)
+        self._dir_widget.tree.setMinimumHeight(160)
+        self._dir_widget.setMaximumHeight(380)
+        self._dir_widget.selection_changed.connect(self._on_dir_selection_changed)
+        dir_layout.addWidget(self._dir_widget)
+
+        self._dir_group_widget.setVisible(False)
+        layout.addWidget(self._dir_group_widget)
+
+        # --- Segnali radio ---
+        self.src_gallery_radio.toggled.connect(self._on_source_mode_changed)
+        self.src_dir_radio.toggled.connect(self._on_source_mode_changed)
+
         return box
+
+    def _on_source_mode_changed(self):
+        """Mostra/nasconde il pannello directory e aggiorna il pulsante export."""
+        use_dir = self.src_dir_radio.isChecked()
+        self._dir_group_widget.setVisible(use_dir)
+        self.selection_info.setVisible(not use_dir)
+        self._update_export_btn()
+
+    def _on_dir_selection_changed(self, selected_dirs: list):
+        self._selected_dirs = selected_dirs
+        if selected_dirs:
+            n = len(selected_dirs)
+            self._dir_status_label.setText(t("export.label.dir_selected", n=n))
+        else:
+            self._dir_status_label.setText(t("export.label.dir_all_db"))
+        self._update_export_btn()
+
+    def _update_export_btn(self):
+        """Abilita il pulsante export se c'è una sorgente valida."""
+        if self.src_gallery_radio.isChecked():
+            self.export_btn.setEnabled(len(self.images_to_export) > 0)
+        else:
+            # Con sorgente directory: abilitato se c'è un DB
+            self.export_btn.setEnabled(self.db_manager is not None)
+
+    def _load_dir_filter(self):
+        """Carica l'albero directory dal DB."""
+        if not self._dir_widget or not self.db_manager:
+            return
+        try:
+            self.db_manager.cursor.execute(
+                "SELECT filepath FROM images WHERE filepath IS NOT NULL"
+            )
+            dir_counts = {}
+            for (fp,) in self.db_manager.cursor.fetchall():
+                d = str(Path(fp).parent)
+                dir_counts[d] = dir_counts.get(d, 0) + 1
+            self._dir_widget.refresh(dir_counts)
+        except Exception as e:
+            logger.warning(f"Caricamento albero directory export: {e}", exc_info=True)
+
+    def _get_images_from_db(self) -> list:
+        """Carica le immagini dal DB filtrate per directory selezionate."""
+        if not self.db_manager:
+            return []
+        try:
+            if self._selected_dirs:
+                clauses = " OR ".join(["filepath LIKE ?" for _ in self._selected_dirs])
+                params = [str(d) + "%" for d in self._selected_dirs]
+                where = f"WHERE ({clauses})"
+            else:
+                where = ""
+                params = []
+            self.db_manager.cursor.execute(
+                f"SELECT * FROM images {where} ORDER BY filepath", params
+            )
+            rows = self.db_manager.cursor.fetchall()
+            cols = [desc[0] for desc in self.db_manager.cursor.description]
+
+            # Costruisce oggetti compatibili con image_item usato nell'export
+            class _FakeItem:
+                def __init__(self, data):
+                    self.image_data = data
+                    self.filepath = data.get('filepath', '')
+
+            return [_FakeItem(dict(zip(cols, row))) for row in rows]
+        except Exception as e:
+            logger.error(f"Errore caricamento immagini da DB per export: {e}", exc_info=True)
+            return []
 
     # ------------------------------------------------------------------
     # EXPORT ACTION
@@ -946,9 +1059,17 @@ class ExportTab(QWidget):
 
     def _do_export(self):
         """Export principale: gestisce XMP sidecar, XMP embedded, CSV, copia foto"""
-        if not self.images_to_export:
-            QMessageBox.warning(self, t("export.msg.error_title"), t("export.label.no_selection"))
-            return
+        # Scegli sorgente: gallery o DB/directory
+        if self.src_dir_radio.isChecked():
+            images_to_use = self._get_images_from_db()
+            if not images_to_use:
+                QMessageBox.warning(self, t("export.msg.error_title"), t("export.label.no_selection"))
+                return
+        else:
+            images_to_use = self.images_to_export
+            if not images_to_use:
+                QMessageBox.warning(self, t("export.msg.error_title"), t("export.label.no_selection"))
+                return
 
         self._save_state_to_config()
         options = self.get_export_options()
@@ -1039,7 +1160,7 @@ class ExportTab(QWidget):
                 t("export.msg.confirm_title"),
                 t("export.confirm.question",
                   types=' + '.join(export_types),
-                  count=len(self.images_to_export),
+                  count=len(images_to_use),
                   location=location_msg,
                   xmp_note=xmp_mode_note),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
@@ -1051,7 +1172,7 @@ class ExportTab(QWidget):
             # --- CSV ---
             csv_success = True
             if export_csv:
-                csv_success = self._write_csv_export(self.images_to_export, options)
+                csv_success = self._write_csv_export(images_to_use, options)
 
             # --- XMP (sidecar e/o embedded) ---
             success_count = 0
@@ -1063,7 +1184,7 @@ class ExportTab(QWidget):
                     t("export.progress.xmp_running"),
                     t("export.progress.cancel"),
                     0,
-                    len(self.images_to_export),
+                    len(images_to_use),
                     self
                 )
                 progress.setWindowTitle(t("export.progress.xmp_window"))
@@ -1072,7 +1193,7 @@ class ExportTab(QWidget):
                 progress.show()
                 QApplication.processEvents()
 
-                for i, image_item in enumerate(self.images_to_export):
+                for i, image_item in enumerate(images_to_use):
                     if progress.wasCanceled():
                         break
 
@@ -1084,7 +1205,7 @@ class ExportTab(QWidget):
                     try:
                         source_path = Path(image_item.image_data.get('filepath', ''))
                         if not source_path.exists():
-                            print(f"❌ File non esiste: {source_path}")
+                            logger.warning(f"File non esiste: {source_path}")
                             failed_count += 1
                             continue
 
@@ -1116,9 +1237,9 @@ class ExportTab(QWidget):
 
                     except Exception as e:
                         failed_count += 1
-                        print(f"❌ Errore export XMP per {filename}: {e}")
+                        logger.error(f"Errore export XMP per {filename}: {e}", exc_info=True)
 
-                progress.setValue(len(self.images_to_export))
+                progress.setValue(len(images_to_use))
                 progress.close()
 
             # --- Copia foto ---
@@ -1126,7 +1247,7 @@ class ExportTab(QWidget):
             copy_failed = 0
             copy_skipped = 0
             if export_copy:
-                copy_count, copy_failed, copy_skipped = self._copy_photos(self.images_to_export, options)
+                copy_count, copy_failed, copy_skipped = self._copy_photos(images_to_use, options)
 
             # --- Report finale ---
             try:
