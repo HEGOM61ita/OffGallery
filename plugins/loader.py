@@ -138,8 +138,9 @@ def load_prompt_context_plugin(config: dict) -> Optional[PromptContextPlugin]:
         plugin = PromptContextPluginImpl(prompt_ctx_config)
         if plugin.is_available():
             logger.info(f"Plugin PromptContext attivo: preset '{plugin.get_preset_name()}'")
-            return plugin
-        logger.debug("PromptContextPlugin istanziato ma non disponibile (nessun preset attivo?)")
+        else:
+            logger.debug("PromptContextPlugin caricato, preset verrà impostato dalla UI")
+        return plugin
     except ImportError:
         logger.debug("plugins/prompt_context non installato — blocco CONTEXT disabilitato")
     except Exception as e:
