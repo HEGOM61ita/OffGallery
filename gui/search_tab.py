@@ -459,12 +459,6 @@ class SearchTab(QWidget):
         loading_msg = None
         try:
             query = self.search_input.text().strip()
-            has_filters = self._has_filters()
-            
-            # Controllo: serve almeno query O filtri
-            if not query and not has_filters:
-                QMessageBox.information(self, t("search.group.search_mode"), t("search.msg.empty_query"))
-                return
 
             self.search_active = True
             
