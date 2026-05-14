@@ -1,0 +1,48 @@
+name: Build Linux Installer
+
+# Parte automaticamente ogni volta che viene creato un tag versione (es. v1.0.1)
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Scarica il codice del repository sulla macchina Linux di GitHub
+      - name: Checkout codice
+        uses: actions/checkout@v4
+
+      # 2. Installa Miniconda (gestore pacchetti Python, lo stesso che usi tu)
+      - name: Installa Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: "3.12"
+          activate-environment: OffGallery
+          auto-activate-base: false
+
+      # 3. Installa tkinter (necessario per la GUI dell'installer)
+      #    e PyInstaller (il programma che crea il binary auto-contenuto)
+      - name: Installa dipendenze build
+        shell: bash -el {0}
+        run: |
+          sudo apt-get install -y python3-tk
+          pip install pyinstaller
+
+      # 4. Esegue la build: PyInstaller legge lo .spec e produce il binary
+      - name: Compila OffGallerySetup (Linux)
+        shell: bash -el {0}
+        run: |
+          cd B_INSTALLER
+          python -m PyInstaller OffGallerySetup_linux.spec --clean --noconfirm
+          ls -lh dist/OffGallerySetup
+
+      # 5. Allega il binary alla Release GitHub che corrisponde al tag appena pushato
+      #    (la stessa pagina dove già si scarica OffGallerySetup.exe)
+      - name: Carica binary sulla Release GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: B_INSTALLER/dist/OffGallerySetup
+          name: ${{ github.ref_name }}

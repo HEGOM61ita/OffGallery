@@ -4,6 +4,9 @@
 # Eccezioni: traccia solo questi file/cartelle
 !.gitignore
 !.gitattributes
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
 !README.md
 !CONFIGURATION.md
 !TRADEMARK.md
