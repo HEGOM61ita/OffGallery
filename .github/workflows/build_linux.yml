@@ -6,6 +6,10 @@ on:
     tags:
       - 'v*.*.*'
 
+# Permessi necessari per caricare file sulla Release GitHub
+permissions:
+  contents: write
+
 jobs:
   build-linux:
     runs-on: ubuntu-latest
@@ -14,6 +18,8 @@ jobs:
       # 1. Scarica il codice del repository sulla macchina Linux di GitHub
       - name: Checkout codice
         uses: actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       # 2. Installa Miniconda (gestore pacchetti Python, lo stesso che usi tu)
       - name: Installa Miniconda
@@ -21,7 +27,8 @@ jobs:
         with:
           python-version: "3.12"
           activate-environment: OffGallery
-          auto-activate-base: false
+          auto-activate: true
+          conda-remove-defaults: true
 
       # 3. Installa tkinter (necessario per la GUI dell'installer)
       #    e PyInstaller (il programma che crea il binary auto-contenuto)
@@ -43,6 +50,7 @@ jobs:
       #    (la stessa pagina dove già si scarica OffGallerySetup.exe)
       - name: Carica binary sulla Release GitHub
         uses: softprops/action-gh-release@v2
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         with:
           files: B_INSTALLER/dist/OffGallerySetup
-          name: ${{ github.ref_name }}
