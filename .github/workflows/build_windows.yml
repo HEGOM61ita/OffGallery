@@ -1,0 +1,46 @@
+name: Build Windows Installer
+
+# Parte automaticamente ogni volta che viene creato un tag versione (es. v1.0.1)
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+# Permessi necessari per caricare file sulla Release GitHub
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      # 1. Scarica il codice del repository sulla macchina Windows di GitHub
+      - name: Checkout codice
+        uses: actions/checkout@v4
+
+      # 2. Installa Python 3.12 (tkinter è incluso di default su Windows)
+      - name: Installa Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 3. Installa PyInstaller
+      - name: Installa PyInstaller
+        run: pip install pyinstaller
+
+      # 4. Esegue la build: PyInstaller legge lo .spec e produce il .exe
+      - name: Compila OffGallerySetup.exe (Windows)
+        run: |
+          cd A_INSTALLER
+          python -m PyInstaller OffGallerySetup.spec --clean --noconfirm
+          dir dist\OffGallerySetup.exe
+
+      # 5. Allega il .exe alla Release GitHub che corrisponde al tag appena pushato
+      - name: Carica OffGallerySetup.exe sulla Release GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: A_INSTALLER/dist/OffGallerySetup.exe
