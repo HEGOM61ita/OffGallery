@@ -18,39 +18,28 @@ jobs:
       # 1. Scarica il codice del repository sulla macchina Linux di GitHub
       - name: Checkout codice
         uses: actions/checkout@v4
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-      # 2. Installa Miniconda (gestore pacchetti Python, lo stesso che usi tu)
-      - name: Installa Miniconda
-        uses: conda-incubator/setup-miniconda@v3
-        with:
-          python-version: "3.12"
-          activate-environment: OffGallery
-          auto-activate: true
-          conda-remove-defaults: true
-
-      # 3. Installa tkinter (necessario per la GUI dell'installer)
-      #    e PyInstaller (il programma che crea il binary auto-contenuto)
-      - name: Installa dipendenze build
-        shell: bash -el {0}
+      # 2. Installa Python 3.12 e tkinter tramite apt (più affidabile di conda su CI)
+      - name: Installa Python e dipendenze di sistema
         run: |
-          sudo apt-get install -y python3-tk
-          pip install pyinstaller
+          sudo apt-get update -qq
+          sudo apt-get install -y python3.12 python3.12-tk python3.12-venv python3-pip
+
+      # 3. Installa PyInstaller in un virtualenv
+      - name: Installa PyInstaller
+        run: |
+          python3.12 -m venv .venv
+          .venv/bin/pip install --quiet pyinstaller
 
       # 4. Esegue la build: PyInstaller legge lo .spec e produce il binary
       - name: Compila OffGallerySetup (Linux)
-        shell: bash -el {0}
         run: |
           cd B_INSTALLER
-          python -m PyInstaller OffGallerySetup_linux.spec --clean --noconfirm
+          ../.venv/bin/python -m PyInstaller OffGallerySetup_linux.spec --clean --noconfirm
           ls -lh dist/OffGallerySetup
 
       # 5. Allega il binary alla Release GitHub che corrisponde al tag appena pushato
-      #    (la stessa pagina dove già si scarica OffGallerySetup.exe)
       - name: Carica binary sulla Release GitHub
         uses: softprops/action-gh-release@v2
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         with:
           files: B_INSTALLER/dist/OffGallerySetup
