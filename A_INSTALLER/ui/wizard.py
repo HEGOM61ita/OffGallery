@@ -698,6 +698,7 @@ def _shortcut_windows(install_path: str, manager_exe: str = "", log_cb=None):
         _shutil.copy2(manager_exe, stable_manager)
 
     def _make_lnk(lnk_path, target, workdir, description):
+        # Tentativo 1: win32com (disponibile se installato sul sistema)
         try:
             from win32com.client import Dispatch
             shell = Dispatch("WScript.Shell")
@@ -707,17 +708,30 @@ def _shortcut_windows(install_path: str, manager_exe: str = "", log_cb=None):
             sc.Description      = description
             sc.save()
             return True
-        except Exception as e:
-            if log_cb:
-                log_cb(f"  win32com fallito ({os.path.basename(lnk_path)}): {e}")
-        # Fallback: copia il target sul desktop se è un .bat
+        except Exception:
+            pass
+        # Tentativo 2: PowerShell — sempre disponibile su Windows, non richiede moduli
         try:
-            if target.endswith(".bat") and os.path.isfile(target):
-                _shutil.copy2(target, lnk_path.replace(".lnk", ".bat"))
+            import subprocess
+            ps = (
+                f'$ws = New-Object -ComObject WScript.Shell; '
+                f'$sc = $ws.CreateShortcut("{lnk_path}"); '
+                f'$sc.TargetPath = "{target}"; '
+                f'$sc.WorkingDirectory = "{workdir}"; '
+                f'$sc.Description = "{description}"; '
+                f'$sc.Save()'
+            )
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                capture_output=True, text=True, timeout=15
+            )
+            if result.returncode == 0 and os.path.isfile(lnk_path):
                 return True
+            if log_cb and result.stderr:
+                log_cb(f"  PowerShell: {result.stderr.strip()}")
         except Exception as e:
             if log_cb:
-                log_cb(f"  copia .bat fallita: {e}")
+                log_cb(f"  PowerShell fallito ({os.path.basename(lnk_path)}): {e}")
         return False
 
     # Usa SHGetSpecialFolderPathW (CSIDL_DESKTOP=0) per trovare il desktop reale
