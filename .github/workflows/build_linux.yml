@@ -41,8 +41,13 @@ jobs:
           ../.venv/bin/python -m PyInstaller OffGallerySetup_linux.spec --clean --noconfirm
           ls -lh dist/OffGallerySetup
 
-      # 5. Allega il binary alla Release GitHub che corrisponde al tag appena pushato
+      # 5. Rinomina il file includendo la versione nel nome
+      - name: Rinomina binary con versione
+        run: |
+          mv B_INSTALLER/dist/OffGallerySetup B_INSTALLER/dist/OffGallerySetup-${{ github.ref_name }}
+
+      # 6. Allega il binary alla Release GitHub che corrisponde al tag appena pushato
       - name: Carica binary sulla Release GitHub
         uses: softprops/action-gh-release@v2
         with:
-          files: B_INSTALLER/dist/OffGallerySetup
+          files: B_INSTALLER/dist/OffGallerySetup-${{ github.ref_name }}

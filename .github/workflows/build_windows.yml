@@ -44,8 +44,14 @@ jobs:
           python -m PyInstaller OffGallerySetup.spec --clean --noconfirm
           dir dist\OffGallerySetup.exe
 
-      # 5. Allega il .exe alla Release GitHub che corrisponde al tag appena pushato
+      # 6. Rinomina il file includendo la versione nel nome
+      - name: Rinomina binary con versione
+        run: |
+          $ver = "${{ github.ref_name }}"
+          Rename-Item "A_INSTALLER\dist\OffGallerySetup.exe" "OffGallerySetup-$ver.exe"
+
+      # 7. Allega il .exe alla Release GitHub che corrisponde al tag appena pushato
       - name: Carica OffGallerySetup.exe sulla Release GitHub
         uses: softprops/action-gh-release@v2
         with:
-          files: A_INSTALLER/dist/OffGallerySetup.exe
+          files: A_INSTALLER/dist/OffGallerySetup-${{ github.ref_name }}.exe
