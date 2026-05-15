@@ -736,19 +736,26 @@ def _shortcut_windows(install_path: str, manager_exe: str = "", log_cb=None, pyt
             return True
         except Exception:
             pass
-        # Tentativo 2: PowerShell — sempre disponibile su Windows, non richiede moduli
+        # Tentativo 2: PowerShell — sempre disponibile su Windows, non richiede moduli.
+        # Usiamo un here-string PS (@'...'@) per evitare problemi con virgolette
+        # e backslash nei path (es. C:\Users\Nome Cognome\Desktop).
         try:
             import subprocess
-            icon_line = f'$sc.IconLocation = "{icon_path}"; ' if icon_path else ""
+
+            def _ps_str(s):
+                # Escapa le virgolette singole per l'here-string PS
+                return s.replace("'", "''")
+
+            icon_line = f"$sc.IconLocation = '{_ps_str(icon_path)}'" if icon_path else ""
             ps = (
-                f'$ws = New-Object -ComObject WScript.Shell; '
-                f'$sc = $ws.CreateShortcut("{lnk_path}"); '
-                f'$sc.TargetPath = "{target}"; '
-                f'$sc.Arguments = "{arguments}"; '
-                f'$sc.WorkingDirectory = "{workdir}"; '
-                f'$sc.Description = "{description}"; '
-                f'{icon_line}'
-                f'$sc.Save()'
+                f"$ws = New-Object -ComObject WScript.Shell\n"
+                f"$sc = $ws.CreateShortcut(@'\n{_ps_str(lnk_path)}\n'@)\n"
+                f"$sc.TargetPath = @'\n{_ps_str(target)}\n'@\n"
+                f"$sc.Arguments = @'\n{_ps_str(arguments)}\n'@\n"
+                f"$sc.WorkingDirectory = @'\n{_ps_str(workdir)}\n'@\n"
+                f"$sc.Description = '{_ps_str(description)}'\n"
+                f"{icon_line}\n"
+                f"$sc.Save()"
             )
             result = subprocess.run(
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
@@ -756,8 +763,8 @@ def _shortcut_windows(install_path: str, manager_exe: str = "", log_cb=None, pyt
             )
             if result.returncode == 0 and os.path.isfile(lnk_path):
                 return True
-            if log_cb and result.stderr:
-                log_cb(f"  PowerShell: {result.stderr.strip()}")
+            if log_cb:
+                log_cb(f"  PowerShell rc={result.returncode}: {result.stderr.strip()}")
         except Exception as e:
             if log_cb:
                 log_cb(f"  PowerShell fallito ({os.path.basename(lnk_path)}): {e}")
