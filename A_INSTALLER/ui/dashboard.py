@@ -367,11 +367,11 @@ class DashboardPage(tk.Frame):
                       action_label="Ricrea" if env_ok else "Crea",
                       action=self._action_recreate_env)
 
-        pkg_ok = sm.is_done("packages")
+        pkg_ok = _packages_installed(conda_exe)
         self._set_row("packages",
-                      "done" if pkg_ok else sm.status("packages"),
+                      "done" if pkg_ok else "not_installed",
                       torch_variant_label(sm.get("packages.torch_variant", "")) if pkg_ok else "—",
-                      action_label="Reinstalla",
+                      action_label="Reinstalla" if pkg_ok else "Installa",
                       action=self._action_reinstall_packages)
 
         for m in MODELS:
@@ -747,3 +747,27 @@ def _find_conda_exe(sm: StateManager) -> Optional[str]:
         if os.path.isfile(exe):
             return exe
     return find_conda()
+
+
+def _packages_installed(conda_exe: Optional[str]) -> bool:
+    """Verifica su disco che i pacchetti critici siano presenti nell'env.
+    Controlla l'esistenza delle cartelle in site-packages — nessun sottoprocesso."""
+    if not conda_exe:
+        return False
+    import platform as _platform
+    env_root = os.path.join(
+        os.path.dirname(os.path.dirname(conda_exe)), "envs", "OffGallery"
+    )
+    if _platform.system() == "Windows":
+        site = os.path.join(env_root, "Lib", "site-packages")
+    else:
+        # es. .../envs/OffGallery/lib/python3.12/site-packages
+        lib = os.path.join(env_root, "lib")
+        if not os.path.isdir(lib):
+            return False
+        subdirs = [d for d in os.listdir(lib) if d.startswith("python")]
+        if not subdirs:
+            return False
+        site = os.path.join(lib, subdirs[0], "site-packages")
+    critical = ["torch", "transformers", "open_clip", "PIL"]
+    return all(os.path.isdir(os.path.join(site, pkg)) for pkg in critical)
