@@ -529,7 +529,8 @@ class InstallPage(tk.Frame):
             # Collegamento desktop
             self._step("Collegamento desktop", "in_progress")
             _create_shortcut(self.app.install_path, log_cb=self._log,
-                             manager_exe=sys.executable)
+                             manager_exe=sys.executable,
+                             python_exe=_python_exe_from_state(sm))
             sm.mark_done("shortcut")
             self._step("Collegamento desktop", "done")
             self._results["Collegamento desktop"] = True
@@ -673,9 +674,9 @@ def _python_exe_from_state(sm: StateManager) -> str:
     return "python"
 
 
-def _create_shortcut(install_path: str, log_cb=None, manager_exe: str = ""):
+def _create_shortcut(install_path: str, log_cb=None, manager_exe: str = "", python_exe: str = ""):
     try:
-        results = _shortcut_windows(install_path, manager_exe=manager_exe, log_cb=log_cb)
+        results = _shortcut_windows(install_path, manager_exe=manager_exe, log_cb=log_cb, python_exe=python_exe)
         if log_cb:
             if results:
                 log_cb(f"Collegamento desktop creato: {', '.join(results)}")
@@ -686,7 +687,7 @@ def _create_shortcut(install_path: str, log_cb=None, manager_exe: str = ""):
             log_cb(f"Attenzione: collegamento non creato: {exc}")
 
 
-def _shortcut_windows(install_path: str, manager_exe: str = "", log_cb=None):
+def _shortcut_windows(install_path: str, manager_exe: str = "", log_cb=None, python_exe: str = ""):
     import shutil as _shutil
 
     # Copia il binario Manager in una posizione stabile
@@ -697,15 +698,18 @@ def _shortcut_windows(install_path: str, manager_exe: str = "", log_cb=None):
             and os.path.abspath(manager_exe) != os.path.abspath(stable_manager)):
         _shutil.copy2(manager_exe, stable_manager)
 
-    def _make_lnk(lnk_path, target, workdir, description):
+    def _make_lnk(lnk_path, target, arguments, workdir, description, icon_path=""):
         # Tentativo 1: win32com (disponibile se installato sul sistema)
         try:
             from win32com.client import Dispatch
             shell = Dispatch("WScript.Shell")
             sc = shell.CreateShortCut(lnk_path)
             sc.Targetpath       = target
+            sc.Arguments        = arguments
             sc.WorkingDirectory = workdir
             sc.Description      = description
+            if icon_path:
+                sc.IconLocation = icon_path
             sc.save()
             return True
         except Exception:
@@ -713,12 +717,15 @@ def _shortcut_windows(install_path: str, manager_exe: str = "", log_cb=None):
         # Tentativo 2: PowerShell — sempre disponibile su Windows, non richiede moduli
         try:
             import subprocess
+            icon_line = f'$sc.IconLocation = "{icon_path}"; ' if icon_path else ""
             ps = (
                 f'$ws = New-Object -ComObject WScript.Shell; '
                 f'$sc = $ws.CreateShortcut("{lnk_path}"); '
                 f'$sc.TargetPath = "{target}"; '
+                f'$sc.Arguments = "{arguments}"; '
                 f'$sc.WorkingDirectory = "{workdir}"; '
                 f'$sc.Description = "{description}"; '
+                f'{icon_line}'
                 f'$sc.Save()'
             )
             result = subprocess.run(
@@ -744,25 +751,42 @@ def _shortcut_windows(install_path: str, manager_exe: str = "", log_cb=None):
     except Exception:
         desktop = ""
     if not desktop or not os.path.isdir(desktop):
-        # Secondo tentativo: variabile d'ambiente USERPROFILE
         desktop = os.path.join(os.environ.get("USERPROFILE", os.path.expanduser("~")), "Desktop")
 
     if log_cb:
         log_cb(f"  Desktop rilevato: {desktop}")
 
-    created = []
-    if _make_lnk(
-        lnk_path    = os.path.join(desktop, "OffGallery.lnk"),
-        target      = os.path.join(install_path, "installer", "OffGallery_Launcher.bat"),
-        workdir     = install_path,
-        description = "Avvia OffGallery",
-    ):
-        created.append("OffGallery.lnk")
+    # Ricava pythonw.exe dalla stessa directory di python_exe (nessuna finestra console)
+    pythonw = ""
+    if python_exe and os.path.isfile(python_exe):
+        candidate = os.path.join(os.path.dirname(python_exe), "pythonw.exe")
+        pythonw = candidate if os.path.isfile(candidate) else python_exe
+    if log_cb:
+        log_cb(f"  Python rilevato: {pythonw or '(non trovato)'}")
 
+    launcher = os.path.join(install_path, "gui_launcher.py")
+    created = []
+
+    # Collegamento OffGallery — punta a pythonw.exe gui_launcher.py
+    if pythonw and os.path.isfile(launcher):
+        if _make_lnk(
+            lnk_path    = os.path.join(desktop, "OffGallery.lnk"),
+            target      = pythonw,
+            arguments   = f'"{launcher}"',
+            workdir     = install_path,
+            description = "Avvia OffGallery",
+        ):
+            created.append("OffGallery.lnk")
+    else:
+        if log_cb:
+            log_cb(f"  OffGallery.lnk saltato: pythonw={pythonw!r}, launcher={launcher!r}")
+
+    # Collegamento OffGallery Manager — punta al binario .exe stabile
     if os.path.isfile(stable_manager):
         if _make_lnk(
             lnk_path    = os.path.join(desktop, "OffGallery Manager.lnk"),
             target      = stable_manager,
+            arguments   = "",
             workdir     = install_path,
             description = "Gestisci i componenti di OffGallery",
         ):

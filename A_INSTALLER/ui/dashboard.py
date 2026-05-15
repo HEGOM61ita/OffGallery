@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from installer import AppWindow
 
 from ui import _add_logo
-from ui.wizard import _create_shortcut
+from ui.wizard import _create_shortcut, _python_exe_from_state
 
 
 BG        = "#f0f4f8"
@@ -645,9 +645,11 @@ class DashboardPage(tk.Frame):
         if not sm:
             return
         manager_exe = sys.executable if getattr(sys, "frozen", False) else ""
+        python_exe  = _python_exe_from_state(sm)
         _create_shortcut(sm.install_path,
                          log_cb=self._panel.log,
-                         manager_exe=manager_exe)
+                         manager_exe=manager_exe,
+                         python_exe=python_exe)
         sm.mark_done("shortcut")
         messagebox.showinfo(
             "Collegamenti creati",
