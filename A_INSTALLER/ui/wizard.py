@@ -736,38 +736,45 @@ def _shortcut_windows(install_path: str, manager_exe: str = "", log_cb=None, pyt
             return True
         except Exception:
             pass
-        # Tentativo 2: PowerShell — sempre disponibile su Windows, non richiede moduli.
-        # Usiamo un here-string PS (@'...'@) per evitare problemi con virgolette
-        # e backslash nei path (es. C:\Users\Nome Cognome\Desktop).
+        # Tentativo 2: VBScript via cscript — sempre disponibile su Windows,
+        # nessun problema di escaping con backslash nei path.
         try:
             import subprocess
+            import tempfile
 
-            def _ps_str(s):
-                # Escapa le virgolette singole per l'here-string PS
-                return s.replace("'", "''")
+            def _vbs_str(s):
+                # In VBS le virgolette si raddoppiano
+                return s.replace('"', '""')
 
-            icon_line = f"$sc.IconLocation = '{_ps_str(icon_path)}'" if icon_path else ""
-            ps = (
-                f"$ws = New-Object -ComObject WScript.Shell\n"
-                f"$sc = $ws.CreateShortcut(@'\n{_ps_str(lnk_path)}\n'@)\n"
-                f"$sc.TargetPath = @'\n{_ps_str(target)}\n'@\n"
-                f"$sc.Arguments = @'\n{_ps_str(arguments)}\n'@\n"
-                f"$sc.WorkingDirectory = @'\n{_ps_str(workdir)}\n'@\n"
-                f"$sc.Description = '{_ps_str(description)}'\n"
-                f"{icon_line}\n"
-                f"$sc.Save()"
-            )
-            result = subprocess.run(
-                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-                capture_output=True, text=True, timeout=15
-            )
+            icon_line = f'sc.IconLocation = "{_vbs_str(icon_path)}"' if icon_path else ""
+            vbs = "\n".join(filter(None, [
+                'Set ws = CreateObject("WScript.Shell")',
+                f'Set sc = ws.CreateShortcut("{_vbs_str(lnk_path)}")',
+                f'sc.TargetPath = "{_vbs_str(target)}"',
+                f'sc.Arguments = "{_vbs_str(arguments)}"',
+                f'sc.WorkingDirectory = "{_vbs_str(workdir)}"',
+                f'sc.Description = "{_vbs_str(description)}"',
+                icon_line,
+                'sc.Save()',
+            ]))
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".vbs",
+                                             delete=False, encoding="utf-8") as f:
+                f.write(vbs)
+                tmp_path = f.name
+            try:
+                result = subprocess.run(
+                    ["cscript", "//Nologo", tmp_path],
+                    capture_output=True, text=True, timeout=15
+                )
+            finally:
+                os.unlink(tmp_path)
             if result.returncode == 0 and os.path.isfile(lnk_path):
                 return True
             if log_cb:
-                log_cb(f"  PowerShell rc={result.returncode}: {result.stderr.strip()}")
+                log_cb(f"  VBScript rc={result.returncode}: {result.stderr.strip()}")
         except Exception as e:
             if log_cb:
-                log_cb(f"  PowerShell fallito ({os.path.basename(lnk_path)}): {e}")
+                log_cb(f"  VBScript fallito ({os.path.basename(lnk_path)}): {e}")
         return False
 
     # Usa SHGetSpecialFolderPathW (CSIDL_DESKTOP=0) per trovare il desktop reale
