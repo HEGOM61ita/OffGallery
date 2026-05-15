@@ -675,15 +675,18 @@ def _python_exe_from_state(sm: StateManager) -> str:
 
 def _create_shortcut(install_path: str, log_cb=None, manager_exe: str = ""):
     try:
-        _shortcut_windows(install_path, manager_exe=manager_exe)
+        results = _shortcut_windows(install_path, manager_exe=manager_exe, log_cb=log_cb)
         if log_cb:
-            log_cb("Collegamento desktop creato.")
+            if results:
+                log_cb(f"Collegamento desktop creato: {', '.join(results)}")
+            else:
+                log_cb("Attenzione: nessun collegamento creato (percorso desktop non trovato)")
     except Exception as exc:
         if log_cb:
             log_cb(f"Attenzione: collegamento non creato: {exc}")
 
 
-def _shortcut_windows(install_path: str, manager_exe: str = ""):
+def _shortcut_windows(install_path: str, manager_exe: str = "", log_cb=None):
     import shutil as _shutil
 
     # Copia il binario Manager in una posizione stabile
@@ -696,7 +699,6 @@ def _shortcut_windows(install_path: str, manager_exe: str = ""):
 
     def _make_lnk(lnk_path, target, workdir, description):
         try:
-            import winshell
             from win32com.client import Dispatch
             shell = Dispatch("WScript.Shell")
             sc = shell.CreateShortCut(lnk_path)
@@ -704,26 +706,54 @@ def _shortcut_windows(install_path: str, manager_exe: str = ""):
             sc.WorkingDirectory = workdir
             sc.Description      = description
             sc.save()
-        except ImportError:
-            # Fallback: copia il target sul desktop se è un .bat
+            return True
+        except Exception as e:
+            if log_cb:
+                log_cb(f"  win32com fallito ({os.path.basename(lnk_path)}): {e}")
+        # Fallback: copia il target sul desktop se è un .bat
+        try:
             if target.endswith(".bat") and os.path.isfile(target):
                 _shutil.copy2(target, lnk_path.replace(".lnk", ".bat"))
+                return True
+        except Exception as e:
+            if log_cb:
+                log_cb(f"  copia .bat fallita: {e}")
+        return False
 
-    desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+    # Usa SHGetSpecialFolderPathW (CSIDL_DESKTOP=0) per trovare il desktop reale
+    # anche se l'utente lo ha spostato su un drive diverso da C:\
+    try:
+        import ctypes
+        buf = ctypes.create_unicode_buffer(260)
+        ctypes.windll.shell32.SHGetSpecialFolderPathW(None, buf, 0, False)
+        desktop = buf.value if buf.value else ""
+    except Exception:
+        desktop = ""
+    if not desktop or not os.path.isdir(desktop):
+        # Secondo tentativo: variabile d'ambiente USERPROFILE
+        desktop = os.path.join(os.environ.get("USERPROFILE", os.path.expanduser("~")), "Desktop")
 
-    _make_lnk(
+    if log_cb:
+        log_cb(f"  Desktop rilevato: {desktop}")
+
+    created = []
+    if _make_lnk(
         lnk_path    = os.path.join(desktop, "OffGallery.lnk"),
         target      = os.path.join(install_path, "installer", "OffGallery_Launcher.bat"),
         workdir     = install_path,
         description = "Avvia OffGallery",
-    )
+    ):
+        created.append("OffGallery.lnk")
 
     if os.path.isfile(stable_manager):
-        _make_lnk(
+        if _make_lnk(
             lnk_path    = os.path.join(desktop, "OffGallery Manager.lnk"),
             target      = stable_manager,
             workdir     = install_path,
             description = "Gestisci i componenti di OffGallery",
-        )
+        ):
+            created.append("OffGallery Manager.lnk")
+
+    return created
 
 
