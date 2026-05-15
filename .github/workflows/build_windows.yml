@@ -32,7 +32,12 @@ jobs:
       - name: Installa PyInstaller
         run: pip install pyinstaller
 
-      # 4. Esegue la build: PyInstaller legge lo .spec e produce il .exe
+      # 4. Verifica che i dati TCL/TK siano presenti (diagnostica)
+      - name: Verifica dati TCL/TK
+        run: |
+          python -c "import sys; from pathlib import Path; tcl=Path(sys.prefix)/'tcl'; print('TCL root:', tcl); [print(' ', p) for p in tcl.iterdir()] if tcl.exists() else print('  NON TROVATA')"
+
+      # 5. Esegue la build: PyInstaller legge lo .spec e produce il .exe
       - name: Compila OffGallerySetup.exe (Windows)
         run: |
           cd A_INSTALLER

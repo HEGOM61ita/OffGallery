@@ -45,18 +45,31 @@ def _find_tcltk_binaries():
 def _find_tcltk_datas():
     """Trova le directory dati Tcl/Tk. Restituisce lista di tuple (src, dest)."""
     results = []
+
+    # 1) Ambiente Conda: Library/lib sotto CONDA_PREFIX
     lib_dir = _CONDA_PREFIX / "Library" / "lib"
     for name in ("tcl8.6", "tk8.6", "tcl9.0", "tk9.0"):
         p = lib_dir / name
         if p.exists():
             results.append((str(p), name))
-    # Fallback: cerca accanto a _tkinter.pyd / _tkinter.so
+
+    # 2) Python standalone Windows (actions/setup-python, python.org):
+    #    i dati TCL stanno in {sys.prefix}/tcl/tcl8.6 e tcl/tk8.6
+    if not results and sys.platform == "win32":
+        tcl_root = Path(sys.prefix) / "tcl"
+        for name in ("tcl8.6", "tk8.6", "tcl9.0", "tk9.0"):
+            p = tcl_root / name
+            if p.exists():
+                results.append((str(p), name))
+
+    # 3) Fallback generico: cerca accanto a _tkinter.pyd / _tkinter.so
     if not results:
         tkdir = Path(tkinter.__file__).parent
         for name in ("tcl8.6", "tk8.6", "tcl9.0", "tk9.0"):
             p = tkdir / name
             if p.exists():
                 results.append((str(p), name))
+
     return results
 
 _tcl_binaries = _find_tcltk_binaries()
