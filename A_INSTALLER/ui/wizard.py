@@ -683,9 +683,15 @@ class DonePage(tk.Frame):
 # ---------------------------------------------------------------------------
 
 def _python_exe_from_state(sm: StateManager) -> str:
+    # Prima scelta: path conda salvato nel json
     conda_path = sm.get("miniconda.path", "")
     if conda_path:
         c_exe = conda_executable(conda_path)
+        if os.path.isfile(c_exe):
+            return python_executable(c_exe)
+    # Fallback: cerca conda nel sistema (installazioni legacy senza json completo)
+    c_exe = find_conda()
+    if c_exe:
         return python_executable(c_exe)
     return "python"
 
