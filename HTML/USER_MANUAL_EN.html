@@ -231,6 +231,7 @@
     <li><a href="#faq">FAQ</a></li>
     <li><a href="#troubleshooting">Troubleshooting</a></li>
     <li><a href="#uninstall">Uninstalling</a></li>
+    <li><a href="#reinstall">Reinstalling</a></li>
   </ul>
 </nav>
 
@@ -1552,6 +1553,77 @@ conda env remove -n OffGallery</code></pre>
   <div class="body">
     <strong>Models in a custom location</strong>
     <p>If you set an absolute path for AI models in <code>config_new.yaml</code> (e.g. <code>E:\MyModels</code>), that folder is <strong>not</strong> removed automatically. Delete it manually if you no longer need it for other projects.</p>
+  </div>
+</div>
+
+<h1 id="reinstall"><span class="section-number">18</span>Reinstalling</h1>
+
+<p>If you have removed OffGallery and want to reinstall it from scratch, follow these steps in order to avoid conflicts with leftovers from the previous installation.</p>
+
+<div class="callout warning">
+  <span class="icon">⚠️</span>
+  <div class="body">
+    <strong>Before you begin</strong>
+    <p>If you have data to keep (tags, descriptions, ratings), export them <strong>before</strong> removing the old installation via <strong>Export tab → Export XMP</strong> or <strong>Export CSV</strong>.</p>
+  </div>
+</div>
+
+<h2>1. Make sure the old installation is fully removed</h2>
+
+<p>Check that no leftovers from the previous installation remain:</p>
+
+<ol>
+  <li><strong>Application folder</strong>: make sure the OffGallery folder (e.g. <code>C:\Users\name\OffGallery</code> or wherever you installed it) has been deleted. If it still exists, remove it manually before continuing.</li>
+  <li><strong>Conda environment</strong>: open <strong>Anaconda Prompt</strong> from the Start menu and check:
+    <pre><code>conda env list</code></pre>
+    If <code>OffGallery</code> appears in the list, remove it:
+    <pre><code>conda env remove -n OffGallery</code></pre>
+    A corrupted environment left over from the old installation can cause errors in the new one too.
+  </li>
+</ol>
+
+<h2>Windows — clean reinstall with Miniconda already present</h2>
+
+<p>If Miniconda is already installed and working, you can proceed directly:</p>
+
+<ol>
+  <li>Download the new <code>OffGallerySetup.exe</code> from the website — do not reuse a previously downloaded installer.</li>
+  <li>Run the installer. If Windows shows an <em>"Unrecognized app"</em> warning (SmartScreen), click <strong>More info</strong> → <strong>Run anyway</strong>: this is normal for apps without a digital signature.</li>
+  <li>The wizard will detect Miniconda already present and only create the new <code>OffGallery</code> environment.</li>
+</ol>
+
+<h2>Windows — full reinstall from scratch (including Miniconda)</h2>
+
+<ol>
+  <li>Uninstall Miniconda from <strong>Control Panel → Programs</strong>.</li>
+  <li>Download the new <code>OffGallerySetup.exe</code> from the website.</li>
+  <li>Run it: it will install Miniconda, create the <code>OffGallery</code> environment and download all AI models (~8 GB).</li>
+</ol>
+
+<h2>Linux — reinstall</h2>
+
+<p>Download the new <code>OffGallerySetup</code> (Linux binary) from the website, make it executable and run it:</p>
+
+<pre><code>chmod +x OffGallerySetup
+./OffGallerySetup</code></pre>
+
+<h2>macOS — manual reinstall</h2>
+
+<p>On macOS there is no graphical installer. Follow the steps in <code>installer/INSTALL_GUIDE_EN.md</code> bundled with the application. In brief:</p>
+
+<ol>
+  <li>Download the latest source archive from <a href="https://github.com/HEGOM61ita/OffGallery/releases/latest">GitHub Releases</a> and extract it.</li>
+  <li>Open Terminal and run the setup script:
+    <pre><code>bash installer/install.sh</code></pre>
+  </li>
+  <li>The script will create the <code>OffGallery</code> conda environment and download the AI models.</li>
+</ol>
+
+<div class="callout info">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>AI Models</strong>
+    <p>If you kept the <code>Models/</code> folder from the old installation, copy it into the new app folder and point to it in <strong>Config → Models directory</strong> to avoid re-downloading ~8 GB.</p>
   </div>
 </div>
 

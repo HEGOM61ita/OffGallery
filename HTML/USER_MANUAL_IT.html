@@ -404,6 +404,7 @@
     <li><a href="#faq">FAQ</a></li>
     <li><a href="#troubleshooting">Troubleshooting</a></li>
     <li><a href="#disinstallazione">Disinstallazione</a></li>
+    <li><a href="#reinstallazione">Reinstallazione</a></li>
   </ul>
 </nav>
 
@@ -1726,6 +1727,79 @@ conda env remove -n OffGallery</code></pre>
   <div class="body">
     <strong>Modelli in posizione custom</strong>
     <p>Se in <code>config_new.yaml</code> hai impostato un percorso assoluto per i modelli AI (es. <code>E:\MyModels</code>), quella cartella <strong>non</strong> viene rimossa automaticamente. Eliminala manualmente se non ti serve per altri progetti.</p>
+  </div>
+</div>
+
+<h1 id="reinstallazione"><span class="section-number">18</span>Reinstallazione</h1>
+
+<p>Se hai rimosso OffGallery e vuoi reinstallarlo da zero, segui questi passi nell'ordine indicato per evitare conflitti con residui della vecchia installazione.</p>
+
+<div class="callout warning">
+  <span class="icon">⚠️</span>
+  <div class="body">
+    <strong>Prima di procedere</strong>
+    <p>Se hai dati da conservare (tag, descrizioni, rating), esportali <strong>prima</strong> di rimuovere la vecchia installazione tramite <strong>Tab Export → Export XMP</strong> o <strong>Export CSV</strong>.</p>
+  </div>
+</div>
+
+<h2>1. Verifica che la vecchia installazione sia rimossa completamente (Windows e Linux)</h2>
+
+<p>Controlla che non rimangano residui della precedente installazione:</p>
+
+<ol>
+  <li><strong>Cartella applicazione</strong>: verifica che la cartella di OffGallery (es. <code>C:\Users\nome\OffGallery</code> o dove l'avevi installata) sia stata eliminata. Se esiste ancora, cancellala manualmente prima di procedere.</li>
+  <li><strong>Ambiente conda</strong>: apri il <strong>Prompt di Anaconda</strong> dal menu Start e verifica:
+    <pre><code>conda env list</code></pre>
+    Se compare <code>OffGallery</code> nella lista, rimuovilo:
+    <pre><code>conda env remove -n OffGallery</code></pre>
+    Un ambiente rimasto corrotto dalla vecchia installazione può causare errori anche nella nuova.
+  </li>
+</ol>
+
+<h2>Windows — reinstallazione con Miniconda esistente</h2>
+
+<p>Se Miniconda è già installato e funzionante, puoi procedere direttamente:</p>
+
+<ol>
+  <li>Scarica il nuovo <code>OffGallerySetup.exe</code> dal sito — non riutilizzare un installer scaricato in precedenza.</li>
+  <li>Avvia l'installer. Se Windows mostra l'avviso <em>"App non riconosciuta"</em> (SmartScreen), clicca <strong>Ulteriori informazioni</strong> → <strong>Esegui comunque</strong>: è normale per applicazioni senza firma digitale.</li>
+  <li>Il wizard rileverà Miniconda già presente e creerà solo il nuovo ambiente <code>OffGallery</code>.</li>
+</ol>
+
+<h2>Windows — reinstallazione completa da zero (incluso Miniconda)</h2>
+
+<p>Se vuoi ripartire completamente da zero o Miniconda è corrotto:</p>
+
+<ol>
+  <li>Disinstalla Miniconda dal <strong>Pannello di Controllo → Programmi</strong>.</li>
+  <li>Scarica il nuovo <code>OffGallerySetup.exe</code> dal sito.</li>
+  <li>Avvialo: installerà Miniconda, creerà l'ambiente <code>OffGallery</code> e scaricherà tutti i modelli AI (~8 GB).</li>
+</ol>
+
+<h2>macOS — reinstallazione manuale</h2>
+
+<p>Su macOS non è disponibile un installer grafico. Segui i passi descritti in <code>installer/INSTALL_GUIDE_IT.md</code> incluso nell'archivio dell'applicazione. In sintesi:</p>
+
+<ol>
+  <li>Scarica l'archivio sorgente più recente da <a href="https://github.com/HEGOM61ita/OffGallery/releases/latest">GitHub Releases</a> ed estrailo.</li>
+  <li>Apri il Terminale ed esegui lo script di installazione:
+    <pre><code>bash installer/install.sh</code></pre>
+  </li>
+  <li>Lo script creerà l'ambiente conda <code>OffGallery</code> e scaricherà i modelli AI.</li>
+</ol>
+
+<h2>Linux — reinstallazione</h2>
+
+<p>Scarica il nuovo <code>OffGallerySetup</code> (binario Linux) dal sito, rendilo eseguibile e avvialo:</p>
+
+<pre><code>chmod +x OffGallerySetup
+./OffGallerySetup</code></pre>
+
+<div class="callout info">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>Modelli AI</strong>
+    <p>Se hai conservato la cartella <code>Models/</code> dalla vecchia installazione, puoi copiarla nella nuova cartella app e indicarne il percorso in <strong>Config → Models directory</strong> per evitare di riscaricare ~8 GB.</p>
   </div>
 </div>
 
