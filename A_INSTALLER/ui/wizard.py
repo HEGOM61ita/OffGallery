@@ -357,7 +357,23 @@ class PathPage(tk.Frame):
             self.app.user_conda_path = cp or None
 
         sm = StateManager(path)
-        sm.load_or_create()
+        already_installed = sm.load_or_create()
+
+        if already_installed and sm.has_partial_install():
+            # Installazione esistente trovata nella cartella scelta → dashboard
+            self.app.state = sm
+            self.app.show_page("dashboard")
+            return
+
+        # Nessun installer_state.json: controlla installazione legacy (vecchi .bat)
+        from installer import _detect_legacy_install
+        legacy = _detect_legacy_install(path)
+        if legacy:
+            self.app.state = legacy
+            self.app.show_page("dashboard")
+            return
+
+        # Cartella nuova o vuota → procede con l'installazione
         sm.set_profile(self.app.profile)
         sm.set_install_path(path)
         self.app.state = sm

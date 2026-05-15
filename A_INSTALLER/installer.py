@@ -179,25 +179,10 @@ def _detect_legacy_install(install_path: str) -> Optional[StateManager]:
 
 def main():
     app = AppWindow()
-
-    # Cerca un'installazione esistente nel percorso predefinito
-    state = StateManager(app.install_path)
-    already_installed = state.load_or_create()
-
-    if already_installed and state.has_partial_install():
-        # Installazione parziale o completa (con installer_state.json) → dashboard
-        app.state = state
-        app.show_page("dashboard")
-    else:
-        # Nessun installer_state.json — cerca installazione legacy
-        legacy_state = _detect_legacy_install(app.install_path)
-        if legacy_state:
-            app.state = legacy_state
-            app.show_page("dashboard")
-        else:
-            # Prima volta → wizard dal benvenuto
-            app.show_page("welcome")
-
+    # Parte sempre dal wizard: l'utente sceglie dove installare.
+    # Il rilevamento dell'installazione esistente avviene in PathPage._next()
+    # dopo che l'utente ha confermato il percorso.
+    app.show_page("welcome")
     app.run()
 
 
