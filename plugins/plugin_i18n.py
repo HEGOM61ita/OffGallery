@@ -214,6 +214,46 @@ _STRINGS = {
     "gs.continent_samerica":  {"it": "Sud America",      "en": "South America"},
     "gs.continent_oceania":   {"it": "Oceania",          "en": "Oceania"},
     "gs.continent_antarctica": {"it": "Antartide",       "en": "Antarctica"},
+
+    # DownloadDialog — strategia celle 1°×1°
+    "gs.taxon_group_all": {
+        "it": "Specie per cella geografica 1°×1° (GBIF)",
+        "en": "Species by 1°×1° geographic cell (GBIF)",
+    },
+    "gs.download_info": {
+        "it": (
+            "Scarica in anticipo le checklist di specie per le aree di tuo interesse.<br>"
+            "Le aree sono suddivise in <b>celle geografiche 1°×1°</b> (~110×80 km): "
+            "solo le specie effettivamente osservate in quella cella vengono usate "
+            "per affinare BioCLIP, riducendo i falsi positivi rispetto alla ricerca per paese.<br>"
+            "Le checklist vengono recuperate da <b>GBIF</b> e salvate in cache locale."
+        ),
+        "en": (
+            "Pre-download species checklists for areas of interest.<br>"
+            "Areas are divided into <b>1°×1° geographic cells</b> (~110×80 km): "
+            "only species actually observed in that cell are used to refine BioCLIP, "
+            "reducing false positives compared to country-level search.<br>"
+            "Checklists are fetched from <b>GBIF</b> and saved in local cache."
+        ),
+    },
+    "gs.download_preset_label":   {"it": "Preset area:",        "en": "Area preset:"},
+    "gs.download_preset_hint":    {"it": "— oppure seleziona manualmente —",
+                                   "en": "— or select manually —"},
+    "gs.download_custom_label":   {"it": "Oppure inserisci coordinate:",
+                                   "en": "Or enter coordinates:"},
+    "gs.download_lat_label":      {"it": "Lat centro:",         "en": "Center lat:"},
+    "gs.download_lon_label":      {"it": "Lon centro:",         "en": "Center lon:"},
+    "gs.download_radius_label":   {"it": "Raggio (gradi):",     "en": "Radius (degrees):"},
+    "gs.download_calc_btn":       {"it": "Calcola celle",       "en": "Calculate cells"},
+    "gs.download_cells_label":    {"it": "Celle selezionate:",  "en": "Selected cells:"},
+    "gs.download_cells_count":    {"it": "{n} celle × {t} taxon = {tot} download",
+                                   "en": "{n} cells × {t} taxa = {tot} downloads"},
+    "gs.download_no_cells":       {"it": "Seleziona almeno una cella.", "en": "Select at least one cell."},
+    "gs.download_no_taxa":        {"it": "Seleziona almeno un taxon.", "en": "Select at least one taxon."},
+    "gs.cell_col_cell":           {"it": "Cella",               "en": "Cell"},
+    "gs.cell_col_taxon":          {"it": "Taxon",               "en": "Taxon"},
+    "gs.cell_col_species":        {"it": "Specie",              "en": "Species"},
+    "gs.cell_col_date":           {"it": "Data",                "en": "Date"},
 }
 
 

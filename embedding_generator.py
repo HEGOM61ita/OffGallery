@@ -1293,17 +1293,17 @@ class EmbeddingGenerator:
                 logger.error(f"Errore CLIP immagine: {e}")
                 return None
 
-    def _predict_bioclip(self, image_input, input_type, geo_hierarchy=None):
+    def _predict_bioclip(self, image_input, input_type, geo_hierarchy=None,
+                         gps_lat=None, gps_lon=None):
         """Esegue predizione BioCLIP usando configurazione da config.yaml.
         OTTIMIZZATO: Usa profilo 'bioclip_classification' per resize alla dimensione ottimale.
 
         Args:
             image_input: path file, PIL Image, o bytes
             input_type: 'path', 'pil', 'bytes'
-            geo_hierarchy: stringa GeOFF|Continent|Country|Region|City opzionale —
-                           se fornita e GeoSpecies è attivo con cache per quel paese,
-                           usa un sottoinsieme geografico di specie invece dei 450k globali.
-                           Nessuna chiamata API — solo cache locale.
+            geo_hierarchy: stringa GeOFF|Continent|Country|Region|City (mantenuta per compatibilità)
+            gps_lat: latitudine WGS84 reale — se fornita, GeoSpecies usa la cella 1°×1°
+            gps_lon: longitudine WGS84 reale — se fornita, GeoSpecies usa la cella 1°×1°
         """
         if self.bioclip_classifier is None:
             return []
@@ -1374,15 +1374,16 @@ class EmbeddingGenerator:
             active_classifier = self.bioclip_classifier
             self._last_geospecies_meta = None
 
-            if not geo_hierarchy:
+            if gps_lat is None or gps_lon is None:
                 self.geospecies_skipped_no_gps += 1
 
-            if geo_hierarchy:
+            if gps_lat is not None and gps_lon is not None:
                 try:
                     from plugins.geospecies.geospecies import get_species_subset
                     species_subset = get_species_subset(
-                        lat=0, lon=0,  # non usati — paese da geo_hierarchy
-                        geo_hierarchy=geo_hierarchy
+                        lat=float(gps_lat),
+                        lon=float(gps_lon),
+                        geo_hierarchy=geo_hierarchy,
                     )
                     if species_subset and len(species_subset) >= 10:
                         try:
@@ -1738,13 +1739,15 @@ class EmbeddingGenerator:
             raise
 
     # ===== BIOCLIP ON-DEMAND METHODS =====
-    def generate_bioclip_tags(self, input_data, geo_hierarchy=None):
+    def generate_bioclip_tags(self, input_data, geo_hierarchy=None,
+                              gps_lat=None, gps_lon=None):
         """
         Genera tag BioCLIP con tassonomia completa.
         Args:
             input_data: Path/str (filepath), PIL.Image, o lista di predizioni BioCLIP
-            geo_hierarchy: stringa GeOFF|Continent|Country|Region|City opzionale —
-                           passata a GeoSpecies per subset geografico da cache locale
+            geo_hierarchy: stringa GeOFF|Continent|Country|Region|City opzionale (non più usata per lookup)
+            gps_lat: latitudine WGS84 reale dell'immagine — passata a GeoSpecies per cella 1°×1°
+            gps_lon: longitudine WGS84 reale dell'immagine — passata a GeoSpecies per cella 1°×1°
         Returns:
             tuple: (flat_tags, taxonomy_array) dove:
                 - flat_tags: lista tag display ["Specie: X", "Genere: Y", ...]
@@ -1763,7 +1766,9 @@ class EmbeddingGenerator:
         # Se è un filepath (string o Path), esegui pipeline completa
         if isinstance(input_data, (str, Path)):
             try:
-                predictions = self._predict_bioclip(input_data, 'path', geo_hierarchy=geo_hierarchy)
+                predictions = self._predict_bioclip(input_data, 'path',
+                                                     geo_hierarchy=geo_hierarchy,
+                                                     gps_lat=gps_lat, gps_lon=gps_lon)
             except Exception as e:
                 logger.error(f"Errore BioCLIP da filepath: {e}")
                 return [], None
@@ -1771,7 +1776,9 @@ class EmbeddingGenerator:
         # Se è una PIL Image, usa direttamente
         elif isinstance(input_data, Image.Image):
             try:
-                predictions = self._predict_bioclip(input_data, 'pil', geo_hierarchy=geo_hierarchy)
+                predictions = self._predict_bioclip(input_data, 'pil',
+                                                     geo_hierarchy=geo_hierarchy,
+                                                     gps_lat=gps_lat, gps_lon=gps_lon)
             except Exception as e:
                 logger.error(f"Errore BioCLIP da PIL Image: {e}")
                 return [], None

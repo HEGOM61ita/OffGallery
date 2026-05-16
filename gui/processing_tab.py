@@ -1335,8 +1335,11 @@ class ProcessingWorker(QThread):
                 if not skip:
                     try:
                         _geo_hierarchy = prep.get('geo_hierarchy')
+                        _gps_lat = prep.get('gps_latitude')
+                        _gps_lon = prep.get('gps_longitude')
                         bioclip_tags, bioclip_taxonomy = emb_gen.generate_bioclip_tags(
-                            thumb, geo_hierarchy=_geo_hierarchy)
+                            thumb, geo_hierarchy=_geo_hierarchy,
+                            gps_lat=_gps_lat, gps_lon=_gps_lon)
 
                         if bioclip_taxonomy and isinstance(bioclip_taxonomy, list):
                             update_data['bioclip_taxonomy'] = json.dumps(
