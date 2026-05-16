@@ -182,13 +182,24 @@ class DownloadWorker(QThread):
 
     def __init__(self, plugin_dir: Path, plugin_id: str, language: str = "it", parent=None):
         super().__init__(parent)
-        self._plugin_dir = plugin_dir
-        self._plugin_id  = plugin_id
-        self._language   = language
+        self._plugin_dir  = plugin_dir
+        self._plugin_id   = plugin_id
+        self._language    = language
+        self._stop_event  = None
+
+    def stop(self):
+        """Interruzione cooperativa: segnala al plugin di fermarsi al ciclo successivo."""
+        if self._stop_event:
+            self._stop_event.set()
+        self.quit()
 
     def run(self):
+        import threading
+        import importlib.util
+        import inspect
+
+        self._stop_event = threading.Event()
         try:
-            import importlib.util
             core_file = self._plugin_dir / f"{self._plugin_id}.py"
             spec = importlib.util.spec_from_file_location(
                 f"{self._plugin_id}_core_dl", str(core_file)
@@ -202,12 +213,12 @@ class DownloadWorker(QThread):
             def _status_cb(text):
                 self.status.emit(text)
 
-            # Chiama download_and_build_database con i kwargs supportati
-            import inspect
             sig = inspect.signature(mod.download_and_build_database)
             kwargs = dict(progress_callback=_progress_cb, status_callback=_status_cb)
             if "language" in sig.parameters:
                 kwargs["language"] = self._language
+            if "stop_event" in sig.parameters:
+                kwargs["stop_event"] = self._stop_event
 
             mod.download_and_build_database(**kwargs)
             self.finished.emit()
@@ -533,6 +544,11 @@ class PluginCard(QFrame):
             self._download_worker.stop()
             self.lbl_dl_status.setText("Interruzione in corso...")
             self.btn_dl_stop.setEnabled(False)
+            # Attende al massimo 20s; se il thread non esce, lo termina forzatamente
+            if not self._download_worker.wait(20000):
+                self._download_worker.terminate()
+                self._download_worker.wait(2000)
+                self._on_download_finished()
 
     def _on_download_status(self, text: str):
         """Aggiorna label descrittiva durante il download."""

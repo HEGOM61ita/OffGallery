@@ -1055,7 +1055,7 @@ class EmbeddingGenerator:
                         txt_emb = txt_emb.T
                         logger.info(f"TreeOfLife: embeddings trasposti → {txt_emb.shape}")
 
-                    with open(treeoflife_dir / 'txt_emb_species.json', 'r') as f:
+                    with open(treeoflife_dir / 'txt_emb_species.json', 'r', encoding='utf-8') as f:
                         txt_names = json.load(f)
 
                     # Crea classifier wrapper compatibile con TreeOfLifeClassifier
