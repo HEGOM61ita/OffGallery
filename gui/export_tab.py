@@ -1354,7 +1354,7 @@ class ExportTab(QWidget):
                     # XMP Lightroom
                     'Title', 'Description', 'Rating', 'Color_Label', 'Instructions',
                     # Tags e AI
-                    'Tags', 'Aesthetic_Score', 'Technical_Score', 'Is_Monochrome',
+                    'Tags', 'AI_Tags', 'Aesthetic_Score', 'Technical_Score', 'Is_Monochrome',
                     'AI_Description', 'Model_Used',
                     # Processing
                     'Processed_Date', 'Processing_Time', 'Embedding_Generated', 'LLM_Generated'
@@ -1371,8 +1371,9 @@ class ExportTab(QWidget):
                 for item in image_items:
                     data = item.image_data
                     
-                    # Parse tag unificati
-                    unified_tags = self._parse_tags(data.get('tags', ''))
+                    # Parse tags separati: umani e LLM
+                    human_tags = self._parse_tags(data.get('tags', ''))
+                    ai_tags    = self._parse_tags(data.get('llm_tags', ''))
                     
                     # File size in MB
                     file_size = data.get('file_size', 0)
@@ -1447,7 +1448,8 @@ class ExportTab(QWidget):
                         data.get('color_label', ''),
                         data.get('lr_instructions', ''),
                         # Tags e AI
-                        '; '.join(unified_tags),
+                        '; '.join(human_tags),
+                        '; '.join(ai_tags),
                         safe_float(data.get('aesthetic_score')),
                         safe_float(data.get('technical_score')),
                         bool_to_text(data.get('is_monochrome')),
