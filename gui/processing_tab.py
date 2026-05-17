@@ -554,6 +554,13 @@ class ProcessingWorker(QThread):
             if not has_pre_llm:
                 pre_llm_done.set()  # nessun plugin → LLM parte libero
 
+            # ─── EVENTO MODELLI-DONE ───
+            # LLM aspetta che tutti i thread embedding (CLIP, DINOv2, Aesthetic, MUSIQ,
+            # BioCLIP) abbiano finito prima di iniziare. Su GPU unificata (MPS) e su
+            # sistemi con GPU singola condivisa, i modelli si contendono lo stesso
+            # scheduler — girare LLM in parallelo li degrada entrambi.
+            models_done_event = threading.Event()
+
             # ─── AVVIO THREAD ───
             _pre_llm_label = f" + {len(self.pre_llm_plugins)} Plugin Pre-LLM" if has_pre_llm else ""
             self.log_message.emit("═" * 50, "info")
@@ -598,12 +605,12 @@ class ProcessingWorker(QThread):
                     args=(prep_cache, llm_generator, db_manager,
                           llm_gen_config, stats, model_total,
                           bioclip_results, bioclip_lock, llm_queue,
-                          pre_llm_done if has_pre_llm else None),
+                          pre_llm_done if has_pre_llm else None,
+                          models_done_event),
                     name="model-llm", daemon=True
                 )
                 model_threads.append(t)
-                _llm_wait_note = " (attende Plugin Pre-LLM)" if has_pre_llm else ""
-                self.log_message.emit(f"🚀 Thread LLM pronto{_llm_wait_note}", "info")
+                self.log_message.emit("🚀 Thread LLM pronto (attende completamento modelli embedding)", "info")
 
             # Thread ExifTool (produttore — ultimo perché usa model_queues e llm_queue)
             exif_thread = threading.Thread(
@@ -679,6 +686,23 @@ class ProcessingWorker(QThread):
                 threading.Thread(
                     target=_pre_llm_watcher, daemon=True, name="pre-llm-watcher"
                 ).start()
+
+            # Watcher modelli: aspetta tutti i thread embedding (esclude LLM) poi setta
+            # models_done_event — il thread LLM non inizia finché questo non scatta.
+            _embedding_threads = [t for t in model_threads if t.name != "model-llm"]
+
+            def _models_done_watcher():
+                for _t in _embedding_threads:
+                    _t.join()
+                models_done_event.set()
+                self.log_message.emit("✅ Modelli embedding completati — avvio LLM", "info")
+
+            if llm_active and llm_generator is not None:
+                threading.Thread(
+                    target=_models_done_watcher, daemon=True, name="models-done-watcher"
+                ).start()
+            else:
+                models_done_event.set()  # LLM non attivo, non serve aspettare
 
             # Attendi completamento con check is_running (permette stop reattivo)
             for t in model_threads:
@@ -1549,7 +1573,8 @@ class ProcessingWorker(QThread):
     # THREAD LLM VISION
     # ─────────────────────────────────────────────────────────────
     def _thread_llm(self, prep_cache, emb_gen, db_manager, llm_gen_config, stats, total,
-                    bioclip_results, bioclip_lock, llm_queue, pre_llm_done_event=None):
+                    bioclip_results, bioclip_lock, llm_queue, pre_llm_done_event=None,
+                    models_done_event=None):
         """Thread LLM: consuma dalla coda, genera tags/descrizione/titolo."""
         gen_tags_cfg = llm_gen_config.get('tags', {})
         gen_desc_cfg = llm_gen_config.get('description', {})
@@ -1562,7 +1587,16 @@ class ProcessingWorker(QThread):
             while not pre_llm_done_event.wait(timeout=2.0):
                 if not self.is_running:
                     return
-            self.log_message.emit("✅ Plugin Pre-LLM completati — avvio generazione LLM", "info")
+
+        # Attende che tutti i modelli embedding abbiano finito (CLIP, DINOv2, Aesthetic,
+        # MUSIQ, BioCLIP) — su GPU unificata (MPS) o GPU singola condivisa con Ollama
+        # girare in parallelo degrada entrambi. Le immagini si accumulano in llm_queue.
+        if models_done_event is not None:
+            self.log_message.emit("⏳ LLM: in attesa completamento modelli embedding...", "info")
+            while not models_done_event.wait(timeout=2.0):
+                if not self.is_running:
+                    return
+            self.log_message.emit("✅ Modelli embedding pronti — avvio generazione LLM", "info")
 
         while self.is_running:
             # Attendi prossima immagine dalla coda (timeout per controllare is_running)
