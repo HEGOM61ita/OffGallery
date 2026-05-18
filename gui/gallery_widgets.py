@@ -39,7 +39,6 @@ try:
     from xmp_manager_extended import XMPManagerExtended, XMPSyncState, get_sync_ui_config, get_xmp_sync_tooltip
     XMP_SUPPORT_AVAILABLE = True
 except ImportError:
-    print("⚠️ XMP Manager Extended non disponibile - funzionalità limitate")
     XMP_SUPPORT_AVAILABLE = False
 
 # NUOVO: Import RAW processor per verifiche
@@ -698,9 +697,7 @@ class ImageCard(QFrame):
             layout.addLayout(badge_container)
 
         except Exception as e:
-            print(f"❌ ERRORE _build_scores_and_indicators: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("ERRORE _build_scores_and_indicators: %s", e, exc_info=True)
 
     def _get_xmp_status_text(self):
         """RIMOSSO - Badge solo tramite background processing per evitare doppio rendering"""
@@ -998,7 +995,7 @@ class ImageCard(QFrame):
             return self._cached_semantic_tooltip
         
         except Exception as e:
-            print(f"Errore _build_semantic_tooltip: {e}")
+            logger.warning("Errore _build_semantic_tooltip: %s", e, exc_info=True)
             filename = self.image_data.get('filename', 'Unknown') if self.image_data else 'Unknown'
             self._cached_semantic_tooltip = f"📝 {filename}"
             return self._cached_semantic_tooltip
@@ -1116,7 +1113,7 @@ class ImageCard(QFrame):
             return "\n".join(lines) if lines else t("widgets.tooltip.no_tech_data")
 
         except Exception as e:
-            print(f"Errore _build_technical_tooltip: {e}")
+            logger.warning("Errore _build_technical_tooltip: %s", e, exc_info=True)
             return t("widgets.tooltip.tech_data_error")
     
     # ═══════════════════════════════════════════════════════════════
@@ -1440,7 +1437,7 @@ class ImageCard(QFrame):
             menu.exec(event.globalPos())
             
         except Exception as e:
-            print(f"Errore context menu: {e}")
+            logger.warning("Errore context menu: %s", e, exc_info=True)
     
     def _load_external_editors(self):
         """Carica configurazione editor esterni dal config"""
@@ -1472,7 +1469,7 @@ class ImageCard(QFrame):
             return enabled_editors
             
         except Exception as e:
-            print(f"Errore caricamento editor esterni: {e}")
+            logger.warning("Errore caricamento editor esterni: %s", e, exc_info=True)
             return []
     
     # ═══════════════════════════════════════════════════════════════
@@ -1521,7 +1518,7 @@ class ImageCard(QFrame):
                 self.color_label_indicator.hide()
 
         except Exception as e:
-            print(f"Errore _update_rating_color_display: {e}")
+            logger.warning("Errore _update_rating_color_display: %s", e, exc_info=True)
 
     def set_selected(self, selected):
         """Imposta stato selezione"""
@@ -1645,7 +1642,7 @@ class ImageCard(QFrame):
                 )
 
         except Exception as e:
-            print(f"Errore apertura cartella: {e}")
+            logger.warning("Errore apertura cartella: %s", e, exc_info=True)
     
     def _copy_paths(self, items):
         """Copia percorsi negli appunti"""
@@ -1660,7 +1657,7 @@ class ImageCard(QFrame):
                 clipboard.setText("\n".join(paths))
                 
         except Exception as e:
-            print(f"Errore copia percorsi: {e}")
+            logger.warning("Errore copia percorsi: %s", e, exc_info=True)
     
     def _open_external(self):
         """Apri immagine in viewer esterno, con dialog informativo se mancante"""
@@ -1686,7 +1683,7 @@ class ImageCard(QFrame):
                 )
 
         except Exception as e:
-            print(f"Errore apertura esterna: {e}")
+            logger.warning("Errore apertura esterna: %s", e, exc_info=True)
     
     def _open_with_external_editor(self, editor):
         """Apri immagine con editor esterno e monitora chiusura processo"""
@@ -1735,7 +1732,7 @@ class ImageCard(QFrame):
                 )
                 
         except Exception as e:
-            print(f"Errore apertura editor esterno: {e}")
+            logger.warning("Errore apertura editor esterno: %s", e, exc_info=True)
     
     def _start_process_monitoring(self, process, original_mtime, original_xmp_mtime, editor_name):
         """Avvia monitoraggio processo editor in background"""
@@ -1778,7 +1775,7 @@ class ImageCard(QFrame):
                     self.process_finished.emit(has_changes)
                     
                 except Exception as e:
-                    print(f"Errore controllo modifiche: {e}")
+                    logger.warning("Errore controllo modifiche: %s", e, exc_info=True)
                     self.process_finished.emit(False)
         
         # Mostra indicatore editing attivo
@@ -1826,10 +1823,10 @@ class ImageCard(QFrame):
             elif hasattr(self.parent(), 'parent') and hasattr(self.parent().parent(), 'reimport_image_metadata'):
                 self.parent().parent().reimport_image_metadata(self.image_id, self.filepath)
             else:
-                print("⚠️ Impossibile trovare metodo di reimport nella gallery")
-        
+                logger.warning("Impossibile trovare metodo di reimport nella gallery")
+
         except Exception as e:
-            print(f"Errore reimport dopo edit: {e}")
+            logger.warning("Errore reimport dopo edit: %s", e, exc_info=True)
     
     def _edit_tags(self, items):
         """Edita tag utente — scrive su campo 'tags'"""
@@ -1844,9 +1841,9 @@ class ImageCard(QFrame):
                 
                 db_manager = self._get_database_manager()
                 if not db_manager:
-                    print("❌ ERRORE: DatabaseManager non disponibile - operazione annullata")
+                    logger.error("DatabaseManager non disponibile - operazione annullata (_edit_tags)")
                     return
-                
+
                 for item in items:
                     if hasattr(item, 'image_id') and item.image_id:
                         try:
@@ -1875,7 +1872,7 @@ class ImageCard(QFrame):
                             elif hasattr(db_manager, 'update_metadata'):
                                 db_manager.update_metadata(item.image_id, tags=normalized)
                             else:
-                                print(f"❌ ERRORE: Nessun metodo trovato per aggiornare tag!")
+                                logger.error("Nessun metodo trovato per aggiornare tag (image_id=%s)", item.image_id)
                                 db_failures += 1
                                 continue
 
@@ -1884,7 +1881,7 @@ class ImageCard(QFrame):
                                 del item._unified_tags_cache
                             db_success += 1
                         except Exception as e:
-                            print(f"Errore scrittura tag DB per {item.image_data.get('filename')}: {e}")
+                            logger.error("Errore scrittura tag DB per %s: %s", item.image_data.get('filename'), e, exc_info=True)
                             db_failures += 1
                     else:
                         db_failures += 1
@@ -1893,7 +1890,7 @@ class ImageCard(QFrame):
                     # Refresh solo se almeno una scrittura è riuscita
                     self._refresh_after_database_operation([item for item in items if hasattr(item, 'image_id') and item.image_id], "tag")
         except Exception as e:
-            print(f"Errore gestione tag: {e}")
+            logger.error("Errore gestione tag: %s", e, exc_info=True)
 
     def _edit_llm_tags(self, items):
         """Edita tag AI — scrive su campo 'llm_tags'"""
@@ -1942,7 +1939,7 @@ class ImageCard(QFrame):
 
                 db_manager = self._get_database_manager()
                 if not db_manager:
-                    print("❌ ERRORE: DatabaseManager non disponibile")
+                    logger.error("DatabaseManager non disponibile - operazione annullata (_edit_bioclip_taxonomy)")
                     return
 
                 db_success = 0
@@ -1953,7 +1950,7 @@ class ImageCard(QFrame):
                                 item.image_data['bioclip_taxonomy'] = json.dumps(taxonomy)
                                 db_success += 1
                         except Exception as e:
-                            print(f"Errore scrittura BioCLIP taxonomy: {e}")
+                            logger.error("Errore scrittura BioCLIP taxonomy: %s", e, exc_info=True)
 
                 if db_success > 0:
                     # Invalida cache tooltip e refresh
@@ -1965,7 +1962,7 @@ class ImageCard(QFrame):
                         "bioclip_taxonomy"
                     )
         except Exception as e:
-            print(f"Errore gestione BioCLIP taxonomy: {e}")
+            logger.error("Errore gestione BioCLIP taxonomy: %s", e, exc_info=True)
 
     def _edit_description(self, items):
         """Edita descrizione - SOLO database reale, nessun fallback"""
@@ -1980,9 +1977,9 @@ class ImageCard(QFrame):
                 
                 db_manager = self._get_database_manager()
                 if not db_manager:
-                    print("❌ ERRORE: DatabaseManager non disponibile - operazione annullata")
+                    logger.error("DatabaseManager non disponibile - operazione annullata (_edit_description)")
                     return
-                
+
                 for item in items:
                     if hasattr(item, 'image_id') and item.image_id:
                         try:
@@ -1996,15 +1993,15 @@ class ImageCard(QFrame):
                             elif hasattr(db_manager, 'update_metadata'):
                                 db_manager.update_metadata(item.image_id, description=new_description)
                             else:
-                                print(f"❌ ERRORE: Nessun metodo trovato per aggiornare descrizione!")
+                                logger.error("Nessun metodo trovato per aggiornare descrizione (image_id=%s)", item.image_id)
                                 db_failures += 1
                                 continue
-                                
+
                             # Aggiorna image_data SOLO se DB scrittura è riuscita
                             item.image_data['description'] = new_description
                             db_success += 1
                         except Exception as e:
-                            print(f"Errore scrittura descrizione DB per {item.image_data.get('filename')}: {e}")
+                            logger.error("Errore scrittura descrizione DB per %s: %s", item.image_data.get('filename'), e, exc_info=True)
                             db_failures += 1
                     else:
                         db_failures += 1
@@ -2013,7 +2010,7 @@ class ImageCard(QFrame):
                     # Refresh solo se almeno una scrittura è riuscita
                     self._refresh_after_database_operation([item for item in items if hasattr(item, 'image_id') and item.image_id], "description")
         except Exception as e:
-            print(f"Errore gestione descrizione: {e}")
+            logger.error("Errore gestione descrizione: %s", e, exc_info=True)
 
     def _edit_title(self, items):
         """Edita titolo - SOLO database reale, nessun fallback"""
@@ -2028,7 +2025,7 @@ class ImageCard(QFrame):
 
                 db_manager = self._get_database_manager()
                 if not db_manager:
-                    print("❌ ERRORE: DatabaseManager non disponibile - operazione annullata")
+                    logger.error("DatabaseManager non disponibile - operazione annullata (_edit_title)")
                     return
 
                 for item in items:
@@ -2044,7 +2041,7 @@ class ImageCard(QFrame):
                             elif hasattr(db_manager, 'update_metadata'):
                                 db_manager.update_metadata(item.image_id, title=new_title)
                             else:
-                                print(f"❌ ERRORE: Nessun metodo trovato per aggiornare titolo!")
+                                logger.error("Nessun metodo trovato per aggiornare titolo (image_id=%s)", item.image_id)
                                 db_failures += 1
                                 continue
 
@@ -2052,7 +2049,7 @@ class ImageCard(QFrame):
                             item.image_data['title'] = new_title
                             db_success += 1
                         except Exception as e:
-                            print(f"Errore scrittura titolo DB per {item.image_data.get('filename')}: {e}")
+                            logger.error("Errore scrittura titolo DB per %s: %s", item.image_data.get('filename'), e, exc_info=True)
                             db_failures += 1
                     else:
                         db_failures += 1
@@ -2061,14 +2058,14 @@ class ImageCard(QFrame):
                     # Refresh solo se almeno una scrittura è riuscita
                     self._refresh_after_database_operation([item for item in items if hasattr(item, 'image_id') and item.image_id], "title")
         except Exception as e:
-            print(f"Errore gestione titolo: {e}")
+            logger.error("Errore gestione titolo: %s", e, exc_info=True)
 
     def _set_rating(self, items, rating_value):
         """Imposta rating (stelle) per le immagini selezionate"""
         try:
             db_manager = self._get_database_manager()
             if not db_manager:
-                print("❌ ERRORE: DatabaseManager non disponibile")
+                logger.error("DatabaseManager non disponibile - operazione annullata (_set_rating)")
                 return
 
             db_success = 0
@@ -2086,7 +2083,7 @@ class ImageCard(QFrame):
                         elif hasattr(db_manager, 'update_image_metadata'):
                             db_manager.update_image_metadata(item.image_id, lr_rating=db_rating)
                         else:
-                            print(f"❌ ERRORE: Nessun metodo per aggiornare rating!")
+                            logger.error("Nessun metodo per aggiornare rating (image_id=%s)", item.image_id)
                             db_failures += 1
                             continue
 
@@ -2103,7 +2100,7 @@ class ImageCard(QFrame):
                         db_success += 1
 
                     except Exception as e:
-                        print(f"Errore rating per {item.image_data.get('filename')}: {e}")
+                        logger.error("Errore rating per %s: %s", item.image_data.get('filename'), e, exc_info=True)
                         db_failures += 1
                 else:
                     db_failures += 1
@@ -2113,14 +2110,14 @@ class ImageCard(QFrame):
                 XMPBadgeIntegration.replace_refresh_after_database_operation(updated_items, "rating_changed")
 
         except Exception as e:
-            print(f"Errore _set_rating: {e}")
+            logger.error("Errore _set_rating: %s", e, exc_info=True)
 
     def _set_color_label(self, items, color_value):
         """Imposta color label per le immagini selezionate"""
         try:
             db_manager = self._get_database_manager()
             if not db_manager:
-                print("❌ ERRORE: DatabaseManager non disponibile")
+                logger.error("DatabaseManager non disponibile - operazione annullata (_set_color_label)")
                 return
 
             db_success = 0
@@ -2135,7 +2132,7 @@ class ImageCard(QFrame):
                         elif hasattr(db_manager, 'update_image_metadata'):
                             db_manager.update_image_metadata(item.image_id, color_label=color_value)
                         else:
-                            print(f"❌ ERRORE: Nessun metodo per aggiornare color_label!")
+                            logger.error("Nessun metodo per aggiornare color_label (image_id=%s)", item.image_id)
                             db_failures += 1
                             continue
 
@@ -2151,7 +2148,7 @@ class ImageCard(QFrame):
                         db_success += 1
 
                     except Exception as e:
-                        print(f"Errore color_label per {item.image_data.get('filename')}: {e}")
+                        logger.error("Errore color_label per %s: %s", item.image_data.get('filename'), e, exc_info=True)
                         db_failures += 1
                 else:
                     db_failures += 1
@@ -2161,7 +2158,7 @@ class ImageCard(QFrame):
                 XMPBadgeIntegration.replace_refresh_after_database_operation(updated_items, "color_label_changed")
 
         except Exception as e:
-            print(f"Errore _set_color_label: {e}")
+            logger.error("Errore _set_color_label: %s", e, exc_info=True)
 
     def _delete_from_database(self, items):
         """Elimina immagini selezionate dal database (non il file fisico)"""
@@ -2233,7 +2230,7 @@ class ImageCard(QFrame):
                         else:
                             failed += 1
                     except Exception as e:
-                        print(f"❌ Errore eliminazione {item.image_data.get('filename')}: {e}")
+                        logger.error("Errore eliminazione %s: %s", item.image_data.get('filename'), e, exc_info=True)
                         failed += 1
                 else:
                     failed += 1
@@ -2269,7 +2266,7 @@ class ImageCard(QFrame):
                 )
 
         except Exception as e:
-            print(f"Errore _delete_from_database: {e}")
+            logger.error("Errore _delete_from_database: %s", e, exc_info=True)
             QMessageBox.critical(self, t("widgets.msg.delete_critical_title"), t("widgets.msg.delete_error", error=str(e)))
 
     def _run_bioclip_and_refresh(self, items):
@@ -2278,7 +2275,7 @@ class ImageCard(QFrame):
             # Emetti segnale per BioCLIP
             self.bioclip_requested.emit(items)
         except Exception as e:
-            print(f"Errore BioCLIP: {e}")
+            logger.warning("Errore BioCLIP: %s", e, exc_info=True)
     
     def _run_llm_and_refresh(self, items):
         """Esegui LLM tagging con refresh automatico"""
@@ -2286,7 +2283,7 @@ class ImageCard(QFrame):
             # Emetti segnale per LLM
             self.llm_tagging_requested.emit(items)
         except Exception as e:
-            print(f"Errore LLM tagging: {e}")
+            logger.warning("Errore LLM tagging: %s", e, exc_info=True)
     
     def _refresh_after_database_operation(self, items, operation_type):
         """Refresh automatico dopo operazioni database - CENTRALIZZATO"""
@@ -2307,7 +2304,7 @@ class ImageCard(QFrame):
                     if hasattr(item, '_invalidate_tooltip_cache'):
                         item._invalidate_tooltip_cache()
         except Exception as e:
-            print(f"⚠️ Errore ricaricamento dati dal DB: {e}")
+            logger.warning("Errore ricaricamento dati dal DB: %s", e, exc_info=True)
 
         # Aggiorna badge XMP
         XMPBadgeIntegration.replace_refresh_after_database_operation(items, operation_type)
@@ -2327,7 +2324,7 @@ class ImageCard(QFrame):
                 delattr(self, '_tooltip_cache')
 
         except Exception as e:
-            print(f"Errore force data refresh: {e}")
+            logger.warning("Errore force data refresh: %s", e, exc_info=True)
     
     def _refresh_badges(self):
         """Refresh completo dei badge scores/indicators"""
@@ -2348,7 +2345,7 @@ class ImageCard(QFrame):
                 self.update()
                 
         except Exception as e:
-            print(f"Errore refresh badges: {e}")
+            logger.warning("Errore refresh badges: %s", e, exc_info=True)
     
     def _invalidate_tooltip_cache(self):
         """Invalida cache tooltip per forzare rebuild"""
@@ -2369,7 +2366,7 @@ class ImageCard(QFrame):
                 delattr(self, '_unified_tags_cache')
 
         except Exception as e:
-            print(f"Errore invalidate tooltip cache: {e}")
+            logger.warning("Errore invalidate tooltip cache: %s", e, exc_info=True)
     
     def _update_visual_state(self):
         """Aggiorna stato visuale generale"""
@@ -2383,7 +2380,7 @@ class ImageCard(QFrame):
                 self.parent().update()
                 
         except Exception as e:
-            print(f"Errore update visual state: {e}")
+            logger.warning("Errore update visual state: %s", e, exc_info=True)
     
     def _show_complete_exif(self, items):
         """Mostra dialog con TUTTI i dati EXIF"""
@@ -2391,7 +2388,7 @@ class ImageCard(QFrame):
             dialog = CompleteExifDialog(items, self)
             dialog.exec()
         except Exception as e:
-            print(f"Errore dialog EXIF: {e}")
+            logger.warning("Errore dialog EXIF: %s", e, exc_info=True)
     
     # ═══════════════════════════════════════════════════════════════
     #                       OPERAZIONI XMP
@@ -2643,9 +2640,7 @@ class ImageCard(QFrame):
             self._show_xmp_dialog(t("widgets.xmp.analysis_title"), dialog_text)
                 
         except Exception as e:
-            print(f"Errore analisi XMP: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("Errore analisi XMP: %s", e, exc_info=True)
             self._show_xmp_dialog("❌ Errore", t("widgets.xmp.analysis_error", error=str(e)))
     
     def _import_from_xmp_with_refresh(self, items):
@@ -3197,9 +3192,7 @@ class ImageCard(QFrame):
                     #         db_manager.update_description(item.image_id, new_description)
                     #         updated = True
                     
-                    print("❌ ERRORE: Scrittura database NON implementata!")
-                    print("   Serve implementare la chiamata al DatabaseManager reale")
-                    print("   I dati XMP non verranno salvati permanentemente")
+                    logger.error("Scrittura database NON implementata - i dati XMP non verranno salvati permanentemente")
                     
                     # SIMULAZIONE TEMPORANEA per testing UI
                     if new_tags:
@@ -3400,7 +3393,7 @@ class ImageCard(QFrame):
             print("ExifTool timeout")
             return None
         except Exception as e:
-            print(f"❌ Errore ExifTool: {e}")
+            logger.error("Errore ExifTool: %s", e, exc_info=True)
             return None
 
     def _read_and_merge_xmp_for_import(self, sidecar_source, embedded_source):

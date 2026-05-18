@@ -212,7 +212,7 @@ def run_migration(db_path: Path, apply: bool) -> None:
     if apply:
         conn.executemany("UPDATE images SET drive_mode = ? WHERE id = ?", updates)
         conn.commit()
-        print(f"  ✓ {len(updates)} righe aggiornate nel database.")
+        print(f"  [OK] {len(updates)} righe aggiornate nel database.")
 
         stats = conn.execute(
             """

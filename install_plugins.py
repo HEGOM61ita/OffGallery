@@ -79,11 +79,11 @@ def _copy_plugin(src: Path, dst: Path, plugin_name: str) -> bool:
     dst_plugin = dst / "plugins" / plugin_name
 
     if not src_plugin.exists():
-        print(f"  ⚠️  Plugin '{plugin_name}' non trovato in questa repo — saltato.")
+        print(f"  [!] Plugin '{plugin_name}' non trovato in questa repo - saltato.")
         return False
 
     if dst_plugin.exists():
-        print(f"  ♻️  '{plugin_name}' già presente — aggiornamento in corso...")
+        print(f"  [~] '{plugin_name}' gia' presente - aggiornamento in corso...")
         shutil.rmtree(dst_plugin)
 
     # Copia intera cartella escludendo __pycache__
@@ -92,7 +92,7 @@ def _copy_plugin(src: Path, dst: Path, plugin_name: str) -> bool:
         dst_plugin,
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
     )
-    print(f"  ✓  '{plugin_name}' installato.")
+    print(f"  [OK] '{plugin_name}' installato.")
 
     # Installa dipendenze pip dichiarate nel manifest
     manifest_path = dst_plugin / "manifest.json"
@@ -101,17 +101,17 @@ def _copy_plugin(src: Path, dst: Path, plugin_name: str) -> bool:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             pip_deps = manifest.get("pip_dependencies", [])
             for dep in pip_deps:
-                print(f"  📦 Installazione dipendenza: {dep} ...")
+                print(f"  [pip] Installazione dipendenza: {dep} ...")
                 result = subprocess.run(
                     [sys.executable, "-m", "pip", "install", dep],
                     capture_output=True, text=True
                 )
                 if result.returncode == 0:
-                    print(f"     ✓ {dep} installato.")
+                    print(f"     [OK] {dep} installato.")
                 else:
-                    print(f"     ⚠️  Errore installazione {dep}: {result.stderr.strip()}")
+                    print(f"     [!] Errore installazione {dep}: {result.stderr.strip()}")
         except Exception as e:
-            print(f"  ⚠️  Impossibile leggere manifest per dipendenze: {e}")
+            print(f"  [!] Impossibile leggere manifest per dipendenze: {e}")
 
     return True
 
@@ -174,7 +174,7 @@ def main():
     # Caso speciale: src == dst (lo script è già dentro la cartella OffGallery)
     # — nessuna copia necessaria, i plugin sono già al posto giusto
     if src == dst:
-        print(f"📁 OffGallery rilevato in: {dst}")
+        print(f"[DIR] OffGallery rilevato in: {dst}")
         print()
         print("I plugin si trovano già nella cartella corretta (sei dentro la repo beta")
         print("che coincide con la cartella OffGallery). Nessuna copia necessaria.")
@@ -184,8 +184,8 @@ def main():
         _print_bionomen_note(dst)
         return
 
-    print(f"📁 Repo beta:        {src}")
-    print(f"📁 OffGallery in:    {dst}")
+    print(f"[DIR] Repo beta:        {src}")
+    print(f"[DIR] OffGallery in:    {dst}")
     print()
 
     plugins_to_install = [args.plugin] if args.plugin else PLUGINS
@@ -208,7 +208,7 @@ def main():
             installed += 1
 
     print()
-    print(f"✅ Installazione completata: {installed}/{len(plugins_to_install)} plugin installati.")
+    print(f"[OK] Installazione completata: {installed}/{len(plugins_to_install)} plugin installati.")
     print()
 
     _print_bionomen_note(dst)
@@ -226,28 +226,28 @@ def _print_bionomen_note(dst: Path) -> None:
     data_dir = bionomen_dir / "data"
     has_db = data_dir.exists() and any(data_dir.glob("*.db"))
 
-    print("─" * 60)
+    print("-" * 60)
     print("  Plugin BioNomen — database specie")
-    print("─" * 60)
+    print("-" * 60)
     if has_db:
         dbs = list(data_dir.glob("*.db"))
         print(f"  Database trovati: {len(dbs)}")
         for db in sorted(dbs):
-            print(f"    • {db.name}")
+            print(f"    - {db.name}")
         print()
-        print("  Per aggiungere altri taxa, apri BioNomen da OffGallery →")
-        print("  Config → Plugin → BioNomen → Configura → taxa da scaricare.")
+        print("  Per aggiungere altri taxa, apri BioNomen da OffGallery ->")
+        print("  Config -> Plugin -> BioNomen -> Configura -> taxa da scaricare.")
     else:
         print("  Il database delle specie NON è incluso nella repo.")
         print()
         print("  Per scaricarlo, avvia OffGallery, vai in:")
-        print("    Config → Plugin → BioNomen → Configura")
-        print("  Seleziona i taxa di interesse (Aves, Mammalia, Plantae, …)")
+        print("    Config -> Plugin -> BioNomen -> Configura")
+        print("  Seleziona i taxa di interesse (Aves, Mammalia, Plantae, ...)")
         print("  e clicca 'Scarica database'.")
         print()
         print("  Il download avviene da GBIF e richiede connessione internet")
         print("  (solo la prima volta). L'uso successivo è completamente offline.")
-    print("─" * 60)
+    print("-" * 60)
     print()
 
 

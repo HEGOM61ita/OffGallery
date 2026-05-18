@@ -1469,7 +1469,7 @@ class ExportTab(QWidget):
             return True
 
         except Exception as e:
-            print(f"❌ Errore export CSV: {e}")
+            logger.error("Errore export CSV: %s", e, exc_info=True)
             return False
     
     def _parse_tags(self, tags_data):
@@ -1656,11 +1656,11 @@ class ExportTab(QWidget):
             if result.returncode == 0:
                 return True
             else:
-                print(f"❌ ExifTool embedded errore: {result.stderr}")
+                logger.error("ExifTool embedded errore: %s", result.stderr)
                 return False
 
         except Exception as e:
-            print(f"❌ Errore scrittura XMP embedded: {e}")
+            logger.error("Errore scrittura XMP embedded: %s", e, exc_info=True)
             return False
 
     def _write_xmp_sidecar(self, image_file: Path, image_item, options: dict):
@@ -1693,7 +1693,7 @@ class ExportTab(QWidget):
             else:
                 single_dir = options['path']['single_dir']
                 if not single_dir:
-                    print(f"❌ Directory unica non specificata per {image_file.name}")
+                    logger.error("Directory unica non specificata per %s", image_file.name)
                     return False
                 output_dir = Path(single_dir)
                 if not output_dir.exists():
@@ -1843,11 +1843,11 @@ class ExportTab(QWidget):
                 self._update_database_sync_state(image_file, 'PERFECT_SYNC')
                 return True
             else:
-                print(f"❌ ExifTool errore: {result.stderr}")
+                logger.error("ExifTool errore: %s", result.stderr)
                 return False
 
         except Exception as e:
-            print(f"❌ Errore scrittura XMP Lightroom: {e}")
+            logger.error("Errore scrittura XMP Lightroom: %s", e, exc_info=True)
             return False
 
     def _update_database_sync_state(self, image_file: Path, new_state: str):
@@ -1868,7 +1868,7 @@ class ExportTab(QWidget):
             db_manager.close()
 
         except Exception as e:
-            print(f"❌ Errore aggiornamento sync_state: {e}")
+            logger.error("Errore aggiornamento sync_state: %s", e, exc_info=True)
 
     def _read_existing_scalar_fields_from_xmp(self, xmp_path: Path) -> dict:
         """Legge Title, Description, Rating e Color Label dal sidecar per evitare sovrascritture."""
@@ -1909,7 +1909,7 @@ class ExportTab(QWidget):
                     result['color_label'] = str(label_raw).strip() if label_raw else ''
 
         except Exception as e:
-            print(f"⚠️ Errore lettura campi scalari da sidecar esistente: {e}")
+            logger.warning("Errore lettura campi scalari da sidecar esistente: %s", e, exc_info=True)
         return result
 
     def _read_existing_keywords_from_xmp(self, xmp_path: Path) -> list:
@@ -1926,7 +1926,7 @@ class ExportTab(QWidget):
                                     **subprocess_creation_kwargs())
             
             if result.returncode != 0:
-                print(f"⚠️ Errore lettura XMP esistente: {result.stderr}")
+                logger.warning("Errore lettura XMP esistente: %s", result.stderr)
                 return []
             
             # Parse JSON output di ExifTool
@@ -1949,7 +1949,7 @@ class ExportTab(QWidget):
             clean_keywords = []
             for keyword in subjects:
                 if '|' in keyword:
-                    print(f"🚫 Scartato keyword malformato: {keyword}")
+                    logger.warning("Scartato keyword malformato: %s", keyword)
                     continue
                 elif keyword.strip():  # Aggiungi solo se non vuoto
                     clean_keywords.append(keyword.strip())
@@ -1957,7 +1957,7 @@ class ExportTab(QWidget):
             return clean_keywords
             
         except Exception as e:
-            print(f"❌ Errore lettura keywords XMP esistenti: {e}")
+            logger.error("Errore lettura keywords XMP esistenti: %s", e, exc_info=True)
             return []
 
     def _copy_photos(self, image_items, options):
@@ -2082,7 +2082,7 @@ class ExportTab(QWidget):
             with open(config_path, 'r', encoding='utf-8') as f:
                 return yaml.safe_load(f)
         except Exception as e:
-            print(f"❌ Errore caricamento config: {e}")
+            logger.error("Errore caricamento config: %s", e, exc_info=True)
             return None
 
     # ------------------------------------------------------------------
@@ -2158,5 +2158,5 @@ class ExportTab(QWidget):
                 return None
                 
         except Exception as e:
-            print(f"Errore import XMP tag unificati: {e}")
+            logger.error("Errore import XMP tag unificati: %s", e, exc_info=True)
             return None

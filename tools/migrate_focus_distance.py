@@ -246,7 +246,7 @@ def run_migration(db_path: Path, apply: bool) -> None:
 
     print(f"  Estratti con successo : {len(updates)}")
     print(f"    - con distanza metrica : {metric_count}")
-    print(f"    - Infinity (∞)         : {infinity_count}")
+    print(f"    - Infinity (inf)       : {infinity_count}")
     print(f"  Senza dato EXIF        : {no_data}")
     if invalid_json:
         print(f"  exif_json non valido   : {invalid_json}")
@@ -260,7 +260,7 @@ def run_migration(db_path: Path, apply: bool) -> None:
     if apply:
         conn.executemany("UPDATE images SET focus_distance = ? WHERE id = ?", updates)
         conn.commit()
-        print(f"  ✓ {len(updates)} righe aggiornate nel database.")
+        print(f"  [OK] {len(updates)} righe aggiornate nel database.")
 
         # Statistiche finali dal DB
         stats = conn.execute(

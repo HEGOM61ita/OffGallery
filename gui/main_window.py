@@ -340,7 +340,7 @@ class MainWindow(QMainWindow):
         if preloaded_models is not None:
             # Modelli già inizializzati dal thread di caricamento (caso normale)
             self.ai_models = preloaded_models
-            print("✅ Modelli AI ricevuti dal loader thread")
+            logger.info("Modelli AI ricevuti dal loader thread")
         else:
             # Fallback: inizializzazione sincrona (avvio diretto senza splash)
             from embedding_generator import EmbeddingGenerator
@@ -348,11 +348,9 @@ class MainWindow(QMainWindow):
             try:
                 self.ai_models['embedding_generator'] = EmbeddingGenerator(self.config)
                 self.ai_models['initialized'] = True
-                print("✅ Modelli AI inizializzati")
+                logger.info("Modelli AI inizializzati")
             except Exception as e:
-                import traceback
-                print(f"⚠️ Modelli AI non inizializzati: {e}")
-                print(traceback.format_exc())
+                logger.warning("Modelli AI non inizializzati: %s", e, exc_info=True)
 
         # Warmup LLM in background: solo se abilitato E modello selezionato in config
         _llm_cfg = (self.config.get('embedding', {})
@@ -381,13 +379,13 @@ class MainWindow(QMainWindow):
                 try:
                     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
                     self.db_manager = DatabaseManager(db_path)
-                    print(f"✅ Database manager inizializzato: {db_path}")
+                    logger.info("Database manager inizializzato: %s", db_path)
                 except Exception as e:
-                    print(f"⚠️ Errore inizializzazione database: {e}")
+                    logger.warning("Errore inizializzazione database: %s", e, exc_info=True)
                     self.db_manager = None
-        
+
         if not self.db_manager:
-            print("⚠️ Database manager non inizializzato - verificare configurazione")
+            logger.warning("Database manager non inizializzato - verificare configurazione")
 
 
         self.init_ui()
@@ -546,7 +544,7 @@ class MainWindow(QMainWindow):
             if hasattr(self.plugins_tab, 'set_database_manager'):
                 self.plugins_tab.set_database_manager(self.db_manager)
         else:
-            print("⚠️ Database manager non disponibile - tab funzioneranno in modalità limitata")
+            logger.warning("Database manager non disponibile - tab funzioneranno in modalita' limitata")
 
         
         # Aggiungi tab con icone più grandi
@@ -933,11 +931,11 @@ class MainWindow(QMainWindow):
                 return True
             else:
                 self.db_manager = None
-                print("⚠️ Percorso database non specificato")
+                logger.warning("Percorso database non specificato")
                 return False
-                
+
         except Exception as e:
-            print(f"❌ Errore aggiornamento database manager: {e}")
+            logger.error("Errore aggiornamento database manager: %s", e, exc_info=True)
             self.db_manager = None
             return False
     
@@ -973,7 +971,7 @@ class MainWindow(QMainWindow):
             return self.update_database_manager()
             
         except Exception as e:
-            print(f"❌ Errore ricarica configurazione: {e}")
+            logger.error("Errore ricarica configurazione: %s", e, exc_info=True)
             return False
     
     def _on_language_changed(self, lang_code: str):
@@ -1017,7 +1015,7 @@ class MainWindow(QMainWindow):
             try:
                 self.db_manager.close()
             except Exception as e:
-                print(f"⚠️ Errore chiusura database: {e}")
+                logger.warning("Errore chiusura database: %s", e, exc_info=True)
         
         # Cleanup log tab
         if hasattr(self, 'log_tab'):

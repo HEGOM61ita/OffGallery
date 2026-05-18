@@ -14,9 +14,9 @@ warnings.filterwarnings('ignore')
 
 def print_header():
     print()
-    print("╔══════════════════════════════════════════════════════════════╗")
-    print("║     OFFGALLERY INSTALLER - STEP 7: VERIFICA FINALE          ║")
-    print("╚══════════════════════════════════════════════════════════════╝")
+    print("=" * 64)
+    print("     OFFGALLERY INSTALLER - STEP 7: VERIFICA FINALE")
+    print("=" * 64)
     print()
 
 def check_python():
@@ -181,7 +181,7 @@ def main():
     all_ok = True
     critical_ok = True
 
-    print("─" * 60)
+    print("-" * 60)
 
     for name, check_func in checks:
         try:
@@ -199,11 +199,11 @@ def main():
             if name in ["Python", "PyTorch", "Transformers", "PyQt6 (UI)"]:
                 critical_ok = False
 
-    print("─" * 60)
+    print("-" * 60)
     print()
 
     # Riepilogo
-    print("═" * 60)
+    print("=" * 60)
     if all_ok:
         print("[OK] INSTALLAZIONE COMPLETA!")
         print()
@@ -221,7 +221,7 @@ def main():
         print("[!!] INSTALLAZIONE INCOMPLETA")
         print()
         print("Componenti critici mancanti. Rivedi gli step precedenti.")
-    print("═" * 60)
+    print("=" * 60)
 
     print()
     input("Premi INVIO per chiudere...")

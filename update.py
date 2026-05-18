@@ -143,7 +143,7 @@ def main():
     print(f"  Aggiornati  : {len(updated)} file")
     print(f"  Non toccati : Models/, database/, logs/, config_new.yaml")
     print()
-    print(f"  Aggiornamento completato! ({local} → {remote})")
+    print(f"  Aggiornamento completato! ({local} -> {remote})")
     print("  Riavvia OffGallery per usare la nuova versione.")
     print()
     input("  Premi INVIO per chiudere.")
