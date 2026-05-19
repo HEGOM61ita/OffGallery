@@ -2777,11 +2777,29 @@ class ProcessingTab(QWidget):
         options_layout.addWidget(self.enable_file_log_cb)
         options_layout.addStretch()
 
+        # Pulsanti comando dentro il box modalità
+        _btn_layout = QHBoxLayout()
+        _btn_layout.setContentsMargins(0, 4, 0, 0)
+        _btn_layout.setSpacing(4)
+        self.start_btn = QPushButton(t("processing.btn.start"))
+        self.start_btn.clicked.connect(self.start_processing)
+        self.start_btn.setStyleSheet("font-weight: bold; background-color: #2e7d32;")
+        _btn_layout.addWidget(self.start_btn)
+        self.pause_btn = QPushButton(t("processing.btn.pause"))
+        self.pause_btn.clicked.connect(self.pause_processing)
+        self.pause_btn.setEnabled(False)
+        _btn_layout.addWidget(self.pause_btn)
+        self.stop_btn = QPushButton(t("processing.btn.stop"))
+        self.stop_btn.clicked.connect(self.stop_processing)
+        self.stop_btn.setEnabled(False)
+        _btn_layout.addWidget(self.stop_btn)
+        options_layout.addLayout(_btn_layout)
+
         options_group.setLayout(options_layout)
         mid_layout.addWidget(options_group, stretch=1)
 
         # --- Modelli AI (griglia unica: embedding + LLM con progress bar per modello) ---
-        models_group = QGroupBox(t("processing.group.gen_ai"))
+        models_group = QWidget()
         models_grid = QGridLayout()
         models_grid.setHorizontalSpacing(4)
         models_grid.setVerticalSpacing(1)
@@ -2836,7 +2854,7 @@ class ProcessingTab(QWidget):
         _exif_name_lay.setContentsMargins(0, 0, 0, 0)
         _exif_name_lay.setSpacing(4)
         _exif_lbl = QLabel("ExifTool")
-        _exif_lbl.setStyleSheet("font-size: 11px; font-weight: bold;")
+        _exif_lbl.setStyleSheet("font-size: 10px;")
         _exif_name_lay.addWidget(_exif_lbl)
         _exif_desc = QLabel(t("processing.check.exiftool"))
         _exif_desc.setStyleSheet("font-size: 9px; color: #7f8c8d;")
@@ -2878,7 +2896,7 @@ class ProcessingTab(QWidget):
             name_lay.setContentsMargins(0, 0, 0, 0)
             name_lay.setSpacing(4)
             lbl = QLabel(label)
-            lbl.setStyleSheet("font-size: 11px; font-weight: bold;")
+            lbl.setStyleSheet("font-size: 10px;")
             name_lay.addWidget(lbl)
             desc_lbl = QLabel(description)
             desc_lbl.setStyleSheet("font-size: 9px; color: #7f8c8d;")
@@ -2940,6 +2958,7 @@ class ProcessingTab(QWidget):
         def _add_llm_row(row, label, tooltip_chk, tooltip_sovr, spin_min, spin_max, spin_val):
             lbl = QLabel(label)
             lbl.setStyleSheet("font-size: 11px;")
+            lbl.setMinimumHeight(26)
             models_grid.addWidget(lbl, row, _COL_NAME)
             chk = QCheckBox()
             chk.setToolTip(tooltip_chk)
@@ -2953,6 +2972,7 @@ class ProcessingTab(QWidget):
             spin.setValue(spin_val)
             spin.setEnabled(False)
             spin.setFixedWidth(50)
+            spin.setMinimumHeight(26)
             models_grid.addWidget(spin, row, _COL_MAX)
             chk.stateChanged.connect(lambda state, s=sovr, sp=spin: (
                 s.setEnabled(state == 2), sp.setEnabled(state == 2)))
@@ -3031,47 +3051,22 @@ class ProcessingTab(QWidget):
 
         layout.addLayout(mid_layout)
 
-        # ===== CONTROLLI =====
-        controls_group = QGroupBox(t("processing.group.controls"))
-        controls_layout = QHBoxLayout()
-        controls_layout.setContentsMargins(6, 2, 6, 2)
-
-        self.start_btn = QPushButton(t("processing.btn.start"))
-        self.start_btn.clicked.connect(self.start_processing)
-        self.start_btn.setStyleSheet("font-weight: bold; background-color: #2e7d32; min-width: 90px;")
-        controls_layout.addWidget(self.start_btn)
-
-        self.pause_btn = QPushButton(t("processing.btn.pause"))
-        self.pause_btn.clicked.connect(self.pause_processing)
-        self.pause_btn.setEnabled(False)
-        self.pause_btn.setStyleSheet("min-width: 90px;")
-        controls_layout.addWidget(self.pause_btn)
-
-        self.stop_btn = QPushButton(t("processing.btn.stop"))
-        self.stop_btn.clicked.connect(self.stop_processing)
-        self.stop_btn.setEnabled(False)
-        self.stop_btn.setStyleSheet("min-width: 90px;")
-        controls_layout.addWidget(self.stop_btn)
-
-        controls_layout.addStretch()
-        controls_group.setLayout(controls_layout)
-        layout.addWidget(controls_group)
 
         # ===== TERMINAL LOG (si espande per riempire lo spazio disponibile) =====
         terminal_group = QGroupBox(t("processing.group.terminal_log"))
         self._terminal_group = terminal_group
         terminal_layout = QVBoxLayout()
-        terminal_layout.setContentsMargins(5, 5, 5, 5)
+        terminal_layout.setContentsMargins(5, 2, 5, 2)
 
         self.log_display = QTextEdit()
-        self.log_display.setMinimumHeight(120)
+        self.log_display.setMinimumHeight(80)
         self.log_display.setFont(QFont("Courier New", 10))
         self.log_display.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.log_display.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.log_display.setStyleSheet("""
             QTextEdit {
                 background-color: #000000; color: #00ff00;
-                border: 2px solid #333333; border-radius: 6px; padding: 6px;
+                border: 2px solid #333333; border-radius: 6px; padding: 3px;
                 font-family: 'Courier New', 'Monaco', monospace; font-size: 10px;
             }
             QScrollBar:vertical { background-color: #1a1a1a; width: 14px;
