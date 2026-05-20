@@ -31,17 +31,17 @@ embedding:
     llm_vision:
       auto_import:
         description:
-          enabled: true
+          enabled: false
           max_words: 100
-          overwrite: true
+          overwrite: false
         tags:
-          enabled: true
+          enabled: false
           max_tags: 10
-          overwrite: true
+          overwrite: false
         title:
-          enabled: true
+          enabled: false
           max_words: 5
-          overwrite: true
+          overwrite: false
       backend: ollama
       description: Genera tag, descrizioni e titoli con LLM Vision
       disk_queue: true
@@ -130,7 +130,7 @@ image_optimization:
       method: high_quality
       quality: 90
       resampling: LANCZOS
-      target_size: 384
+      target_size: 448
       upscale: false
     default:
       description: Default fallback
@@ -253,7 +253,7 @@ models_repository:
   models_dir: Models
 paths:
   database: database/offgallery.sqlite
-  input_dir: ''
+  input_dir: D:\AI\Scripts\Descrittore\INPUT
   log_dir: logs
   temp_cache_dir: temp_cache
 search:
