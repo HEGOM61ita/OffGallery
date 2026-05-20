@@ -199,3 +199,4 @@ B_INSTALLER/state/installer_state.json
 
 # Diario di sviluppo — solo locale, mai in push/pull
 DIARY/
+upload_siglip_to_hf.py

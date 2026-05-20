@@ -292,7 +292,7 @@ Questo step scarica circa **3 GB** di librerie.
 
 ## Versioni Librerie Critiche (Pinned)
 
-OffGallery richiede versioni specifiche di alcune librerie per garantire la compatibilità con il modello CLIP ViT-L/14. Se riscontri problemi con la ricerca semantica (score sempre vicini a zero) o errori di shape mismatch, esegui:
+OffGallery richiede versioni specifiche di alcune librerie per garantire la compatibilità con il modello SigLIP so400m. Se riscontri problemi con la ricerca semantica (score sempre vicini a zero) o errori di shape mismatch, esegui:
 
 ```bash
 conda run -n OffGallery pip install transformers==4.57.3 huggingface-hub==0.36.0 open-clip-torch==3.2.0
@@ -385,7 +385,7 @@ Al **primo avvio**, OffGallery scarica automaticamente i modelli AI necessari:
 
 | Modello | Uso | Dimensione |
 |---------|-----|------------|
-| **CLIP** | Ricerca semantica | ~580 MB |
+| **SigLIP** | Ricerca semantica multilingua | ~1.8 GB |
 | **DINOv2** | Similarità visiva | ~330 MB |
 | **Aesthetic** | Valutazione estetica | ~1.6 GB |
 | **BioCLIP v2 + TreeOfLife** | Classificazione flora/fauna | ~4.2 GB |
