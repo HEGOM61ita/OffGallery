@@ -366,25 +366,25 @@
 
   <div class="credit-grid">
 
-    <!-- CLIP -->
+    <!-- SigLIP -->
     <div class="credit-card">
       <div class="credit-card-header">
         <div class="credit-icon" style="background:#f0f4ff;">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0a5bff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         </div>
         <div>
-          <div class="credit-name">CLIP (ViT-L/14)</div>
-          <div class="credit-author">OpenAI</div>
+          <div class="credit-name">SigLIP (so400m-patch14-384)</div>
+          <div class="credit-author">Google Research</div>
         </div>
       </div>
-      <p class="credit-desc" data-i18n="clip_desc">Modello vision-language per ricerca semantica: converte immagini e testi in vettori comparabili nello stesso spazio di rappresentazione. Usato per la ricerca per descrizione testuale libera.</p>
+      <p class="credit-desc" data-i18n="clip_desc">Modello vision-language per ricerca semantica multilingua: converte immagini e testi in vettori comparabili nello stesso spazio di rappresentazione. Addestrato su WebLI (10B coppie) con loss sigmoid — più accurato di CLIP su query in linguaggio naturale e multilingua nativo.</p>
       <div class="credit-tags">
-        <span class="tag-license">MIT License</span>
+        <span class="tag-license">Apache 2.0</span>
         <span class="tag-use" data-i18n="tag_semantic">Ricerca semantica</span>
       </div>
-      <a class="credit-link" href="https://github.com/openai/CLIP" target="_blank" rel="noopener">
+      <a class="credit-link" href="https://huggingface.co/google/siglip-so400m-patch14-384" target="_blank" rel="noopener">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        github.com/openai/CLIP
+        huggingface.co/google/siglip-so400m-patch14-384
       </a>
     </div>
 
@@ -584,7 +584,7 @@
           <div class="credit-author">Hugging Face</div>
         </div>
       </div>
-      <p class="credit-desc" data-i18n="transformers_desc">Libreria che fornisce accesso ai modelli pre-addestrati (CLIP ViT-L/14, DINOv2). Include tokenizer, processori e API di inferenza standardizzata.</p>
+      <p class="credit-desc" data-i18n="transformers_desc">Libreria che fornisce accesso ai modelli pre-addestrati (SigLIP so400m, DINOv2). Include tokenizer, processori e API di inferenza standardizzata.</p>
       <div class="credit-tags">
         <span class="tag-license">Apache 2.0</span>
         <span class="tag-use" data-i18n="tag_models">Caricamento modelli</span>
@@ -771,7 +771,7 @@
           <div class="credit-author">Argos Open Tech</div>
         </div>
       </div>
-      <p class="credit-desc" data-i18n="argos_desc">Motore di traduzione automatica completamente offline basato su modelli OpenNMT. Usato per tradurre le query di ricerca dall'italiano all'inglese prima della codifica CLIP, migliorando la qualità della ricerca semantica.</p>
+      <p class="credit-desc" data-i18n="argos_desc">Motore di traduzione automatica completamente offline basato su modelli OpenNMT. Usato per tradurre le query di ricerca nella lingua dei tag per il matching testuale (SigLIP è multilingua nativo e non richiede traduzione per la ricerca semantica).</p>
       <div class="credit-tags">
         <span class="tag-license">MIT License</span>
         <span class="tag-use" data-i18n="tag_translate">Traduzione offline</span>
@@ -1077,7 +1077,7 @@ const i18n = {
     sec_libs: "Librerie Python Core",
     sec_meta: "Metadati, Dati Geografici e Traduzione",
     sec_lr: "Integrazione Lightroom / darktable",
-    clip_desc: "Modello vision-language per ricerca semantica: converte immagini e testi in vettori comparabili nello stesso spazio di rappresentazione. Usato per la ricerca per descrizione testuale libera.",
+    clip_desc: "Modello vision-language per ricerca semantica multilingua: converte immagini e testi in vettori comparabili nello stesso spazio di rappresentazione. Addestrato su WebLI (10B coppie) con loss sigmoid — più accurato di CLIP su query in linguaggio naturale e multilingua nativo.",
     dino_desc: "Modello vision foundation per similarità visiva basata su self-supervised learning. Cattura composizione, texture e forma senza supervisionare la semantica. Usato per la ricerca di immagini visivamente simili.",
     bioclip_desc: "Modello CLIP specializzato per il riconoscimento biologico su oltre 450.000 specie del Tree of Life. Produce una gerarchia tassonomica completa (regno, phylum, classe, ordine, famiglia, genere, specie).",
     aesthetic_desc: "Modello di scoring estetico basato su CLIP, addestrato su dataset LAION Aesthetics. Assegna un punteggio 0–10 sulla qualità artistica e compositiva dell'immagine.",
@@ -1085,14 +1085,14 @@ const i18n = {
     pyiqa_desc: "Libreria Python per la valutazione della qualità delle immagini (IQA). Fornisce l'interfaccia per il modello MUSIQ e altri modelli di quality assessment, con supporto GPU.",
     ollama_desc: "Ollama è il runtime locale per modelli LLM. Il modello Qwen-VL (Vision-Language) genera tag descrittivi, titoli e descrizioni testuali analizzando il contenuto visivo delle foto, interamente offline.",
     pytorch_desc: "Framework di deep learning che costituisce il motore di esecuzione di tutti i modelli neurali (CLIP, DINOv2, Aesthetic, BioCLIP). Supporta accelerazione GPU via CUDA.",
-    transformers_desc: "Libreria che fornisce accesso ai modelli pre-addestrati (CLIP ViT-L/14, DINOv2). Include tokenizer, processori e API di inferenza standardizzata.",
+    transformers_desc: "Libreria che fornisce accesso ai modelli pre-addestrati (SigLIP so400m, DINOv2). Include tokenizer, processori e API di inferenza standardizzata.",
     openclip_desc: "Reimplementazione open source di CLIP con supporto a numerose architetture (ViT-L/14 inclusa). Usata da BioCLIP come base architetturale per l'addestramento biologico.",
     pyqt_desc: "Binding Python per il framework Qt6. Fornisce l'intera interfaccia grafica di OffGallery: finestre, pannelli, tab, galleria immagini, dialoghi e tutti i widget interattivi.",
     rawpy_desc: "rawpy è il binding Python per LibRaw, la libreria C++ per la decodifica di oltre 1000 formati RAW (Canon CR2/CR3, Nikon NEF, Sony ARW, ecc.). Permette l'estrazione delle anteprime e dei metadati dai file RAW.",
     pillow_desc: "La Python Imaging Library modernizzata. Usata per aprire, ridimensionare, convertire e ottimizzare immagini per la pipeline AI (pre-processing prima degli embedding).",
     exiftool_desc: "Lo strumento definitivo per la lettura e scrittura di metadati fotografici (EXIF, IPTC, XMP, GPS) su oltre 300 formati. Usato per estrarre tutti i metadati e scrivere i tag AI su file XMP sidecar.",
     geo_desc: "Libreria Python per geocodifica inversa offline: converte coordinate GPS (lat/lon) in nome di città, regione e paese. I dati geografici (oltre 300.000 località) provengono dal dataset GeoNames, bundled nella libreria senza richiesta di rete.",
-    argos_desc: "Motore di traduzione automatica completamente offline basato su modelli OpenNMT. Usato per tradurre le query di ricerca dall'italiano all'inglese prima della codifica CLIP, migliorando la qualità della ricerca semantica.",
+    argos_desc: "Motore di traduzione automatica completamente offline basato su modelli OpenNMT. Usato per tradurre le query di ricerca nella lingua dei tag per il matching testuale (SigLIP è multilingua nativo e non richiede traduzione per la ricerca semantica).",
     conda_desc: "Sistema di gestione degli ambienti Python e dei pacchetti. Usato dall'installer di OffGallery per creare un ambiente isolato e ripetibile con tutte le dipendenze, senza conflitti con altri software Python installati.",
     numpy_desc: "Librerie fondamentali per il calcolo scientifico in Python. NumPy gestisce gli array di embedding float32; SciPy fornisce algoritmi di distanza e clustering usati nella ricerca semantica.",
     sqlite_desc: "Database relazionale embedded, senza server. Tutta la catalogazione di OffGallery (metadati EXIF, embedding vettoriali, tag, score) viene salvata in un singolo file SQLite locale, senza installazione di server di database.",
@@ -1141,7 +1141,7 @@ const i18n = {
     sec_libs: "Core Python Libraries",
     sec_meta: "Metadata, Geographic Data &amp; Translation",
     sec_lr: "Lightroom / darktable Integration",
-    clip_desc: "Vision-language model for semantic search: converts images and text into comparable vectors in the same representation space. Used for free-text description search.",
+    clip_desc: "Multilingual vision-language model for semantic search: converts images and text into comparable vectors in the same representation space. Trained on WebLI (10B pairs) with sigmoid loss — more accurate than CLIP on natural language queries and natively multilingual.",
     dino_desc: "Vision foundation model for self-supervised visual similarity. Captures composition, texture and shape without semantic supervision. Used for visually similar image search.",
     bioclip_desc: "CLIP model specialized for biological recognition across 450,000+ Tree of Life species. Produces a full taxonomic hierarchy (kingdom, phylum, class, order, family, genus, species).",
     aesthetic_desc: "CLIP-based aesthetic scoring model trained on the LAION Aesthetics dataset. Assigns a 0–10 score for artistic and compositional quality.",
@@ -1149,14 +1149,14 @@ const i18n = {
     pyiqa_desc: "Python library for Image Quality Assessment (IQA). Provides the interface for the MUSIQ model and other quality assessment models, with GPU support.",
     ollama_desc: "Ollama is the local LLM runtime. The Qwen-VL (Vision-Language) model generates descriptive tags, titles and textual descriptions by analysing photo content, entirely offline.",
     pytorch_desc: "Deep learning framework that powers all neural model inference (CLIP, DINOv2, Aesthetic, BioCLIP). Supports GPU acceleration via CUDA.",
-    transformers_desc: "Library providing access to pre-trained models (CLIP ViT-L/14, DINOv2). Includes tokenizers, processors and a standardised inference API.",
+    transformers_desc: "Library providing access to pre-trained models (SigLIP so400m, DINOv2). Includes tokenizers, processors and a standardised inference API.",
     openclip_desc: "Open source reimplementation of CLIP supporting many architectures (including ViT-L/14). Used by BioCLIP as the architectural backbone for biological training.",
     pyqt_desc: "Python bindings for the Qt6 framework. Provides the entire OffGallery GUI: windows, panels, tabs, image gallery, dialogs and all interactive widgets.",
     rawpy_desc: "rawpy is the Python binding for LibRaw, the C++ library for decoding 1000+ RAW formats (Canon CR2/CR3, Nikon NEF, Sony ARW, etc.). Enables thumbnail and metadata extraction from RAW files.",
     pillow_desc: "The modernised Python Imaging Library. Used to open, resize, convert and optimise images for the AI pipeline (pre-processing before embedding generation).",
     exiftool_desc: "The definitive tool for reading and writing photographic metadata (EXIF, IPTC, XMP, GPS) across 300+ formats. Used to extract all metadata and write AI tags to XMP sidecar files.",
     geo_desc: "Python library for offline reverse geocoding: converts GPS coordinates (lat/lon) to city, region and country names. Geographic data (300,000+ locations) comes from the GeoNames dataset, bundled in the library — no network request required.",
-    argos_desc: "Fully offline machine translation engine based on OpenNMT models. Used to translate search queries from Italian to English before CLIP encoding, improving semantic search quality.",
+    argos_desc: "Fully offline machine translation engine based on OpenNMT models. Used to translate search queries into the tag language for keyword matching (SigLIP is natively multilingual and requires no translation for semantic search).",
     conda_desc: "Python environment and package manager. Used by the OffGallery installer to create an isolated, reproducible environment with all dependencies, without conflicting with other installed Python software.",
     numpy_desc: "Foundational scientific computing libraries for Python. NumPy manages float32 embedding arrays; SciPy provides distance and clustering algorithms used in semantic search.",
     sqlite_desc: "Embedded, server-less relational database. All OffGallery cataloging (EXIF metadata, vector embeddings, tags, scores) is saved in a single local SQLite file, with no database server required.",
