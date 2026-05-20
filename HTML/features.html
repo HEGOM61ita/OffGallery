@@ -597,10 +597,10 @@
         <div class="feat-grid">
           <div class="feat-card">
             <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
-            <div class="feat-kicker" data-i18n="ai1_kicker">CLIP</div>
-            <h3 data-i18n="ai1_title">Ricerca semantica CLIP</h3>
-            <p data-i18n="ai1_body">Confronta query testuali con il contenuto visivo di ogni immagine. Le query in italiano vengono tradotte offline prima dell'encoding — nessun servizio cloud. Cerca "airone in volo al tramonto" senza tag, senza parole chiave.</p>
-            <span class="feat-tag">openai/clip-vit-large-patch14</span>
+            <div class="feat-kicker" data-i18n="ai1_kicker">SigLIP</div>
+            <h3 data-i18n="ai1_title">Ricerca semantica SigLIP</h3>
+            <p data-i18n="ai1_body">Confronta query testuali con il contenuto visivo di ogni immagine. SigLIP è multilingua nativo: scrivi la query in italiano, inglese o altra lingua senza traduzione — nessun servizio cloud. Cerca "airone in volo al tramonto" senza tag, senza parole chiave.</p>
+            <span class="feat-tag">google/siglip-so400m-patch14-384</span>
           </div>
           <div class="feat-card">
             <div class="feat-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div>
@@ -703,7 +703,7 @@
             <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg></div>
             <div class="feat-kicker" data-i18n="s1_kicker">Ricerca</div>
             <h3 data-i18n="s1_title">Ricerca combinata semantica + tag</h3>
-            <p data-i18n="s1_body">Combina ricerca semantica CLIP con filtro per tag, rating Lightroom, label colore, fotocamera, obiettivo, data e posizione geografica. Tutti i filtri applicabili contemporaneamente.</p>
+            <p data-i18n="s1_body">Combina ricerca semantica SigLIP con filtro per tag, rating Lightroom, label colore, fotocamera, obiettivo, data e posizione geografica. Tutti i filtri applicabili contemporaneamente.</p>
           </div>
           <div class="feat-card">
             <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
@@ -907,14 +907,14 @@
       inst_mac_tag: "Wizard grafico in sviluppo",
       inst_prof_kicker: "Profili di installazione",
       inst_prof_title: "Leggero, Completo o Personalizzato",
-      inst_prof_body: "Il wizard propone tre profili: <strong>Leggero</strong> (~14 GB — CLIP, DINOv2, Aesthetic, BioCLIP, Argos, senza Ollama), <strong>Completo</strong> (~20 GB — tutto + Ollama + qwen3-vl:8b) e <strong>Personalizzato</strong> con checkbox per ogni componente. Rilevamento GPU automatico: NVIDIA CUDA, AMD DirectML o CPU-only.",
+      inst_prof_body: "Il wizard propone tre profili: <strong>Leggero</strong> (~14 GB — SigLIP, DINOv2, Aesthetic, BioCLIP, Argos, senza Ollama), <strong>Completo</strong> (~20 GB — tutto + Ollama + qwen3-vl:8b) e <strong>Personalizzato</strong> con checkbox per ogni componente. Rilevamento GPU automatico: NVIDIA CUDA, AMD DirectML o CPU-only.",
       cta_btn_win: "⬇ OffGallerySetup.exe — Windows",
       cta_btn_linux: "⬇ OffGallerySetup — Linux",
       cta_btn_other: "⬇ macOS — ZIP + script",
       g1_eyebrow: "AI e analisi", g1_title: "Modelli AI locali, orchestrati in un unico sistema.",
       g1_sub: "Tutti i modelli girano in locale. Dopo il primo download non serve più connessione internet.",
-      ai1_kicker: "CLIP", ai1_title: "Ricerca semantica CLIP",
-      ai1_body: "Confronta query testuali con il contenuto visivo di ogni immagine. Le query in italiano vengono tradotte offline prima dell'encoding — nessun servizio cloud. Cerca \"airone in volo al tramonto\" senza tag, senza parole chiave.",
+      ai1_kicker: "SigLIP", ai1_title: "Ricerca semantica SigLIP",
+      ai1_body: "Confronta query testuali con il contenuto visivo di ogni immagine. SigLIP è multilingua nativo: scrivi la query in italiano, inglese o altra lingua senza traduzione — nessun servizio cloud. Cerca \"airone in volo al tramonto\" senza tag, senza parole chiave.",
       ai2_kicker: "DINOv2", ai2_title: "Similarità visiva DINOv2",
       ai2_body: "DINOv2 genera embedding visivi per la ricerca per similarità: trova immagini simili a quella selezionata e rileva near-duplicate nell'archivio.",
       ai3_kicker: "BioCLIP", ai3_title: "Riconoscimento specie BioCLIP",
@@ -942,7 +942,7 @@
       g3_eyebrow: "Ricerca e organizzazione", g3_title: "Trova qualsiasi foto in secondi.",
       g3_sub: "Ricerca semantica, fuzzy matching, similarità visiva. 25+ formati RAW supportati.",
       s1_kicker: "Ricerca", s1_title: "Ricerca combinata semantica + tag",
-      s1_body: "Combina ricerca semantica CLIP con filtro per tag, rating Lightroom, label colore, fotocamera, obiettivo, data e posizione geografica. Tutti i filtri applicabili contemporaneamente.",
+      s1_body: "Combina ricerca semantica SigLIP con filtro per tag, rating Lightroom, label colore, fotocamera, obiettivo, data e posizione geografica. Tutti i filtri applicabili contemporaneamente.",
       s2_title: "Fuzzy matching sui tag",
       s2_body: "La ricerca per tag usa fuzzy matching: trova \"airone\" anche se il tag scritto è \"airone cenerino\". Tolleranza configurabile per gestire varianti linguistiche.",
       s3_title: "Ricerca per similarità visiva",

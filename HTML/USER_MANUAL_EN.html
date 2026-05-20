@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OffGallery — User Manual</title>
-<meta name="description" content="Complete user manual for OffGallery: automatic RAW photo cataloging with semantic analysis, CLIP embeddings, intelligent search, and fully offline workflow.">
+<meta name="description" content="Complete user manual for OffGallery: automatic RAW photo cataloging with semantic analysis, SigLIP embeddings, intelligent search, and fully offline workflow.">
 <meta property="og:title" content="OffGallery — User Manual">
-<meta property="og:description" content="Complete user manual for OffGallery: automatic RAW photo cataloging with semantic analysis, CLIP embeddings, intelligent search, and fully offline workflow.">
+<meta property="og:description" content="Complete user manual for OffGallery: automatic RAW photo cataloging with semantic analysis, SigLIP embeddings, intelligent search, and fully offline workflow.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://offgallery.app/USER_MANUAL_EN.html">
 <link rel="canonical" href="https://offgallery.app/USER_MANUAL_EN.html">
@@ -256,7 +256,7 @@
 <h3>What OffGallery can do</h3>
 <ul>
   <li>Analyse <strong>25+ RAW formats</strong> (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF and more) and standard formats (JPG, PNG, TIFF, WEBP, HEIC)</li>
-  <li>Generate <strong>CLIP semantic embeddings</strong> (768 dimensions) for natural language search</li>
+  <li>Generate <strong>SigLIP semantic embeddings</strong> (1152 dimensions) for multilingual natural language search</li>
   <li>Compute <strong>DINOv2 embeddings</strong> (768 dimensions) for visual similarity search</li>
   <li>Automatically classify flora and fauna with <strong>BioCLIP2</strong> (~450,000 species, 7 taxonomic levels)</li>
   <li>Generate <strong>tags, descriptions and titles</strong> via a local LLM Vision model (e.g. Qwen3-VL via Ollama or LM Studio)</li>
@@ -442,7 +442,7 @@
       <td>Always generate: overwrites the existing title with the LLM output.</td>
     </tr>
     <tr>
-      <td><strong>CLIP/DINOv2 embeddings</strong></td>
+      <td><strong>SigLIP/DINOv2 embeddings</strong></td>
       <td>Skips photos that already have it in the DB.</td>
       <td>Recalculates even if already present.</td>
     </tr>
@@ -604,13 +604,13 @@
 
 <p>The Search tab is the heart of photo discovery. It combines <strong>semantic search</strong> (natural language) with advanced filters on metadata, scores and dates.</p>
 
-<h2 id="search-semantic">5.1 Semantic Search (CLIP)</h2>
+<h2 id="search-semantic">5.1 Semantic Search (SigLIP)</h2>
 
-<p>Semantic search uses CLIP embeddings to find images whose visual content is similar to the concept expressed in the query, regardless of the exact words used.</p>
+<p>Semantic search uses SigLIP embeddings to find images whose visual content is similar to the concept expressed in the query, regardless of the exact words used.</p>
 
 <ol class="steps">
-  <li><p>Type a query in natural language: e.g. <em>"sunset over the sea with boats"</em>.</p></li>
-  <li><p>OffGallery automatically translates the query to English (via offline Argostranslate) and encodes it with the CLIP model.</p></li>
+  <li><p>Type a query in natural language: e.g. <em>"sunset over the sea with boats"</em>. SigLIP is multilingual — you can type in Italian, English or any other language without translation.</p></li>
+  <li><p>OffGallery encodes the query directly with the SigLIP model (google/siglip-so400m-patch14-384).</p></li>
   <li><p>Results are ranked by <strong>cosine similarity</strong> with all embeddings in the database.</p></li>
   <li><p>Adjust the <strong>Threshold</strong> slider to filter low-relevance results (default ~0.20).</p></li>
 </ol>
@@ -774,7 +774,7 @@
     <tr><td><strong>Edit tags</strong></td><td>Opens an inline editor to add/remove tags manually</td></tr>
     <tr><td><strong>Regenerate AI</strong></td><td>Regenerates tags, description and title for this single image</td></tr>
     <tr><td><strong>Export XMP</strong></td><td>Immediately exports the XMP sidecar for this image</td></tr>
-    <tr><td><strong>Run GeoNames</strong></td><td>Updates the geographic hierarchy from GPS for this image (GeoNames plugin)</td></tr>
+    <tr><td><strong>GeoNames →</strong></td><td>GeoNames plugin submenu: <em>Assign location…</em> (opens dialog with name search or direct coordinate entry), <em>Recalculate GPS hierarchy</em>, <em>Clear GPS data</em>. Visible only when the plugin is installed.</td></tr>
     <tr><td><strong>Run NaturArea</strong></td><td>Detects protected area and habitat from the GPS location (NaturArea plugin)</td></tr>
     <tr><td><strong>Run Weather</strong></td><td>Retrieves historical weather conditions at time of capture (Weather plugin — requires internet)</td></tr>
     <tr><td><strong>Run BioNomen</strong></td><td>Adds common biological names in the configured language (BioNomen plugin)</td></tr>
@@ -1348,12 +1348,96 @@ Destination (e.g. E:\Backup):
 
 <h1 id="geotag"><span class="section-number">12</span>Offline Geotagging</h1>
 
-<p>OffGallery reads GPS coordinates from EXIF metadata and converts them to a readable geographic hierarchy using <strong>bundled GeoNames data</strong> (~130,000 cities): no external API, no internet connection needed after installation.</p>
-
-<p>The output format is:</p>
+<p>OffGallery converts GPS coordinates into a readable geographic hierarchy in the format:</p>
 <pre>GeOFF | Europe | Italy | Sardinia | Trinità d'Agultu</pre>
 
-<p>In XMP export it appears as <code>HierarchicalSubject</code> with prefix <code>GeOFF|</code>, visible in Lightroom as a separate hierarchy from user keywords.</p>
+<p>In XMP export it appears as <code>HierarchicalSubject</code> with prefix <code>GeOFF|</code>, visible in Lightroom as a separate hierarchy from user keywords. The leaf node (e.g. <em>Trinità d'Agultu</em>) is automatically added as an image tag.</p>
+
+<h2 id="geotag-engine">12.1 Geolocation engine</h2>
+
+<p>OffGallery includes two alternative engines:</p>
+
+<table>
+  <thead><tr><th>Engine</th><th>Coverage</th><th>Precision</th><th>How to activate</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Built-in</strong> (<code>reverse_geocoder</code>)</td>
+      <td>~130,000 cities worldwide, bundled</td>
+      <td>Municipality/city level — does not recognise hamlets or suburbs</td>
+      <td>Active by default, no configuration needed</td>
+    </tr>
+    <tr>
+      <td><strong>GeoNames plugin</strong></td>
+      <td>Millions of places for downloaded countries: cities, hamlets, suburbs, villages, natural areas</td>
+      <td>High — identifies individual hamlets and suburbs</td>
+      <td>Install the GeoNames plugin and download data for the desired countries</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>When the GeoNames plugin is installed and configured, it <strong>automatically replaces the built-in engine</strong> during batch processing and gallery actions.</p>
+
+<h2 id="geotag-plugin">12.2 GeoNames plugin — setup and usage</h2>
+
+<p>The GeoNames plugin provides precise geographic hierarchies down to hamlet and suburb level, and lets you manually assign GPS coordinates to photos that have none (e.g. scanned slides, archive photos).</p>
+
+<h3>Installation and first run</h3>
+<ol>
+  <li>Open <strong>Config Tab → Plugin → GeoNames</strong>.</li>
+  <li>Select one or more countries from the list and click <strong>Download country</strong>. The download is a one-time operation and requires no subsequent internet connection.</li>
+  <li>The plugin is ready: from the next batch run it will use the local database instead of the built-in engine.</li>
+</ol>
+
+<h3>Batch processing modes</h3>
+
+<table>
+  <thead><tr><th>Mode</th><th>Behaviour</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Geotag: all photos</strong></td><td>Recalculates the hierarchy for all images with existing GPS</td></tr>
+    <tr><td><strong>Geotag: no-GPS photos only</strong></td><td>Assigns the configured default location to images without coordinates</td></tr>
+  </tbody>
+</table>
+
+<h3>Manual location assignment</h3>
+
+<p>For photos without GPS (slides, scans, archive photos) you can assign a location in two ways:</p>
+
+<ul>
+  <li><strong>Direct coordinates</strong>: type decimal latitude and longitude (e.g. <code>41.052340</code>, <code>8.947590</code>). The corresponding hierarchy is calculated in real time and shown as a preview.</li>
+  <li><strong>Search by name</strong>: type the place name in the search field. The database includes hamlets, suburbs and small villages — not just main towns. Double-clicking a result sets the coordinates and preserves the exact hierarchy of the chosen locality (without reverse geocoding, which would return only the municipality).</li>
+</ul>
+
+<p>The confirmed location is saved as the default and pre-filled the next time the dialog is opened.</p>
+
+<h3>Gallery actions</h3>
+
+<p>Select one or more photos in the Gallery and open the context menu (right-click → <strong>GeoNames</strong>):</p>
+
+<table>
+  <thead><tr><th>Action</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Assign location…</strong></td>
+      <td>Opens the dialog to set GPS and hierarchy on selected photos. Supports typing coordinates directly or searching by name. <em>Overwrite</em> checkbox to also act on already-georeferenced photos.</td>
+    </tr>
+    <tr>
+      <td><strong>Recalculate GPS hierarchy</strong></td>
+      <td>Recalculates <code>geo_hierarchy</code> from existing coordinates using the local GeoNames database. Useful after downloading a new country or updating the database.</td>
+    </tr>
+    <tr>
+      <td><strong>Clear GPS data</strong></td>
+      <td>Removes the geographic hierarchy and derived data (weather, protected area, habitat). GPS coordinates are kept in the database.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout note">
+  <span class="icon">ℹ️</span>
+  <div class="body">
+    <strong>Photos with manually assigned location</strong>
+    <p>Photos that have been assigned a location manually (not read from the file's EXIF) can be identified in the search GPS filter with the state <strong>"GPS manually modified"</strong>. Coordinates are written to the OffGallery database only and do not modify the original file.</p>
+  </div>
+</div>
 
 <h1 id="sync-state"><span class="section-number">13</span>XMP Sync State</h1>
 
@@ -1391,7 +1475,7 @@ Destination (e.g. E:\Backup):
 <p>Go to <strong>Configuration → LLM output language</strong> and select "English". Then use "AI Gen. Only" to regenerate tags for all photos already in the database.</p>
 
 <h3>Semantic search is not finding relevant photos</h3>
-<p>CLIP embeddings may have been generated with an incompatible library version. Reprocess photos with "Reprocess all" after verifying library versions. On Windows and Linux reinstall using the wizard (<code>OffGallerySetup.exe</code> or <code>OffGallerySetup</code>); on macOS see <code>installer/INSTALL_GUIDE_EN.md</code> for version requirements.</p>
+<p>SigLIP embeddings may have been generated with an incompatible library version, or the database may contain old CLIP embeddings (768 dimensions) incompatible with SigLIP (1152 dimensions). Reprocess photos with "Reprocess all". On Windows and Linux reinstall using the wizard (<code>OffGallerySetup.exe</code> or <code>OffGallerySetup</code>); on macOS see <code>installer/INSTALL_GUIDE_EN.md</code> for version requirements.</p>
 
 <h3>A RAW file is not being processed</h3>
 <p>Some high-efficiency RAW formats (e.g. NEF with lossless compression) do not contain an extractable JPEG preview. In these cases OffGallery saves EXIF metadata but skips embeddings and LLM. Check the Log tab for details.</p>
@@ -1421,9 +1505,9 @@ Destination (e.g. E:\Backup):
   <thead><tr><th>Issue</th><th>Likely cause</th><th>Solution</th></tr></thead>
   <tbody>
     <tr>
-      <td>CLIP scores always near zero</td>
-      <td>Embeddings generated with wrong version of transformers library</td>
-      <td>Run <code>pip install transformers==4.57.3</code> and reimport photos</td>
+      <td>SigLIP scores always near zero</td>
+      <td>Old CLIP embeddings (768 dim) in the DB, or wrong transformers version</td>
+      <td>Reprocess photos with "Reprocess all" to regenerate SigLIP embeddings (1152 dim)</td>
     </tr>
     <tr>
       <td>Wrong geotagging (incorrect city)</td>
@@ -1539,7 +1623,7 @@ conda env remove -n OffGallery</code></pre>
   <span class="icon">ℹ️</span>
   <div class="body">
     <strong>HuggingFace cache</strong>
-    <p>On first launch, CLIP and DINOv2 models are downloaded from HuggingFace and saved both in <code>Models/</code> (inside the app folder) and in the HF cache. The cache can occupy several GB. To remove it:</p>
+    <p>On first launch, SigLIP and DINOv2 models are downloaded from HuggingFace and saved both in <code>Models/</code> (inside the app folder) and in the HF cache. The cache can occupy several GB. To remove it:</p>
     <ul>
       <li><strong>Linux / macOS:</strong> <code>rm -rf ~/.cache/huggingface/</code></li>
       <li><strong>Windows:</strong> delete the folder <code>%USERPROFILE%\.cache\huggingface\</code> via File Explorer</li>

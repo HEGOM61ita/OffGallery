@@ -39,7 +39,7 @@
 >
 > - **Interfaccia grafica**: seleziona la lingua dal tab Configurazione → Lingua interfaccia
 > - **Contenuti generati da LLM** (tag, descrizioni, titoli): scegli la lingua di output LLM indipendentemente dalla GUI. I tag vengono generati nella lingua configurata e salvati così nel database
-> - **Ricerca semantica CLIP**: funziona sempre in inglese internamente (massima accuratezza), con traduzione automatica della query — trasparente per l'utente
+> - **Ricerca semantica SigLIP**: multilingua nativo (Google SigLIP so400m) — la query viene passata direttamente senza traduzione, in qualsiasi lingua
 > - **Ricerca per tag/keyword**: la query viene automaticamente tradotta nella lingua dei tag (la stessa `llm_output_language`) prima del matching, garantendo risultati corretti anche con tag in francese, tedesco, ecc.
 >
 > Le traduzioni avvengono tramite **Argostranslate** completamente offline. I pacchetti di traduzione vengono scaricati al primo avvio se necessari; un messaggio nel pannello Log informa l'utente sullo stato.
@@ -71,7 +71,7 @@ Sei un fotografo che vuole catalogare migliaia di immagini RAW senza affidarle a
 | **Installazione one-click (Windows e Linux)** | [`OffGallerySetup.exe`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup.exe) (Windows) e [`OffGallerySetup`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup) (Linux) installano tutto in automatico: Miniconda, Python, librerie, modelli AI (~8 GB) e Ollama. Nessun terminale. macOS: script guidato incluso nella cartella `installer/` |
 | **100% Offline** | Nessun dato lascia mai il tuo computer. Tutti i modelli AI girano localmente |
 | **Supporto multilingua** | GUI, output LLM e ricerca tag indipendenti: 6 lingue (IT, EN, FR, DE, ES, PT). Tag e descrizioni nella lingua che preferisci, anche diversa dalla lingua dell'interfaccia |
-| **Potente ricerca Semantica /tags/Exif/+vari** | Cerca con linguaggio naturale e/o combo complesse; traduzione automatica query per CLIP (EN) e per tag (lingua contenuti); salva e richiama ricerche preferite in un click |
+| **Potente ricerca Semantica /tags/Exif/+vari** | Cerca con linguaggio naturale e/o combo complesse; SigLIP multilingua nativo (nessuna traduzione); traduzione automatica query per tag (lingua contenuti); salva e richiama ricerche preferite in un click |
 | **Supporto RAW Nativo** | 25+ formati RAW supportati (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF...) |
 | **Ricerca similarità visiva** | Un semplice click per trovare immagini simili, doppioni, etc. |
 | **Import da catalogo Lightroom** | Elabora direttamente i file indicizzati in un catalogo `.lrcat` come sorgente di input, senza dover specificare cartelle manualmente |
@@ -108,7 +108,7 @@ Tutti i componenti core girano localmente, completamente offline:
 │  └──────────────────────┘  └──────────────────────────────────────┘  │
 │  ┌───────────────────────┐  ┌─────────────────────────────────────┐  │
 │  │  Argos Translate      │  │  GeoNames (Plugin)                  │  │
-│  │  Query CLIP (EN)      │  │  GPS → Continente/Paese/Regione/    │  │
+│  │  Query SigLIP (ML)    │  │  GPS → Continente/Paese/Regione/    │  │
 │  │  + lingua tag offline │  │  Città  (dati GeoNames bundled)     │  │
 │  └───────────────────────┘  └─────────────────────────────────────┘  │
 ├──────────────────────────────────────────────────────────────────────┤
@@ -427,7 +427,7 @@ Vedi **[plugins/PLUGIN_LICENSE_EXCEPTION.md](plugins/PLUGIN_LICENSE_EXCEPTION.md
 > Pagina completa con licenze e descrizioni: **[offgallery.app/credits.html](https://offgallery.app/credits.html)**
 
 **Modelli AI**
-- [OpenAI CLIP (ViT-L/14)](https://github.com/openai/CLIP) — Ricerca semantica · MIT
+- [Google SigLIP (so400m-patch14-384)](https://huggingface.co/google/siglip-so400m-patch14-384) — Ricerca semantica multilingua · Apache 2.0
 - [Meta DINOv2](https://github.com/facebookresearch/dinov2) — Embedding visivi · Apache 2.0
 - [BioCLIP v2](https://github.com/Imageomics/bioclip) — Classificazione flora/fauna · MIT
 - [Aesthetic Predictor V2.5](https://github.com/christophschuhmann/improved-aesthetic-predictor) — Punteggio estetico · Apache 2.0
@@ -501,7 +501,7 @@ Il testo completo di ogni licenza è disponibile nel file [`THIRD_PARTY.md`](THI
 >
 > - **GUI language**: select your language in Configuration → Interface Language
 > - **LLM output language** (tags, descriptions, titles): choose independently from the GUI language. Tags are generated and stored in the configured language
-> - **CLIP semantic search**: always runs in English internally (maximum accuracy) with automatic transparent query translation
+> - **SigLIP semantic search**: multilingual native (Google SigLIP so400m) — query is passed directly without translation, in any language
 > - **Tag/keyword search**: query is automatically translated to the tag language (same as `llm_output_language`) before matching, ensuring correct results even with tags in French, German, etc.
 >
 > All translations use **Argostranslate** — completely offline. Translation packages are downloaded on first use; the Log panel notifies you of their status.
@@ -519,7 +519,7 @@ A photographer's tool to catalog thousands of RAW images without sending them to
 | **One-click installer (Windows & Linux)** | [`OffGallerySetup.exe`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup.exe) (Windows) and [`OffGallerySetup`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup) (Linux) install everything automatically: Miniconda, Python, libraries, AI models (~8 GB) and Ollama. No terminal needed. macOS: guided script included in the `installer/` folder |
 | **100% Offline** | No data ever leaves your computer. All AI models run locally |
 | **Multilingual** | GUI, LLM output and tag search are independent: 6 languages (IT, EN, FR, DE, ES, PT). Tags and descriptions in any language, different from the UI language if you prefer |
-| **Powerful Search** | Natural language semantic search + tag/EXIF/score filters; automatic query translation for CLIP (EN) and tag matching (content language); save and recall favorite searches in one click |
+| **Powerful Search** | Natural language semantic search + tag/EXIF/score filters; SigLIP multilingual native (no translation needed); automatic query translation for tag matching (content language); save and recall favorite searches in one click |
 | **Native RAW Support** | 25+ RAW formats (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF…) |
 | **Visual Similarity** | One click to find similar images or near-duplicates |
 | **Lightroom Catalog Import** | Process files directly from a `.lrcat` catalog — read-only, no catalog modification |
@@ -552,7 +552,7 @@ All core components run locally, completely offline:
 │  └──────────────────────┘  └──────────────────────────────────────┘  │
 │  ┌───────────────────────┐  ┌─────────────────────────────────────┐  │
 │  │  Argos Translate      │  │  GeoNames (Plugin)                  │  │
-│  │  CLIP query (EN)      │  │  GPS → Continent/Country/Region/    │  │
+│  │  SigLIP query (ML)    │  │  GPS → Continent/Country/Region/    │  │
 │  │  + tag lang. offline  │  │  City  (bundled GeoNames data)      │  │
 │  └───────────────────────┘  └─────────────────────────────────────┘  │
 ├──────────────────────────────────────────────────────────────────────┤
@@ -792,7 +792,7 @@ See **[plugins/PLUGIN_LICENSE_EXCEPTION.md](plugins/PLUGIN_LICENSE_EXCEPTION.md)
 > Full page with licenses and descriptions: **[offgallery.app/credits.html](https://offgallery.app/credits.html)**
 
 **AI Models**
-- [OpenAI CLIP (ViT-L/14)](https://github.com/openai/CLIP) — Semantic search · MIT
+- [Google SigLIP (so400m-patch14-384)](https://huggingface.co/google/siglip-so400m-patch14-384) — Multilingual semantic search · Apache 2.0
 - [Meta DINOv2](https://github.com/facebookresearch/dinov2) — Visual embeddings · Apache 2.0
 - [BioCLIP v2](https://github.com/Imageomics/bioclip) — Flora/fauna classification · MIT
 - [Aesthetic Predictor V2.5](https://github.com/christophschuhmann/improved-aesthetic-predictor) — Aesthetic scoring · Apache 2.0

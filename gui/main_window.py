@@ -208,7 +208,7 @@ class AppHeader(QFrame):
         # Indicatori modelli: id → (dot_label, text_label)
         self._model_indicators = {}
         _model_defs = [
-            ('clip',      'CLIP'),
+            ('clip',      'SigLIP'),
             ('dinov2',    'DINOv2'),
             ('bioclip',   'BioCLIP'),
             ('aesthetic', 'Aesthetic'),
@@ -873,7 +873,7 @@ class MainWindow(QMainWindow):
             </p>
             <hr>
             <p style="font-size: 11px;">
-            • Embedding CLIP + DINOv2<br>
+            • Embedding SigLIP + DINOv2<br>
             • BioCLIP flora/fauna (~450k specie)<br>
             • Ricerca semantica e visiva<br>
             • EXIF completi + GPS

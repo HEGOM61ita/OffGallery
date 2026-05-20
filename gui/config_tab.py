@@ -632,7 +632,7 @@ class ConfigTab(QWidget):
 
         # Nomi modelli per la UI
         _model_display = {
-            'clip': 'CLIP',
+            'clip': 'SigLIP',
             'dinov2': 'DINOv2',
             'aesthetic': 'Aesthetic',
             'bioclip': 'BioCLIP',
@@ -1151,7 +1151,7 @@ class ConfigTab(QWidget):
         return group_box
         
     def create_clip_section(self):
-        """Crea sezione configurazione CLIP (MODIFICATO - rimosso checkbox enabled)"""
+        """Crea sezione configurazione SigLIP (MODIFICATO - rimosso checkbox enabled)"""
         group_box = QGroupBox(t("config.group.clip"))
         group_box.setObjectName("CLIPSection")
         
@@ -1602,7 +1602,7 @@ class ConfigTab(QWidget):
         _llm_installed = self._llm_plugin_installed()
         profiles = [
             ("llm_vision", "LLM Vision"),
-            ("clip_embedding", "CLIP"),
+            ("clip_embedding", "SigLIP"),
             ("dinov2_embedding", "DINOv2"),
             ("bioclip_classification", "BioCLIP"),
             ("aesthetic_score", "Aesthetic"),
@@ -2001,8 +2001,8 @@ class ConfigTab(QWidget):
             self.dinov2_model_name.setText('facebook/dinov2-base')
             self.dinov2_similarity_threshold.setValue(0.25)
             
-            # CLIP
-            self.clip_model_name.setText('laion/CLIP-ViT-B-32-laion2B-s34B-b79K')
+            # SigLIP
+            self.clip_model_name.setText('google/siglip-so400m-patch14-384')
 
             # BioCLIP
             self.bioclip_threshold.setValue(0.12)

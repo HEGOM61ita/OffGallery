@@ -772,7 +772,7 @@ class ProcessingWorker(QThread):
 
             # Conteggi per-modello (solo modelli che hanno lavorato)
             model_parts = []
-            if stats['clip']:       model_parts.append(f"CLIP: {stats['clip']}")
+            if stats['clip']:       model_parts.append(f"SigLIP: {stats['clip']}")
             if stats['dinov2']:     model_parts.append(f"DINOv2: {stats['dinov2']}")
             if stats['aesthetic']:  model_parts.append(f"Aesthetic: {stats['aesthetic']}")
             if stats['technical']:  model_parts.append(f"MUSIQ: {stats['technical']}")
@@ -2922,7 +2922,7 @@ class ProcessingTab(QWidget):
             return chk, sovr, pb, lbl
 
         self.pt_clip_check, self.pt_clip_overwrite, self.pt_clip_bar, self.pt_clip_lbl = \
-            _add_emb_row(_cur_row, 'CLIP', t("processing.check.clip")); _cur_row += 1
+            _add_emb_row(_cur_row, 'SigLIP', t("processing.check.clip")); _cur_row += 1
 
         self.pt_dinov2_check, self.pt_dinov2_overwrite, self.pt_dinov2_bar, self.pt_dinov2_lbl = \
             _add_emb_row(_cur_row, 'DINOv2', t("processing.check.dinov2")); _cur_row += 1
@@ -3515,7 +3515,7 @@ class ProcessingTab(QWidget):
             coverage_html = ""
             if coverage and already_processed > 0:
                 parts = []
-                if coverage.get('clip'):        parts.append(f"CLIP: {coverage['clip']}")
+                if coverage.get('clip'):        parts.append(f"SigLIP: {coverage['clip']}")
                 if coverage.get('dinov2'):      parts.append(f"DINOv2: {coverage['dinov2']}")
                 if coverage.get('aesthetic'):   parts.append(f"Aesthetic: {coverage['aesthetic']}")
                 if coverage.get('technical'):   parts.append(f"MUSIQ: {coverage['technical']}")
