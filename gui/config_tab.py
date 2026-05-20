@@ -2030,7 +2030,7 @@ class ConfigTab(QWidget):
             # Image Optimization Profiles (valori ottimali)
             profiles_defaults = {
                 'llm_vision': {'size': 512, 'quality': 85, 'method': 'preview_optimized', 'resampling': 'LANCZOS'},
-                'clip_embedding': {'size': 512, 'quality': 90, 'method': 'high_quality', 'resampling': 'LANCZOS'},
+                'clip_embedding': {'size': 384, 'quality': 90, 'method': 'high_quality', 'resampling': 'LANCZOS'},
                 'dinov2_embedding': {'size': 518, 'quality': 90, 'method': 'high_quality', 'resampling': 'LANCZOS'},
                 'bioclip_classification': {'size': 384, 'quality': 90, 'method': 'high_quality', 'resampling': 'LANCZOS'},
                 'aesthetic_score': {'size': 336, 'quality': 85, 'method': 'preview_optimized', 'resampling': 'BILINEAR'},
