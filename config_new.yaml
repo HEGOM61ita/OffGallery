@@ -77,7 +77,7 @@ export:
     copy_overwrite: false
     copy_preserve_structure: false
     csv: false
-    csv_dir: D:/DOWLOAD/foto
+    csv_dir: ''
     csv_exclude_exif: false
     csv_exclude_gps: false
     dng_allow_embedded: false
@@ -253,7 +253,7 @@ models_repository:
   models_dir: Models
 paths:
   database: database/offgallery.sqlite
-  input_dir: D:\AI\Scripts\Descrittore\INPUT
+  input_dir: ''
   log_dir: logs
   temp_cache_dir: temp_cache
 search:
