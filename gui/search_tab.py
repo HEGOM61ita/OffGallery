@@ -37,13 +37,13 @@ class SearchWorker(QThread):
     """Esegue la ricerca in un thread separato per non bloccare la UI."""
     finished = pyqtSignal(list, int)   # (risultati, totale_candidati)
     error    = pyqtSignal(str)
-    progress = pyqtSignal(int, int)    # (elaborati, totale)
 
-    def __init__(self, retriever, query_text, mode, filters_sql, filter_params,
-                 deep_search, min_threshold, fuzzy, strictness,
-                 include_description, include_title, max_results):
+    def __init__(self, config_path, embedding_gen, query_text, mode,
+                 filters_sql, filter_params, deep_search, min_threshold,
+                 fuzzy, strictness, include_description, include_title, max_results):
         super().__init__()
-        self.retriever        = retriever
+        self.config_path      = config_path
+        self.embedding_gen    = embedding_gen
         self.query_text       = query_text
         self.mode             = mode
         self.filters_sql      = filters_sql
@@ -62,7 +62,17 @@ class SearchWorker(QThread):
 
     def run(self):
         try:
-            results, total = self.retriever.search(
+            import yaml
+            from db_manager_new import DatabaseManager
+            from retrieval import ImageRetrieval
+
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+
+            db_manager = DatabaseManager(config['paths']['database'])
+            retriever = ImageRetrieval(db_manager, self.embedding_gen, config)
+
+            results, total = retriever.search(
                 query_text=self.query_text,
                 mode=self.mode,
                 filters_sql=self.filters_sql,
@@ -527,32 +537,36 @@ class SearchTab(QWidget):
             )
         else:
             self.count_label.setText(t("search.msg.status_filters"))
+        # Raccoglie tutti i parametri dal thread UI prima di avviare il worker
+        filters_sql, params = self._build_sql_filters()
+        mode = "semantic" if self.semantic_radio.isChecked() else "tags"
+        deep_search   = self.deep_search_check.isChecked()
+        threshold_val = self.threshold_spin.value()
+        fuzzy         = self.fuzzy_check.isChecked()
+        strictness    = self.strict_slider.value() / 100.0
+        inc_desc      = self.description_check.isChecked()
+        inc_title     = self.title_search_check.isChecked()
+        max_results   = self.max_results_spin.value()
+        config_path   = self.config_path
+        embedding_gen = self.ai_models['embedding_generator']
+
         self.progress_box.setVisible(True)
         QCoreApplication.processEvents()
 
-        with open(self.config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-
-        from db_manager_new import DatabaseManager
-        db_manager = DatabaseManager(config['paths']['database'])
-        retriever = ImageRetrieval(db_manager, self.ai_models['embedding_generator'], config)
-
-        filters_sql, params = self._build_sql_filters()
-        mode = "semantic" if self.semantic_radio.isChecked() else "tags"
-
         self._search_worker = SearchWorker(
-            retriever=retriever,
+            config_path=config_path,
+            embedding_gen=embedding_gen,
             query_text=query,
             mode=mode,
             filters_sql=filters_sql,
             filter_params=params,
-            deep_search=self.deep_search_check.isChecked(),
-            min_threshold=self.threshold_spin.value(),
-            fuzzy=self.fuzzy_check.isChecked(),
-            strictness=self.strict_slider.value() / 100.0,
-            include_description=self.description_check.isChecked(),
-            include_title=self.title_search_check.isChecked(),
-            max_results=self.max_results_spin.value(),
+            deep_search=deep_search,
+            min_threshold=threshold_val,
+            fuzzy=fuzzy,
+            strictness=strictness,
+            include_description=inc_desc,
+            include_title=inc_title,
+            max_results=max_results,
         )
         self._search_worker.finished.connect(self._on_search_finished)
         self._search_worker.error.connect(self._on_search_error)
