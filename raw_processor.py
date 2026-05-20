@@ -318,7 +318,7 @@ class RAWProcessor:
         final_profiles = {}
         for profile_name, hardcoded_profile in hardcoded_profiles.items():
             config_profile = config_profiles.get(profile_name, {})
-            
+
             # Merge con priorità al config
             merged_profile = hardcoded_profile.copy()
             merged_profile.update(config_profile)
@@ -363,7 +363,7 @@ class RAWProcessor:
                 'aesthetic_score', 'llm_vision', 'ai_processing'
             ]
 
-        max_size = self.ai_target_size  # fallback default
+        max_size = 0
 
         for name in profile_names:
             profile = self.optimization_profiles.get(name)
@@ -372,6 +372,9 @@ class RAWProcessor:
                 if size > max_size:
                     max_size = size
                     logger.debug(f"Max size updated: {name} → {size}px")
+
+        if max_size == 0:
+            max_size = self.ai_target_size  # fallback solo se nessun profilo trovato
 
         logger.info(f"📐 Max target size calculated: {max_size}px from profiles: {profile_names}")
         return max_size
