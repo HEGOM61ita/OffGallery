@@ -55,7 +55,7 @@ def prefetch_dxdiag_vram() -> None:
 
 # Stima VRAM per modello in inference (fp32, GB)
 MODEL_VRAM_ESTIMATES: Dict[str, float] = {
-    'clip':      1.6,   # SigLIP so400m-patch14-384 (400M params, fp16)
+    'clip':      2.0,   # SigLIP so400m-patch14-384 (400M params, fp32 + attivazioni)
     'dinov2':    0.7,   # DINOv2 base
     'aesthetic': 1.7,   # CLIP ViT-L/14 backbone + linear head
     'bioclip':   2.0,   # BioCLIP ViT-L-14 + TreeOfLife embeddings
