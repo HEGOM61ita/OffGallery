@@ -1424,14 +1424,15 @@ class EmbeddingGenerator:
 
     def _generate_clip_embedding(self, image_input, input_type):
         """Genera embedding SigLIP per ricerca semantica.
-        OTTIMIZZATO: Usa profilo 'clip_embedding' per resize alla dimensione ottimale (384x384)."""
+        Il processor SigLIP gestisce internamente resize+center-crop a 384x384:
+        non pre-processare l'immagine per non degradare la qualità."""
         try:
             import torch
             image = self._load_image_from_input(image_input, input_type)
-            image = self._prepare_image_for_model(image, 'clip_embedding')
+            # SigLIP AutoProcessor fa resize+center-crop a 384x384 internamente —
+            # passare l'immagine originale (non pre-ridimensionata) per massima qualità
             inputs = self.clip_processor(images=image, return_tensors="pt").to(self._device_for('clip'))
             with torch.no_grad():
-                # SigLIP: get_image_features() restituisce il pooled output del vision encoder
                 features = self.clip_model.get_image_features(**inputs)
             embedding = features.cpu().numpy()[0]
             normalized = (embedding / np.linalg.norm(embedding)).astype(np.float32)
@@ -1444,16 +1445,16 @@ class EmbeddingGenerator:
     def _generate_clip_embedding_batch(self, images: list) -> list:
         """Genera embedding SigLIP per una lista di PIL Image in una singola forward pass.
         Restituisce lista di np.ndarray float32 normalizzati (None per immagini fallite).
-        images: lista di PIL Image già in RGB (pre-caricati dal thread chiamante)."""
+        images: lista di PIL Image già in RGB (pre-caricati dal thread chiamante).
+        Il processor SigLIP gestisce internamente resize+center-crop a 384x384."""
         if not images:
             return []
         if self._gpu_dead:
             return [None] * len(images)
         try:
             import torch
-            # SigLIP input 384x384: prepara tutte con profilo clip_embedding
-            prepared = [self._prepare_image_for_model(img, 'clip_embedding') for img in images]
-            inputs = self.clip_processor(images=prepared, return_tensors="pt").to(self._device_for('clip'))
+            # Passa le immagini originali — AutoProcessor fa resize+center-crop internamente
+            inputs = self.clip_processor(images=images, return_tensors="pt").to(self._device_for('clip'))
             with torch.no_grad():
                 features = self.clip_model.get_image_features(**inputs)  # (N, 1152)
             embeddings_np = features.cpu().numpy()
