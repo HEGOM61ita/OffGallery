@@ -54,7 +54,7 @@ class ImageRetrieval:
         return "".join(c for c in unicodedata.normalize('NFD', str(text).lower()) if unicodedata.category(c) != 'Mn')
 
     def search(self, query_text, mode="semantic", filters_sql=None, filter_params=None,
-               deep_search=False, signal_callback=None, min_threshold=None, fuzzy=True, strictness=0.4, include_description=True, include_title=True, max_results=None):
+               deep_search=False, signal_callback=None, min_threshold=None, fuzzy=True, strictness=0.4, include_description=True, include_title=True, max_results=None, cancel_flag=None):
         """
         Punto di ingresso della ricerca. 
         Ritorna una tupla: (lista_risultati, numero_candidati_totali_reali)
@@ -151,7 +151,7 @@ class ImageRetrieval:
         
         # 5. DISPATCH PIPELINE
         if mode == "semantic":
-            results = self._semantic_pipeline(query_tag, query_en, candidates, deep_search, signal_callback, threshold, strictness, include_description)
+            results = self._semantic_pipeline(query_tag, query_en, candidates, deep_search, signal_callback, threshold, strictness, include_description, cancel_flag=cancel_flag)
         else:
             results = self._tag_pipeline(query_tag, candidates, fuzzy=fuzzy, include_description=include_description, include_title=include_title)
 
@@ -161,7 +161,7 @@ class ImageRetrieval:
 
         return final_results, total_found_in_db
     
-    def _semantic_pipeline(self, query_tag, query_en, candidates, deep_search, signal_callback, threshold, strictness, include_description):
+    def _semantic_pipeline(self, query_tag, query_en, candidates, deep_search, signal_callback, threshold, strictness, include_description, cancel_flag=None):
         """Pipeline semantica CLIP + deep search testuale.
 
         Separazione netta delle due fasi:
@@ -197,7 +197,10 @@ class ImageRetrieval:
         # FASE 1: deserializzazione batch di tutti gli embedding
         valid_candidates = []
         emb_list = []
-        for img in candidates:
+        for i, img in enumerate(candidates):
+            if cancel_flag is not None and cancel_flag() and i % 500 == 0:
+                logger.info("Ricerca annullata dall'utente durante deserializzazione embedding")
+                return []
             filename = img.get('filename', 'Unknown')
             try:
                 raw_data = img['clip_embedding']

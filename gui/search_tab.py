@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QMessageBox, QInputDialog, QDialog, QListWidget, QDialogButtonBox,
     QListWidgetItem
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QDate, QCoreApplication
+from PyQt6.QtCore import Qt, pyqtSignal, QDate, QCoreApplication, QThread
 
 from utils.paths import get_app_dir, get_database_dir
 
@@ -31,6 +31,56 @@ from gui.directory_dialog import DirectoryTreeWidget
 
 import unicodedata
 import re
+
+
+class SearchWorker(QThread):
+    """Esegue la ricerca in un thread separato per non bloccare la UI."""
+    finished = pyqtSignal(list, int)   # (risultati, totale_candidati)
+    error    = pyqtSignal(str)
+    progress = pyqtSignal(int, int)    # (elaborati, totale)
+
+    def __init__(self, retriever, query_text, mode, filters_sql, filter_params,
+                 deep_search, min_threshold, fuzzy, strictness,
+                 include_description, include_title, max_results):
+        super().__init__()
+        self.retriever        = retriever
+        self.query_text       = query_text
+        self.mode             = mode
+        self.filters_sql      = filters_sql
+        self.filter_params    = filter_params
+        self.deep_search      = deep_search
+        self.min_threshold    = min_threshold
+        self.fuzzy            = fuzzy
+        self.strictness       = strictness
+        self.include_description = include_description
+        self.include_title    = include_title
+        self.max_results      = max_results
+        self._cancelled       = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def run(self):
+        try:
+            results, total = self.retriever.search(
+                query_text=self.query_text,
+                mode=self.mode,
+                filters_sql=self.filters_sql,
+                filter_params=self.filter_params,
+                deep_search=self.deep_search,
+                min_threshold=self.min_threshold,
+                fuzzy=self.fuzzy,
+                strictness=self.strictness,
+                include_description=self.include_description,
+                include_title=self.include_title,
+                max_results=self.max_results,
+                cancel_flag=lambda: self._cancelled,
+            )
+            if not self._cancelled:
+                self.finished.emit(results, total)
+        except Exception as e:
+            import traceback
+            self.error.emit(traceback.format_exc())
 
 def normalize_it(text: str) -> str:
     """Normalizza il testo rimuovendo accenti e convertendo in minuscolo"""
@@ -112,6 +162,7 @@ class SearchTab(QWidget):
         # Controllo ricerca dinamica
         self.search_active = False
         self.search_cancelled = False
+        self._search_worker = None
 
         # Filtri plugin dinamici: field_name → widget (QLineEdit o QComboBox)
         self._plugin_filter_widgets: dict = {}
@@ -457,82 +508,76 @@ class SearchTab(QWidget):
 
     def execute_search(self):
         loading_msg = None
-        try:
-            query = self.search_input.text().strip()
+        query = self.search_input.text().strip()
 
-            self.search_active = True
-            
-            # --- PULIZIA UI ---
-            self.results_label.setText("") 
-            self.progress_box.setVisible(False) 
-            
-            # Mostriamo il pop-up al centro
-            if query:
-                txt = t("search.msg.status_clip") if self.semantic_radio.isChecked() else t("search.msg.status_tag")
-            else:
-                txt = t("search.msg.status_filters")
-            loading_msg = self._show_loading_popup(f"🔍 {txt}")
-            
-            QCoreApplication.processEvents()
-            
-            # --- LOGICA DI CARICAMENTO ---
-            with open(self.config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-            
-            from db_manager_new import DatabaseManager
-            db_manager = DatabaseManager(config['paths']['database'])
+        # Annulla ricerca precedente ancora in corso
+        if self._search_worker and self._search_worker.isRunning():
+            self._search_worker.cancel()
+            self._search_worker.wait(500)
 
-            # Usa i modelli centralizzati
-            retriever = ImageRetrieval(db_manager, self.ai_models['embedding_generator'], config)  
-            
-            filters_sql, params = self._build_sql_filters()
-            mode = "semantic" if self.semantic_radio.isChecked() else "tags"
-            threshold_val = self.threshold_spin.value()
-            use_fuzzy = self.fuzzy_check.isChecked()
-            use_title = self.title_search_check.isChecked()
-            limit_val = self.max_results_spin.value()
+        self.search_active = True
+        self.search_cancelled = False
+        self.results_label.setText("")
 
-            # --- ESECUZIONE (Spacchettamento tupla) ---
-            results, total_candidates = retriever.search(
-                query_text=query,
-                mode=mode,
-                filters_sql=filters_sql,
-                filter_params=params,
-                deep_search=self.deep_search_check.isChecked(),
-                min_threshold=threshold_val,
-                fuzzy=use_fuzzy,
-                strictness=self.strict_slider.value() / 100.0,
-                include_description=self.description_check.isChecked(),
-                include_title=use_title,
-                max_results=limit_val
+        # Mostra progress_box con pulsante Stop
+        if query:
+            self.count_label.setText(
+                t("search.msg.status_clip") if self.semantic_radio.isChecked()
+                else t("search.msg.status_tag")
             )
+        else:
+            self.count_label.setText(t("search.msg.status_filters"))
+        self.progress_box.setVisible(True)
+        QCoreApplication.processEvents()
 
-            # --- FINE ---
-            n_mostrate = len(results) # Quante ne vediamo effettivamente (rispetta il limite)
-            
-            if self.semantic_radio.isChecked() and self.deep_search_check.isChecked():
-                # Calcola quante l'AI ha scartato rispetto a quelle passate dai filtri SQL
-                filtered_out = total_candidates - n_mostrate
-                loading_msg.setText(f"✅ Mostrate {n_mostrate}/{total_candidates} (Smart Filter: -{filtered_out})")
-            else:
-                # Caso standard: mostra quante ne hai chieste sul totale disponibile
-                loading_msg.setText(f"✅ Mostrate {n_mostrate}/{total_candidates} immagini!")
-            
-            QCoreApplication.processEvents()
-            
-            import time
-            time.sleep(0.5) 
-            
-            self.search_executed.emit(results)
-        except Exception as e:
-            import traceback
-            import logging
-            logging.getLogger(__name__).error(f"Errore ricerca: {traceback.format_exc()}")
-            QMessageBox.critical(self, t("search.msg.search_error_title"), t("search.msg.search_error", error=str(e)))
-        finally:
-            if loading_msg:
-                loading_msg.deleteLater()
-            self.search_active = False
+        with open(self.config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+
+        from db_manager_new import DatabaseManager
+        db_manager = DatabaseManager(config['paths']['database'])
+        retriever = ImageRetrieval(db_manager, self.ai_models['embedding_generator'], config)
+
+        filters_sql, params = self._build_sql_filters()
+        mode = "semantic" if self.semantic_radio.isChecked() else "tags"
+
+        self._search_worker = SearchWorker(
+            retriever=retriever,
+            query_text=query,
+            mode=mode,
+            filters_sql=filters_sql,
+            filter_params=params,
+            deep_search=self.deep_search_check.isChecked(),
+            min_threshold=self.threshold_spin.value(),
+            fuzzy=self.fuzzy_check.isChecked(),
+            strictness=self.strict_slider.value() / 100.0,
+            include_description=self.description_check.isChecked(),
+            include_title=self.title_search_check.isChecked(),
+            max_results=self.max_results_spin.value(),
+        )
+        self._search_worker.finished.connect(self._on_search_finished)
+        self._search_worker.error.connect(self._on_search_error)
+        self._search_worker.start()
+
+    def _on_search_finished(self, results, total_candidates):
+        """Chiamato dal SearchWorker quando la ricerca è completata."""
+        self.progress_box.setVisible(False)
+        self.search_active = False
+        if self.search_cancelled:
+            return
+        n = len(results)
+        if self.semantic_radio.isChecked() and self.deep_search_check.isChecked():
+            filtered_out = total_candidates - n
+            self.results_label.setText(f"✅ {n}/{total_candidates} (Smart Filter: -{filtered_out})")
+        else:
+            self.results_label.setText(f"✅ {n}/{total_candidates}")
+        self.search_executed.emit(results)
+
+    def _on_search_error(self, traceback_str):
+        """Chiamato dal SearchWorker in caso di errore."""
+        self.progress_box.setVisible(False)
+        self.search_active = False
+        logger.error(f"Errore ricerca: {traceback_str}")
+        QMessageBox.critical(self, t("search.msg.search_error_title"), traceback_str[:300])
 
     def log_message(self, message, level):
         """Log messaggi (compatibilità con processing_tab)"""
@@ -549,6 +594,8 @@ class SearchTab(QWidget):
         """Interrompe la ricerca in corso"""
         self.search_cancelled = True
         self.search_active = False
+        if self._search_worker and self._search_worker.isRunning():
+            self._search_worker.cancel()
         self.progress_box.setVisible(False)
         self.log_message(t("search.msg.stopped"), "warning")
         
