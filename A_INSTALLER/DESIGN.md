@@ -123,7 +123,7 @@ Permette all'app di avvisare l'utente quando è disponibile un aggiornamento.
 │  ✅ OffGallery Core    v1.0.0    [ Aggiorna ]        │
 │                                                      │
 │  MODELLI AI                                          │
-│  ✅ CLIP               580 MB    ──────────          │
+│  ✅ SigLIP            1800 MB    ──────────          │
 │  ✅ DINOv2             330 MB    ──────────          │
 │  ✅ Aesthetic          1.6 GB    ──────────          │
 │  ✅ BioCLIP            4.2 GB    ──────────          │
@@ -237,7 +237,7 @@ Check eseguiti:
 
 | Modello | Cartella HF | File principali | Dimensione |
 |---|---|---|---|
-| CLIP ViT-L/14 | `clip/` | model.safetensors + tokenizer | ~1.63 GB |
+| SigLIP so400m | `clip/` | model.safetensors + sentencepiece.bpe.model | ~1.80 GB |
 | DINOv2 | `dinov2/` | model.safetensors | ~330 MB |
 | Aesthetic Scorer | `aesthetic/` | model.safetensors + tokenizer | ~1.63 GB |
 | BioCLIP v2 | `bioclip/` | open_clip_model.safetensors | ~1.63 GB |
@@ -278,7 +278,7 @@ CLIP, Aesthetic e BioCLIP usano tutti ViT-L/14 come backbone — stesso peso 163
   "core": { "status": "done", "version": "1.0.0" },
   "packages": { "status": "done", "torch_variant": "cuda118" },
   "models": {
-    "clip":      { "status": "done",        "size_mb": 580  },
+    "clip":      { "status": "done",        "size_mb": 1800 },
     "dinov2":    { "status": "done",        "size_mb": 330  },
     "aesthetic": { "status": "in_progress", "size_mb": 1600 },
     "bioclip":   { "status": "pending",     "size_mb": 4200 },

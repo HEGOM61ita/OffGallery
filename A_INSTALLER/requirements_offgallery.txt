@@ -9,13 +9,14 @@
 torch
 torchvision
 
-# Transformers (HuggingFace) per CLIP, DINOv2, Aesthetic
+# Transformers (HuggingFace) per SigLIP, DINOv2, Aesthetic
 # VERSIONI PINNATE: get_image_features() e get_text_features() hanno comportamenti
-# diversi tra versioni — un mismatch causa score CLIP vicini a zero nella ricerca semantica
+# diversi tra versioni — un mismatch causa score SigLIP vicini a zero nella ricerca semantica
 transformers==4.57.3
 huggingface-hub==0.36.0
 safetensors
 timm
+sentencepiece
 
 # BioCLIP v2 per classificazione flora/fauna
 pybioclip>=1.0

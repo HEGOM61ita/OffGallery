@@ -125,7 +125,7 @@ TOOLTIP_TEXT: dict[str, str] = {
     ),
     "packages": (
         "Librerie Python richieste da OffGallery:\n"
-        "PyTorch, Transformers, OpenCLIP, rawpy, ecc.\n\n"
+        "PyTorch, Transformers, rawpy, ecc.\n\n"
         "Include automaticamente la variante GPU (CUDA) se rilevata, "
         "altrimenti CPU-only. "
         "Si possono reinstallare in qualsiasi momento se qualcosa smette "
@@ -133,10 +133,10 @@ TOOLTIP_TEXT: dict[str, str] = {
     ),
     # MODELLI AI
     "model_clip": (
-        "CLIP ViT-L/14 — Ricerca semantica testuale.  (~1.6 GB)\n\n"
+        "SigLIP so400m (Google) — Ricerca semantica multilingua.  (~1.8 GB)\n\n"
         "Permette di cercare foto con frasi come \"tramonto sulle Dolomiti\" "
-        "o \"rana verde su foglia\". Le query in italiano vengono tradotte "
-        "automaticamente in inglese per ottenere risultati migliori."
+        "o \"rana verde su foglia\". Multilingua nativo: le query in italiano "
+        "vengono elaborate direttamente senza traduzione."
     ),
     "model_dinov2": (
         "DINOv2 (Meta/Facebook) — Similarità visiva.  (~330 MB)\n\n"
@@ -170,9 +170,9 @@ TOOLTIP_TEXT: dict[str, str] = {
     ),
     "model_argos": (
         "Argos Translate IT→EN — Traduttore offline.  (~92 MB)\n\n"
-        "Traduce le query di ricerca dall'italiano all'inglese prima "
-        "di passarle a CLIP, che è stato addestrato principalmente su "
-        "testi inglesi. Migliora sensibilmente la qualità dei risultati."
+        "Traduce le query di ricerca nella lingua dei tag per il matching "
+        "testuale. SigLIP è multilingua nativo e non richiede traduzione "
+        "per la ricerca semantica."
     ),
     # LLM
     "ollama": (

@@ -69,7 +69,7 @@ FLUSSO INSTALLAZIONE (InstallPage, thread secondario)
   FASE 3  Codice           scarica ZIP da GitHub main, estrae (strip prefisso OffGallery-main/)
   FASE 4  Librerie         pip install requirements + PyTorch variante GPU/CPU
   FASE 5  Modelli AI       scarica da HuggingFace HEGOM/OffGallery-models con resume:
-                               CLIP ViT-L/14        ~580 MB
+                               SigLIP so400m       ~1800 MB
                                DINOv2               ~330 MB
                                Aesthetic Scorer    ~1600 MB
                                BioCLIP + TreeOfLife ~4200 MB

@@ -45,21 +45,20 @@ class ModelSpec:
 
 
 # Manifest principale — aggiornare qui quando cambiano i file nel repo HF
-# Struttura verificata il 2026-05-05 su HEGOM/OffGallery-models
+# Struttura verificata il 2026-05-20 su HEGOM/OffGallery-models (SigLIP so400m)
 MODELS: list[ModelSpec] = [
     ModelSpec(
         key="clip",
-        label="CLIP ViT-L/14",
+        label="SigLIP so400m",
         subdir="clip",
         files=[
-            ModelFile(remote_path="clip/config.json",              local_name="config.json",              size_mb=0),
-            ModelFile(remote_path="clip/merges.txt",               local_name="merges.txt",               size_mb=1),
-            ModelFile(remote_path="clip/model.safetensors",        local_name="model.safetensors",        size_mb=1631),
-            ModelFile(remote_path="clip/preprocessor_config.json", local_name="preprocessor_config.json", size_mb=0),
-            ModelFile(remote_path="clip/special_tokens_map.json",  local_name="special_tokens_map.json",  size_mb=0),
-            ModelFile(remote_path="clip/tokenizer_config.json",    local_name="tokenizer_config.json",    size_mb=0),
-            ModelFile(remote_path="clip/tokenizer.json",           local_name="tokenizer.json",           size_mb=4),
-            ModelFile(remote_path="clip/vocab.json",               local_name="vocab.json",               size_mb=1),
+            ModelFile(remote_path="clip/config.json",                  local_name="config.json",                  size_mb=0),
+            ModelFile(remote_path="clip/model.safetensors",            local_name="model.safetensors",            size_mb=1800),
+            ModelFile(remote_path="clip/preprocessor_config.json",     local_name="preprocessor_config.json",     size_mb=0),
+            ModelFile(remote_path="clip/special_tokens_map.json",      local_name="special_tokens_map.json",      size_mb=0),
+            ModelFile(remote_path="clip/tokenizer_config.json",        local_name="tokenizer_config.json",        size_mb=0),
+            ModelFile(remote_path="clip/tokenizer.json",               local_name="tokenizer.json",               size_mb=0),
+            ModelFile(remote_path="clip/sentencepiece.bpe.model",      local_name="sentencepiece.bpe.model",      size_mb=1),
         ],
     ),
     ModelSpec(
