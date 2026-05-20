@@ -231,7 +231,7 @@ class EmbeddingGenerator:
 
         # Profili di default (fallback)
         default_profiles = {
-            'clip_embedding': {'target_size': 224, 'resampling': Image.Resampling.LANCZOS},  # ViT-L/14 input 224x224
+            'clip_embedding': {'target_size': 384, 'resampling': Image.Resampling.LANCZOS},  # SigLIP so400m input 384x384
             'dinov2_embedding': {'target_size': 518, 'resampling': Image.Resampling.LANCZOS},  # DINOv2 input 518x518 (14x37)
             'bioclip_classification': {'target_size': 224, 'resampling': Image.Resampling.LANCZOS},  # ViT-B/16 input 224x224
             'aesthetic_score': {'target_size': 224, 'resampling': Image.Resampling.BILINEAR},  # CLIP-based input 224x224
@@ -565,29 +565,30 @@ class EmbeddingGenerator:
             logger.removeHandler(_handler)
 
     def _init_clip(self):
-        """Inizializza CLIP: prima da models_dir locale, poi repo congelato (hf_hub_download), poi fallback ufficiale (snapshot_download)"""
+        """Inizializza SigLIP (drop-in per CLIP): prima da models_dir locale, poi repo congelato, poi fallback ufficiale.
+        SigLIP usa AutoProcessor/AutoModel — nessun CLIPProcessor/CLIPModel."""
         try:
-            from transformers import CLIPProcessor, CLIPModel
+            from transformers import AutoProcessor, AutoModel
 
             models_dir = self._get_models_dir()
             clip_subfolder = self.config.get('models_repository', {}).get('models', {}).get('clip', 'clip')
             clip_local = models_dir / clip_subfolder
             frozen_repo = self.config.get('models_repository', {}).get('huggingface_repo', '')
-            fallback_model = self.embedding_config.get('models', {}).get('clip', {}).get('model_name', 'laion/CLIP-ViT-B-32-laion2B-s34B-b79K')
+            fallback_model = self.embedding_config.get('models', {}).get('clip', {}).get('model_name', 'google/siglip-so400m-patch14-384')
 
             loaded = False
 
             # 1. Cartella locale (models_dir/clip/)
             if clip_local.exists() and (clip_local / 'config.json').exists():
                 try:
-                    self.clip_model = self._model_to_device(CLIPModel.from_pretrained(str(clip_local)), 'clip')
-                    self.clip_processor = CLIPProcessor.from_pretrained(str(clip_local))
+                    self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
+                    self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
                     loaded = True
-                    logger.info("[OK] CLIP caricato da locale")
+                    logger.info("[OK] SigLIP caricato da locale")
                 except Exception as e:
-                    logger.warning(f"CLIP: cartella locale non valida ({e}), uso repo...")
+                    logger.warning(f"SigLIP: cartella locale non valida ({e}), uso repo...")
 
-            # 2. Repo congelato: copia file per file come BioCLIP (evita save_pretrained)
+            # 2. Repo congelato: copia file per file (evita save_pretrained)
             if not loaded and frozen_repo:
                 try:
                     from huggingface_hub import hf_hub_download
@@ -597,7 +598,7 @@ class EmbeddingGenerator:
                     _clip_files = [
                         'config.json', 'model.safetensors', 'preprocessor_config.json',
                         'special_tokens_map.json', 'tokenizer.json', 'tokenizer_config.json',
-                        'vocab.json', 'merges.txt'
+                        'vocab.json', 'merges.txt', 'sentencepiece.bpe.model'
                     ]
                     for _fname in _clip_files:
                         try:
@@ -611,16 +612,16 @@ class EmbeddingGenerator:
                             pass  # file opzionale o non presente
 
                     if (clip_local / 'config.json').exists() and (clip_local / 'model.safetensors').exists():
-                        self.clip_model = self._model_to_device(CLIPModel.from_pretrained(str(clip_local)), 'clip')
-                        self.clip_processor = CLIPProcessor.from_pretrained(str(clip_local))
+                        self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
+                        self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
                         loaded = True
-                        logger.info("[OK] CLIP caricato da repo")
+                        logger.info("[OK] SigLIP caricato da repo")
                     else:
-                        logger.warning("CLIP: repo congelato incompleto, uso fallback...")
+                        logger.warning("SigLIP: repo congelato incompleto, uso fallback...")
                 except Exception as e:
-                    logger.warning(f"CLIP: repo congelato non disponibile ({e}), uso fallback...")
+                    logger.warning(f"SigLIP: repo congelato non disponibile ({e}), uso fallback...")
 
-            # 3. Fallback repo ufficiale: snapshot_download diretto in Models/clip/ (evita save_pretrained)
+            # 3. Fallback repo ufficiale: snapshot_download diretto in Models/clip/
             if not loaded:
                 try:
                     from huggingface_hub import snapshot_download
@@ -631,39 +632,36 @@ class EmbeddingGenerator:
                         local_dir_use_symlinks=False,
                         ignore_patterns=['*.msgpack', '*.h5', 'rust_model.ot', 'tf_model.h5', 'flax_model.msgpack']
                     )
-                    self.clip_model = self._model_to_device(CLIPModel.from_pretrained(str(clip_local)), 'clip')
-                    self.clip_processor = CLIPProcessor.from_pretrained(str(clip_local))
-                    logger.info(f"[OK] CLIP caricato e salvato (fallback: {fallback_model})")
+                    self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
+                    self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
+                    logger.info(f"[OK] SigLIP caricato e salvato (fallback: {fallback_model})")
                     loaded = True
                 except Exception as fe:
-                    logger.error(f"CLIP: snapshot_download fallito ({fe}), provo from_pretrained in memoria...")
-                    self.clip_model = self._model_to_device(CLIPModel.from_pretrained(fallback_model), 'clip')
-                    self.clip_processor = CLIPProcessor.from_pretrained(fallback_model)
-                    logger.info(f"[OK] CLIP caricato in memoria senza persistenza (fallback: {fallback_model})")
+                    logger.error(f"SigLIP: snapshot_download fallito ({fe}), provo from_pretrained in memoria...")
+                    self.clip_model = self._model_to_device(AutoModel.from_pretrained(fallback_model), 'clip')
+                    self.clip_processor = AutoProcessor.from_pretrained(fallback_model)
+                    logger.info(f"[OK] SigLIP caricato in memoria senza persistenza (fallback: {fallback_model})")
                     loaded = True
 
             self.clip_model.eval()
             self.clip_enabled = True
-            # Log versione transformers per diagnostica compatibilità embedding
             try:
                 import transformers as _tf
-                logger.info(f"CLIP caricato con transformers=={_tf.__version__}")
+                logger.info(f"SigLIP caricato con transformers=={_tf.__version__}")
             except Exception:
                 pass
-            # Log diagnostico: mostra architettura effettiva del modello caricato
+            # Log diagnostico architettura
             try:
                 _vcfg = self.clip_model.vision_model.config
-                _proj  = self.clip_model.visual_projection.weight.shape  # (projection_dim, hidden_size)
                 logger.info(
-                    f"CLIP architettura — hidden_size={_vcfg.hidden_size}, "
-                    f"projection_dim={_proj[0]}, "
+                    f"SigLIP architettura — hidden_size={_vcfg.hidden_size}, "
                     f"patch_size={getattr(_vcfg, 'patch_size', '?')}, "
                     f"num_hidden_layers={getattr(_vcfg, 'num_hidden_layers', '?')}"
                 )
             except Exception:
                 pass
         except Exception as e:
-            logger.error(f"CLIP: {e}", exc_info=True)
+            logger.error(f"SigLIP: {e}", exc_info=True)
             self.clip_enabled = False
 
     def _init_dinov2(self):
@@ -1216,22 +1214,17 @@ class EmbeddingGenerator:
                     return None
                 
                 # Tokenizzazione e generazione embedding con la libreria Transformers
-                inputs = self.clip_processor(text=[input_data], return_tensors="pt", padding=True).to(self._device_for('clip'))
-                
-                with torch.no_grad():
-                    # Path manuale deterministico: bypassa get_text_features() per
-                    # consistenza con il path immagine. Entrambi manuali = zero dipendenza
-                    # dal comportamento specifico della versione transformers installata.
-                    text_out = self.clip_model.text_model(
-                        input_ids=inputs['input_ids'],
-                        attention_mask=inputs.get('attention_mask')
-                    )
-                    text_features = self.clip_model.text_projection(text_out.pooler_output)
+                # SigLIP: padding="max_length" richiesto per batch uniformi
+                inputs = self.clip_processor(text=[input_data], return_tensors="pt", padding="max_length", truncation=True).to(self._device_for('clip'))
 
-                # Normalizziamo come per le immagini (consistenza)
+                with torch.no_grad():
+                    # SigLIP espone get_text_features() che restituisce direttamente
+                    # il pooled output normalizzabile — equivalente a CLIP text_projection
+                    text_features = self.clip_model.get_text_features(**inputs)
+
                 text_emb = text_features.cpu().numpy().flatten()
                 text_emb = (text_emb / np.linalg.norm(text_emb)).astype(np.float32)
-                logger.debug(f"CLIP text embedding: shape={text_emb.shape}, norm={np.linalg.norm(text_emb):.4f}")
+                logger.debug(f"SigLIP text embedding: shape={text_emb.shape}, norm={np.linalg.norm(text_emb):.4f}")
 
                 return {'text_embedding': text_emb}
                 
@@ -1430,34 +1423,26 @@ class EmbeddingGenerator:
             return []
 
     def _generate_clip_embedding(self, image_input, input_type):
-        """Genera embedding CLIP per ricerca semantica.
-        OTTIMIZZATO: Usa profilo 'clip_embedding' per resize alla dimensione ottimale."""
+        """Genera embedding SigLIP per ricerca semantica.
+        OTTIMIZZATO: Usa profilo 'clip_embedding' per resize alla dimensione ottimale (384x384)."""
         try:
             import torch
-            # Carica immagine
             image = self._load_image_from_input(image_input, input_type)
-            # Prepara con profilo ottimizzazione (target_size e resampling da config)
             image = self._prepare_image_for_model(image, 'clip_embedding')
             inputs = self.clip_processor(images=image, return_tensors="pt").to(self._device_for('clip'))
             with torch.no_grad():
-                # Path manuale deterministico: bypassa get_image_features() che cambia
-                # comportamento tra versioni di transformers (causa principale di score
-                # vicini a zero). Usiamo direttamente vision_model → CLS → layernorm → projection.
-                vision_out = self.clip_model.vision_model(pixel_values=inputs['pixel_values'])
-                cls_token = vision_out.last_hidden_state[:, 0, :]  # CLS token raw: (1, hidden_size)
-                if hasattr(self.clip_model.vision_model, 'post_layernorm'):
-                    cls_token = self.clip_model.vision_model.post_layernorm(cls_token)
-                features = self.clip_model.visual_projection(cls_token)
+                # SigLIP: get_image_features() restituisce il pooled output del vision encoder
+                features = self.clip_model.get_image_features(**inputs)
             embedding = features.cpu().numpy()[0]
             normalized = (embedding / np.linalg.norm(embedding)).astype(np.float32)
-            logger.debug(f"CLIP embedding generato: shape={normalized.shape}, norm={np.linalg.norm(normalized):.4f}")
+            logger.debug(f"SigLIP image embedding: shape={normalized.shape}, norm={np.linalg.norm(normalized):.4f}")
             return normalized
         except Exception as e:
-            logger.error(f"CLIP embedding: {e}")
+            logger.error(f"SigLIP embedding: {e}")
             return None
 
     def _generate_clip_embedding_batch(self, images: list) -> list:
-        """Genera embedding CLIP per una lista di PIL Image in una singola forward pass.
+        """Genera embedding SigLIP per una lista di PIL Image in una singola forward pass.
         Restituisce lista di np.ndarray float32 normalizzati (None per immagini fallite).
         images: lista di PIL Image già in RGB (pre-caricati dal thread chiamante)."""
         if not images:
@@ -1466,25 +1451,20 @@ class EmbeddingGenerator:
             return [None] * len(images)
         try:
             import torch
-            # Prepara tutte le immagini con il profilo clip_embedding (resize 224x224)
+            # SigLIP input 384x384: prepara tutte con profilo clip_embedding
             prepared = [self._prepare_image_for_model(img, 'clip_embedding') for img in images]
-            # clip_processor accetta lista di immagini → pixel_values shape (N, 3, 224, 224)
             inputs = self.clip_processor(images=prepared, return_tensors="pt").to(self._device_for('clip'))
             with torch.no_grad():
-                vision_out = self.clip_model.vision_model(pixel_values=inputs['pixel_values'])
-                cls_tokens = vision_out.last_hidden_state[:, 0, :]  # (N, hidden_size)
-                if hasattr(self.clip_model.vision_model, 'post_layernorm'):
-                    cls_tokens = self.clip_model.vision_model.post_layernorm(cls_tokens)
-                features = self.clip_model.visual_projection(cls_tokens)  # (N, 768)
-            embeddings_np = features.cpu().numpy()  # (N, 768)
+                features = self.clip_model.get_image_features(**inputs)  # (N, 1152)
+            embeddings_np = features.cpu().numpy()
             results = []
             for emb in embeddings_np:
                 norm = np.linalg.norm(emb)
                 results.append((emb / norm).astype(np.float32) if norm > 0 else None)
             return results
         except Exception as e:
-            self._mark_gpu_dead('CLIP', e)
-            logger.error(f"CLIP batch embedding: {e}")
+            self._mark_gpu_dead('SigLIP', e)
+            logger.error(f"SigLIP batch embedding: {e}")
             return [None] * len(images)
 
     def _generate_dinov2_embedding(self, image_input, input_type):

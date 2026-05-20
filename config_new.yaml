@@ -14,13 +14,13 @@ embedding:
       disk_queue: false
       enabled: true
       max_tags: 10
-      threshold: 0.05
+      threshold: 0.2
     clip:
-      description: Ricerca semantica (query naturali)
+      description: Ricerca semantica (query naturali) — SigLIP so400m multilingua
       device: gpu
       disk_queue: false
       enabled: true
-      model_name: openai/clip-vit-large-patch14
+      model_name: google/siglip-so400m-patch14-384
     dinov2:
       description: Similarità visiva (composizione, texture, forma)
       device: gpu
@@ -130,7 +130,7 @@ image_optimization:
       method: high_quality
       quality: 90
       resampling: LANCZOS
-      target_size: 512
+      target_size: 384
       upscale: false
     default:
       description: Default fallback
@@ -237,7 +237,7 @@ image_processing:
   - .x3f
   - .psd
 logging:
-  show_debug: false
+  show_debug: true
 models_repository:
   auto_download: true
   download_on_first_run: true

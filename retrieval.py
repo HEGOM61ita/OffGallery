@@ -112,12 +112,12 @@ class ImageRetrieval:
                 logger.error(f"Errore SQL filtri: {e}")
                 return [], 0
         
-        # 2. TRADUZIONE
-        # L'utente scrive nella sua lingua → _translate_to_english converte in EN per CLIP
-        query_en = self.embedding_gen._translate_to_english(query_text)
-        # Per tag/keyword matching: traduce EN → lingua dei contenuti (llm_output_language)
-        query_tag = self.embedding_gen._translate_to_tag_language(query_en)
-        logger.info(f"🔤 Query EN: '{query_en}' | Tag lang: '{query_tag}'")
+        # 2. QUERY LANGUAGE
+        # SigLIP è multilingua: la query viene passata direttamente senza traduzione IT→EN.
+        # Per il matching tag/keyword si usa comunque la lingua dei contenuti (llm_output_language).
+        query_en = query_text  # SigLIP non richiede EN: passata così com'è
+        query_tag = self.embedding_gen._translate_to_tag_language(query_text)
+        logger.info(f"🔤 Query: '{query_text}' | Tag lang: '{query_tag}'")
 
         # 3. SQL FETCH - Prende TUTTE le immagini per ricerca semantica
         # La ricerca CLIP deve confrontare la query con OGNI immagine nel database
@@ -177,8 +177,7 @@ class ImageRetrieval:
         logger = logging.getLogger('root')
         results = []
 
-        # 1. CLIP EMBEDDING — usa query_en (inglese)
-        # CLIP è addestrato su coppie immagine-testo in inglese: la query DEVE essere EN
+        # 1. SigLIP EMBEDDING — multilingua, query passata direttamente
         res_query = self.embedding_gen.generate_embeddings(query_en)
         if not res_query: return []
         query_emb = np.array(res_query.get('text_embedding') if isinstance(res_query, dict) else res_query)
