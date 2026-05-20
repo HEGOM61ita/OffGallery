@@ -55,9 +55,9 @@ def prefetch_dxdiag_vram() -> None:
 
 # Stima VRAM per modello in inference (fp32, GB)
 MODEL_VRAM_ESTIMATES: Dict[str, float] = {
-    'clip':      1.7,   # CLIP ViT-L/14
+    'clip':      1.6,   # SigLIP so400m-patch14-384 (400M params, fp16)
     'dinov2':    0.7,   # DINOv2 base
-    'aesthetic': 1.7,   # CLIP backbone + linear head
+    'aesthetic': 1.7,   # CLIP ViT-L/14 backbone + linear head
     'bioclip':   2.0,   # BioCLIP ViT-L-14 + TreeOfLife embeddings
     'technical': 1.0,   # MUSIQ (pyiqa) — modello 90 MB + attivazioni ViT-H su input 1024px
 }
@@ -65,14 +65,14 @@ MODEL_VRAM_ESTIMATES: Dict[str, float] = {
 # Fattore di accelerazione GPU stimato per ogni modello (rispetto a CPU).
 MODEL_GPU_SPEEDUP: Dict[str, float] = {
     'bioclip':   8.0,   # ~8x più veloce su GPU (inferenza su ~450k specie)
-    'clip':      4.0,   # ~4x più veloce su GPU (embedding per ricerca semantica)
+    'clip':      4.0,   # ~4x più veloce su GPU (SigLIP so400m, input 384x384)
     'aesthetic': 3.0,   # ~3x più veloce su GPU (backbone CLIP)
     'technical': 3.5,   # ~3.5x più veloce su GPU (ma già rapido su CPU: 0.28s/foto)
     'dinov2':    2.5,   # ~2.5x più veloce su GPU (leggero, parallelizza bene su CPU)
 }
 
 # Ordine fisso di allocazione GPU — priorità per impatto sulla qualità/velocità:
-#   1. clip      — cuore della ricerca semantica, deve sempre essere in GPU
+#   1. clip      — SigLIP so400m, cuore della ricerca semantica, deve sempre essere in GPU
 #   2. bioclip   — classificazione specie, lentissimo su CPU (~450k labels)
 #   3. aesthetic — backbone CLIP, beneficio reale su GPU
 #   4. dinov2    — leggero, già rapido su CPU
