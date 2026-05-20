@@ -221,24 +221,47 @@ class SearchTab(QWidget):
         return found
 
     def _show_loading_popup(self, text):
-        """Crea un piccolo pop-up di caricamento al centro."""
-        popup = QLabel(text, self)
-        popup.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        """Crea un pop-up di caricamento al centro con pulsante Stop."""
+        from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout
+        popup = QWidget(self)
         popup.setStyleSheet("""
-            QLabel {
+            QWidget {
                 background-color: #2c3e50;
-                color: #ecf0f1;
                 border: 2px solid #3498db;
                 border-radius: 12px;
-                font-weight: bold;
-                padding: 15px;
             }
         """)
-        popup.setFixedSize(280, 60)
-        # Lo posizioniamo al centro esatto della Tab
-        x = (self.width() - popup.width()) // 2
+        layout = QVBoxLayout(popup)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(8)
+
+        lbl = QLabel(text)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.setStyleSheet("color: #ecf0f1; font-weight: bold; font-size: 13px; background: transparent; border: none;")
+        layout.addWidget(lbl)
+
+        btn_stop = QPushButton("⛔ Stop")
+        btn_stop.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 4px 18px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #c0392b; }
+        """)
+        btn_stop.clicked.connect(self.stop_search)
+        btn_stop.clicked.connect(popup.deleteLater)
+        layout.addWidget(btn_stop, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        popup.setFixedSize(240, 90)
+        popup._label = lbl  # per aggiornare il testo dopo
+        x = (self.width()  - popup.width())  // 2
         y = (self.height() - popup.height()) // 2
         popup.move(x, y)
+        popup.raise_()
         popup.show()
         QCoreApplication.processEvents()
         return popup
@@ -517,7 +540,6 @@ class SearchTab(QWidget):
         return sql_string, params
 
     def execute_search(self):
-        loading_msg = None
         query = self.search_input.text().strip()
 
         # Annulla ricerca precedente ancora in corso
@@ -529,17 +551,9 @@ class SearchTab(QWidget):
         self.search_cancelled = False
         self.results_label.setText("")
 
-        # Mostra progress_box con pulsante Stop
-        if query:
-            self.count_label.setText(
-                t("search.msg.status_clip") if self.semantic_radio.isChecked()
-                else t("search.msg.status_tag")
-            )
-        else:
-            self.count_label.setText(t("search.msg.status_filters"))
-        # Raccoglie tutti i parametri dal thread UI prima di avviare il worker
+        # Raccoglie tutti i parametri dai widget (deve stare sul thread UI)
         filters_sql, params = self._build_sql_filters()
-        mode = "semantic" if self.semantic_radio.isChecked() else "tags"
+        mode          = "semantic" if self.semantic_radio.isChecked() else "tags"
         deep_search   = self.deep_search_check.isChecked()
         threshold_val = self.threshold_spin.value()
         fuzzy         = self.fuzzy_check.isChecked()
@@ -547,15 +561,17 @@ class SearchTab(QWidget):
         inc_desc      = self.description_check.isChecked()
         inc_title     = self.title_search_check.isChecked()
         max_results   = self.max_results_spin.value()
-        config_path   = self.config_path
-        embedding_gen = self.ai_models['embedding_generator']
 
-        self.progress_box.setVisible(True)
-        QCoreApplication.processEvents()
+        # Popup overlay centrato con pulsante Stop — visibile indipendentemente dallo scroll
+        if query:
+            txt = t("search.msg.status_clip") if mode == "semantic" else t("search.msg.status_tag")
+        else:
+            txt = t("search.msg.status_filters")
+        self._loading_popup = self._show_loading_popup(f"🔍 {txt}")
 
         self._search_worker = SearchWorker(
-            config_path=config_path,
-            embedding_gen=embedding_gen,
+            config_path=self.config_path,
+            embedding_gen=self.ai_models['embedding_generator'],
             query_text=query,
             mode=mode,
             filters_sql=filters_sql,
@@ -572,9 +588,19 @@ class SearchTab(QWidget):
         self._search_worker.error.connect(self._on_search_error)
         self._search_worker.start()
 
+    def _close_loading_popup(self):
+        """Chiude il popup di caricamento se presente."""
+        popup = getattr(self, '_loading_popup', None)
+        if popup is not None:
+            try:
+                popup.deleteLater()
+            except Exception:
+                pass
+            self._loading_popup = None
+
     def _on_search_finished(self, results, total_candidates):
         """Chiamato dal SearchWorker quando la ricerca è completata."""
-        self.progress_box.setVisible(False)
+        self._close_loading_popup()
         self.search_active = False
         if self.search_cancelled:
             return
@@ -588,7 +614,7 @@ class SearchTab(QWidget):
 
     def _on_search_error(self, traceback_str):
         """Chiamato dal SearchWorker in caso di errore."""
-        self.progress_box.setVisible(False)
+        self._close_loading_popup()
         self.search_active = False
         logger.error(f"Errore ricerca: {traceback_str}")
         QMessageBox.critical(self, t("search.msg.search_error_title"), traceback_str[:300])
@@ -610,6 +636,7 @@ class SearchTab(QWidget):
         self.search_active = False
         if self._search_worker and self._search_worker.isRunning():
             self._search_worker.cancel()
+        self._close_loading_popup()
         self.progress_box.setVisible(False)
         self.log_message(t("search.msg.stopped"), "warning")
         
