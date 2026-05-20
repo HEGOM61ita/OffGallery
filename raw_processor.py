@@ -250,7 +250,7 @@ class RAWProcessor:
                 'upscale': False
             },
             'clip_embedding': {
-                'target_size': 512,
+                'target_size': 448,
                 'quality': 90,
                 'method': 'high_quality',
                 'resampling': 'LANCZOS',
