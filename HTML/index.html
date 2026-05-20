@@ -870,20 +870,20 @@
             <tr class="comp-group"><th colspan="5">Ricerca e Retrieval</th></tr>
             <tr>
               <td>Ricerca semantica in linguaggio naturale<small>("tramonto sul mare con barca")</small></td>
-              <td><span class="ct-yes">✅</span> CLIP ViT-L/14</td>
-              <td><span class="ct-yes">✅</span> CLIP (ViT-B/32 default)</td>
+              <td><span class="ct-yes">✅</span> <strong>SigLIP so400m</strong> <small>(Google, 400M param, multilingua)</small></td>
+              <td><span class="ct-yes">✅</span> CLIP <small>(ViT-B/32, 151M param — solo EN)</small></td>
               <td><span class="ct-no">❌</span> solo keyword/tag</td>
               <td><span class="ct-part">⚠</span> SmartTags proprietari, no query libera</td>
             </tr>
             <tr>
-              <td>Slider bilanciamento semantica / testo<small>(peso CLIP vs tag/descrizione/titolo — "Deep Search")</small></td>
+              <td>Slider bilanciamento semantica / testo<small>(peso SigLIP vs tag/descrizione/titolo — "Deep Search")</small></td>
               <td><span class="ct-yes">✅</span><span class="ct-excl">★ ESCLUSIVA</span></td>
               <td><span class="ct-no">❌</span></td>
               <td><span class="ct-no">❌</span></td>
               <td><span class="ct-no">❌</span></td>
             </tr>
             <tr>
-              <td>Traduzione automatica query offline<small>(argostranslate locale — CLIP lavora sempre in EN)</small></td>
+              <td>Ricerca semantica multilingua nativa<small>(SigLIP comprende italiano, inglese e altre lingue — nessuna traduzione necessaria)</small></td>
               <td><span class="ct-yes">✅</span></td>
               <td><span class="ct-no">❌</span></td>
               <td><span class="ct-no">❌</span></td>
@@ -1031,7 +1031,7 @@
               <td><span class="ct-no">❌</span></td>
             </tr>
             <tr>
-              <td>Soglie ricerca e similarità configurabili numericamente<small>(threshold CLIP, soglia DINOv2, max risultati, fuzzy matching on/off)</small></td>
+              <td>Soglie ricerca e similarità configurabili numericamente<small>(threshold SigLIP, soglia DINOv2, max risultati, fuzzy matching on/off)</small></td>
               <td><span class="ct-yes">✅</span></td>
               <td><span class="ct-part">⚠</span> solo soglia duplicati</td>
               <td><span class="ct-no">❌</span></td>
