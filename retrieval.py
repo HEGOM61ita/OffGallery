@@ -119,41 +119,82 @@ class ImageRetrieval:
         query_tag = self.embedding_gen._translate_to_tag_language(query_text)
         logger.info(f"🔤 Query: '{query_text}' | Tag lang: '{query_tag}'")
 
-        # 3. SQL FETCH - Prende TUTTE le immagini per ricerca semantica
-        # La ricerca CLIP deve confrontare la query con OGNI immagine nel database
-        plugin_cols = self._plugin_columns()
-        base_sql = f"""
-        SELECT id, filepath, filename, clip_embedding, tags, llm_tags, description, title,
-               camera_make, camera_model, lens_model, focal_length, aperture,
-               iso, shutter_speed, width, height, datetime_original,
-               datetime_digitized, datetime_modified, processed_date,
-               aesthetic_score, technical_score, lr_rating, color_label,
-               bioclip_taxonomy, geo_hierarchy, is_raw{plugin_cols}
-        FROM images
-        WHERE clip_embedding IS NOT NULL
-        """
+        # 3. SQL FETCH — due passaggi per supportare cancel e minimizzare memoria:
+        # Passaggio A: solo id + clip_embedding (blob pesanti, nessun metadato)
+        emb_sql = "SELECT id, clip_embedding FROM images WHERE clip_embedding IS NOT NULL"
         if filters_sql:
-            base_sql += f" AND {filters_sql}"
+            emb_sql += f" AND {filters_sql}"
 
         try:
-            self.db.cursor.execute(base_sql, filter_params or [])
-            columns = [d[0] for d in self.db.cursor.description]
-            candidates = [dict(zip(columns, row)) for row in self.db.cursor.fetchall()]
+            self.db.cursor.execute(emb_sql, filter_params or [])
         except Exception as e:
-            logger.error(f"Errore SQL: {e}")
+            logger.error(f"Errore SQL embedding fetch: {e}")
             return [], 0
 
-        if not candidates:
+        # Deserializzazione in batch con check cancel ogni 500 righe
+        id_list  = []
+        emb_list = []
+        BATCH = 500
+        while True:
+            if cancel_flag is not None and cancel_flag():
+                logger.info("Ricerca annullata durante fetch embedding")
+                return [], 0
+            rows = self.db.cursor.fetchmany(BATCH)
+            if not rows:
+                break
+            for row_id, raw_data in rows:
+                try:
+                    if isinstance(raw_data, bytes):
+                        if len(raw_data) >= 2 and raw_data[0] == 0x80 and raw_data[1] in (2, 3, 4, 5):
+                            import pickle as _pk
+                            emb_raw = _pk.loads(raw_data)
+                            emb = np.array(emb_raw.get('image_embedding') if isinstance(emb_raw, dict) else emb_raw, dtype=np.float32)
+                        elif len(raw_data) >= 4 and len(raw_data) % 4 == 0:
+                            emb = np.frombuffer(raw_data, dtype=np.float32).copy()
+                        else:
+                            continue
+                    else:
+                        emb = np.array(raw_data, dtype=np.float32)
+                    id_list.append(row_id)
+                    emb_list.append(emb)
+                except Exception:
+                    pass
+
+        if not emb_list:
             return [], 0
+
+        logger.info(f"Embedding caricati: {len(emb_list)} su {total_found_in_db} totali")
 
         # 4. LOGICA DI SOGLIA
         threshold = min_threshold if min_threshold is not None else self.default_threshold
-        
+
         # 5. DISPATCH PIPELINE
         if mode == "semantic":
-            results = self._semantic_pipeline(query_tag, query_en, candidates, deep_search, signal_callback, threshold, strictness, include_description, cancel_flag=cancel_flag)
+            results = self._semantic_pipeline(
+                query_tag, query_en, id_list, emb_list,
+                deep_search, signal_callback, threshold, strictness,
+                include_description, cancel_flag=cancel_flag,
+                filters_sql=filters_sql, filter_params=filter_params,
+                plugin_cols=self._plugin_columns()
+            )
         else:
-            results = self._tag_pipeline(query_tag, candidates, fuzzy=fuzzy, include_description=include_description, include_title=include_title)
+            # Tag pipeline: serve il fetch completo con metadati
+            plugin_cols = self._plugin_columns()
+            full_sql = f"""
+            SELECT id, filepath, filename, clip_embedding, tags, llm_tags, description, title,
+                   camera_make, camera_model, lens_model, focal_length, aperture,
+                   iso, shutter_speed, width, height, datetime_original,
+                   datetime_digitized, datetime_modified, processed_date,
+                   aesthetic_score, technical_score, lr_rating, color_label,
+                   bioclip_taxonomy, geo_hierarchy, is_raw{plugin_cols}
+            FROM images WHERE clip_embedding IS NOT NULL
+            """
+            if filters_sql:
+                full_sql += f" AND {filters_sql}"
+            self.db.cursor.execute(full_sql, filter_params or [])
+            cols = [d[0] for d in self.db.cursor.description]
+            tag_candidates = [dict(zip(cols, r)) for r in self.db.cursor.fetchall()]
+            results = self._tag_pipeline(query_tag, tag_candidates, fuzzy=fuzzy, include_description=include_description, include_title=include_title)
 
         # 6. APPLICAZIONE LIMITE FINALE
         # Applichiamo il limite richiesto dall'utente sulla lista finale elaborata
@@ -161,100 +202,104 @@ class ImageRetrieval:
 
         return final_results, total_found_in_db
     
-    def _semantic_pipeline(self, query_tag, query_en, candidates, deep_search, signal_callback, threshold, strictness, include_description, cancel_flag=None):
-        """Pipeline semantica CLIP + deep search testuale.
+    def _semantic_pipeline(self, query_tag, query_en, id_list, emb_list,
+                           deep_search, signal_callback, threshold, strictness,
+                           include_description, cancel_flag=None,
+                           filters_sql=None, filter_params=None, plugin_cols=""):
+        """Pipeline semantica SigLIP + deep search testuale.
 
-        Separazione netta delle due fasi:
-        - query_en  → encoder CLIP (testo in inglese, spazio vettoriale EN)
-        - query_tag → matching testuale deep search (tradotta nella lingua dei tag/llm_output_language)
+        Riceve id_list e emb_list già deserializzati dal fetch leggero.
+        Carica i metadati solo per i candidati che superano la soglia.
         """
-        import numpy as np
-        import json
-        import pickle
-        import logging
         import re
-
+        import logging
         logger = logging.getLogger('root')
         results = []
 
         # 1. SigLIP EMBEDDING — multilingua, query passata direttamente
         res_query = self.embedding_gen.generate_embeddings(query_en)
-        if not res_query: return []
+        if not res_query:
+            return []
         query_emb = np.array(res_query.get('text_embedding') if isinstance(res_query, dict) else res_query)
-
-        # 2. DEEP SEARCH — usa query_tag (lingua dei contenuti/tag nel DB)
-        # I tag e le descrizioni sono nella lingua llm_output_language:
-        # il matching testuale deve operare nella stessa lingua per trovare corrispondenze
-        query_words = [w.strip(",.?!").lower() for w in query_tag.split() if len(w) >= 3]
-        
-        # 3. Calcolo lunghezza matching basata su strictness (CORRETTO)
-        # strictness 0.0 → 4 caratteri, strictness 1.0 → 9 caratteri
-        match_length = max(4, min(9, 4 + int(strictness * 5)))
-        
-        # Dimensione attesa dall'embedding della query (per validazione)
         expected_dim = query_emb.shape[0]
 
-        # FASE 1: deserializzazione batch di tutti gli embedding
-        valid_candidates = []
-        emb_list = []
-        for i, img in enumerate(candidates):
-            if cancel_flag is not None and cancel_flag() and i % 500 == 0:
-                logger.info("Ricerca annullata dall'utente durante deserializzazione embedding")
-                return []
-            filename = img.get('filename', 'Unknown')
-            try:
-                raw_data = img['clip_embedding']
-                if isinstance(raw_data, bytes):
-                    if len(raw_data) >= 2 and raw_data[0] == 0x80 and raw_data[1] in (2, 3, 4, 5):
-                        img_emb_raw = pickle.loads(raw_data)
-                        emb = np.array(img_emb_raw.get('image_embedding') if isinstance(img_emb_raw, dict) else img_emb_raw, dtype=np.float32)
-                    elif len(raw_data) >= 4 and len(raw_data) % 4 == 0:
-                        emb = np.frombuffer(raw_data, dtype=np.float32).copy()
-                    else:
-                        raise ValueError(f"Formato embedding non riconosciuto ({len(raw_data)} bytes)")
-                else:
-                    emb = np.array(raw_data, dtype=np.float32)
+        # Filtra embedding con dimensione incompatibile
+        valid_ids  = []
+        valid_embs = []
+        skipped = 0
+        for img_id, emb in zip(id_list, emb_list):
+            if emb.shape[0] != expected_dim:
+                skipped += 1
+                continue
+            valid_ids.append(img_id)
+            valid_embs.append(emb)
 
-                if emb.shape[0] != expected_dim:
-                    logger.warning(
-                        f"⚠️ {filename}: dimensione embedding ({emb.shape[0]}) != attesa ({expected_dim}). "
-                        f"Rielaborare le foto per rigenerare gli embedding CLIP."
-                    )
-                    continue
-
-                valid_candidates.append(img)
-                emb_list.append(emb)
-            except Exception as e:
-                logger.error(f"Errore deserializzazione {filename}: {str(e)}")
-
-        if not emb_list:
+        if skipped:
+            logger.warning(
+                f"⚠️ {skipped} embedding ignorati (dimensione {emb_list[0].shape[0] if emb_list else '?'} "
+                f"!= attesa {expected_dim}). Rielaborare le foto per rigenerare gli embedding SigLIP."
+            )
+        if not valid_embs:
             return []
 
-        # FASE 2: similarità coseno vettorizzata — una sola operazione per tutte le foto
-        emb_matrix = np.stack(emb_list)                                    # (N, D)
-        query_norm = query_emb / (np.linalg.norm(query_emb) + 1e-8)
-        row_norms = np.linalg.norm(emb_matrix, axis=1, keepdims=True)
-        emb_matrix_norm = emb_matrix / (row_norms + 1e-8)
-        similarities = (emb_matrix_norm @ query_norm).astype(float)        # (N,)
+        if cancel_flag is not None and cancel_flag():
+            return []
 
-        # FASE 3: pre-filtraggio numpy per threshold, poi deep search solo sui candidati validi
-        # Abbassa la soglia di pre-filtro per il deep search (il bonus potrebbe alzare score sotto-soglia)
+        # 2. Similarità coseno vettorizzata — una sola operazione numpy
+        emb_matrix   = np.stack(valid_embs)                         # (N, D)
+        query_norm   = query_emb / (np.linalg.norm(query_emb) + 1e-8)
+        row_norms    = np.linalg.norm(emb_matrix, axis=1, keepdims=True)
+        emb_norm     = emb_matrix / (row_norms + 1e-8)
+        similarities = (emb_norm @ query_norm).astype(float)        # (N,)
+
         pre_threshold = (threshold - 0.40) if deep_search else threshold
         passing_indices = np.where(similarities >= pre_threshold)[0]
-        logger.info(f"Pre-filtro CLIP: {len(passing_indices)} candidati su {len(similarities)}")
+        logger.info(f"Pre-filtro SigLIP: {len(passing_indices)} candidati su {len(similarities)}")
+
+        if cancel_flag is not None and cancel_flag():
+            return []
+
+        if not passing_indices.size:
+            return []
+
+        # 3. Fetch metadati solo per i candidati che superano la soglia
+        passing_ids = [valid_ids[i] for i in passing_indices]
+        placeholders = ",".join("?" * len(passing_ids))
+        meta_sql = f"""
+        SELECT id, filepath, filename, tags, llm_tags, description, title,
+               camera_make, camera_model, lens_model, focal_length, aperture,
+               iso, shutter_speed, width, height, datetime_original,
+               datetime_digitized, datetime_modified, processed_date,
+               aesthetic_score, technical_score, lr_rating, color_label,
+               bioclip_taxonomy, geo_hierarchy, is_raw{plugin_cols}
+        FROM images WHERE id IN ({placeholders})
+        """
+        try:
+            self.db.cursor.execute(meta_sql, passing_ids)
+            cols = [d[0] for d in self.db.cursor.description]
+            meta_by_id = {row[0]: dict(zip(cols, row)) for row in self.db.cursor.fetchall()}
+        except Exception as e:
+            logger.error(f"Errore fetch metadati candidati: {e}")
+            return []
+
+        # 4. Deep search + scoring finale
+        query_words  = [w.strip(",.?!").lower() for w in query_tag.split() if len(w) >= 3]
+        match_length = max(4, min(9, 4 + int(strictness * 5)))
 
         for idx in passing_indices:
-            img = valid_candidates[idx]
+            img_id = valid_ids[idx]
+            img = meta_by_id.get(img_id)
+            if img is None:
+                continue
             visual_score = float(similarities[idx])
-            filename = img.get('filename', 'Unknown')
-            final_score = visual_score
-            debug_info = "Solo CLIP"
+            final_score  = visual_score
+            debug_info   = "Solo SigLIP"
 
             if deep_search and query_words:
-                desc = str(img.get('description', '')).lower() if include_description else ""
-                title = str(img.get('title', '')).lower()
-                tags = str(img.get('tags', '[]')).lower()
-                llm_tags = str(img.get('llm_tags', '[]')).lower()
+                desc      = str(img.get('description', '')).lower() if include_description else ""
+                title     = str(img.get('title', '')).lower()
+                tags      = str(img.get('tags', '[]')).lower()
+                llm_tags  = str(img.get('llm_tags', '[]')).lower()
                 vernacular = str(img.get('vernacular_name', '') or '').lower()
                 full_text = f" {title} {desc} {tags} {llm_tags} {vernacular} ".replace('"', ' ').replace("'", " ").replace(",", " ").replace(".", " ")
 
@@ -262,8 +307,7 @@ class ImageRetrieval:
                 match_details = []
                 for word in query_words:
                     root = word[:min(match_length, len(word))]
-                    pattern = r'\b' + re.escape(root)
-                    if re.search(pattern, full_text):
+                    if re.search(r'\b' + re.escape(root), full_text):
                         matches += 1
                         match_details.append(f"{word}→{root}✓")
                     else:
@@ -273,18 +317,19 @@ class ImageRetrieval:
                 if match_ratio == 1.0:
                     bonus = 0.15 + (0.25 * strictness)
                     final_score = visual_score + bonus
-                    debug_info = f"MATCH COMPLETO (+{bonus:.2f}) [{', '.join(match_details)}]"
+                    debug_info  = f"MATCH COMPLETO (+{bonus:.2f}) [{', '.join(match_details)}]"
                 elif match_ratio >= 0.5:
                     partial_bonus = (0.08 + 0.12 * strictness) * match_ratio
-                    final_score = visual_score + partial_bonus
-                    debug_info = f"MATCH PARZIALE (+{partial_bonus:.2f}) [{', '.join(match_details)}]"
+                    final_score   = visual_score + partial_bonus
+                    debug_info    = f"MATCH PARZIALE (+{partial_bonus:.2f}) [{', '.join(match_details)}]"
                 else:
-                    penalty = 0.05 + (0.15 * strictness)
+                    penalty     = 0.05 + (0.15 * strictness)
                     final_score = visual_score - penalty
-                    debug_info = f"MATCH SCARSO (-{penalty:.2f}) [{', '.join(match_details)}]"
+                    debug_info  = f"MATCH SCARSO (-{penalty:.2f}) [{', '.join(match_details)}]"
 
+            filename = img.get('filename', str(img_id))
             if final_score >= threshold:
-                logger.info(f"[AMMESSO]  FILE: {filename[:25]:<25} | CLIP: {visual_score:.3f} | FINAL: {final_score:.3f} | {debug_info}")
+                logger.info(f"[AMMESSO]  FILE: {filename[:25]:<25} | SigLIP: {visual_score:.3f} | FINAL: {final_score:.3f} | {debug_info}")
                 results.append((final_score, img))
             else:
                 logger.debug(f"[SCARTATO] {filename} score={final_score:.3f}")
