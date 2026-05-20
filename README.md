@@ -50,11 +50,11 @@
 
 | Data | Cosa | Note |
 |------|------|------|
+| 20 mag 2026 | **Ricerca semantica potenziata con SigLIP (Google)** | Sostituisce CLIP con `google/siglip-so400m-patch14-384`: multilingua nativo (cerca in italiano direttamente, senza traduzione), addestrato su 10B coppie immagine-testo, più accurato su query in linguaggio naturale. Embedding 1152 float. |
+| 20 mag 2026 | **Ricerca semantica velocissima e interrompibile** | Completamente non bloccante: la UI resta reattiva durante la ricerca su 22.000+ immagini. Pulsante Stop funzionante. Fetch ottimizzato in due passaggi: embedding separati dai metadati, metadati caricati solo per i risultati che superano la soglia. |
 | 8 mag 2026 | **Installer guidato Windows — [`OffGallerySetup.exe`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup.exe)** | Wizard in 5 schermate: rileva la GPU (NVIDIA/AMD/CPU), installa Miniconda, Python, librerie, modelli AI (~8 GB) e opzionalmente Ollama. Nessun terminale, nessuna configurazione manuale. Crea collegamento sul Desktop. |
 | 8 mag 2026 | **Installer guidato Linux — [`OffGallerySetup`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup)** | Wizard grafico nativo per Linux (Ubuntu, Fedora, Arch e compatibili). `chmod +x OffGallerySetup && ./OffGallerySetup` — installa tutto e crea la voce nel menu applicazioni. Nessun terminale necessario. |
-| 3 mag 2026 | **Plugin Contesto Prompt** | Inietta un blocco CONTEXT personalizzato nel prompt LLM Vision per adattare tag, descrizioni e titoli al dominio fotografico specifico dell'archivio. 8 preset built-in (naturalistico, paesaggio, astrofotografia, macro scientifico, subacqueo, reportage, commerciale, street) + generazione preset personalizzati via LLM locale. Preset selezionabile dal tab Plugin o dal menu contestuale in Gallery |
 | 22 apr 2026 | **Compatibilità Darktable e altri editor** | Supporto completo al workflow Darktable: lettura sidecar `.NEF.xmp` / `.ARW.xmp` (convenzione `nomefile.EXT.xmp`), preservazione namespace proprietari nella creazione di nuovi sidecar, import XMP→DB e sync badge dalla Gallery, opzione **Output format: Lightroom / Darktable** nel tab Export. Compatibile con Lightroom, Darktable, Capture One, digiKam, ACDSee, FastRawViewer |
-| 5 apr 2026 | **Plugin GeoNames** | Geolocalizzazione avanzata: gerarchia geografica completa (continente → nazione → regione → città), filtro Luogo con autocompletamento dal DB, filtro GPS a 4 stati (tutti / solo GPS / GPS modificato / senza GPS) |
 
 Storico completo nelle [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
@@ -98,7 +98,7 @@ Tutti i componenti core girano localmente, completamente offline:
 │                           OFFGALLERY                                 │
 ├──────────────────────────────────────────────────────────────────────┤
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────────┐ │
-│  │   CLIP   │  │  DINOv2  │  │ BioCLIP2 │  │ LLM Vision (Plugin)  │ │
+│  │  SigLIP  │  │  DINOv2  │  │ BioCLIP2 │  │ LLM Vision (Plugin)  │ │
 │  │ Ricerca  │  │Similarità│  │ ~450k    │  │  Ollama · LM Studio  │ │
 │  │Semantica │  │  Visiva  │  │ specie   │  │  tag · desc · titolo │ │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────────────────┘ │
@@ -542,7 +542,7 @@ All core components run locally, completely offline:
 │                           OFFGALLERY                                 │
 ├──────────────────────────────────────────────────────────────────────┤
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────────┐ │
-│  │   CLIP   │  │  DINOv2  │  │ BioCLIP2 │  │ LLM Vision (Plugin)  │ │
+│  │  SigLIP  │  │  DINOv2  │  │ BioCLIP2 │  │ LLM Vision (Plugin)  │ │
 │  │ Semantic │  │  Visual  │  │  ~450k   │  │  Ollama · LM Studio  │ │
 │  │  Search  │  │Similarity│  │  species │  │  tags · desc · title │ │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────────────────┘ │
@@ -675,11 +675,11 @@ The wizard installs everything automatically: Miniconda, Python environment, lib
 
 | Date | What | Notes |
 |------|------|-------|
+| 20 May 2026 | **Semantic search upgraded to SigLIP (Google)** | Replaces CLIP with `google/siglip-so400m-patch14-384`: natively multilingual (search in any language directly, no translation needed), trained on 10B image-text pairs, more accurate on natural language queries. 1152-float embeddings. |
+| 20 May 2026 | **Blazing-fast, interruptible semantic search** | Fully non-blocking: UI stays responsive during search across 22,000+ images. Working Stop button. Optimised two-pass fetch: embeddings loaded separately from metadata, metadata fetched only for results above threshold. |
 | 8 May 2026 | **Guided installer for Windows — [`OffGallerySetup.exe`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup.exe)** | 5-step wizard: detects your GPU (NVIDIA/AMD/CPU), installs Miniconda, Python, libraries, AI models (~8 GB) and optionally Ollama. No terminal, no manual configuration. Creates a Desktop shortcut. |
 | 8 May 2026 | **Guided installer for Linux — [`OffGallerySetup`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup)** | Native graphical wizard for Linux (Ubuntu, Fedora, Arch and compatible distros). `chmod +x OffGallerySetup && ./OffGallerySetup` — installs everything and creates an application menu entry. No terminal needed. |
-| 3 May 2026 | **Prompt Context Plugin** | Injects a custom CONTEXT block into the LLM Vision prompt to tailor tags, descriptions and titles to the archive's specific photographic domain. 8 built-in presets (wildlife, landscape, astrophotography, scientific macro, underwater, reportage, commercial, street) + generate custom presets via local LLM. Preset selectable from the Plugin tab or the Gallery context menu |
 | 22 Apr 2026 | **Darktable & multi-editor compatibility** | Full Darktable workflow support: reads `.NEF.xmp` / `.ARW.xmp` sidecars (Darktable `filename.EXT.xmp` convention), preserves proprietary namespaces when creating new sidecars, XMP→DB import and badge sync from Gallery, **Output format: Lightroom / Darktable** option in Export tab. Compatible with Lightroom, Darktable, Capture One, digiKam, ACDSee, FastRawViewer |
-| 5 Apr 2026 | **GeoNames plugin** | Advanced geolocation: full geographic hierarchy (continent → country → region → city), Location filter with DB autocomplete, GPS filter with 4 states (all / GPS only / GPS modified / no GPS) |
 
 Full history in [**Discussions**](https://github.com/HEGOM61ita/OffGallery/discussions).
 
