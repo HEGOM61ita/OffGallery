@@ -54,7 +54,7 @@ class ImageRetrieval:
         return "".join(c for c in unicodedata.normalize('NFD', str(text).lower()) if unicodedata.category(c) != 'Mn')
 
     def search(self, query_text, mode="semantic", filters_sql=None, filter_params=None,
-               deep_search=False, signal_callback=None, min_threshold=None, fuzzy=True, strictness=0.4, include_description=True, include_title=True, max_results=None, cancel_flag=None):
+               deep_search=False, signal_callback=None, min_threshold=None, fuzzy=True, strictness=0.4, include_description=True, include_title=True, max_results=None, cancel_flag=None, query_emb=None):
         """
         Punto di ingresso della ricerca. 
         Ritorna una tupla: (lista_risultati, numero_candidati_totali_reali)
@@ -175,7 +175,8 @@ class ImageRetrieval:
                 deep_search, signal_callback, threshold, strictness,
                 include_description, cancel_flag=cancel_flag,
                 filters_sql=filters_sql, filter_params=filter_params,
-                plugin_cols=self._plugin_columns()
+                plugin_cols=self._plugin_columns(),
+                precomputed_query_emb=query_emb,
             )
         else:
             # Tag pipeline: serve il fetch completo con metadati
@@ -205,7 +206,8 @@ class ImageRetrieval:
     def _semantic_pipeline(self, query_tag, query_en, id_list, emb_list,
                            deep_search, signal_callback, threshold, strictness,
                            include_description, cancel_flag=None,
-                           filters_sql=None, filter_params=None, plugin_cols=""):
+                           filters_sql=None, filter_params=None, plugin_cols="",
+                           precomputed_query_emb=None):
         """Pipeline semantica SigLIP + deep search testuale.
 
         Riceve id_list e emb_list già deserializzati dal fetch leggero.
@@ -216,11 +218,14 @@ class ImageRetrieval:
         logger = logging.getLogger('root')
         results = []
 
-        # 1. SigLIP EMBEDDING — multilingua, query passata direttamente
-        res_query = self.embedding_gen.generate_embeddings(query_en)
-        if not res_query:
-            return []
-        query_emb = np.array(res_query.get('text_embedding') if isinstance(res_query, dict) else res_query)
+        # 1. SigLIP EMBEDDING — usa quello pre-calcolato sul thread UI se disponibile
+        if precomputed_query_emb is not None:
+            query_emb = np.array(precomputed_query_emb, dtype=np.float32)
+        else:
+            res_query = self.embedding_gen.generate_embeddings(query_en)
+            if not res_query:
+                return []
+            query_emb = np.array(res_query.get('text_embedding') if isinstance(res_query, dict) else res_query)
         expected_dim = query_emb.shape[0]
 
         # Filtra embedding con dimensione incompatibile
@@ -341,7 +346,7 @@ class ImageRetrieval:
         # versione diversa di transformers → spazi non allineati → rielaborare foto
         if results:
             best_score = results[0][0]
-            if best_score < 0.20 and len(candidates) > 5:
+            if best_score < 0.20 and len(valid_embs) > 5:
                 logger.warning(
                     f"⚠️ Score CLIP massimo molto basso ({best_score:.3f}). "
                     f"Gli embedding nel database potrebbero essere incompatibili con il modello attuale. "

@@ -38,13 +38,14 @@ class SearchWorker(QThread):
     finished = pyqtSignal(list, int)   # (risultati, totale_candidati)
     error    = pyqtSignal(str)
 
-    def __init__(self, config_path, embedding_gen, query_text, mode,
+    def __init__(self, config_path, embedding_gen, query_text, query_emb, mode,
                  filters_sql, filter_params, deep_search, min_threshold,
                  fuzzy, strictness, include_description, include_title, max_results):
         super().__init__()
         self.config_path      = config_path
         self.embedding_gen    = embedding_gen
         self.query_text       = query_text
+        self.query_emb        = query_emb  # embedding testuale pre-calcolato sul thread UI
         self.mode             = mode
         self.filters_sql      = filters_sql
         self.filter_params    = filter_params
@@ -74,6 +75,7 @@ class SearchWorker(QThread):
 
             results, total = retriever.search(
                 query_text=self.query_text,
+                query_emb=self.query_emb,
                 mode=self.mode,
                 filters_sql=self.filters_sql,
                 filter_params=self.filter_params,
@@ -569,10 +571,27 @@ class SearchTab(QWidget):
             txt = t("search.msg.status_filters")
         self._loading_popup = self._show_loading_popup(f"🔍 {txt}")
 
+        # Genera l'embedding testuale sul thread UI (modello SigLIP non thread-safe su CUDA)
+        query_emb = None
+        if mode == "semantic" and query:
+            emb_gen = self.ai_models.get('embedding_generator')
+            if emb_gen:
+                try:
+                    res = emb_gen.generate_embeddings(query)
+                    if res and isinstance(res, dict):
+                        query_emb = res.get('text_embedding')
+                except Exception as e:
+                    logger.error(f"Errore generazione embedding query: {e}")
+                    self._close_loading_popup()
+                    QMessageBox.critical(self, t("search.msg.search_error_title"), str(e))
+                    self.search_active = False
+                    return
+
         self._search_worker = SearchWorker(
             config_path=self.config_path,
             embedding_gen=self.ai_models['embedding_generator'],
             query_text=query,
+            query_emb=query_emb,
             mode=mode,
             filters_sql=filters_sql,
             filter_params=params,
