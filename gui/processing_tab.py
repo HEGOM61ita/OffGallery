@@ -2654,10 +2654,76 @@ class ProcessingTab(QWidget):
                     pass
             self._plugin_tmp_files = []
 
+    def _build_sidecar_bar(self) -> 'QWidget':
+        """Barra in cima alle tab: selettore modalità sidecar (Standard / Esteso)."""
+        bar = QWidget()
+        bar.setStyleSheet(
+            "background-color: #1a3a50; border-radius: 5px; padding: 2px 4px;"
+        )
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(10, 5, 10, 5)
+        row.setSpacing(10)
+
+        lbl = QLabel(t("sidecar.mode.label"))
+        lbl.setStyleSheet("color: #87CEEB; font-size: 11px; font-weight: bold; background: transparent;")
+        row.addWidget(lbl)
+
+        self._sidecar_mode_group = QButtonGroup(self)
+        self._sidecar_std_radio = QRadioButton(t("sidecar.mode.standard"))
+        self._sidecar_std_radio.setToolTip(t("sidecar.mode.tooltip.standard"))
+        self._sidecar_std_radio.setStyleSheet("color: #87CEEB; font-size: 11px; background: transparent;")
+        self._sidecar_ext_radio = QRadioButton(t("sidecar.mode.extended"))
+        self._sidecar_ext_radio.setToolTip(t("sidecar.mode.tooltip.extended"))
+        self._sidecar_ext_radio.setStyleSheet("color: #87CEEB; font-size: 11px; background: transparent;")
+        self._sidecar_mode_group.addButton(self._sidecar_std_radio, 0)
+        self._sidecar_mode_group.addButton(self._sidecar_ext_radio, 1)
+
+        # Carica valore da config
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as _f:
+                import yaml as _yaml
+                _cfg = _yaml.safe_load(_f) or {}
+            _naming = _cfg.get('export', {}).get('sidecar_naming', 'standard')
+            if _naming in ('darktable', 'extended'):
+                self._sidecar_ext_radio.setChecked(True)
+            else:
+                self._sidecar_std_radio.setChecked(True)
+        except Exception:
+            self._sidecar_std_radio.setChecked(True)
+
+        self._sidecar_std_radio.toggled.connect(self._on_sidecar_mode_changed)
+        self._sidecar_ext_radio.toggled.connect(self._on_sidecar_mode_changed)
+
+        row.addWidget(self._sidecar_std_radio)
+        row.addWidget(self._sidecar_ext_radio)
+        row.addStretch()
+        return bar
+
+    def _on_sidecar_mode_changed(self):
+        """Salva la modalità sidecar in config quando cambia il radio."""
+        naming = 'extended' if self._sidecar_ext_radio.isChecked() else 'standard'
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as _f:
+                import yaml as _yaml
+                _cfg = _yaml.safe_load(_f) or {}
+            _cfg.setdefault('export', {})['sidecar_naming'] = naming
+            with open(self.config_path, 'w', encoding='utf-8') as _f:
+                import yaml as _yaml2
+                _yaml2.dump(_cfg, _f, allow_unicode=True, default_flow_style=False)
+        except Exception as e:
+            logger.warning(f"Impossibile salvare sidecar_naming in config: {e}")
+
+    def _get_sidecar_style(self) -> str:
+        """Restituisce 'standard' o 'extended' in base al radio attivo."""
+        return 'extended' if self._sidecar_ext_radio.isChecked() else 'standard'
+
     def init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 4, 6, 2)
         layout.setSpacing(2)
+
+        # ===== BARRA MODALITÀ SIDECAR =====
+        layout.addWidget(self._build_sidecar_bar())
 
         path_label_style = """
             QLabel {

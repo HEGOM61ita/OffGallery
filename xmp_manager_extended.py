@@ -41,8 +41,18 @@ class XMPManagerExtended:
     _exiftool_available = False
     _exiftool_cmd: list = ['exiftool']  # Comando risolto in _check_exiftool
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Dict[str, Any] = None, sidecar_style: str = None):
         self.config = config or {}
+        # 'standard' → foto.xmp (compatibile LR, C1, ON1…)
+        # 'extended' → foto.EXT.xmp (compatibile DT, RawTherapee…)
+        # Se non passato esplicitamente, legge da config; default 'standard'.
+        if sidecar_style is not None:
+            self.sidecar_style = sidecar_style
+        else:
+            self.sidecar_style = self.config.get('export', {}).get('sidecar_naming', 'standard')
+            if self.sidecar_style not in ('standard', 'extended'):
+                # retrocompatibilità con i vecchi valori 'lightroom'/'darktable'
+                self.sidecar_style = 'extended' if self.sidecar_style == 'darktable' else 'standard'
         self.exiftool_available = self._check_exiftool()
 
         # Format definitions per gestione format-aware
@@ -361,23 +371,29 @@ class XMPManagerExtended:
         return False
     
     def _resolve_sidecar_path(self, file_path: Path, for_write: bool = False) -> Path:
-        """Risolve il path del sidecar .xmp supportando convenzione Lightroom e Darktable.
-        Lightroom: nomefile.xmp — Darktable: nomefile.EXT.xmp (es. foto.NEF.xmp).
-        In lettura restituisce il sidecar esistente; in scrittura preferisce Lightroom,
-        ma usa il sidecar Darktable se è l'unico presente."""
-        lr_path = file_path.with_suffix('.xmp')
-        dt_path = Path(str(file_path) + '.xmp')
+        """Risolve il path del sidecar .xmp in base a self.sidecar_style.
+        'standard' → foto.xmp  (LR, C1, ON1, ACDSee, FastRawViewer…)
+        'extended' → foto.EXT.xmp  (Darktable, RawTherapee…)
+        Lettura e scrittura usano la stessa modalità: nessuna priorità implicita
+        verso l'altro stile, così i due sidecar restano indipendenti."""
+        std_path = file_path.with_suffix('.xmp')
+        ext_path = Path(str(file_path) + '.xmp')
+
+        if self.sidecar_style == 'extended':
+            primary, secondary = ext_path, std_path
+        else:
+            primary, secondary = std_path, ext_path
+
         if for_write:
-            # Scrivi nel sidecar già esistente; crea Lightroom-style se nessuno esiste
-            if not lr_path.exists() and dt_path.exists():
-                return dt_path
-            return lr_path
-        # Lettura: priorità Lightroom, fallback Darktable
-        for candidate in [lr_path, file_path.with_suffix('.XMP'),
-                          dt_path, Path(str(file_path) + '.XMP')]:
+            # Scrivi sempre nel primary; se non esiste ancora, crealo lì
+            return primary
+        # Lettura: cerca primary (case-insensitive su Windows), mai fallback sull'altro stile
+        primary_upper = primary.with_suffix('.XMP') if primary.suffix == '.xmp' \
+                        else Path(str(primary)[:-4] + '.XMP')
+        for candidate in [primary, primary_upper]:
             if candidate.exists():
                 return candidate
-        return lr_path  # non esiste, restituisce il path canonico
+        return primary  # non esiste ancora, restituisce il path canonico
 
     def read_xmp_sidecar(self, file_path: Path) -> Optional[Dict[str, Any]]:
         """
@@ -1112,7 +1128,7 @@ class XMPManagerExtended:
         try:
             # Determina target via categoria (evita lista raw hardcoded)
             if self._get_file_category(file_path) == 'raw':
-                target = file_path.with_suffix('.xmp')
+                target = self._resolve_sidecar_path(file_path, for_write=False)
                 if not target.exists():
                     return False
             else:
@@ -1169,7 +1185,7 @@ class XMPManagerExtended:
         try:
             # Determina target via categoria
             if self._get_file_category(file_path) == 'raw':
-                target = file_path.with_suffix('.xmp')
+                target = self._resolve_sidecar_path(file_path, for_write=False)
                 if not target.exists():
                     return False
             else:
@@ -1235,7 +1251,7 @@ class XMPManagerExtended:
 
         try:
             if self._get_file_category(file_path) == 'raw':
-                target = file_path.with_suffix('.xmp')
+                target = self._resolve_sidecar_path(file_path, for_write=False)
                 if not target.exists():
                     return False
             else:

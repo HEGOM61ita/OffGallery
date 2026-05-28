@@ -9,7 +9,8 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QScrollArea, QPushButton, QMessageBox,
     QApplication, QProgressDialog, QSizePolicy, QComboBox,
-    QDialog, QFormLayout, QDoubleSpinBox, QSpinBox, QDialogButtonBox, QCheckBox
+    QDialog, QFormLayout, QDoubleSpinBox, QSpinBox, QDialogButtonBox, QCheckBox,
+    QRadioButton, QButtonGroup
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap
@@ -214,8 +215,8 @@ class GalleryTab(QWidget):
         self.selected_items = []
         self.config_path = Path('config_new.yaml')
         self.cards = []
-        # XMP Manager condiviso per tutte le card (AGGIUNGI QUESTA RIGA)
-        self.shared_xmp_manager = XMPManagerExtended() if XMP_SUPPORT_AVAILABLE else None               
+        # XMP Manager condiviso — inizializzato dopo init_ui() che crea i radio
+        self.shared_xmp_manager = None  # verrà creato in init_ui dopo _build_sidecar_bar               
         # Imposta policy resize
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
@@ -253,11 +254,83 @@ class GalleryTab(QWidget):
             # Chiama il metodo di refresh che abbiamo appena aggiornato in gallery_widgets
             card.refresh_xmp_state()
 
+    def _load_sidecar_style(self) -> str:
+        """Legge sidecar_naming da config. Ritorna 'standard' o 'extended'."""
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as _f:
+                _cfg = yaml.safe_load(_f) or {}
+            _v = _cfg.get('export', {}).get('sidecar_naming', 'standard')
+            return 'extended' if _v in ('extended', 'darktable') else 'standard'
+        except Exception:
+            return 'standard'
+
+    def _build_sidecar_bar(self) -> QWidget:
+        """Barra in cima alla gallery: selettore modalità sidecar."""
+        bar = QWidget()
+        bar.setStyleSheet(
+            f"background-color: #1a3a50; border-radius: 0px; padding: 0px;"
+        )
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(12, 5, 12, 5)
+        row.setSpacing(10)
+
+        lbl = QLabel(t("sidecar.mode.label"))
+        lbl.setStyleSheet("color: #87CEEB; font-size: 11px; font-weight: bold; background: transparent;")
+        row.addWidget(lbl)
+
+        self._sidecar_mode_group = QButtonGroup(self)
+        self._sidecar_std_radio = QRadioButton(t("sidecar.mode.standard"))
+        self._sidecar_std_radio.setToolTip(t("sidecar.mode.tooltip.standard"))
+        self._sidecar_std_radio.setStyleSheet("color: #87CEEB; font-size: 11px; background: transparent;")
+        self._sidecar_ext_radio = QRadioButton(t("sidecar.mode.extended"))
+        self._sidecar_ext_radio.setToolTip(t("sidecar.mode.tooltip.extended"))
+        self._sidecar_ext_radio.setStyleSheet("color: #87CEEB; font-size: 11px; background: transparent;")
+        self._sidecar_mode_group.addButton(self._sidecar_std_radio, 0)
+        self._sidecar_mode_group.addButton(self._sidecar_ext_radio, 1)
+
+        if self._load_sidecar_style() == 'extended':
+            self._sidecar_ext_radio.setChecked(True)
+        else:
+            self._sidecar_std_radio.setChecked(True)
+
+        self._sidecar_std_radio.toggled.connect(self._on_sidecar_mode_changed)
+        self._sidecar_ext_radio.toggled.connect(self._on_sidecar_mode_changed)
+
+        row.addWidget(self._sidecar_std_radio)
+        row.addWidget(self._sidecar_ext_radio)
+        row.addStretch()
+        return bar
+
+    def _on_sidecar_mode_changed(self):
+        """Salva la modalità sidecar in config e ricrea shared_xmp_manager."""
+        naming = 'extended' if self._sidecar_ext_radio.isChecked() else 'standard'
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as _f:
+                _cfg = yaml.safe_load(_f) or {}
+            _cfg.setdefault('export', {})['sidecar_naming'] = naming
+            with open(self.config_path, 'w', encoding='utf-8') as _f:
+                yaml.dump(_cfg, _f, allow_unicode=True, default_flow_style=False)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Impossibile salvare sidecar_naming: {e}")
+        # Ricrea shared_xmp_manager con il nuovo stile
+        if XMP_SUPPORT_AVAILABLE:
+            self.shared_xmp_manager = XMPManagerExtended(sidecar_style=naming)
+
+    def _get_sidecar_style(self) -> str:
+        return 'extended' if self._sidecar_ext_radio.isChecked() else 'standard'
+
     def init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        
+
+        # ===== BARRA MODALITÀ SIDECAR =====
+        layout.addWidget(self._build_sidecar_bar())
+        # Crea shared_xmp_manager con lo stile caricato
+        if XMP_SUPPORT_AVAILABLE:
+            self.shared_xmp_manager = XMPManagerExtended(sidecar_style=self._get_sidecar_style())
+
         # Stile generale
         self.setStyleSheet(f"""
             QWidget {{

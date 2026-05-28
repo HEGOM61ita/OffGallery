@@ -41,6 +41,21 @@ try:
 except ImportError:
     XMP_SUPPORT_AVAILABLE = False
 
+
+def _make_xmp_manager():
+    """Crea XMPManagerExtended leggendo sidecar_style da config (per istanze locali)."""
+    if not XMP_SUPPORT_AVAILABLE:
+        return None
+    try:
+        import yaml as _yaml
+        with open('config_new.yaml', 'r', encoding='utf-8') as _f:
+            _cfg = _yaml.safe_load(_f) or {}
+        _v = _cfg.get('export', {}).get('sidecar_naming', 'standard')
+        _style = 'extended' if _v in ('extended', 'darktable') else 'standard'
+    except Exception:
+        _style = 'standard'
+    return XMPManagerExtended(sidecar_style=_style)
+
 # NUOVO: Import RAW processor per verifiche
 try:
     from raw_processor import RAWProcessor, RAW_PROCESSOR_AVAILABLE
@@ -2402,11 +2417,10 @@ class ImageCard(QFrame):
                 self._show_xmp_dialog("❌ Errore", t("widgets.xmp.no_xmp_manager"))
                 return
 
-            from xmp_manager_extended import XMPManagerExtended
             import textwrap
 
             results = []
-            xmp_manager = XMPManagerExtended()
+            xmp_manager = _make_xmp_manager()
 
             for item in items:
                 if not hasattr(item, 'filepath') or not item.filepath:
@@ -2956,8 +2970,9 @@ class ImageCard(QFrame):
             # Ottieni XMP Manager
             xmp_manager = None
             try:
-                from xmp_manager_extended import XMPManagerExtended
-                xmp_manager = XMPManagerExtended()
+                xmp_manager = _make_xmp_manager()
+                if xmp_manager is None:
+                    raise RuntimeError("XMPManagerExtended non disponibile")
             except Exception as e:
                 self._show_xmp_dialog("❌ Errore", t("widgets.xmp.no_xmp_manager_detail", error=str(e)))
                 return
@@ -3111,9 +3126,8 @@ class ImageCard(QFrame):
                 self._show_xmp_dialog("❌ Errore", t("widgets.xmp.file_not_found", name=filepath.name))
                 return
             
-            from xmp_manager_extended import XMPManagerExtended
-            xmp_manager = XMPManagerExtended()
-            
+            xmp_manager = _make_xmp_manager()
+
             success_count = 0
             error_count = 0
             
@@ -3775,8 +3789,8 @@ class ImageCard(QFrame):
                 state = self._xmp_state_cache
                 info = self._xmp_info_cache
             else:
-                xmp_manager = XMPManagerExtended()
-                state, info = xmp_manager.analyze_xmp_sync_state(Path(self.filepath),   self.image_data)
+                xmp_manager = _make_xmp_manager()
+                state, info = xmp_manager.analyze_xmp_sync_state(Path(self.filepath), self.image_data)
             
                 # Controllo sicurezza prima di salvare cache
                 if state is None or info is None:

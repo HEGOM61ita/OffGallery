@@ -16,7 +16,7 @@ embedding:
       max_tags: 10
       threshold: 0.2
     clip:
-      description: Ricerca semantica (query naturali) — SigLIP so400m multilingua
+      description: Ricerca semantica (query naturali)
       device: gpu
       disk_queue: false
       enabled: true
@@ -83,7 +83,7 @@ export:
     dng_allow_embedded: false
     embedded: false
     sidecar: true
-    sidecar_naming: lightroom
+    sidecar_naming: standard
 external_editors:
   editor_1:
     command_args: ''
@@ -259,7 +259,7 @@ paths:
 search:
   fuzzy_enabled: true
   max_results: 100
-  semantic_threshold: 0.2
+  semantic_threshold: 0.1
 similarity:
   max_results: 50
 ui:

@@ -98,6 +98,9 @@ class ExportTab(QWidget):
         # (embedded e copy sono già collegati nei rispettivi toggle)
         self.format_sidecar.toggled.connect(self._update_destination_ui)
         self.format_sidecar.toggled.connect(self.sidecar_naming_widget.setEnabled)
+        # Salva la preferenza naming in config ogni volta che cambia
+        self.sidecar_lr.toggled.connect(self._save_state_to_config)
+        self.sidecar_dt.toggled.connect(self._save_state_to_config)
 
         # Stato iniziale della sezione destinazione
         self._update_destination_ui()
@@ -758,7 +761,7 @@ class ExportTab(QWidget):
         return {
             'format': {
                 'sidecar':                 self.format_sidecar.isChecked(),
-                'sidecar_naming':          'darktable' if self.sidecar_dt.isChecked() else 'lightroom',
+                'sidecar_naming':          'extended' if self.sidecar_dt.isChecked() else 'standard',
                 'embedded':                self.format_embedded.isChecked(),
                 'dng_allow_embedded':      self.dng_allow_embedded.isChecked(),
                 'csv':                     self.format_csv.isChecked(),
@@ -793,9 +796,14 @@ class ExportTab(QWidget):
             widget.blockSignals(False)
 
         _set(self.format_sidecar,              'sidecar',                 True)
-        naming = fmt.get('sidecar_naming', 'lightroom')
-        self.sidecar_lr.setChecked(naming != 'darktable')
-        self.sidecar_dt.setChecked(naming == 'darktable')
+        naming = fmt.get('sidecar_naming', 'standard')
+        # retrocompatibilità con vecchi valori 'lightroom'/'darktable'
+        if naming == 'darktable':
+            naming = 'extended'
+        elif naming == 'lightroom':
+            naming = 'standard'
+        self.sidecar_lr.setChecked(naming != 'extended')
+        self.sidecar_dt.setChecked(naming == 'extended')
         self.sidecar_naming_widget.setEnabled(fmt.get('sidecar', True))
         _set(self.format_embedded,             'embedded',                False)
         _set(self.dng_allow_embedded,          'dng_allow_embedded',      False)
