@@ -73,9 +73,39 @@ class ExportTab(QWidget):
     # UI ROOT
     # ------------------------------------------------------------------
 
+    def _build_sidecar_bar(self) -> 'QWidget':
+        """Barra blu in cima identica a Processing e Gallery Tab."""
+        bar = QWidget()
+        bar.setStyleSheet("background-color: #1a3a50; border-radius: 0px; padding: 0px;")
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(12, 5, 12, 5)
+        row.setSpacing(10)
+
+        lbl = QLabel(t("sidecar.mode.label"))
+        lbl.setStyleSheet("color: #87CEEB; font-size: 11px; font-weight: bold; background: transparent;")
+        row.addWidget(lbl)
+
+        # I radio sono creati in _export_format_group — qui li aggiungiamo alla barra
+        # Nota: devono essere già costruiti prima di chiamare questa funzione;
+        # _export_format_group() viene chiamato dopo, quindi i radio li creiamo subito.
+        for rb in (self.sidecar_lr, self.sidecar_dt):
+            rb.setStyleSheet("color: #87CEEB; font-size: 11px; background: transparent;")
+            row.addWidget(rb)
+        row.addStretch()
+        return bar
+
     def _build_ui(self):
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
+
+        # I radio devono esistere prima di _build_sidecar_bar;
+        # _export_format_group li crea — lo chiamiamo ora e ne scartiamo il risultato
+        # solo per inizializzare self.sidecar_lr / self.sidecar_dt.
+        # Il widget vero viene aggiunto allo scroll sotto.
+        format_group_widget = self._export_format_group()
+
+        # === BARRA MODALITÀ SIDECAR (fuori dallo scroll, sempre visibile) ===
+        root_layout.addWidget(self._build_sidecar_bar())
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -87,7 +117,7 @@ class ExportTab(QWidget):
 
         # === SEZIONI ===
         scroll_layout.addWidget(self._selection_group())
-        scroll_layout.addWidget(self._export_format_group())
+        scroll_layout.addWidget(format_group_widget)
         scroll_layout.addWidget(self._export_path_group())
         scroll_layout.addWidget(self._advanced_group())
         scroll_layout.addWidget(self._export_group())
@@ -164,7 +194,7 @@ class ExportTab(QWidget):
         self.format_sidecar = QCheckBox(t("export.check.xmp_sidecar"))
         self.format_sidecar.setToolTip(t("export.tooltip.xmp_sidecar"))
 
-        # Sub-opzione naming sidecar (indentata, visibile solo con sidecar attivo)
+        # Radio naming sidecar — creati qui, mostrati nella barra blu in cima
         self.sidecar_lr = QRadioButton(t("export.radio.sidecar_lr"))
         self.sidecar_lr.setToolTip(t("export.tooltip.sidecar_lr"))
         self.sidecar_lr.setChecked(True)
@@ -173,24 +203,8 @@ class ExportTab(QWidget):
         self.sidecar_naming_group = QButtonGroup(self)
         self.sidecar_naming_group.addButton(self.sidecar_lr)
         self.sidecar_naming_group.addButton(self.sidecar_dt)
-
-        naming_label = QLabel(t("export.label.sidecar_output_format"))
-        naming_label.setStyleSheet("color: #ffffff; font-size: 11px;")
-        naming_row = QWidget()
-        naming_row_layout = QHBoxLayout(naming_row)
-        naming_row_layout.setContentsMargins(0, 0, 0, 0)
-        naming_row_layout.setSpacing(10)
-        naming_row_layout.addWidget(naming_label)
-        naming_row_layout.addWidget(self.sidecar_lr)
-        naming_row_layout.addWidget(self.sidecar_dt)
-        naming_row_layout.addStretch()
-
-        sidecar_sub = QWidget()
-        sidecar_sub_layout = QVBoxLayout(sidecar_sub)
-        sidecar_sub_layout.setContentsMargins(24, 2, 0, 2)
-        sidecar_sub_layout.setSpacing(0)
-        sidecar_sub_layout.addWidget(naming_row)
-        self.sidecar_naming_widget = sidecar_sub
+        # Placeholder vuoto: sidecar_naming_widget serve solo per enable/disable col checkbox
+        self.sidecar_naming_widget = QWidget()
 
         # --- XMP embedded + opzione DNG indentata ---
         self.format_embedded = QCheckBox(t("export.check.xmp_embedded"))
