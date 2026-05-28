@@ -1672,6 +1672,13 @@ Destinazione (es. E:\Backup):
 <h3>I dati BioCLIP appaiono come keyword in Lightroom</h3>
 <p>È il comportamento atteso. Appariranno come gerarchia separata <code>AI &gt; Taxonomy &gt; ...</code> nella struttura parole chiave di Lightroom. Non interferisce con le tue keyword.</p>
 
+<h3>Se apro le mie foto in Lightroom o Darktable, i tag e le gerarchie AI scritti da OffGallery vengono persi?</h3>
+<p>In generale no, ma il comportamento varia a seconda del software.</p>
+<p><strong>Con Lightroom:</strong> quando LR importa un sidecar <code>.xmp</code>, legge tutte le keyword gerarchiche — inclusi i rami <code>AI|Tags|</code>, <code>AI|Taxonomy|</code> e <code>GeOFF|</code> scritti da OffGallery — e le memorizza nel proprio catalogo (<code>.lrcat</code>). Quando in seguito LR riscrive il sidecar (es. dopo una modifica di sviluppo), le reinserisce. I dati non vanno persi a condizione che LR abbia letto il sidecar almeno una volta prima di sovrascriverlo. <strong>Regola pratica: esporta sempre da OffGallery prima di aprire le foto in Lightroom.</strong></p>
+<p><strong>Con Darktable:</strong> DT non ha un catalogo centralizzato — il sidecar è il suo unico archivio per quella foto. Quando DT riscrive il sidecar tocca esclusivamente i propri namespace (<code>darktable:</code>, <code>xmp:</code>, <code>dc:</code>, <code>xmpMM:</code>) e lascia intatti quelli che non conosce, tra cui <code>lr:HierarchicalSubject</code> dove OffGallery scrive i dati AI. In pratica i dati <strong>sopravvivono automaticamente</strong> a ogni modifica in DT.</p>
+<p><strong>Attenzione al formato sidecar con Darktable:</strong> DT usa il formato esteso (<code>foto.NEF.xmp</code>), mentre LR e la maggior parte dei software usano il formato standard (<code>foto.xmp</code>). Se OffGallery è configurato sulla modalità sbagliata, i due programmi non leggono lo stesso file e le modifiche non si "vedono" a vicenda. OffGallery include un selettore di modalità sidecar visibile in cima alle tab Processing, Gallery ed Export — impostalo in base al software con cui lavori.</p>
+<p>In ogni caso, il database interno di OffGallery è sempre la fonte di verità: puoi riesportare i sidecar in qualsiasi momento per ripristinare tutti i dati AI.</p>
+
 <!-- ===== TROUBLESHOOTING ===== -->
 <h1 id="troubleshooting"><span class="section-number">16</span>Troubleshooting</h1>
 

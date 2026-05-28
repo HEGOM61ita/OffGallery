@@ -1498,6 +1498,13 @@ Destination (e.g. E:\Backup):
 <h3>BioCLIP data appears as keywords in Lightroom</h3>
 <p>This is expected behaviour. They appear as a separate <code>AI &gt; Taxonomy &gt; ...</code> hierarchy in Lightroom's keyword structure. They do not interfere with your own keywords.</p>
 
+<h3>If I open my photos in Lightroom or Darktable, will the AI tags and hierarchies written by OffGallery be lost?</h3>
+<p>Generally no, but the behaviour differs between applications.</p>
+<p><strong>With Lightroom:</strong> when LR imports an <code>.xmp</code> sidecar it reads all hierarchical keywords — including the <code>AI|Tags|</code>, <code>AI|Taxonomy|</code> and <code>GeOFF|</code> branches written by OffGallery — and stores them in its own catalogue (<code>.lrcat</code>). When LR later rewrites the sidecar (e.g. after a develop adjustment) it writes those keywords back. Data is not lost as long as LR has read the sidecar at least once before overwriting it. <strong>Practical rule: always export from OffGallery before opening photos in Lightroom.</strong></p>
+<p><strong>With Darktable:</strong> DT has no centralised catalogue — the sidecar is its sole record for that photo. When DT rewrites the sidecar it only touches its own namespaces (<code>darktable:</code>, <code>xmp:</code>, <code>dc:</code>, <code>xmpMM:</code>) and leaves unknown namespaces untouched, including <code>lr:HierarchicalSubject</code> where OffGallery stores AI data. In practice the data <strong>survives automatically</strong> after every DT edit.</p>
+<p><strong>Sidecar format with Darktable:</strong> DT uses the extended format (<code>photo.NEF.xmp</code>), while LR and most other software use the standard format (<code>photo.xmp</code>). If OffGallery is set to the wrong mode the two applications read different files and changes are invisible to each other. OffGallery includes a sidecar mode selector at the top of the Processing, Gallery and Export tabs — set it to match the software you are working with.</p>
+<p>In any case, OffGallery's internal database is always the source of truth: you can re-export sidecars at any time to restore all AI data.</p>
+
 <!-- ===== TROUBLESHOOTING ===== -->
 <h1 id="troubleshooting"><span class="section-number">16</span>Troubleshooting</h1>
 
