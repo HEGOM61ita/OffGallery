@@ -316,6 +316,12 @@ class GalleryTab(QWidget):
         # Ricrea shared_xmp_manager con il nuovo stile
         if XMP_SUPPORT_AVAILABLE:
             self.shared_xmp_manager = XMPManagerExtended(sidecar_style=naming)
+        # Invalida cache XMP su tutte le tile visibili e ricalcola i badge
+        if hasattr(self, 'gallery') and hasattr(self.gallery, 'cards'):
+            for card in self.gallery.cards:
+                card._xmp_state_cache = None
+                card._xmp_info_cache = None
+            QTimer.singleShot(100, lambda: refresh_xmp_badges(self.gallery.cards, "sidecar_mode_changed"))
 
     def _get_sidecar_style(self) -> str:
         return 'extended' if self._sidecar_ext_radio.isChecked() else 'standard'
