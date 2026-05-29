@@ -58,7 +58,7 @@ class DatabaseManager:
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS images (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename TEXT NOT NULL,
+                filename TEXT UNIQUE NOT NULL,
                 filepath TEXT NOT NULL,
                 file_size INTEGER,
                 file_format TEXT,
@@ -411,17 +411,20 @@ class DatabaseManager:
             logger.error(f"Errore get_image_by_filepath: {e}")
             return None
     
-    def image_exists(self, filepath):
-        """Verifica presenza per filepath — mantenuto per compatibilità plugin."""
+    def image_exists(self, file_hash):
+        """Verifica se immagine è già presente tramite hash. Se hash è None restituisce False."""
+        if not file_hash:
+            return False
         try:
-            self.cursor.execute("SELECT id FROM images WHERE filepath = ?", (filepath,))
+            self.cursor.execute("SELECT id FROM images WHERE file_hash = ?", (file_hash,))
             return self.cursor.fetchone() is not None
         except Exception as e:
             logger.error(f"Errore image_exists: {e}")
             return False
 
-    def get_ai_fields_status_by_hash(self, file_hash):
-        """Ritorna dict con True/False per ogni campo AI già popolato (lookup per hash)."""
+    def get_ai_fields_status(self, file_hash):
+        """Ritorna dict con True/False per ogni campo AI già popolato.
+        Usato dai thread modello per decidere se sovrascrivere."""
         try:
             self.cursor.execute(
                 "SELECT clip_embedding, dinov2_embedding, bioclip_taxonomy, "
@@ -442,17 +445,16 @@ class DatabaseManager:
                 'title': row[8] is not None and row[8] != '',
             }
         except Exception as e:
-            logger.error(f"Errore get_ai_fields_status_by_hash: {e}")
+            logger.error(f"Errore get_ai_fields_status: {e}")
             return {}
 
-    def get_fields_presence_bulk(self, hashes, fields):
-        """Bulk check: per ogni file_hash già in DB ritorna {hash: {field: bool}}.
-        Solo gli hash presenti in DB compaiono nel risultato. Gli hash None vengono ignorati.
+    def get_fields_presence_bulk(self, filenames, fields):
+        """Bulk check: per ogni filename già in DB ritorna {filename: {field: bool}}.
+        Solo i filename presenti in DB compaiono nel risultato.
         I field non presenti nello schema vengono ignorati silenziosamente.
         Esegue query in batch da 500 per rispettare il limite variabili SQLite.
         """
-        valid_hashes = [h for h in hashes if h is not None]
-        if not valid_hashes or not fields:
+        if not filenames or not fields:
             return {}
         try:
             schema_rows = self.cursor.execute("PRAGMA table_info(images)").fetchall()
@@ -461,28 +463,29 @@ class DatabaseManager:
             existing_cols = set()
 
         valid_fields = [f for f in fields if f in existing_cols]
+        fnames_list = list(filenames)
         result = {}
 
         try:
-            for i in range(0, len(valid_hashes), 500):
-                batch = valid_hashes[i:i + 500]
+            for i in range(0, len(fnames_list), 500):
+                batch = fnames_list[i:i + 500]
                 placeholders = ','.join('?' * len(batch))
                 if valid_fields:
                     cols = ', '.join(valid_fields)
                     rows = self.cursor.execute(
-                        f"SELECT file_hash, {cols} FROM images WHERE file_hash IN ({placeholders})",
+                        f"SELECT filename, {cols} FROM images WHERE filename IN ({placeholders})",
                         batch
                     ).fetchall()
                     for row in rows:
-                        h = row[0]
+                        fname = row[0]
                         presence = {}
                         for j, field in enumerate(valid_fields):
                             val = row[j + 1]
                             presence[field] = val is not None and val not in ('', '[]')
-                        result[h] = presence
+                        result[fname] = presence
                 else:
                     rows = self.cursor.execute(
-                        f"SELECT file_hash FROM images WHERE file_hash IN ({placeholders})",
+                        f"SELECT filename FROM images WHERE filename IN ({placeholders})",
                         batch
                     ).fetchall()
                     for row in rows:
@@ -493,19 +496,18 @@ class DatabaseManager:
         return result
 
     def hash_exists(self, file_hash):
-        """Verifica se hash file già presente.
-        Ritorna il filepath dell'originale se trovato, None altrimenti."""
+        """Verifica se hash file già presente (deduplicazione)"""
         if not file_hash:
-            return None
+            return False
         try:
-            self.cursor.execute("SELECT filepath FROM images WHERE file_hash = ?", (file_hash,))
+            self.cursor.execute("SELECT id, filename FROM images WHERE file_hash = ?", (file_hash,))
             result = self.cursor.fetchone()
             if result:
-                logger.info(f"File duplicato rilevato: hash={file_hash[:8]}... (originale: {result[0]})")
-            return result[0] if result else None
+                logger.info(f"File duplicato rilevato: hash={file_hash[:8]}... (originale: {result[1]})")
+            return result is not None
         except Exception as e:
             logger.error(f"Errore hash_exists: {e}")
-            return None
+            return False
     
     def get_all_images(self):
         """Recupera tutte le immagini dal database"""
@@ -868,17 +870,17 @@ class DatabaseManager:
     #                       ALIAS PER COMPATIBILITÀ
     # ═══════════════════════════════════════════════════════════════
     
-    def update_image(self, filepath: str, image_data: Dict[str, Any]) -> bool:
+    def update_image(self, file_hash: str, image_data: Dict[str, Any]) -> bool:
         """
         Aggiorna un'immagine esistente con tutti i nuovi dati.
-        Metodo principale per riprocessing - usa filepath come chiave.
+        Usa file_hash come chiave di lookup.
         """
         try:
-            self.cursor.execute("SELECT id FROM images WHERE filepath = ?", (filepath,))
+            self.cursor.execute("SELECT id FROM images WHERE file_hash = ?", (file_hash,))
             result = self.cursor.fetchone()
 
             if not result:
-                logger.warning(f"Immagine non trovata per update: {filepath}")
+                logger.warning(f"Immagine non trovata per update (hash={file_hash[:8] if file_hash else '?'}...)")
                 return False
             
             image_id = result[0]
@@ -914,7 +916,7 @@ class DatabaseManager:
                     update_data[key] = value
 
             if not update_data:
-                logger.warning(f"Nessun campo valido da aggiornare per {filepath}")
+                logger.warning(f"Nessun campo valido da aggiornare per hash={file_hash[:8] if file_hash else '?'}...")
                 return False
 
             # filepath aggiornato direttamente (non passa per update_image_metadata)
@@ -930,57 +932,14 @@ class DatabaseManager:
                 success = self.update_image_metadata(image_id, **update_data)
 
             if success:
-                logger.info(f"✅ Aggiornata immagine: {filepath} ({len(update_data)} campi)")
+                logger.info(f"✅ Aggiornata immagine: hash={file_hash[:8] if file_hash else '?'}... ({len(update_data)} campi)")
             else:
-                logger.error(f"❌ Fallito aggiornamento per: {filepath}")
+                logger.error(f"❌ Fallito aggiornamento per hash={file_hash[:8] if file_hash else '?'}...")
 
             return success
 
         except Exception as e:
-            logger.error(f"Errore update_image per {filepath}: {e}")
-            return False
-
-    def update_image_by_hash(self, file_hash: str, image_data: Dict[str, Any]) -> bool:
-        """Aggiorna un'immagine esistente cercandola per file_hash."""
-        try:
-            self.cursor.execute("SELECT id FROM images WHERE file_hash = ?", (file_hash,))
-            result = self.cursor.fetchone()
-            if not result:
-                logger.warning(f"Immagine non trovata per update (hash={file_hash[:8]}...)")
-                return False
-            image_id = result[0]
-            valid_columns = {
-                'filename', 'filepath', 'file_size', 'file_format',
-                'is_raw', 'raw_format', 'raw_info',
-                'width', 'height', 'aspect_ratio', 'megapixels',
-                'camera_make', 'camera_model', 'lens_model',
-                'focal_length', 'focal_length_35mm', 'aperture',
-                'shutter_speed', 'shutter_speed_decimal', 'iso',
-                'exposure_mode', 'exposure_bias', 'metering_mode',
-                'white_balance', 'flash_used', 'flash_mode',
-                'color_space', 'orientation', 'focus_distance', 'drive_mode',
-                'datetime_original', 'datetime_digitized', 'datetime_modified',
-                'gps_latitude', 'gps_longitude', 'gps_altitude', 'gps_direction',
-                'artist', 'copyright', 'software',
-                'title', 'description', 'lr_rating', 'color_label', 'lr_instructions',
-                'gps_city', 'gps_state', 'gps_country', 'gps_location',
-                'exif_json',
-                'clip_embedding', 'dinov2_embedding', 'aesthetic_score', 'technical_score', 'is_monochrome',
-                'tags', 'llm_tags', 'bioclip_taxonomy', 'geo_hierarchy',
-                'ai_description_hash', 'model_used',
-                'processing_time', 'embedding_generated', 'llm_generated', 'success', 'error_message', 'app_version',
-                'sync_state', 'last_xmp_mtime', 'last_sync_at', 'last_sync_check_at', 'last_import_mtime', 'processed_date'
-            }
-            update_data = {k: v for k, v in image_data.items()
-                           if k in valid_columns and k not in {'id', 'file_hash'}}
-            if not update_data:
-                return True
-            new_filepath = update_data.pop('filepath', None)
-            if new_filepath:
-                self.cursor.execute("UPDATE images SET filepath=? WHERE id=?", (new_filepath, image_id))
-            return self.update_image_metadata(image_id, **update_data) if update_data else True
-        except Exception as e:
-            logger.error(f"Errore update_image_by_hash: {e}")
+            logger.error(f"Errore update_image: {e}")
             return False
 
     def update_tags(self, image_id: int, tags: List[str]) -> bool:
