@@ -494,18 +494,19 @@ class DatabaseManager:
         return result
 
     def hash_exists(self, file_hash):
-        """Verifica se hash file già presente (deduplicazione)"""
+        """Verifica se hash file già presente.
+        Ritorna il filepath dell'originale se trovato, None altrimenti."""
         if not file_hash:
-            return False
+            return None
         try:
-            self.cursor.execute("SELECT id, filename FROM images WHERE file_hash = ?", (file_hash,))
+            self.cursor.execute("SELECT filepath FROM images WHERE file_hash = ?", (file_hash,))
             result = self.cursor.fetchone()
             if result:
-                logger.info(f"File duplicato rilevato: hash={file_hash[:8]}... (originale: {result[1]})")
-            return result is not None
+                logger.info(f"File duplicato rilevato: hash={file_hash[:8]}... (originale: {result[0]})")
+            return result[0] if result else None
         except Exception as e:
             logger.error(f"Errore hash_exists: {e}")
-            return False
+            return None
     
     def get_all_images(self):
         """Recupera tutte le immagini dal database"""

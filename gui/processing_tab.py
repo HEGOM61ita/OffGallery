@@ -999,7 +999,13 @@ class ProcessingWorker(QThread):
                     self.log_message.emit(f"⚠️ Geo no-GPS {fname}: {geo_err}", "warning")
             _t_geo_dur = time.monotonic() - _t_geo
 
-            # --- DB insert (dopo EXIF+geo, thumb ancora in corso) ---
+            # --- Aspetta hash (necessario prima del check duplicati nel blocco DB) ---
+            hash_done.wait()
+            _t_hash_dur = hash_result['hash_dur']
+            if hash_result.get('file_hash'):
+                image_data['file_hash'] = hash_result['file_hash']
+
+            # --- DB insert (dopo EXIF+geo+hash, thumb ancora in corso) ---
             _t_db = time.monotonic()
             is_new    = False
             ai_fields = {}
@@ -1020,31 +1026,33 @@ class ProcessingWorker(QThread):
                 elif image_exists:
                     self.log_message.emit(f"⏭️ Già nel DB, saltato: {fname}", "debug")
                 else:
+                    # Check duplicato fisico tramite hash (path/nome diversi, contenuto identico)
+                    dup_path = db_manager.hash_exists(image_data.get('file_hash'))
+                    if dup_path:
+                        self.log_message.emit(
+                            f"⚠️ Duplicato fisico saltato: {fname} == {dup_path}", "warning"
+                        )
+                        thumb_done.wait()
+                        _file_bytes = None
+                        return None
                     image_id = db_manager.insert_image(image_data)
                     is_new = True
                     if image_id:
                         self.log_message.emit(f"✅ DB inserito: {fname} (ID: {image_id})", "debug")
                     else:
                         self.log_message.emit(f"❌ DB inserimento fallito: {fname}", "error")
-                        thumb_done.wait()   # aspetta thumb prima di uscire
-                        hash_done.wait()    # aspetta hash prima di uscire
+                        thumb_done.wait()
                         _file_bytes = None
                         return None
             _t_db_dur = time.monotonic() - _t_db
 
-            # --- Aspetta thumbnail e hash (in parallelo, potrebbe essere già pronti) ---
+            # --- Aspetta thumbnail (hash già atteso sopra) ---
             thumb_done.wait()
-            hash_done.wait()
-            _t_thumb_dur = thumb_result['thumb_dur']
-            _t_hash_dur  = hash_result['hash_dur']
+            _t_hash_dur  = hash_result['hash_dur']  # già calcolato, riassegnato per coerenza log
             thumbnail    = thumb_result.get('thumbnail')
 
             # Libera bytes in RAM (il file temporaneo viene pulito nel finally)
             _file_bytes = None
-
-            # Aggiunge file_hash a image_data (calcolato in parallelo con thumb)
-            if hash_result.get('file_hash'):
-                image_data['file_hash'] = hash_result['file_hash']
 
             # Salva thumbnail cache gallery (per UI) — il thumbnail PIL
             # resta in RAM nel prep_cache per i thread modello (no disco)
