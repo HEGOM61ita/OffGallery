@@ -2335,7 +2335,7 @@ class ProcessingTab(QWidget):
         )
         combo.setToolTip("Preset contesto prompt — arricchisce le descrizioni LLM con istruzioni di dominio")
 
-        combo.addItem("(nessun contesto)", "")
+        combo.addItem("⬜ Standard", "")
         for p in presets:
             icon = p.get('icon', '')
             name = p.get('name', p.get('id', ''))
