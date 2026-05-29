@@ -58,7 +58,7 @@ class DatabaseManager:
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS images (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename TEXT UNIQUE NOT NULL,
+                filename TEXT NOT NULL,
                 filepath TEXT NOT NULL,
                 file_size INTEGER,
                 file_format TEXT,
@@ -211,6 +211,123 @@ class DatabaseManager:
             self.cursor.execute("ALTER TABLE images ADD COLUMN drive_mode TEXT")
         except Exception:
             pass  # colonna già presente
+
+        # Migrazione: rimuove UNIQUE constraint da filename (file_hash è la chiave univoca)
+        # SQLite non supporta DROP CONSTRAINT → ricrea la tabella senza il vincolo
+        row = self.conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='images'"
+        ).fetchone()
+        if row and 'filename TEXT UNIQUE' in row[0]:
+            logger.info("Migrazione DB: rimozione UNIQUE su filename (file_hash è la chiave)")
+            self.conn.execute("PRAGMA foreign_keys=OFF")
+            self.conn.execute("ALTER TABLE images RENAME TO _images_old")
+            self.conn.execute("""
+                CREATE TABLE images (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    filename TEXT NOT NULL,
+                    filepath TEXT NOT NULL,
+                    file_size INTEGER,
+                    file_format TEXT,
+                    file_hash TEXT UNIQUE,
+                    is_raw BOOLEAN,
+                    raw_format TEXT,
+                    raw_info TEXT,
+                    width INTEGER,
+                    height INTEGER,
+                    aspect_ratio REAL,
+                    megapixels REAL,
+                    camera_make TEXT,
+                    camera_model TEXT,
+                    lens_model TEXT,
+                    focal_length REAL,
+                    focal_length_35mm REAL,
+                    aperture REAL,
+                    shutter_speed TEXT,
+                    shutter_speed_decimal REAL,
+                    iso INTEGER,
+                    exposure_mode TEXT,
+                    exposure_bias REAL,
+                    metering_mode TEXT,
+                    white_balance TEXT,
+                    flash_used BOOLEAN,
+                    flash_mode TEXT,
+                    color_space TEXT,
+                    orientation INTEGER,
+                    focus_distance REAL,
+                    drive_mode TEXT,
+                    datetime_original TEXT,
+                    datetime_digitized TEXT,
+                    datetime_modified TEXT,
+                    gps_latitude REAL,
+                    gps_longitude REAL,
+                    gps_altitude REAL,
+                    gps_direction REAL,
+                    artist TEXT,
+                    copyright TEXT,
+                    software TEXT,
+                    title TEXT,
+                    description TEXT,
+                    lr_rating INTEGER,
+                    color_label TEXT,
+                    lr_instructions TEXT,
+                    gps_city TEXT,
+                    gps_state TEXT,
+                    gps_country TEXT,
+                    gps_location TEXT,
+                    exif_json TEXT,
+                    clip_embedding BLOB,
+                    dinov2_embedding BLOB,
+                    aesthetic_score REAL,
+                    technical_score REAL,
+                    is_monochrome BOOLEAN DEFAULT 0,
+                    tags TEXT,
+                    llm_tags TEXT,
+                    bioclip_taxonomy TEXT,
+                    geo_hierarchy TEXT,
+                    ai_description_hash TEXT,
+                    model_used TEXT,
+                    processed_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    processing_time REAL,
+                    embedding_generated BOOLEAN DEFAULT 0,
+                    llm_generated BOOLEAN DEFAULT 0,
+                    success BOOLEAN DEFAULT 1,
+                    error_message TEXT,
+                    app_version TEXT,
+                    sync_state TEXT DEFAULT 'pending',
+                    last_xmp_mtime DATETIME,
+                    last_sync_at DATETIME,
+                    last_sync_check_at DATETIME,
+                    last_import_mtime DATETIME,
+                    gps_modified INTEGER DEFAULT 0
+                )
+            """)
+            # Copia per nome colonna: evita disallineamenti dovuti all'ordine delle ALTER TABLE
+            old_cols = {r[1] for r in self.conn.execute("PRAGMA table_info(_images_old)").fetchall()}
+            new_cols = [r[1] for r in self.conn.execute("PRAGMA table_info(images)").fetchall()]
+            shared = [c for c in new_cols if c in old_cols]
+            col_list = ", ".join(shared)
+            self.conn.execute(f"INSERT INTO images ({col_list}) SELECT {col_list} FROM _images_old")
+            self.conn.execute("DROP TABLE _images_old")
+            self.conn.execute("PRAGMA foreign_keys=ON")
+            for idx_sql in [
+                "CREATE INDEX IF NOT EXISTS idx_filename ON images(filename)",
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_file_hash ON images(file_hash)",
+                "CREATE INDEX IF NOT EXISTS idx_camera_model ON images(camera_model)",
+                "CREATE INDEX IF NOT EXISTS idx_datetime_original ON images(datetime_original)",
+                "CREATE INDEX IF NOT EXISTS idx_focal_length ON images(focal_length)",
+                "CREATE INDEX IF NOT EXISTS idx_iso ON images(iso)",
+                "CREATE INDEX IF NOT EXISTS idx_gps_lat ON images(gps_latitude)",
+                "CREATE INDEX IF NOT EXISTS idx_gps_lon ON images(gps_longitude)",
+                "CREATE INDEX IF NOT EXISTS idx_aesthetic_score ON images(aesthetic_score)",
+                "CREATE INDEX IF NOT EXISTS idx_technical_score ON images(technical_score)",
+                "CREATE INDEX IF NOT EXISTS idx_is_monochrome ON images(is_monochrome)",
+                "CREATE INDEX IF NOT EXISTS idx_embedding_generated ON images(embedding_generated)",
+                "CREATE INDEX IF NOT EXISTS idx_processed_date ON images(processed_date)",
+                "CREATE INDEX IF NOT EXISTS idx_tags ON images(tags)",
+                "CREATE INDEX IF NOT EXISTS idx_lr_rating ON images(lr_rating)",
+            ]:
+                self.conn.execute(idx_sql)
+            logger.info("Migrazione DB completata: filename non è più UNIQUE")
 
         self.conn.commit()
         logger.info(f"Database schema completo inizializzato: {self.db_path}")
