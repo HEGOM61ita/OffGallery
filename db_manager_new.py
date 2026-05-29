@@ -576,13 +576,13 @@ class DatabaseManager:
             logger.error(f"Errore get_ai_fields_status: {e}")
             return {}
 
-    def get_fields_presence_bulk(self, filenames, fields):
-        """Bulk check: per ogni filename già in DB ritorna {filename: {field: bool}}.
-        Solo i filename presenti in DB compaiono nel risultato.
+    def get_fields_presence_bulk(self, filepaths, fields):
+        """Bulk check: per ogni filepath già in DB ritorna {filepath: {field: bool}}.
+        Solo i filepath presenti in DB compaiono nel risultato.
         I field non presenti nello schema vengono ignorati silenziosamente.
         Esegue query in batch da 500 per rispettare il limite variabili SQLite.
         """
-        if not filenames or not fields:
+        if not filepaths or not fields:
             return {}
         try:
             schema_rows = self.cursor.execute("PRAGMA table_info(images)").fetchall()
@@ -591,29 +591,29 @@ class DatabaseManager:
             existing_cols = set()
 
         valid_fields = [f for f in fields if f in existing_cols]
-        fnames_list = list(filenames)
+        fpaths_list = list(filepaths)
         result = {}
 
         try:
-            for i in range(0, len(fnames_list), 500):
-                batch = fnames_list[i:i + 500]
+            for i in range(0, len(fpaths_list), 500):
+                batch = fpaths_list[i:i + 500]
                 placeholders = ','.join('?' * len(batch))
                 if valid_fields:
                     cols = ', '.join(valid_fields)
                     rows = self.cursor.execute(
-                        f"SELECT filename, {cols} FROM images WHERE filename IN ({placeholders})",
+                        f"SELECT filepath, {cols} FROM images WHERE filepath IN ({placeholders})",
                         batch
                     ).fetchall()
                     for row in rows:
-                        fname = row[0]
+                        fpath = row[0]
                         presence = {}
                         for j, field in enumerate(valid_fields):
                             val = row[j + 1]
                             presence[field] = val is not None and val not in ('', '[]')
-                        result[fname] = presence
+                        result[fpath] = presence
                 else:
                     rows = self.cursor.execute(
-                        f"SELECT filename FROM images WHERE filename IN ({placeholders})",
+                        f"SELECT filepath FROM images WHERE filepath IN ({placeholders})",
                         batch
                     ).fetchall()
                     for row in rows:
@@ -622,6 +622,23 @@ class DatabaseManager:
             logger.error(f"Errore get_fields_presence_bulk: {e}")
             return {}
         return result
+
+    def had_processing_errors(self, filepath: str) -> bool:
+        """Restituisce True se l'immagine è nel DB ma ha avuto errori di processing."""
+        if not filepath:
+            return False
+        try:
+            self.cursor.execute(
+                "SELECT success, error_message FROM images WHERE filepath = ?", (str(filepath),)
+            )
+            row = self.cursor.fetchone()
+            if row is None:
+                return False
+            success, error_message = row
+            return (success == 0) or bool(error_message)
+        except Exception as e:
+            logger.error(f"Errore had_processing_errors: {e}")
+            return False
 
     def hash_exists(self, file_hash):
         """Verifica se hash file già presente (deduplicazione)"""

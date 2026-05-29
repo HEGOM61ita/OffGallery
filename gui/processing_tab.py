@@ -381,29 +381,30 @@ class ProcessingWorker(QThread):
             # su immagini già complete per tutti gli step selezionati.
             _fields_bulk = {}
             if processing_mode == 'reprocess_all' and _required_steps:
-                _all_fnames = [p.name for p in all_images]
+                _all_fpaths = [str(p) for p in all_images]
                 _check_fields = list(dict.fromkeys(f for f, _ in _required_steps))
-                _fields_bulk = db_manager.get_fields_presence_bulk(_all_fnames, _check_fields)
+                _fields_bulk = db_manager.get_fields_presence_bulk(_all_fpaths, _check_fields)
 
             images_to_process = []
             for image_path in all_images:
                 should = False
+                _fpath_str = str(image_path)
                 if processing_mode == 'new_only':
-                    should = not db_manager.filepath_exists(str(image_path))
+                    should = not db_manager.filepath_exists(_fpath_str)
                 elif processing_mode == 'reprocess_all':
                     if not _required_steps:
                         should = True  # nessun step attivo: processa comunque
-                    elif image_path.name not in _fields_bulk:
+                    elif _fpath_str not in _fields_bulk:
                         should = True  # non in DB: immagine nuova
                     else:
-                        _ai = _fields_bulk[image_path.name]
+                        _ai = _fields_bulk[_fpath_str]
                         should = any(
                             overwrite or not _ai.get(db_field, False)
                             for db_field, overwrite in _required_steps
                         )
                 elif processing_mode == 'new_plus_errors':
-                    has_err = hasattr(db_manager, 'had_processing_errors') and db_manager.had_processing_errors(image_path.name)
-                    should = not db_manager.filepath_exists(str(image_path)) or has_err
+                    has_err = db_manager.had_processing_errors(_fpath_str)
+                    should = not db_manager.filepath_exists(_fpath_str) or has_err
                 if should:
                     images_to_process.append(image_path)
 
