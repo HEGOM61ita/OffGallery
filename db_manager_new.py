@@ -58,8 +58,8 @@ class DatabaseManager:
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS images (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename TEXT UNIQUE NOT NULL,
-                filepath TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                filepath TEXT UNIQUE NOT NULL,
                 file_size INTEGER,
                 file_format TEXT,
                 file_hash TEXT UNIQUE,
@@ -411,23 +411,23 @@ class DatabaseManager:
             logger.error(f"Errore get_image_by_filepath: {e}")
             return None
     
-    def image_exists(self, filename):
-        """Verifica se immagine è già stata processata"""
+    def image_exists(self, filepath):
+        """Verifica se immagine è già stata processata (lookup per filepath)"""
         try:
-            self.cursor.execute("SELECT id FROM images WHERE filename = ?", (filename,))
+            self.cursor.execute("SELECT id FROM images WHERE filepath = ?", (filepath,))
             return self.cursor.fetchone() is not None
         except Exception as e:
             logger.error(f"Errore image_exists: {e}")
             return False
-    
-    def get_ai_fields_status(self, filename):
+
+    def get_ai_fields_status(self, filepath):
         """Ritorna dict con True/False per ogni campo AI già popolato.
         Usato dai thread modello per decidere se sovrascrivere."""
         try:
             self.cursor.execute(
                 "SELECT clip_embedding, dinov2_embedding, bioclip_taxonomy, "
                 "aesthetic_score, technical_score, tags, llm_tags, description, title "
-                "FROM images WHERE filename = ?", (filename,))
+                "FROM images WHERE filepath = ?", (filepath,))
             row = self.cursor.fetchone()
             if not row:
                 return {}
@@ -446,13 +446,13 @@ class DatabaseManager:
             logger.error(f"Errore get_ai_fields_status: {e}")
             return {}
 
-    def get_fields_presence_bulk(self, filenames, fields):
-        """Bulk check: per ogni filename già in DB ritorna {filename: {field: bool}}.
-        Solo i filename presenti in DB compaiono nel risultato.
+    def get_fields_presence_bulk(self, filepaths, fields):
+        """Bulk check: per ogni filepath già in DB ritorna {filepath: {field: bool}}.
+        Solo i filepath presenti in DB compaiono nel risultato.
         I field non presenti nello schema vengono ignorati silenziosamente.
         Esegue query in batch da 500 per rispettare il limite variabili SQLite.
         """
-        if not filenames or not fields:
+        if not filepaths or not fields:
             return {}
         try:
             schema_rows = self.cursor.execute("PRAGMA table_info(images)").fetchall()
@@ -461,29 +461,29 @@ class DatabaseManager:
             existing_cols = set()
 
         valid_fields = [f for f in fields if f in existing_cols]
-        fnames_list = list(filenames)
+        fpaths_list = list(filepaths)
         result = {}
 
         try:
-            for i in range(0, len(fnames_list), 500):
-                batch = fnames_list[i:i + 500]
+            for i in range(0, len(fpaths_list), 500):
+                batch = fpaths_list[i:i + 500]
                 placeholders = ','.join('?' * len(batch))
                 if valid_fields:
                     cols = ', '.join(valid_fields)
                     rows = self.cursor.execute(
-                        f"SELECT filename, {cols} FROM images WHERE filename IN ({placeholders})",
+                        f"SELECT filepath, {cols} FROM images WHERE filepath IN ({placeholders})",
                         batch
                     ).fetchall()
                     for row in rows:
-                        fname = row[0]
+                        fpath = row[0]
                         presence = {}
                         for j, field in enumerate(valid_fields):
                             val = row[j + 1]
                             presence[field] = val is not None and val not in ('', '[]')
-                        result[fname] = presence
+                        result[fpath] = presence
                 else:
                     rows = self.cursor.execute(
-                        f"SELECT filename FROM images WHERE filename IN ({placeholders})",
+                        f"SELECT filepath FROM images WHERE filepath IN ({placeholders})",
                         batch
                     ).fetchall()
                     for row in rows:
@@ -868,25 +868,17 @@ class DatabaseManager:
     #                       ALIAS PER COMPATIBILITÀ
     # ═══════════════════════════════════════════════════════════════
     
-    def update_image(self, filename: str, image_data: Dict[str, Any]) -> bool:
+    def update_image(self, filepath: str, image_data: Dict[str, Any]) -> bool:
         """
-        Aggiorna un'immagine esistente con tutti i nuovi dati
-        Metodo principale per riprocessing - usa filename invece di image_id
+        Aggiorna un'immagine esistente con tutti i nuovi dati.
+        Metodo principale per riprocessing - usa filepath come chiave.
         """
         try:
-            # Prova prima con filename esatto, poi con solo il nome del file
-            self.cursor.execute("SELECT id FROM images WHERE filename = ?", (filename,))
+            self.cursor.execute("SELECT id FROM images WHERE filepath = ?", (filepath,))
             result = self.cursor.fetchone()
-            
+
             if not result:
-                # Fallback: cerca per nome file (parte finale del path)
-                from pathlib import Path
-                filename_only = Path(filename).name
-                self.cursor.execute("SELECT id FROM images WHERE filename LIKE ?", (f'%{filename_only}',))
-                result = self.cursor.fetchone()
-            
-            if not result:
-                logger.warning(f"Immagine non trovata per update: {filename}")
+                logger.warning(f"Immagine non trovata per update: {filepath}")
                 return False
             
             image_id = result[0]
@@ -922,7 +914,7 @@ class DatabaseManager:
                     update_data[key] = value
 
             if not update_data:
-                logger.warning(f"Nessun campo valido da aggiornare per {filename}")
+                logger.warning(f"Nessun campo valido da aggiornare per {filepath}")
                 return False
 
             # filepath aggiornato direttamente (non passa per update_image_metadata)
@@ -936,16 +928,16 @@ class DatabaseManager:
             success = True
             if update_data:
                 success = self.update_image_metadata(image_id, **update_data)
-            
+
             if success:
-                logger.info(f"✅ Aggiornata immagine: {filename} ({len(update_data)} campi)")
+                logger.info(f"✅ Aggiornata immagine: {filepath} ({len(update_data)} campi)")
             else:
-                logger.error(f"❌ Fallito aggiornamento per: {filename}")
-            
+                logger.error(f"❌ Fallito aggiornamento per: {filepath}")
+
             return success
-            
+
         except Exception as e:
-            logger.error(f"Errore update_image per {filename}: {e}")
+            logger.error(f"Errore update_image per {filepath}: {e}")
             return False
 
     def update_tags(self, image_id: int, tags: List[str]) -> bool:

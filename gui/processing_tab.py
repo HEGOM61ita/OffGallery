@@ -381,29 +381,30 @@ class ProcessingWorker(QThread):
             # su immagini già complete per tutti gli step selezionati.
             _fields_bulk = {}
             if processing_mode == 'reprocess_all' and _required_steps:
-                _all_fnames = [p.name for p in all_images]
+                _all_fpaths = [str(p) for p in all_images]
                 _check_fields = list(dict.fromkeys(f for f, _ in _required_steps))
-                _fields_bulk = db_manager.get_fields_presence_bulk(_all_fnames, _check_fields)
+                _fields_bulk = db_manager.get_fields_presence_bulk(_all_fpaths, _check_fields)
 
             images_to_process = []
             for image_path in all_images:
                 should = False
+                _ip_str = str(image_path)
                 if processing_mode == 'new_only':
-                    should = not db_manager.image_exists(image_path.name)
+                    should = not db_manager.image_exists(_ip_str)
                 elif processing_mode == 'reprocess_all':
                     if not _required_steps:
                         should = True  # nessun step attivo: processa comunque
-                    elif image_path.name not in _fields_bulk:
+                    elif _ip_str not in _fields_bulk:
                         should = True  # non in DB: immagine nuova
                     else:
-                        _ai = _fields_bulk[image_path.name]
+                        _ai = _fields_bulk[_ip_str]
                         should = any(
                             overwrite or not _ai.get(db_field, False)
                             for db_field, overwrite in _required_steps
                         )
                 elif processing_mode == 'new_plus_errors':
-                    has_err = hasattr(db_manager, 'had_processing_errors') and db_manager.had_processing_errors(image_path.name)
-                    should = not db_manager.image_exists(image_path.name) or has_err
+                    has_err = hasattr(db_manager, 'had_processing_errors') and db_manager.had_processing_errors(_ip_str)
+                    should = not db_manager.image_exists(_ip_str) or has_err
                 if should:
                     images_to_process.append(image_path)
 
@@ -1002,15 +1003,16 @@ class ProcessingWorker(QThread):
             _t_db = time.monotonic()
             is_new    = False
             ai_fields = {}
+            fpath = image_data['filepath']  # percorso assoluto normalizzato, chiave DB
             with self._db_lock:
                 # image_exists va chiamata dentro il lock: evita race condition
                 # tra check e INSERT (snapshot WAL vecchio su cursore thread-local)
-                image_exists = db_manager.image_exists(fname)
+                image_exists = db_manager.image_exists(fpath)
                 if image_exists and processing_mode in ['reprocess_all', 'new_plus_errors']:
-                    ai_fields = db_manager.get_ai_fields_status(fname)
-                    db_manager.update_image(fname, image_data)
+                    ai_fields = db_manager.get_ai_fields_status(fpath)
+                    db_manager.update_image(fpath, image_data)
                     _row = db_manager.conn.execute(
-                        "SELECT id FROM images WHERE filename = ?", (fname,)
+                        "SELECT id FROM images WHERE filepath = ?", (fpath,)
                     ).fetchone()
                     if _row:
                         image_id = _row[0]
@@ -1184,6 +1186,7 @@ class ProcessingWorker(QThread):
                 self._emit_progress_throttled(model_key, i, total)
                 continue
 
+            fpath     = prep.get('image_data', {}).get('filepath') or str(image_path)
             is_new    = prep.get('is_new', True)
             ai_fields = prep.get('ai_fields', {})
 
@@ -1239,7 +1242,7 @@ class ProcessingWorker(QThread):
 
             if update_data:
                 with self._db_lock:
-                    db_manager.update_image(fname, update_data)
+                    db_manager.update_image(fpath, update_data)
                 _db_pending += 1
                 if _db_pending >= self._DB_COMMIT_BATCH:
                     with self._db_lock:
@@ -1332,6 +1335,7 @@ class ProcessingWorker(QThread):
                 self._emit_progress_throttled('bioclip', i, total)
                 continue
 
+            fpath     = prep.get('image_data', {}).get('filepath') or str(image_path)
             is_new    = prep.get('is_new', True)
             ai_fields = prep.get('ai_fields', {})
 
@@ -1391,7 +1395,7 @@ class ProcessingWorker(QThread):
 
             if update_data:
                 with self._db_lock:
-                    db_manager.update_image(fname, update_data)
+                    db_manager.update_image(fpath, update_data)
                 _db_pending += 1
                 if _db_pending >= self._DB_COMMIT_BATCH:
                     with self._db_lock:
@@ -1629,6 +1633,7 @@ class ProcessingWorker(QThread):
                 self._emit_progress_throttled('llm', processed, total)
                 continue
 
+            fpath    = prep.get('image_data', {}).get('filepath') or str(image_path)
             disk_ref = prep.get('thumbnail_disk')
             t_thumb_load = time.time()
             if disk_ref is None:
@@ -1658,7 +1663,7 @@ class ProcessingWorker(QThread):
             try:
                 with self._db_lock:
                     _vrow = db_manager.conn.execute(
-                        "SELECT vernacular_name FROM images WHERE filename = ?", (fname,)
+                        "SELECT vernacular_name FROM images WHERE filepath = ?", (fpath,)
                     ).fetchone()
                 if _vrow and _vrow[0]:
                     vernacular_name = _vrow[0]
@@ -1690,7 +1695,7 @@ class ProcessingWorker(QThread):
                     try:
                         with self._db_lock:
                             _row = db_manager.conn.execute(
-                                "SELECT llm_tags FROM images WHERE filename = ?", (fname,)
+                                "SELECT llm_tags FROM images WHERE filepath = ?", (fpath,)
                             ).fetchone()
                         if _row and _row[0]:
                             existing_tags = json.loads(_row[0])
@@ -1808,7 +1813,7 @@ class ProcessingWorker(QThread):
 
                 # Aggiorna DB
                 with self._db_lock:
-                    db_manager.update_image(fname, update_data)
+                    db_manager.update_image(fpath, update_data)
 
             except Exception as e:
                 self.log_message.emit(f"❌ LLM {fname}: {e}", "error")
