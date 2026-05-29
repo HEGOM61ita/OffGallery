@@ -422,6 +422,17 @@ class DatabaseManager:
             logger.error(f"Errore image_exists: {e}")
             return False
 
+    def filepath_exists(self, filepath: str) -> bool:
+        """Verifica se un'immagine con questo filepath è già presente nel DB."""
+        if not filepath:
+            return False
+        try:
+            self.cursor.execute("SELECT id FROM images WHERE filepath = ?", (str(filepath),))
+            return self.cursor.fetchone() is not None
+        except Exception as e:
+            logger.error(f"Errore filepath_exists: {e}")
+            return False
+
     def get_ai_fields_status(self, file_hash):
         """Ritorna dict con True/False per ogni campo AI già popolato.
         Usato dai thread modello per decidere se sovrascrivere."""

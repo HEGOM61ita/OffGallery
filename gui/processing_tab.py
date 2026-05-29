@@ -389,7 +389,7 @@ class ProcessingWorker(QThread):
             for image_path in all_images:
                 should = False
                 if processing_mode == 'new_only':
-                    should = not db_manager.image_exists(image_path.name)
+                    should = not db_manager.filepath_exists(str(image_path))
                 elif processing_mode == 'reprocess_all':
                     if not _required_steps:
                         should = True  # nessun step attivo: processa comunque
@@ -403,7 +403,7 @@ class ProcessingWorker(QThread):
                         )
                 elif processing_mode == 'new_plus_errors':
                     has_err = hasattr(db_manager, 'had_processing_errors') and db_manager.had_processing_errors(image_path.name)
-                    should = not db_manager.image_exists(image_path.name) or has_err
+                    should = not db_manager.filepath_exists(str(image_path)) or has_err
                 if should:
                     images_to_process.append(image_path)
 
