@@ -839,7 +839,6 @@ class DatabaseManager:
                 "UPDATE images SET title = ? WHERE id = ?",
                 (title, image_id)
             )
-        
             if self.cursor.rowcount > 0:
                 self.conn.commit()
                 logger.info(f"Title aggiornato per image_id {image_id}: {title}")
@@ -847,36 +846,10 @@ class DatabaseManager:
             else:
                 logger.warning(f"Nessuna immagine trovata con id {image_id}")
                 return False
-            
         except Exception as e:
             logger.error(f"Errore update_image_title: {e}")
             self.conn.rollback()
             return False
-
-    def update_image_title(self, image_id: int, title: str) -> bool:
-        """Aggiorna title per un'immagine specifica"""
-        try:
-            self.cursor.execute(
-                "UPDATE images SET title = ? WHERE id = ?",
-                (title, image_id)
-            )
-        
-            if self.cursor.rowcount > 0:
-                self.conn.commit()
-                logger.info(f"Title aggiornato per image_id {image_id}: {title}")
-                return True
-            else:
-                logger.warning(f"Nessuna immagine trovata con id {image_id}")
-                return False
-            
-        except Exception as e:
-            logger.error(f"Errore update_image_title: {e}")
-            self.conn.rollback()
-            return False
-
-    def update_title(self, image_id: int, title: str) -> bool:
-        """Alias per update_image_title"""
-        return self.update_image_title(image_id, title)
 
     def update_title(self, image_id: int, title: str) -> bool:
         """Alias per update_image_title"""

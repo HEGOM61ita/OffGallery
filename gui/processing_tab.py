@@ -1658,10 +1658,11 @@ class ProcessingWorker(QThread):
 
             # Leggi vernacular_name da BioNomen (scritto in DB durante fase pre_llm)
             vernacular_name = None
+            _llm_file_hash = prep.get('image_data', {}).get('file_hash')
             try:
                 with self._db_lock:
                     _vrow = db_manager.conn.execute(
-                        "SELECT vernacular_name FROM images WHERE filename = ?", (fname,)
+                        "SELECT vernacular_name FROM images WHERE file_hash = ?", (_llm_file_hash,)
                     ).fetchone()
                 if _vrow and _vrow[0]:
                     vernacular_name = _vrow[0]
@@ -1693,7 +1694,7 @@ class ProcessingWorker(QThread):
                     try:
                         with self._db_lock:
                             _row = db_manager.conn.execute(
-                                "SELECT llm_tags FROM images WHERE filename = ?", (fname,)
+                                "SELECT llm_tags FROM images WHERE file_hash = ?", (_llm_file_hash,)
                             ).fetchone()
                         if _row and _row[0]:
                             existing_tags = json.loads(_row[0])
