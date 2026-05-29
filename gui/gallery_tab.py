@@ -1239,8 +1239,8 @@ class GalleryTab(QWidget):
                 vernacular_name = None
                 try:
                     _vrow = db_manager.conn.execute(
-                        "SELECT vernacular_name FROM images WHERE filepath = ?",
-                        (item.image_data.get('filepath', ''),)
+                        "SELECT vernacular_name FROM images WHERE id = ?",
+                        (item.image_data.get('id'),)
                     ).fetchone()
                     if _vrow and _vrow[0]:
                         vernacular_name = _vrow[0]

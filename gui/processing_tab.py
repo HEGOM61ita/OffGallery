@@ -377,36 +377,9 @@ class ProcessingWorker(QThread):
             # === FILTRO MODALITÀ ===
             processing_mode = self.options.get('processing_mode', 'new_only')
 
-            # Bulk pre-check per reprocess_all: una sola query SQL evita I/O
-            # su immagini già complete per tutti gli step selezionati.
-            _fields_bulk = {}
-            if processing_mode == 'reprocess_all' and _required_steps:
-                _all_fpaths = [str(p) for p in all_images]
-                _check_fields = list(dict.fromkeys(f for f, _ in _required_steps))
-                _fields_bulk = db_manager.get_fields_presence_bulk(_all_fpaths, _check_fields)
-
-            images_to_process = []
-            for image_path in all_images:
-                should = False
-                _ip_str = str(image_path)
-                if processing_mode == 'new_only':
-                    should = not db_manager.image_exists(_ip_str)
-                elif processing_mode == 'reprocess_all':
-                    if not _required_steps:
-                        should = True  # nessun step attivo: processa comunque
-                    elif _ip_str not in _fields_bulk:
-                        should = True  # non in DB: immagine nuova
-                    else:
-                        _ai = _fields_bulk[_ip_str]
-                        should = any(
-                            overwrite or not _ai.get(db_field, False)
-                            for db_field, overwrite in _required_steps
-                        )
-                elif processing_mode == 'new_plus_errors':
-                    has_err = hasattr(db_manager, 'had_processing_errors') and db_manager.had_processing_errors(_ip_str)
-                    should = not db_manager.image_exists(_ip_str) or has_err
-                if should:
-                    images_to_process.append(image_path)
+            # Il check definitivo "già presente" avviene nel blocco DB tramite file_hash.
+            # Qui processiamo tutte le immagini: il blocco DB skipperà i duplicati.
+            images_to_process = list(all_images)
 
             total_to_process = len(images_to_process)
             skipped_count = len(all_images) - total_to_process
@@ -1009,32 +982,29 @@ class ProcessingWorker(QThread):
             _t_db = time.monotonic()
             is_new    = False
             ai_fields = {}
-            fpath = image_data['filepath']  # percorso assoluto normalizzato, chiave DB
+            fpath      = image_data['filepath']
+            file_hash  = image_data.get('file_hash')
             with self._db_lock:
-                # image_exists va chiamata dentro il lock: evita race condition
-                # tra check e INSERT (snapshot WAL vecchio su cursore thread-local)
-                image_exists = db_manager.image_exists(fpath)
+                # hash è la chiave univoca; se null si inserisce comunque (es. errore MD5)
+                dup_path = db_manager.hash_exists(file_hash) if file_hash else None
+                image_exists = dup_path is not None
                 if image_exists and processing_mode in ['reprocess_all', 'new_plus_errors']:
-                    ai_fields = db_manager.get_ai_fields_status(fpath)
-                    db_manager.update_image(fpath, image_data)
+                    ai_fields = db_manager.get_ai_fields_status_by_hash(file_hash)
+                    db_manager.update_image_by_hash(file_hash, image_data)
                     _row = db_manager.conn.execute(
-                        "SELECT id FROM images WHERE filepath = ?", (fpath,)
+                        "SELECT id FROM images WHERE file_hash = ?", (file_hash,)
                     ).fetchone()
                     if _row:
                         image_id = _row[0]
                     self.log_message.emit(f"🔄 DB aggiornato (reprocess): {fname}", "debug")
                 elif image_exists:
-                    self.log_message.emit(f"⏭️ Già nel DB, saltato: {fname}", "debug")
+                    self.log_message.emit(
+                        f"⏭️ Duplicato saltato: {fname} == {dup_path}", "warning"
+                    )
+                    thumb_done.wait()
+                    _file_bytes = None
+                    return None
                 else:
-                    # Check duplicato fisico tramite hash (path/nome diversi, contenuto identico)
-                    dup_path = db_manager.hash_exists(image_data.get('file_hash'))
-                    if dup_path:
-                        self.log_message.emit(
-                            f"⚠️ Duplicato fisico saltato: {fname} == {dup_path}", "warning"
-                        )
-                        thumb_done.wait()
-                        _file_bytes = None
-                        return None
                     image_id = db_manager.insert_image(image_data)
                     is_new = True
                     if image_id:
@@ -1194,7 +1164,9 @@ class ProcessingWorker(QThread):
                 self._emit_progress_throttled(model_key, i, total)
                 continue
 
-            fpath     = prep.get('image_data', {}).get('filepath') or str(image_path)
+            _idata    = prep.get('image_data', {})
+            fpath     = _idata.get('filepath') or str(image_path)
+            file_hash = _idata.get('file_hash')
             is_new    = prep.get('is_new', True)
             ai_fields = prep.get('ai_fields', {})
 
@@ -1250,7 +1222,10 @@ class ProcessingWorker(QThread):
 
             if update_data:
                 with self._db_lock:
-                    db_manager.update_image(fpath, update_data)
+                    if file_hash:
+                        db_manager.update_image_by_hash(file_hash, update_data)
+                    else:
+                        db_manager.update_image(fpath, update_data)
                 _db_pending += 1
                 if _db_pending >= self._DB_COMMIT_BATCH:
                     with self._db_lock:
@@ -1343,7 +1318,9 @@ class ProcessingWorker(QThread):
                 self._emit_progress_throttled('bioclip', i, total)
                 continue
 
-            fpath     = prep.get('image_data', {}).get('filepath') or str(image_path)
+            _idata    = prep.get('image_data', {})
+            fpath     = _idata.get('filepath') or str(image_path)
+            file_hash = _idata.get('file_hash')
             is_new    = prep.get('is_new', True)
             ai_fields = prep.get('ai_fields', {})
 
@@ -1403,7 +1380,10 @@ class ProcessingWorker(QThread):
 
             if update_data:
                 with self._db_lock:
-                    db_manager.update_image(fpath, update_data)
+                    if file_hash:
+                        db_manager.update_image_by_hash(file_hash, update_data)
+                    else:
+                        db_manager.update_image(fpath, update_data)
                 _db_pending += 1
                 if _db_pending >= self._DB_COMMIT_BATCH:
                     with self._db_lock:
@@ -1641,7 +1621,9 @@ class ProcessingWorker(QThread):
                 self._emit_progress_throttled('llm', processed, total)
                 continue
 
-            fpath    = prep.get('image_data', {}).get('filepath') or str(image_path)
+            _idata   = prep.get('image_data', {})
+            fpath    = _idata.get('filepath') or str(image_path)
+            file_hash = _idata.get('file_hash')
             disk_ref = prep.get('thumbnail_disk')
             t_thumb_load = time.time()
             if disk_ref is None:
@@ -1670,9 +1652,10 @@ class ProcessingWorker(QThread):
             vernacular_name = None
             try:
                 with self._db_lock:
-                    _vrow = db_manager.conn.execute(
-                        "SELECT vernacular_name FROM images WHERE filepath = ?", (fpath,)
-                    ).fetchone()
+                    _vq = ("SELECT vernacular_name FROM images WHERE file_hash = ?"
+                           if file_hash else
+                           "SELECT vernacular_name FROM images WHERE filepath = ?")
+                    _vrow = db_manager.conn.execute(_vq, (file_hash or fpath,)).fetchone()
                 if _vrow and _vrow[0]:
                     vernacular_name = _vrow[0]
             except Exception:
@@ -1702,9 +1685,10 @@ class ProcessingWorker(QThread):
                 if not gen_tags_cfg.get('overwrite') and not is_new:
                     try:
                         with self._db_lock:
-                            _row = db_manager.conn.execute(
-                                "SELECT llm_tags FROM images WHERE filepath = ?", (fpath,)
-                            ).fetchone()
+                            _tq = ("SELECT llm_tags FROM images WHERE file_hash = ?"
+                                   if file_hash else
+                                   "SELECT llm_tags FROM images WHERE filepath = ?")
+                            _row = db_manager.conn.execute(_tq, (file_hash or fpath,)).fetchone()
                         if _row and _row[0]:
                             existing_tags = json.loads(_row[0])
                     except (json.JSONDecodeError, TypeError, Exception):
@@ -1821,7 +1805,10 @@ class ProcessingWorker(QThread):
 
                 # Aggiorna DB
                 with self._db_lock:
-                    db_manager.update_image(fpath, update_data)
+                    if file_hash:
+                        db_manager.update_image_by_hash(file_hash, update_data)
+                    else:
+                        db_manager.update_image(fpath, update_data)
 
             except Exception as e:
                 self.log_message.emit(f"❌ LLM {fname}: {e}", "error")
