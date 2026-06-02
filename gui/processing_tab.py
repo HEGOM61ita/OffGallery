@@ -1676,8 +1676,11 @@ class ProcessingWorker(QThread):
                 ai_fields = prep.get('ai_fields', {})
                 is_new = prep.get('is_new', True)
 
-                # Tags: overwrite OFF = merge (aggiunge ai tag esistenti); ON = rimpiazza
+                # Tags: overwrite OFF = skip se già presenti (come descrizione e titolo)
                 should_gen_tags = gen_tags_cfg.get('enabled', False)
+                if should_gen_tags and not gen_tags_cfg.get('overwrite') and not is_new:
+                    if ai_fields.get('llm_tags', False):
+                        should_gen_tags = False
 
                 should_gen_desc = gen_desc_cfg.get('enabled', False)
                 if should_gen_desc and not gen_desc_cfg.get('overwrite') and not is_new:
@@ -1688,19 +1691,6 @@ class ProcessingWorker(QThread):
                 if should_gen_title and not gen_title_cfg.get('overwrite') and not is_new:
                     if ai_fields.get('title', False):
                         should_gen_title = False
-
-                # Carica llm_tags esistenti dal DB per merge (solo se non sovrascriviamo)
-                existing_tags = []
-                if not gen_tags_cfg.get('overwrite') and not is_new:
-                    try:
-                        with self._db_lock:
-                            _row = db_manager.conn.execute(
-                                "SELECT llm_tags FROM images WHERE file_hash = ?", (_llm_file_hash,)
-                            ).fetchone()
-                        if _row and _row[0]:
-                            existing_tags = json.loads(_row[0])
-                    except (json.JSONDecodeError, TypeError, Exception):
-                        existing_tags = []
 
                 if not (should_gen_tags or should_gen_desc or should_gen_title):
                     disk_ref.release()
@@ -1763,20 +1753,9 @@ class ProcessingWorker(QThread):
                     if bioclip_context:
                         sci_name = bioclip_context.split('(')[0].split(',')[0].strip() or None
 
-                    if gen_tags_cfg.get('overwrite'):
-                        final_tags = normalize_tags(
-                            llm_tags, scientific_name=sci_name, vernacular_name=vernacular_name
-                        )
-                    else:
-                        # Merge: unione senza duplicati, poi normalize
-                        merged = list(existing_tags)
-                        existing_lower = {t.lower() for t in existing_tags}
-                        for t in llm_tags:
-                            if t.lower() not in existing_lower:
-                                merged.append(t)
-                        final_tags = normalize_tags(
-                            merged, scientific_name=sci_name, vernacular_name=vernacular_name
-                        )
+                    final_tags = normalize_tags(
+                        llm_tags, scientific_name=sci_name, vernacular_name=vernacular_name
+                    )
 
                     # Aggiungi città geo come tag (plugin o builtin)
                     if geo_hierarchy:
