@@ -58,7 +58,7 @@ MODELS: list[ModelSpec] = [
             ModelFile(remote_path="clip/special_tokens_map.json",      local_name="special_tokens_map.json",      size_mb=0),
             ModelFile(remote_path="clip/tokenizer_config.json",        local_name="tokenizer_config.json",        size_mb=0),
             ModelFile(remote_path="clip/tokenizer.json",               local_name="tokenizer.json",               size_mb=0),
-            ModelFile(remote_path="clip/sentencepiece.bpe.model",      local_name="sentencepiece.bpe.model",      size_mb=1),
+            ModelFile(remote_path="clip/spiece.model",                  local_name="spiece.model",                 size_mb=1),
         ],
     ),
     ModelSpec(

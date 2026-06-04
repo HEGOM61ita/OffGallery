@@ -598,7 +598,7 @@ class EmbeddingGenerator:
                     _clip_files = [
                         'config.json', 'model.safetensors', 'preprocessor_config.json',
                         'special_tokens_map.json', 'tokenizer.json', 'tokenizer_config.json',
-                        'vocab.json', 'merges.txt', 'sentencepiece.bpe.model'
+                        'vocab.json', 'merges.txt', 'spiece.model'
                     ]
                     for _fname in _clip_files:
                         try:
