@@ -3022,27 +3022,6 @@ class ImageCard(QFrame):
                         except json.JSONDecodeError:
                             tags = []
 
-                    # Verifica se ci sono dati da esportare
-                    if not title and not description and not tags and rating is None and not color_label:
-                        skipped_count += 1
-                        continue
-
-                    # Prepara dizionario XMP (sync completo — DB è fonte di verità)
-                    xmp_dict = {}
-                    if title:
-                        xmp_dict['title'] = title
-                    if description:
-                        xmp_dict['description'] = description
-                    if tags:
-                        xmp_dict['keywords'] = tags if isinstance(tags, list) else [tags]
-                    if rating is not None:
-                        try:
-                            xmp_dict['rating'] = int(rating)
-                        except (ValueError, TypeError):
-                            pass
-                    if color_label:
-                        xmp_dict['color_label'] = color_label
-
                     # Prepara dati per scrittura unica (Subject + HierarchicalSubject in un colpo)
                     llm_raw = item.image_data.get('llm_tags', '')
                     llm_list = []
@@ -3066,6 +3045,35 @@ class ImageCard(QFrame):
                             logger.warning(f"Errore build tassonomia BioCLIP per {filepath.name}: {e}")
 
                     geo_hierarchy = item.image_data.get('geo_hierarchy', '') or ''
+
+                    # Salta solo se non c'è nulla da scrivere E il sidecar non esiste.
+                    # Se il sidecar esiste già, bisogna sempre passare per write_full_xmp_gallery
+                    # per aggiornarlo/pulirlo — anche quando tutti i campi DB sono vuoti.
+                    _sidecar = filepath.with_suffix('.xmp')
+                    if not _sidecar.exists():
+                        _sidecar = Path(str(filepath) + '.xmp')
+                    _sidecar_exists = _sidecar.exists()
+                    if (not title and not description and not tags and rating is None
+                            and not color_label and not llm_list and not bioclip_path
+                            and not geo_hierarchy and not _sidecar_exists):
+                        skipped_count += 1
+                        continue
+
+                    # Prepara dizionario XMP (sync completo — DB è fonte di verità)
+                    xmp_dict = {}
+                    if title:
+                        xmp_dict['title'] = title
+                    if description:
+                        xmp_dict['description'] = description
+                    if tags:
+                        xmp_dict['keywords'] = tags if isinstance(tags, list) else [tags]
+                    if rating is not None:
+                        try:
+                            xmp_dict['rating'] = int(rating)
+                        except (ValueError, TypeError):
+                            pass
+                    if color_label:
+                        xmp_dict['color_label'] = color_label
 
                     # Unico passaggio ExifTool: azzera e riscrivi Subject + HierarchicalSubject
                     success = xmp_manager.write_full_xmp_gallery(
