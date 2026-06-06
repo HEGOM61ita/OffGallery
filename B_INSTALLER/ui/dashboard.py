@@ -535,6 +535,7 @@ class DashboardPage(tk.Frame):
                     progress_cb=lambda c, t, p: (
                         self._panel.update_step_progress(p, c, t),
                     ),
+                    conda_exe=conda_exe,
                 )
                 self._panel.set_step_done("Librerie installate")
                 sm.mark_done("packages", torch_variant=variant)

@@ -112,18 +112,35 @@ def install_packages(
     variant:     str,
     log_cb:      Optional[callable] = None,
     progress_cb: Optional[callable] = None,
+    conda_exe:   Optional[str] = None,
 ) -> None:
     """
     Installa tutte le librerie da `req_file` nell'env OffGallery.
 
-    1. Installa PyTorch con l'index-url corretto per la variante GPU.
-    2. Installa il resto dei requirements.
-    3. Forza le versioni pinnate critiche.
+    1. Su macOS: installa cmake via conda (richiesto da llvmlite/numba).
+    2. Installa PyTorch con l'index-url corretto per la variante GPU.
+    3. Installa il resto dei requirements.
+    4. Forza le versioni pinnate critiche.
 
     `progress_cb(current, total, package_name)` viene chiamato
     ad ogni pacchetto installato.
     """
     _log(log_cb, f"Variante PyTorch selezionata: {torch_variant_label(variant)}")
+
+    # Step 0 (solo macOS): cmake via conda — llvmlite/numba lo richiedono
+    # per compilare da sorgente e non è incluso in Xcode Command Line Tools
+    if platform.system() == "Darwin" and conda_exe:
+        _log(log_cb, "macOS: installazione cmake via conda (richiesto da llvmlite)...")
+        try:
+            subprocess.run(
+                [conda_exe, "install", "-n", "OffGallery",
+                 "-c", "conda-forge", "cmake", "-y", "--quiet"],
+                check=True, timeout=300,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            _log(log_cb, "cmake installato.")
+        except Exception as exc:
+            _log(log_cb, f"Avviso: installazione cmake fallita ({exc}) — si continua.")
 
     # Step 1: PyTorch
     _install_torch(python_exe, variant, log_cb, progress_cb)
