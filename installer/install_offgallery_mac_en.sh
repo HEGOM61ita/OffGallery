@@ -416,11 +416,15 @@ fi
 echo ""
 
 # Upgrade pip
-echo "   [1/2] Upgrading pip..."
+echo "   [1/3] Upgrading pip..."
 "$CONDA_CMD" run --no-capture-output -n "$ENV_NAME" python -m pip install --upgrade pip -q 2>/dev/null || true
 
+# Install cmake via conda (required by llvmlite/numba to compile from source)
+echo "   [2/3] Installing cmake (required by llvmlite)..."
+"$CONDA_CMD" install -n "$ENV_NAME" -c conda-forge cmake -y -q 2>/dev/null || true
+
 # Install requirements
-echo "   [2/2] Installing Python dependencies..."
+echo "   [3/3] Installing Python dependencies..."
 echo ""
 
 # On Mac, PyTorch installs from the standard channel (includes MPS for Apple Silicon)
