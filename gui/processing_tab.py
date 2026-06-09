@@ -430,6 +430,8 @@ class ProcessingWorker(QThread):
                 'geospecies_skipped_no_gps': 0,
                 # Lista ID immagini processate in questo import (per plugin post-import)
                 'processed_ids': [],
+                # File con timeout inferenza per-modello (fname → set di modelli)
+                'model_timeouts': {},
             }
             start_time = time.time()
 
@@ -792,6 +794,19 @@ class ProcessingWorker(QThread):
                     f"BioCLIP ha usato TreeOfLife globale (450k specie)",
                     "info"
                 )
+
+            # Avviso file con timeout inferenza
+            _timeouts = stats.get('model_timeouts', {})
+            if _timeouts:
+                self.log_message.emit(
+                    f"⚠️ {len(_timeouts)} file hanno subito timeout di inferenza — "
+                    f"eventuali dati AI potrebbero essere incompleti:",
+                    "warning")
+                for _fname, _models in sorted(_timeouts.items()):
+                    _model_list = ', '.join(sorted(_models))
+                    self.log_message.emit(
+                        f"  • {_fname} — modelli in timeout: {_model_list}",
+                        "warning")
 
             self.log_message.emit("═" * 50, "info")
 
@@ -1211,8 +1226,20 @@ class ProcessingWorker(QThread):
                 # Skip se campo già presente e overwrite OFF
                 if overwrite or is_new or not ai_fields.get(db_field, False):
                     try:
+                        from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FuturesTimeout
+                        _INFER_TIMEOUT = 120  # secondi max per foto
                         _t = time.monotonic()
-                        results = infer_fn([thumb])
+                        with ThreadPoolExecutor(max_workers=1) as _ex:
+                            _future = _ex.submit(infer_fn, [thumb])
+                            try:
+                                results = _future.result(timeout=_INFER_TIMEOUT)
+                            except _FuturesTimeout:
+                                self.log_message.emit(
+                                    f"⏰ {model_key.upper()} timeout ({_INFER_TIMEOUT}s) su {fname} — foto saltata",
+                                    "warning")
+                                with self._stats_lock:
+                                    stats['model_timeouts'].setdefault(fname, set()).add(model_key)
+                                results = None
                         _dur = time.monotonic() - _t
 
                         if results and results[0] is not None:
@@ -1361,12 +1388,27 @@ class ProcessingWorker(QThread):
                         and ai_fields.get('bioclip_taxonomy', False))
                 if not skip:
                     try:
+                        from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FuturesTimeout
+                        _BIOCLIP_TIMEOUT = 120  # secondi max per foto
                         _geo_hierarchy = prep.get('geo_hierarchy')
                         _gps_lat = prep.get('gps_latitude')
                         _gps_lon = prep.get('gps_longitude')
-                        bioclip_tags, bioclip_taxonomy = emb_gen.generate_bioclip_tags(
-                            thumb, geo_hierarchy=_geo_hierarchy,
-                            gps_lat=_gps_lat, gps_lon=_gps_lon)
+
+                        with ThreadPoolExecutor(max_workers=1) as _ex:
+                            _future = _ex.submit(
+                                emb_gen.generate_bioclip_tags, thumb,
+                                geo_hierarchy=_geo_hierarchy,
+                                gps_lat=_gps_lat, gps_lon=_gps_lon)
+                            try:
+                                bioclip_tags, bioclip_taxonomy = _future.result(timeout=_BIOCLIP_TIMEOUT)
+                            except _FuturesTimeout:
+                                self.log_message.emit(
+                                    f"⏰ BioCLIP timeout ({_BIOCLIP_TIMEOUT}s) su {fname} — "
+                                    f"foto saltata, tag/descrizione/titolo potrebbero essere incompleti",
+                                    "warning")
+                                with self._stats_lock:
+                                    stats['model_timeouts'].setdefault(fname, set()).add('bioclip')
+                                bioclip_tags, bioclip_taxonomy = None, None
 
                         if bioclip_taxonomy and isinstance(bioclip_taxonomy, list):
                             update_data['bioclip_taxonomy'] = json.dumps(
@@ -1376,18 +1418,20 @@ class ProcessingWorker(QThread):
                             self.log_message.emit(
                                 f"🌿 BioCLIP {fname}: "
                                 f"{len([l for l in bioclip_taxonomy if l])} livelli", "debug")
-                        else:
-                            # Nessun risultato: segna come elaborata per evitare ri-esecuzioni
+                        elif bioclip_taxonomy is not None:
+                            # Nessun risultato (non timeout): segna come elaborata per evitare ri-esecuzioni
                             update_data['bioclip_taxonomy'] = 'null'
 
-                        with self._stats_lock:
-                            stats['geospecies_skipped_no_gps'] = emb_gen.geospecies_skipped_no_gps
+                        if bioclip_taxonomy is not None:
+                            with self._stats_lock:
+                                stats['geospecies_skipped_no_gps'] = emb_gen.geospecies_skipped_no_gps
 
-                        # Contesto tassonomico per LLM (in memoria)
-                        ctx = EmbeddingGenerator.extract_bioclip_context(bioclip_tags or [])
-                        cat = EmbeddingGenerator.extract_category_hint(bioclip_taxonomy or [])
-                        with bioclip_lock:
-                            bioclip_results[fname] = {'context': ctx, 'category_hint': cat}
+                        # Contesto tassonomico per LLM (in memoria) — solo se non in timeout
+                        if bioclip_tags is not None or bioclip_taxonomy is not None:
+                            ctx = EmbeddingGenerator.extract_bioclip_context(bioclip_tags or [])
+                            cat = EmbeddingGenerator.extract_category_hint(bioclip_taxonomy or [])
+                            with bioclip_lock:
+                                bioclip_results[fname] = {'context': ctx, 'category_hint': cat}
 
                     except Exception as e:
                         self.log_message.emit(f"❌ BioCLIP {fname}: {e}", "error")
@@ -1709,19 +1753,32 @@ class ProcessingWorker(QThread):
                 llm_results = {'tags': None, 'description': None, 'title': None}
                 t_llm_start = time.time()
                 try:
+                    from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FuturesTimeout
+                    _LLM_TIMEOUT = emb_gen.config.get('embedding', {}).get(
+                        'models', {}).get('llm_vision', {}).get('llm_timeout', 120)
                     # Sempre una sola chiamata con nucleo analitico unificato,
                     # indipendentemente dal numero di campi richiesti
-                    combined = emb_gen.generate_llm_combined(
-                        thumb, modes,
-                        max_tags=gen_tags_cfg.get('max', 10),
-                        max_description_words=gen_desc_cfg.get('max', 100),
-                        max_title_words=gen_title_cfg.get('max', 5),
-                        bioclip_context=bioclip_context,
-                        category_hint=category_hint,
-                        location_hint=location_hint,
-                        vernacular_name=vernacular_name,
-                    )
-                    llm_results.update(combined)
+                    with ThreadPoolExecutor(max_workers=1) as _ex:
+                        _future = _ex.submit(
+                            emb_gen.generate_llm_combined,
+                            thumb, modes,
+                            max_tags=gen_tags_cfg.get('max', 10),
+                            max_description_words=gen_desc_cfg.get('max', 100),
+                            max_title_words=gen_title_cfg.get('max', 5),
+                            bioclip_context=bioclip_context,
+                            category_hint=category_hint,
+                            location_hint=location_hint,
+                            vernacular_name=vernacular_name,
+                        )
+                        try:
+                            combined = _future.result(timeout=_LLM_TIMEOUT)
+                            llm_results.update(combined)
+                        except _FuturesTimeout:
+                            self.log_message.emit(
+                                f"⏰ LLM timeout ({_LLM_TIMEOUT}s) su {fname} — foto saltata",
+                                "warning")
+                            with self._stats_lock:
+                                stats['model_timeouts'].setdefault(fname, set()).add('llm')
                 except Exception as e:
                     self.log_message.emit(f"⚠️ LLM {fname}: {e}", "warning")
                 t_llm_end = time.time()

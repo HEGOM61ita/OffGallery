@@ -1273,6 +1273,14 @@ class ConfigTab(QWidget):
         self.llm_vision_timeout.setSingleStep(30)
         conn_layout.addWidget(self.llm_vision_timeout, 2, 1)
 
+        conn_layout.addWidget(QLabel(t("config.label.llm_inference_timeout")), 3, 0)
+        self.llm_inference_timeout = NoWheelSpinBox()
+        self.llm_inference_timeout.setRange(30, 600)
+        self.llm_inference_timeout.setSingleStep(30)
+        self.llm_inference_timeout.setValue(120)
+        self.llm_inference_timeout.setToolTip(t("config.tooltip.llm_inference_timeout"))
+        conn_layout.addWidget(self.llm_inference_timeout, 3, 1)
+
         layout.addLayout(conn_layout)
 
         # --- PARAMETRI GENERAZIONE (compatti, senza groupbox annidato) ---
@@ -1866,6 +1874,7 @@ class ConfigTab(QWidget):
             self.llm_vision_endpoint.setText(llm['endpoint'])
             self.llm_vision_model.setCurrentText(llm['model'])
             self.llm_vision_timeout.setValue(llm['timeout'])
+            self.llm_inference_timeout.setValue(llm.get('llm_timeout', 120))
             # Toggle attivo/non attivo
             _llm_on = llm.get('enabled', True)
             _idx_llm = self.llm_enabled_combo.findData('on' if _llm_on else 'off')
@@ -2015,6 +2024,7 @@ class ConfigTab(QWidget):
             self.llm_vision_endpoint.setText('http://localhost:11434')
             self.llm_vision_model.setCurrentText('qwen3.5:4b-q4_K_M')
             self.llm_vision_timeout.setValue(240)
+            self.llm_inference_timeout.setValue(120)
 
             # Parametri generation LLM
             self.llm_temperature.setValue(0.2)
@@ -2150,6 +2160,7 @@ class ConfigTab(QWidget):
                 'endpoint': self.llm_vision_endpoint.text(),
                 'model': self.llm_vision_model.currentText(),
                 'timeout': self.llm_vision_timeout.value(),
+                'llm_timeout': self.llm_inference_timeout.value(),
                 'generation': {
                     'temperature': self.llm_temperature.value(),
                     'top_k': self.llm_top_k.value(),

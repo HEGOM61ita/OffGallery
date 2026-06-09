@@ -164,7 +164,8 @@ Configura la generazione di tag, descrizioni e titoli tramite modello LLM Vision
 | `llm_vision.enabled` | bool | Abilita generazione LLM |
 | `llm_vision.model` | string | Modello Ollama da usare. Consigliato per 8 GB VRAM: `qwen3-vl:8b-instruct-q4_K_M` |
 | `llm_vision.endpoint` | string | Indirizzo endpoint Ollama (default: `http://localhost:11434`) |
-| `llm_vision.timeout` | int | Timeout in secondi per risposta LLM (default: 240) |
+| `llm_vision.timeout` | int | Timeout HTTP in secondi per la connessione a Ollama (default: 240) |
+| `llm_vision.llm_timeout` | int | Timeout in secondi che il thread di elaborazione attende la risposta LLM per una singola foto. Se superato, la foto viene saltata e segnalata nel log a fine sessione. Aumentare su GPU lente o modelli grandi (default: 120) |
 
 #### Parametri di Generazione
 
