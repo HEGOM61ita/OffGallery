@@ -62,15 +62,17 @@ class PhotoBarrier:
         with self._lock:
             self._pending.discard(modello)
             if not self._pending:
-                fname = self._image_path.name
-                prep = self._prep_cache.get(fname)
+                # Chiave = percorso completo: nomi file duplicati in sotto-cartelle
+                # diverse non devono collidere in prep_cache
+                pkey = str(self._image_path)
+                prep = self._prep_cache.get(pkey)
                 if prep is not None:
                     prep['thumbnail'] = None  # LLM usa disco: libera PIL Image dalla RAM
                 if self._llm_queue is not None:
                     self._llm_queue.put(self._image_path)
                 else:
                     # LLM non attivo: questo è l'ultimo modello in assoluto → pulizia completa
-                    self._prep_cache.pop(fname, None)
+                    self._prep_cache.pop(pkey, None)
 
 
 class DiskThumbRef:
@@ -1179,12 +1181,13 @@ class ProcessingWorker(QThread):
 
             i += 1
             image_path, barrier = item
-            fname = image_path.name
+            fname = image_path.name        # solo per log
+            pkey  = str(image_path)        # chiave prep_cache (percorso completo)
 
             # Attendi che ExifTool abbia scritto il prep (raramente necessario:
             # ExifTool mette la foto in coda solo dopo aver scritto il prep)
             _waited = 0
-            while fname not in prep_cache:
+            while pkey not in prep_cache:
                 if not self.is_running:
                     barrier.done(model_key)
                     return
@@ -1194,7 +1197,7 @@ class ProcessingWorker(QThread):
                     self.log_message.emit(f"⚠️ {model_key.upper()} timeout attesa prep {fname}", "warning")
                     break
 
-            prep = prep_cache.get(fname)
+            prep = prep_cache.get(pkey)
             if prep is None:
                 barrier.done(model_key)
                 self._emit_progress_throttled(model_key, i, total)
@@ -1238,7 +1241,7 @@ class ProcessingWorker(QThread):
                                     f"⏰ {model_key.upper()} timeout ({_INFER_TIMEOUT}s) su {fname} — foto saltata",
                                     "warning")
                                 with self._stats_lock:
-                                    stats['model_timeouts'].setdefault(fname, set()).add(model_key)
+                                    stats['model_timeouts'].setdefault(pkey, set()).add(model_key)
                                 results = None
                         _dur = time.monotonic() - _t
 
@@ -1342,10 +1345,11 @@ class ProcessingWorker(QThread):
 
             i += 1
             image_path, barrier = item
-            fname = image_path.name
+            fname = image_path.name        # solo per log
+            pkey  = str(image_path)        # chiave prep_cache (percorso completo)
 
             _waited = 0
-            while fname not in prep_cache:
+            while pkey not in prep_cache:
                 if not self.is_running:
                     barrier.done('bioclip')
                     return
@@ -1355,7 +1359,7 @@ class ProcessingWorker(QThread):
                     self.log_message.emit(f"⚠️ BioCLIP timeout attesa prep {fname}", "warning")
                     break
 
-            prep = prep_cache.get(fname)
+            prep = prep_cache.get(pkey)
             if prep is None:
                 barrier.done('bioclip')
                 self._emit_progress_throttled('bioclip', i, total)
@@ -1407,7 +1411,7 @@ class ProcessingWorker(QThread):
                                     f"foto saltata, tag/descrizione/titolo potrebbero essere incompleti",
                                     "warning")
                                 with self._stats_lock:
-                                    stats['model_timeouts'].setdefault(fname, set()).add('bioclip')
+                                    stats['model_timeouts'].setdefault(pkey, set()).add('bioclip')
                                 bioclip_tags, bioclip_taxonomy = None, None
 
                         if bioclip_taxonomy and isinstance(bioclip_taxonomy, list):
@@ -1431,7 +1435,7 @@ class ProcessingWorker(QThread):
                             ctx = EmbeddingGenerator.extract_bioclip_context(bioclip_tags or [])
                             cat = EmbeddingGenerator.extract_category_hint(bioclip_taxonomy or [])
                             with bioclip_lock:
-                                bioclip_results[fname] = {'context': ctx, 'category_hint': cat}
+                                bioclip_results[pkey] = {'context': ctx, 'category_hint': cat}
 
                     except Exception as e:
                         self.log_message.emit(f"❌ BioCLIP {fname}: {e}", "error")
@@ -1658,19 +1662,29 @@ class ProcessingWorker(QThread):
             if not self._wait_if_paused():
                 break
 
-            fname = image_path.name
+            fname = image_path.name        # solo per log
+            pkey  = str(image_path)        # chiave prep_cache (percorso completo)
             t_start = time.time()
 
-            # Attendi che ExifTool abbia preparato questa foto
-            while fname not in prep_cache:
+            # Attendi che ExifTool abbia preparato questa foto.
+            # Attesa con timeout: la voce viene scritta PRIMA dell'accodamento, quindi
+            # deve già esserci — se manca dopo 10s la foto viene saltata invece di
+            # bloccare il thread (e la barra) per sempre.
+            _waited = 0
+            while pkey not in prep_cache:
                 if not self.is_running:
                     return
                 time.sleep(0.05)
+                _waited += 1
+                if _waited > 200:
+                    self.log_message.emit(
+                        f"⚠️ LLM: prep non trovata per {fname} — foto saltata", "warning")
+                    break
             t_prep_wait = time.time()
 
             # LLM è l'ultimo modello: rimuove la voce da prep_cache (thumbnail RAM già
             # liberata dal PhotoBarrier; prep locale rimane valido per questa iterazione)
-            prep = prep_cache.pop(fname, None)
+            prep = prep_cache.pop(pkey, None)
             if not prep:
                 processed += 1
                 self._emit_progress_throttled('llm', processed, total)
@@ -1695,7 +1709,7 @@ class ProcessingWorker(QThread):
 
             # Contesto BioCLIP (potrebbe non esserci se BioCLIP disabilitato)
             with bioclip_lock:
-                bc = bioclip_results.get(fname, {})
+                bc = bioclip_results.get(pkey, {})
             bioclip_context = bc.get('context')
             category_hint = bc.get('category_hint')
             location_hint = prep.get('location_hint')
@@ -1778,7 +1792,7 @@ class ProcessingWorker(QThread):
                                 f"⏰ LLM timeout ({_LLM_TIMEOUT}s) su {fname} — foto saltata",
                                 "warning")
                             with self._stats_lock:
-                                stats['model_timeouts'].setdefault(fname, set()).add('llm')
+                                stats['model_timeouts'].setdefault(pkey, set()).add('llm')
                 except Exception as e:
                     self.log_message.emit(f"⚠️ LLM {fname}: {e}", "warning")
                 t_llm_end = time.time()
@@ -1924,7 +1938,9 @@ class ProcessingWorker(QThread):
             )
 
             if prep:
-                prep_cache[image_path.name] = prep
+                # Chiave = percorso completo: nomi duplicati in sotto-cartelle diverse
+                # non devono sovrascriversi a vicenda (causava stallo del thread LLM)
+                prep_cache[str(image_path)] = prep
                 with self._stats_lock:
                     stats['success'] += 1
                     stats['processed'] += 1
@@ -1951,7 +1967,7 @@ class ProcessingWorker(QThread):
                     llm_queue.put(image_path)
             else:
                 # Prep fallita: marker None in prep_cache per sbloccare eventuali attese
-                prep_cache[image_path.name] = None
+                prep_cache[str(image_path)] = None
                 with self._stats_lock:
                     stats['errors'] += 1
 
