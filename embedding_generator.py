@@ -305,6 +305,25 @@ class EmbeddingGenerator:
 
         return image
 
+    def _cleanup_argos_orphans(self):
+        """Rimuove sottodirectory orfane nei pacchetti Argos (senza metadata.json).
+
+        Installazioni parziali/corrotte lasciano cartelle come 'model' o 'stanza'
+        direttamente sotto packages/ senza il loro metadata.json: argostranslate
+        ci inciampa ad ogni avvio. Le eliminiamo in modo silenzioso (debug) perché
+        è manutenzione ordinaria, non un errore da segnalare all'utente."""
+        try:
+            import shutil
+            argos_pkg_dir = Path.home() / '.local' / 'share' / 'argos-translate' / 'packages'
+            if not argos_pkg_dir.exists():
+                return
+            for sub in argos_pkg_dir.iterdir():
+                if sub.is_dir() and not (sub / 'metadata.json').exists():
+                    shutil.rmtree(str(sub), ignore_errors=True)
+                    logger.debug(f"Argos: rimossa directory orfana: {sub.name}")
+        except Exception:
+            logger.warning("Argos: pulizia directory orfane fallita", exc_info=True)
+
     def _init_translator(self):
         """Inizializza traduttore Argos IT->EN.
         Priorità: modelli locali (installer) → repo congelato HF → server Argos ufficiale."""
@@ -312,21 +331,18 @@ class EmbeddingGenerator:
             import argostranslate.package
             import argostranslate.translate
 
-            # Verifica se pacchetto IT->EN già installato
-            # Cattura FileNotFoundError: argostranslate crasha se trova sottodirectory
-            # prive di metadata.json (installazione parziale/corrotta)
+            # Verifica se pacchetto IT->EN già installato.
+            # Pulizia PREVENTIVA: argostranslate crasha (o lascia residui) se trova
+            # sottodirectory prive di metadata.json (installazione parziale/corrotta,
+            # es. cartelle 'model'/'stanza' estratte male). La rimuoviamo *prima* di
+            # get_installed_packages(), così non dipende dal crash e non si ripresenta
+            # ad ogni avvio. È manutenzione ordinaria → log a debug, non warning.
+            self._cleanup_argos_orphans()
             try:
                 installed = argostranslate.package.get_installed_packages()
             except Exception as e:
-                logger.warning(f"Argos: directory pacchetti corrotta ({e}) - pulizia in corso...")
-                # Rimuovi sottodirectory senza metadata.json (installazioni incomplete)
-                import shutil
-                argos_pkg_dir = Path.home() / '.local' / 'share' / 'argos-translate' / 'packages'
-                if argos_pkg_dir.exists():
-                    for sub in argos_pkg_dir.iterdir():
-                        if sub.is_dir() and not (sub / 'metadata.json').exists():
-                            shutil.rmtree(str(sub), ignore_errors=True)
-                            logger.info(f"Argos: rimossa directory corrotta: {sub.name}")
+                logger.warning(f"Argos: directory pacchetti corrotta ({e}) - nuova pulizia...")
+                self._cleanup_argos_orphans()
                 try:
                     installed = argostranslate.package.get_installed_packages()
                 except Exception:
