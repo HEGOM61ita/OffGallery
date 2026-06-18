@@ -132,8 +132,8 @@ def detect_hardware() -> dict:
 
     # DirectML (AMD/Intel su Windows)
     try:
-        import torch_directml
-        dml_device = torch_directml.device()
+        import torch_directml  # noqa: F401  (verifica disponibilità)
+        dml_device = _select_directml_device()
         if dml_device is not None:
             result['backend'] = 'directml'
             result['gpu_name'] = _detect_directml_gpu_name()
@@ -554,8 +554,8 @@ def _backend_to_torch_device(backend: str):
 
     if backend == 'directml':
         try:
-            import torch_directml
-            return torch_directml.device()
+            import torch_directml  # noqa: F401  (verifica disponibilità)
+            return _select_directml_device()
         except (ImportError, Exception):
             return 'cpu'
 
@@ -583,7 +583,23 @@ def _detect_apple_gpu_name() -> str:
 
 
 def _detect_directml_gpu_name() -> Optional[str]:
-    """Rileva nome GPU per DirectML (AMD/Intel su Windows)."""
+    """Rileva nome GPU per DirectML (AMD/Intel su Windows).
+
+    Preferisce il nome dell'adapter effettivamente selezionato da
+    _select_directml_device() (la GPU discreta), così l'UI mostra la GPU che
+    verrà davvero usata e non la prima enumerata da wmic (spesso l'integrata).
+    """
+    # Nome dell'adapter DirectML selezionato (discreto)
+    try:
+        import torch_directml
+        _select_directml_device()  # assicura che l'indice sia risolto
+        if _dml_device_index is not None:
+            name = torch_directml.device_name(_dml_device_index)
+            if name:
+                return name
+    except Exception:
+        pass
+
     try:
         # Tenta WMI su Windows
         import subprocess
@@ -600,6 +616,94 @@ def _detect_directml_gpu_name() -> Optional[str]:
     except Exception:
         pass
     return "DirectML GPU"
+
+
+# ── Selezione adapter DirectML (GPU discreta vs integrata) ──────────────────
+# torch_directml.device() senza indice ritorna sempre l'adapter 0, che su molti
+# sistemi AMD/Intel è la GPU INTEGRATA (poca VRAM dedicata). Su quell'adapter il
+# caricamento di modelli grossi fallisce con "RuntimeError: unknown error".
+# Qui scegliamo invece l'adapter DISCRETO: quello con più VRAM dedicata, che è
+# anche quello con un nome di modello specifico (es. "Radeon RX 9070") rispetto
+# all'integrata dal nome generico (es. "AMD Radeon(TM) Graphics").
+_dml_device_index: Optional[int] = None
+_dml_index_resolved = False
+
+
+def _integrated_gpu_score(name: str) -> int:
+    """Punteggio euristico: più alto = più probabile sia una GPU integrata.
+
+    Le integrate hanno nomi generici ('Graphics', 'UHD', 'Iris', 'Vega' su APU)
+    senza un numero di modello discreto. Usato solo per spareggio quando non si
+    riesce ad associare la VRAM al singolo adapter.
+    """
+    n = name.lower()
+    score = 0
+    # Nomi tipici di iGPU
+    for kw in ('graphics', 'uhd', 'hd graphics', 'iris', 'radeon(tm) graphics'):
+        if kw in n:
+            score += 2
+    # Le discrete AMD/NVIDIA hanno una sigla di modello: RX, RTX, GTX, Arc...
+    for kw in ('rx ', 'rtx', 'gtx', ' arc', 'quadro', 'radeon pro'):
+        if kw in n:
+            score -= 3
+    return score
+
+
+def _select_directml_device():
+    """Ritorna l'oggetto device DirectML puntato sull'adapter DISCRETO.
+
+    Itera gli adapter enumerati da torch_directml e sceglie quello discreto.
+    Risultato cachato: l'enumerazione e i log avvengono una sola volta.
+    Fallback all'adapter di default (device()) se l'enumerazione non è possibile.
+    """
+    global _dml_device_index, _dml_index_resolved
+    import torch_directml
+
+    if _dml_index_resolved:
+        if _dml_device_index is None:
+            return torch_directml.device()
+        return torch_directml.device(_dml_device_index)
+
+    _dml_index_resolved = True
+
+    try:
+        count = torch_directml.device_count()
+    except Exception as e:
+        logger.debug(f"DirectML device_count non disponibile: {e}")
+        _dml_device_index = None
+        return torch_directml.device()
+
+    # Un solo adapter (o nessuno): niente da scegliere
+    if count <= 1:
+        _dml_device_index = 0 if count == 1 else None
+        return torch_directml.device()
+
+    # Raccoglie (indice, nome) per ogni adapter
+    adapters = []
+    for i in range(count):
+        try:
+            name = torch_directml.device_name(i)
+        except Exception:
+            name = f"DirectML:{i}"
+        adapters.append((i, name or f"DirectML:{i}"))
+
+    names = ", ".join(f"[{i}] {n}" for i, n in adapters)
+    logger.info(f"DirectML: {count} adapter rilevati → {names}")
+
+    # Sceglie l'adapter con il punteggio "discreto" più alto (= meno integrato).
+    # A parità, preferisce l'indice più alto: le discrete sono di norma enumerate
+    # dopo l'integrata su sistemi APU + GPU dedicata.
+    best_idx = min(
+        (i for i, _ in adapters),
+        key=lambda i: (_integrated_gpu_score(dict(adapters)[i]), -i),
+    )
+
+    _dml_device_index = best_idx
+    logger.info(
+        f"DirectML: adapter selezionato → [{best_idx}] {dict(adapters)[best_idx]} "
+        f"(GPU discreta)"
+    )
+    return torch_directml.device(best_idx)
 
 
 def _run_dxdiag() -> Optional[float]:
