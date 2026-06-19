@@ -104,6 +104,7 @@ installer/*.bat
 !assets/
 !assets/*
 !assets/**/*
+!exiftool.exe
 !exiftool_files/
 !exiftool_files/*
 !exiftool_files/**/*

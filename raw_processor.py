@@ -27,6 +27,42 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+# ── Risoluzione eseguibile ExifTool ─────────────────────────────────────────
+# Su Windows ExifTool è distribuito BUNDLED nella cartella dell'app
+# (exiftool.exe accanto a exiftool_files/). NON è nel PATH di sistema: invocarlo
+# come 'exiftool' nudo dà "WinError 2: file non trovato". Qui risolviamo il
+# percorso assoluto dell'eseguibile bundled, con fallback al PATH (Linux/macOS,
+# dove ExifTool è installato da package manager).
+_EXIFTOOL_EXE: Optional[str] = None
+
+
+def _exiftool_executable() -> str:
+    """Ritorna il path dell'eseguibile ExifTool da usare nei subprocess.
+
+    Preferisce exiftool.exe bundled nella directory dell'app (Windows).
+    Fallback a 'exiftool' dal PATH (Linux/macOS o installazioni custom).
+    Risultato cachato.
+    """
+    global _EXIFTOOL_EXE
+    if _EXIFTOOL_EXE is not None:
+        return _EXIFTOOL_EXE
+
+    app_dir = Path(__file__).resolve().parent
+
+    # Windows: exiftool.exe bundled accanto al codice
+    if os.name == 'nt':
+        bundled = app_dir / 'exiftool.exe'
+        if bundled.is_file():
+            _EXIFTOOL_EXE = str(bundled)
+            logger.info(f"ExifTool: uso eseguibile bundled → {bundled}")
+            return _EXIFTOOL_EXE
+
+    # Fallback: comando dal PATH (Linux/macOS, o se il bundled manca)
+    _EXIFTOOL_EXE = 'exiftool'
+    logger.debug("ExifTool: uso 'exiftool' dal PATH di sistema")
+    return _EXIFTOOL_EXE
+
+
 class ExifToolStayOpen:
     """Processo ExifTool persistente per comandi JSON (metadati).
 
@@ -63,7 +99,7 @@ class ExifToolStayOpen:
         if os.name == 'nt':
             kwargs['creationflags'] = 0x08000000  # CREATE_NO_WINDOW
         self._proc = subprocess.Popen(
-            ['exiftool', '-stay_open', 'True', '-@', '-'],
+            [_exiftool_executable(), '-stay_open', 'True', '-@', '-'],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -698,7 +734,7 @@ class RAWProcessor:
         for tag in tags_to_try:
             try:
                 result = subprocess.run(
-                    ['exiftool', '-b', tag, str(file_path)],
+                    [_exiftool_executable(), '-b', tag, str(file_path)],
                     capture_output=True, timeout=15,
                     **subprocess_creation_kwargs()
                 )
@@ -739,7 +775,7 @@ class RAWProcessor:
         """Estrai thumbnail embedded con ExifTool"""
         try:
             result = subprocess.run([
-                'exiftool', '-ThumbnailImage', '-b', str(file_path)
+                _exiftool_executable(), '-ThumbnailImage', '-b', str(file_path)
             ], capture_output=True, timeout=15, **subprocess_creation_kwargs())
             
             if result.returncode == 0 and result.stdout and len(result.stdout) > 1000:
@@ -757,7 +793,7 @@ class RAWProcessor:
         """Estrai preview image con ExifTool (spesso più grande del thumbnail)"""
         try:
             result = subprocess.run([
-                'exiftool', '-PreviewImage', '-b', str(file_path)
+                _exiftool_executable(), '-PreviewImage', '-b', str(file_path)
             ], capture_output=True, timeout=15, **subprocess_creation_kwargs())
             
             if result.returncode == 0 and result.stdout and len(result.stdout) > 1000:
@@ -775,7 +811,7 @@ class RAWProcessor:
         for tag in ('-JpgFromRaw', '-OtherImage'):
             try:
                 result = subprocess.run(
-                    ['exiftool', '-b', tag, str(file_path)],
+                    [_exiftool_executable(), '-b', tag, str(file_path)],
                     capture_output=True, timeout=30,
                     **subprocess_creation_kwargs()
                 )
@@ -851,7 +887,7 @@ class RAWProcessor:
             logger.warning(f"ExifTool stay_open fallback per {file_path.name}: {e}")
             try:
                 result = subprocess.run([
-                    'exiftool', '-json', '-G', '-a', '-s', '-e', str(file_path)
+                    _exiftool_executable(), '-json', '-G', '-a', '-s', '-e', str(file_path)
                 ], capture_output=True, text=True, timeout=30, **subprocess_creation_kwargs())
                 if result.returncode == 0 and result.stdout:
                     data_list = json.loads(result.stdout)
