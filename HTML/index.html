@@ -1157,6 +1157,17 @@
         </div>
 
         <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_bio">Fotografia naturalistica</p>
+          <h3>GeoSpecies</h3>
+          <p data-i18n="plug_geospecies_body">Affina la classificazione BioCLIP usando solo le specie attese nella posizione GPS della foto. Restringe il campo da ~450.000 specie globali a un sottoinsieme geografico pertinente, aumentando la precisione tassonomica. Checklist scaricate da GBIF, poi usate offline.</p>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/geospecies.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Scarica</span> <span class="mac-note" data-i18n="plug_dl_mac">(per Mac)</span>
+          </a>
+        </div>
+
+        <div class="plugin-card">
           <div class="plugin-icon"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
           <p class="plugin-type" data-i18n="plug_type_geo">Dati geografici</p>
           <h3>GeoNames</h3>
@@ -1337,6 +1348,7 @@
       plug_lmstudio_body: "Usa LM Studio come server LLM locale con interfaccia grafica. Ideale per gestire modelli vision quantizzati.",
       plug_lmstudio_credit: "Plugin di Riccardo Merlotti",
       plug_bionomen_body: "Un airone cenerino identificato da BioCLIP diventa automaticamente \"grey heron\", \"héron cendré\", \"Graureiher\" — in tutti i sidecar XMP, offline. Dati GBIF bundled, taxa selezionabili dalla configurazione.",
+      plug_geospecies_body: "Affina la classificazione BioCLIP usando solo le specie attese nella posizione GPS della foto. Restringe il campo da ~450.000 specie globali a un sottoinsieme geografico pertinente, aumentando la precisione tassonomica. Checklist scaricate da GBIF, poi usate offline.",
       plug_geonames_body: "Assegna coordinate GPS e gerarchia geografica precisa (Continente › Paese › Regione › Città) a milioni di luoghi tramite il database GeoNames. Sostituisce il motore builtin con precisione superiore su borghi e frazioni.",
       plug_natura_body: "Identifica l'area protetta (WDPA/UNEP) e il tipo di habitat (ESA WorldCover) per ogni foto con GPS. Filtra per habitat o area protetta direttamente dalla ricerca.",
       plug_weather_body: "Recupera le condizioni meteo storiche allo scatto via Open-Meteo (temperatura, vento, pioggia, neve…). Le condizioni sono filtrabili dalla ricerca e visibili nelle imagecard della gallery.",
@@ -1418,6 +1430,7 @@
       plug_lmstudio_body: "Use LM Studio as a local LLM server with a GUI. Ideal for managing quantized vision models.",
       plug_lmstudio_credit: "Plugin by Riccardo Merlotti",
       plug_bionomen_body: "A grey heron identified by BioCLIP automatically becomes \"airone cenerino\", \"héron cendré\", \"Graureiher\" — in all XMP sidecars, offline. GBIF data bundled, taxa selectable from configuration.",
+      plug_geospecies_body: "Refines BioCLIP classification using only the species expected at the photo's GPS location. Narrows the field from ~450,000 global species to a relevant geographic subset, increasing taxonomic accuracy. Checklists downloaded from GBIF, then used offline.",
       plug_geonames_body: "Assigns GPS coordinates and precise geographic hierarchy (Continent › Country › Region › City) to millions of places using the GeoNames database. Replaces the built-in engine with superior accuracy for villages and hamlets.",
       plug_natura_body: "Identifies the protected area (WDPA/UNEP) and habitat type (ESA WorldCover) for each GPS-tagged photo. Filter by habitat or protected area directly from the search panel.",
       plug_weather_body: "Retrieves historical weather conditions at the time of the shot via Open-Meteo (temperature, wind, rain, snow…). Conditions are searchable from the search panel and visible on gallery image cards.",
