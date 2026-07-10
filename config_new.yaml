@@ -254,7 +254,7 @@ models_repository:
   models_dir: Models
 paths:
   database: database/offgallery.sqlite
-  input_dir: D:\AI\Scripts\Descrittore\INPUT
+  input_dir: ''
   log_dir: logs
   temp_cache_dir: temp_cache
 search:
