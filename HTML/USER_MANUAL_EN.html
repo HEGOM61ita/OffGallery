@@ -218,7 +218,7 @@
     <li class="sub"><a href="#plugin-llm-backends">LLM Plugins</a></li>
     <li class="sub"><a href="#plugin-data">Data Plugins</a></li>
     <li class="sub"><a href="#plugin-prompt-context">Prompt Context</a></li>
-    <li class="sub"><a href="#plugin-access">Beta access</a></li>
+    <li class="sub"><a href="#plugin-access">Installing plugins</a></li>
     <li><a href="#log">Log Tab</a></li>
 
     <li class="section-title"><a>Advanced Concepts</a></li>
@@ -1205,24 +1205,22 @@ Destination (e.g. E:\Backup):
   </div>
 </div>
 
-<h2 id="plugin-access">9b.4 Beta access and installation</h2>
+<h2 id="plugin-access">9b.4 Installing plugins</h2>
 
-<div class="callout warning">
-  <span class="icon">📬</span>
+<div class="callout tip">
+  <span class="icon">🎁</span>
   <div class="body">
-    <strong>Beta access</strong>
-    <p>During the beta testing period all plugins are distributed free of charge on request. Write to <strong><a href="mailto:offgallery.ai.info@gmail.com">offgallery.ai.info@gmail.com</a></strong> stating:</p>
+    <strong>All plugins are free.</strong>
+    <p>Plugins are installed differently depending on your operating system:</p>
     <ul>
-      <li>Operating system (Windows / Linux / macOS) and version</li>
-      <li>System RAM</li>
-      <li>GPU (model and VRAM) — or "CPU only" if you have no dedicated GPU</li>
-      <li>Plugins requested (LLM: Ollama or LM Studio; data plugins: list which ones)</li>
+      <li><strong>Windows and Linux:</strong> open OffGallery's <strong>graphical installer</strong> and use the <strong>«Plugins»</strong> section. Each plugin has an <em>Install</em> button that downloads and extracts it automatically.</li>
+      <li><strong>macOS:</strong> download the desired plugin's zip from its card on <strong><a href="https://offgallery.app/#beta">offgallery.app</a></strong> («Download» button), then follow the manual procedure below.</li>
     </ul>
-    <p style="margin-top:8px; font-size:0.9em;">The address will be used solely to send the plugins and for update notifications — no other purpose, no sharing with third parties.</p>
+    <p style="margin-top:8px; font-size:0.9em;">The zips contain only the plugin code. On first use, each plugin that needs data (maps, species databases, etc.) downloads it from its own configuration.</p>
   </div>
 </div>
 
-<h3>Installing a plugin (from zip)</h3>
+<h3>Manual install from zip (macOS)</h3>
 
 <ol>
   <li>Extract the zip contents into the <code>plugins/</code> folder of your OffGallery installation.</li>

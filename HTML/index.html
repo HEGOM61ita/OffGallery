@@ -466,6 +466,21 @@
     }
     .plugin-badge.beta { background: rgba(255,140,0,0.1); color: #c06800; }
 
+    /* ── Download plugin (link per Mac) ── */
+    .plugin-dl {
+      display: inline-flex; align-items: center; gap: 6px; margin-top: 14px;
+      font-size: 0.78rem; font-weight: 600;
+      padding: 6px 14px; border-radius: var(--radius-full);
+      background: rgba(10,91,255,0.08); color: var(--brand-blue);
+      text-decoration: none; transition: background 0.15s ease;
+    }
+    .plugin-dl:hover { background: rgba(10,91,255,0.16); }
+    .plugin-dl svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+    .plugin-dl .mac-note {
+      font-weight: 500; font-size: 0.72rem; color: var(--text-faint);
+      text-transform: none; letter-spacing: 0;
+    }
+
     /* ── PLUGIN ACCESS BAND ── */
     .plugin-access-band {
       padding: 28px; border-radius: 24px;
@@ -613,12 +628,12 @@
       <span class="sn-tip" data-i18n="nav_plugins">Plugin</span>
     </a>
 
-    <!-- Accesso plugin -->
+    <!-- Plugin -->
     <a href="#beta" class="sidenav-item" id="sn-beta">
       <svg viewBox="0 0 24 24">
         <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>
       </svg>
-      <span class="sn-tip" data-i18n="nav_beta">Accesso plugin</span>
+      <span class="sn-tip" data-i18n="nav_beta">Plugin</span>
     </a>
 
     <!-- Tutte le funzionalità -->
@@ -1111,17 +1126,23 @@
           <div class="plugin-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
           <p class="plugin-type" data-i18n="plug_type_llm">Backend LLM</p>
           <h3>Ollama LLM Vision</h3>
-          <p data-i18n="plug_ollama_body">Collega OffGallery a Ollama per generare tag, titoli e descrizioni. Supporta modelli vision come Qwen3-VL, LLaVA, Gemma3. Accesso riservato ai beta tester.</p>
-          <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
+          <p data-i18n="plug_ollama_body">Collega OffGallery a Ollama per generare tag, titoli e descrizioni. Supporta modelli vision come Qwen3-VL, LLaVA, Gemma3.</p>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/llm_ollama.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Scarica</span> <span class="mac-note" data-i18n="plug_dl_mac">(per Mac)</span>
+          </a>
         </div>
 
         <div class="plugin-card">
           <div class="plugin-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2"/></svg></div>
           <p class="plugin-type" data-i18n="plug_type_llm">Backend LLM</p>
           <h3>LM Studio</h3>
-          <p data-i18n="plug_lmstudio_body">Usa LM Studio come server LLM locale con interfaccia grafica. Ideale per gestire modelli vision quantizzati. Accesso riservato ai beta tester.</p>
+          <p data-i18n="plug_lmstudio_body">Usa LM Studio come server LLM locale con interfaccia grafica. Ideale per gestire modelli vision quantizzati.</p>
           <p style="font-size:0.78rem; color:var(--text-soft); margin-top:6px;" data-i18n="plug_lmstudio_credit">Plugin di Riccardo Merlotti</p>
-          <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/llm_lmstudio.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Scarica</span> <span class="mac-note" data-i18n="plug_dl_mac">(per Mac)</span>
+          </a>
         </div>
 
         <div class="plugin-card">
@@ -1129,7 +1150,10 @@
           <p class="plugin-type" data-i18n="plug_type_bio">Fotografia naturalistica</p>
           <h3>BioNomen</h3>
           <p data-i18n="plug_bionomen_body">Un airone cenerino identificato da BioCLIP diventa automaticamente "grey heron", "héron cendré", "Graureiher" — in tutti i sidecar XMP, offline. Dati GBIF bundled, taxa selezionabili dalla configurazione.</p>
-          <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/bionomen.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Scarica</span> <span class="mac-note" data-i18n="plug_dl_mac">(per Mac)</span>
+          </a>
         </div>
 
         <div class="plugin-card">
@@ -1137,7 +1161,10 @@
           <p class="plugin-type" data-i18n="plug_type_geo">Dati geografici</p>
           <h3>GeoNames</h3>
           <p data-i18n="plug_geonames_body">Assegna coordinate GPS e gerarchia geografica precisa (Continente › Paese › Regione › Città) a milioni di luoghi tramite il database GeoNames. Sostituisce il motore builtin con precisione superiore su borghi e frazioni.</p>
-          <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/geonames.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Scarica</span> <span class="mac-note" data-i18n="plug_dl_mac">(per Mac)</span>
+          </a>
         </div>
 
         <div class="plugin-card">
@@ -1145,7 +1172,10 @@
           <p class="plugin-type" data-i18n="plug_type_geo">Dati geografici</p>
           <h3>NaturArea</h3>
           <p data-i18n="plug_natura_body">Identifica l'area protetta (WDPA/UNEP) e il tipo di habitat (ESA WorldCover) per ogni foto con GPS. Filtra per habitat o area protetta direttamente dalla ricerca.</p>
-          <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/naturarea.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Scarica</span> <span class="mac-note" data-i18n="plug_dl_mac">(per Mac)</span>
+          </a>
         </div>
 
         <div class="plugin-card">
@@ -1153,7 +1183,10 @@
           <p class="plugin-type" data-i18n="plug_type_geo">Dati geografici</p>
           <h3>Weather Context</h3>
           <p data-i18n="plug_weather_body">Recupera le condizioni meteo storiche allo scatto via Open-Meteo (temperatura, vento, pioggia, neve…). Le condizioni sono filtrabili dalla ricerca e visibili nelle imagecard della gallery.</p>
-          <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/weather_context.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Scarica</span> <span class="mac-note" data-i18n="plug_dl_mac">(per Mac)</span>
+          </a>
         </div>
 
         <div class="plugin-card">
@@ -1161,7 +1194,10 @@
           <p class="plugin-type" data-i18n="plug_type_llm">Backend LLM</p>
           <h3>Contesto Prompt</h3>
           <p data-i18n="plug_prompt_body">Inietta un blocco CONTEXT nel prompt Vision-Language per orientare il modello verso il dominio fotografico dell'archivio. Preset built-in (naturalistica, paesaggio, astro, macro, subacqueo, reportage…) e preset personalizzati generati dal modello locale.</p>
-          <span class="plugin-badge" data-i18n="plug_badge_beta_access">Disponibile per beta tester</span>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/prompt_context.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Scarica</span> <span class="mac-note" data-i18n="plug_dl_mac">(per Mac)</span>
+          </a>
         </div>
 
       </div>
@@ -1170,15 +1206,14 @@
 
   <div class="section-divider"></div>
 
-  <!-- ── PLUGIN ACCESS ── -->
+  <!-- ── PLUGIN INSTALL ── -->
   <section id="beta">
     <div class="container">
       <div class="plugin-access-band">
         <div>
-          <h3 data-i18n="access_title">Plugin disponibili su richiesta.</h3>
-          <p data-i18n="access_body">I plugin (LLM Vision, BioNomen, GeoNames, NaturArea, Weather Context) sono accessibili a chi usa OffGallery e vuole provarli. Scrivi per ricevere le istruzioni di installazione.</p>
+          <h3 data-i18n="access_title">Tutti i plugin sono gratuiti.</h3>
+          <p data-i18n="access_body"><strong>Windows e Linux:</strong> installa i plugin direttamente dall'installer grafico di OffGallery, nella sezione «Plugin».<br><strong>macOS:</strong> scarica lo zip del plugin dal pulsante «Scarica» sulla sua scheda qui sopra, poi estrai la cartella dentro <code>plugins/</code> nella tua installazione di OffGallery. Al primo avvio ogni plugin scarica i propri dati (mappe, database) dalla sua configurazione.</p>
         </div>
-        <a class="btn btn-secondary" href="mailto:OffGallery.AI.info@gmail.com" data-i18n="access_cta">Scrivi per l'accesso</a>
       </div>
     </div>
   </section>
@@ -1242,7 +1277,7 @@
       brand_subtitle:   "Catalogazione fotografica con AI locale, offline",
       nav_home: "Home",
       nav_features:     "Funzionalità", nav_plugins: "Plugin",
-      nav_beta:         "Accesso plugin", nav_allfeatures: "Tutte le feature",
+      nav_beta:         "Plugin", nav_allfeatures: "Tutte le feature",
       nav_manual:       "Manuale", nav_credits: "Crediti",
       hero_eyebrow:     "",
       hero_title:       "Il tuo archivio.<br /><span class=\"accent\">La tua AI.</span><br />Zero cloud.",
@@ -1298,18 +1333,18 @@
       plug_title: "Estendi OffGallery con moduli specializzati.",
       plug_intro: "Ogni plugin viene riconosciuto automaticamente all'avvio. Scegli il backend LLM, attiva solo quello che usi — gli altri non occupano VRAM.",
       plug_type_llm: "Backend LLM", plug_type_bio: "Fotografia naturalistica", plug_type_geo: "Dati geografici",
-      plug_ollama_body: "Collega OffGallery a Ollama per generare tag, titoli e descrizioni. Supporta modelli vision come Qwen3-VL, LLaVA, Gemma3. Accesso riservato ai beta tester.",
-      plug_lmstudio_body: "Usa LM Studio come server LLM locale con interfaccia grafica. Ideale per gestire modelli vision quantizzati. Accesso riservato ai beta tester.",
+      plug_ollama_body: "Collega OffGallery a Ollama per generare tag, titoli e descrizioni. Supporta modelli vision come Qwen3-VL, LLaVA, Gemma3.",
+      plug_lmstudio_body: "Usa LM Studio come server LLM locale con interfaccia grafica. Ideale per gestire modelli vision quantizzati.",
       plug_lmstudio_credit: "Plugin di Riccardo Merlotti",
       plug_bionomen_body: "Un airone cenerino identificato da BioCLIP diventa automaticamente \"grey heron\", \"héron cendré\", \"Graureiher\" — in tutti i sidecar XMP, offline. Dati GBIF bundled, taxa selezionabili dalla configurazione.",
       plug_geonames_body: "Assegna coordinate GPS e gerarchia geografica precisa (Continente › Paese › Regione › Città) a milioni di luoghi tramite il database GeoNames. Sostituisce il motore builtin con precisione superiore su borghi e frazioni.",
       plug_natura_body: "Identifica l'area protetta (WDPA/UNEP) e il tipo di habitat (ESA WorldCover) per ogni foto con GPS. Filtra per habitat o area protetta direttamente dalla ricerca.",
       plug_weather_body: "Recupera le condizioni meteo storiche allo scatto via Open-Meteo (temperatura, vento, pioggia, neve…). Le condizioni sono filtrabili dalla ricerca e visibili nelle imagecard della gallery.",
       plug_prompt_body: "Inietta un blocco CONTEXT nel prompt Vision-Language per orientare il modello verso il dominio fotografico dell'archivio. Preset built-in (naturalistica, paesaggio, astro, macro, subacqueo, reportage…) e preset personalizzati generati dal modello locale.",
-      plug_badge_beta_access: "Disponibile per beta tester",
-      access_title: "Plugin disponibili su richiesta.",
-      access_body: "I plugin (LLM Vision, BioNomen, GeoNames, NaturArea, Weather Context, Contesto Prompt) sono accessibili a chi usa OffGallery e vuole provarli. Scrivi per ricevere le istruzioni di installazione.",
-      access_cta: "Scrivi per l'accesso",
+      plug_dl_label: "Scarica",
+      plug_dl_mac: "(per Mac)",
+      access_title: "Tutti i plugin sono gratuiti.",
+      access_body: "<strong>Windows e Linux:</strong> installa i plugin direttamente dall'installer grafico di OffGallery, nella sezione «Plugin».<br><strong>macOS:</strong> scarica lo zip del plugin dal pulsante «Scarica» sulla sua scheda qui sopra, poi estrai la cartella dentro <code>plugins/</code> nella tua installazione di OffGallery. Al primo avvio ogni plugin scarica i propri dati (mappe, database) dalla sua configurazione.",
       cta_title: "Vuoi sapere esattamente cosa fa?",
       cta_body: "Una pagina con ogni funzionalità documentata — modelli, formati, filtri di ricerca, metadati.",
       footer_desc: "Catalogazione fotografica intelligente, offline e privata. Open source, AGPLv3.",
@@ -1323,7 +1358,7 @@
       brand_subtitle:   "Photo cataloging with local AI, offline",
       nav_home: "Home",
       nav_features:     "Features", nav_plugins: "Plugins",
-      nav_beta:         "Plugin access", nav_allfeatures: "All features",
+      nav_beta:         "Plugins", nav_allfeatures: "All features",
       nav_manual:       "Manual", nav_credits: "Credits",
       hero_eyebrow:     "",
       hero_title:       "Your archive.<br /><span class=\"accent\">Your AI.</span><br />Zero cloud.",
@@ -1379,18 +1414,18 @@
       plug_title: "Extend OffGallery with specialized modules.",
       plug_intro: "Every plugin is auto-discovered at startup. Choose the LLM backend, activate only what you use — the others don't occupy VRAM.",
       plug_type_llm: "LLM Backend", plug_type_bio: "Nature photography", plug_type_geo: "Geographic data",
-      plug_ollama_body: "Connect OffGallery to Ollama for natural language tag, title and description generation. Supports vision models like Qwen3-VL, LLaVA, Gemma3. Access reserved for beta testers.",
-      plug_lmstudio_body: "Use LM Studio as a local LLM server with a GUI. Ideal for managing quantized vision models. Access reserved for beta testers.",
+      plug_ollama_body: "Connect OffGallery to Ollama for natural language tag, title and description generation. Supports vision models like Qwen3-VL, LLaVA, Gemma3.",
+      plug_lmstudio_body: "Use LM Studio as a local LLM server with a GUI. Ideal for managing quantized vision models.",
       plug_lmstudio_credit: "Plugin by Riccardo Merlotti",
       plug_bionomen_body: "A grey heron identified by BioCLIP automatically becomes \"airone cenerino\", \"héron cendré\", \"Graureiher\" — in all XMP sidecars, offline. GBIF data bundled, taxa selectable from configuration.",
       plug_geonames_body: "Assigns GPS coordinates and precise geographic hierarchy (Continent › Country › Region › City) to millions of places using the GeoNames database. Replaces the built-in engine with superior accuracy for villages and hamlets.",
       plug_natura_body: "Identifies the protected area (WDPA/UNEP) and habitat type (ESA WorldCover) for each GPS-tagged photo. Filter by habitat or protected area directly from the search panel.",
       plug_weather_body: "Retrieves historical weather conditions at the time of the shot via Open-Meteo (temperature, wind, rain, snow…). Conditions are searchable from the search panel and visible on gallery image cards.",
       plug_prompt_body: "Injects a custom CONTEXT block into the Vision-Language prompt to steer the model towards the archive's photographic domain. Built-in presets (nature, landscape, astro, macro, underwater, reportage…) and custom presets generated by the local model.",
-      plug_badge_beta_access: "Available for beta testers",
-      access_title: "Plugins available on request.",
-      access_body: "The plugins (LLM Vision, BioNomen, GeoNames, NaturArea, Weather Context, Prompt Context) are available to OffGallery users who want to try them. Write to receive installation instructions.",
-      access_cta: "Write for access",
+      plug_dl_label: "Download",
+      plug_dl_mac: "(for Mac)",
+      access_title: "All plugins are free.",
+      access_body: "<strong>Windows and Linux:</strong> install the plugins directly from OffGallery's graphical installer, in the «Plugins» section.<br><strong>macOS:</strong> download the plugin zip from the «Download» button on its card above, then extract the folder into <code>plugins/</code> in your OffGallery installation. On first run each plugin downloads its own data (maps, databases) from its configuration.",
       cta_title: "Want to know exactly what it does?",
       cta_body: "A page with every feature documented — models, formats, search filters, metadata.",
       footer_desc: "Intelligent photo cataloging, offline and private. Open source, AGPLv3.",
