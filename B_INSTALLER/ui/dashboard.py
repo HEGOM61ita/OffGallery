@@ -16,6 +16,7 @@ from components.core         import ensure_core, installed_version, update_avail
 from components.exiftool_linux import is_installed as exiftool_installed, install_exiftool
 from components.miniconda    import conda_executable, find_conda, conda_version
 from components.models       import MODELS, download_models, model_exists
+from components.plugins      import PLUGINS, download_plugins, plugin_exists
 from components.ollama       import (ensure_ollama, find_ollama, ollama_version,
                                      is_running as ollama_running, is_model_pulled,
                                      pull_model, start_server, OLLAMA_MODEL)
@@ -303,6 +304,11 @@ class DashboardPage(tk.Frame):
             self._rows[key] = row
         ttk.Separator(self._comp_frame, orient="horizontal").pack(fill="x", pady=6)
 
+        # Sezione PLUGIN (opzionali) — scaricabili singolarmente
+        self._build_section("PLUGIN (opzionali)", [
+            (f"plugin_{p.key}", f"{p.icon} {p.label}") for p in PLUGINS
+        ])
+
         # Colonna destra: download panel + bottoni
         right = tk.Frame(body, bg=BG)
         right.pack(side="left", fill="both", expand=True, padx=(8, 4), pady=12)
@@ -398,6 +404,15 @@ class DashboardPage(tk.Frame):
                           f"{sum(f.size_mb for f in m.files)} MB" if exists else "—",
                           action_label="Riscarica" if exists else "Scarica",
                           action=lambda k=m.key, f=exists: self._action_download_model(k, force=f))
+
+        for p in PLUGINS:
+            key    = f"plugin_{p.key}"
+            exists = plugin_exists(sm.install_path, p.key)
+            self._set_row(key,
+                          "done" if exists else "not_installed",
+                          "installato" if exists else "—",
+                          action_label="Reinstalla" if exists else "Installa",
+                          action=lambda k=p.key, f=exists: self._action_download_plugin(k, force=f))
 
         ollama_exe = find_ollama()
         ollama_ver = ollama_version(ollama_exe) if ollama_exe else None
@@ -584,6 +599,34 @@ class DashboardPage(tk.Frame):
                 self.app.state.set_model_status(model_key, status)
             except Exception as exc:
                 self._panel.log(f"❌ {exc}")
+        self._run_bg(_do)
+
+    def _action_download_plugin(self, plugin_key: str, force: bool = False):
+        if force:
+            spec = next((p for p in PLUGINS if p.key == plugin_key), None)
+            label = spec.label if spec else plugin_key
+            if not messagebox.askyesno(
+                "Reinstalla plugin",
+                f"Reinstallàre {label}?\n"
+                f"Il codice del plugin verrà riscaricato.\n"
+                f"I dati già scaricati (mappe, database, cache) sono preservati."
+            ):
+                return
+        def _do():
+            try:
+                results = download_plugins(
+                    app_dir=self.app.state.install_path,
+                    keys=[plugin_key],
+                    progress_cb=self._panel.on_plugin_progress,
+                    log_cb=self._panel.log,
+                    force=force,
+                )
+                if not results.get(plugin_key):
+                    self._panel.log(f"❌ {plugin_key}: installazione fallita")
+            except Exception as exc:
+                self._panel.log(f"❌ {exc}")
+            finally:
+                self.after(0, self._refresh_all)
         self._run_bg(_do)
 
     def _action_install(self, component: str):

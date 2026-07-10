@@ -223,6 +223,16 @@ class DownloadPanel(tk.Frame):
             speed_bps=p.speed_bps, eta_sec=p.eta_sec,
         )
 
+    def on_plugin_progress(self, p):
+        """Callback da passare a plugins.download_plugins()."""
+        title = (f"Plugin {p.plugin_index + 1}/{p.plugin_count}  —  "
+                 f"{p.plugin_label}")
+        self._file_bar.set_title(title)
+        self._file_bar.update_progress(
+            p.bytes_done, p.bytes_total,
+            speed_bps=p.speed_bps, eta_sec=p.eta_sec,
+        )
+
     def log(self, message: str):
         """Aggiunge una riga al log. Thread-safe."""
         def _do():
