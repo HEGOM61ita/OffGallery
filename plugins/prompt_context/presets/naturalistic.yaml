@@ -1,0 +1,16 @@
+id: naturalistic
+name: Archivio Naturalistico
+description: Fotografia scientifica di natura — specie, habitat, comportamento
+icon: "🦋"
+author: OffGallery
+version: "1.0"
+
+context_block: |
+  CONTEXT: This is a scientific wildlife photography archive.
+  - Priority: species behavior, ecological relationships, and natural habitat accuracy.
+  - For birds: note posture, plumage phase, foraging or flight behavior if visible.
+  - For mammals: note body language, social context, activity (resting, feeding, moving).
+  - For plants and fungi: note growth stage, habitat, any visible ecological interaction.
+  - If the subject shows interaction with environment (feeding, nesting, camouflage), document it.
+  - Prefer precise observational language over aesthetic or poetic descriptions.
+  - Avoid generic terms like "beautiful" or "stunning" — describe what is actually visible.

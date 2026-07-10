@@ -1,0 +1,48 @@
+{
+  "id": "prompt_context",
+  "name": "Contesto Prompt",
+  "version": "1.0.0",
+  "description": "Inietta un blocco CONTEXT personalizzato nel prompt vision per adattare le descrizioni al dominio dell'archivio fotografico.",
+  "icon": "📋",
+  "author": "OffGallery",
+  "license": "OffGallery Plugins License v1.0 — Proprietary",
+  "type": "prompt_context",
+  "entry_point": "plugin_ui.py",
+  "requires_db": false,
+  "requires_download": false,
+  "min_offgallery_version": "1.0",
+  "input_fields": [],
+  "output_fields": [],
+  "config_sections": [
+    {
+      "id": "general",
+      "label_key": "general",
+      "fields": [
+        {
+          "id": "enabled",
+          "type": "bool",
+          "label_key": "enabled",
+          "default": true
+        },
+        {
+          "id": "active_preset",
+          "type": "string",
+          "label_key": "active_preset",
+          "default": ""
+        }
+      ]
+    }
+  ],
+  "labels": {
+    "it": {
+      "general": "Impostazioni",
+      "enabled": "Abilita contesto prompt",
+      "active_preset": "Preset attivo"
+    },
+    "en": {
+      "general": "Settings",
+      "enabled": "Enable prompt context",
+      "active_preset": "Active preset"
+    }
+  }
+}

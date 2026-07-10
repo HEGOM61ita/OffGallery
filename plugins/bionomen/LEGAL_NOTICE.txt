@@ -1,0 +1,28 @@
+LEGAL NOTICE — BioNomen Plugin for OffGallery
+
+Copyright (C) 2026  OffGallery / HEGOM
+All rights reserved.
+
+This plugin is distributed under the OffGallery Plugins License (see LICENSE).
+It is NOT open-source software and may NOT be redistributed.
+
+─────────────────────────────────────────────────────────────────────────────
+
+RELATIONSHIP TO THE OFFGALLERY AGPL LICENSE
+
+The BioNomen plugin runs as an independent subprocess and does not link
+directly against the OffGallery core. It is therefore NOT subject to the
+GNU Affero General Public License v3 (AGPLv3) that governs OffGallery, and
+the OffGallery Plugin Interface Exception does not apply to it.
+
+Distribution of this plugin is governed solely by the OffGallery Plugins
+License contained in the LICENSE file in this directory.
+
+─────────────────────────────────────────────────────────────────────────────
+
+BIOLOGICAL DATA
+
+Common name data is derived from GBIF (Global Biodiversity Information
+Facility, https://www.gbif.org) and is subject to GBIF's terms of use.
+The compiled SQLite databases in the `data/` subdirectory are copyright
+of OffGallery / HEGOM.

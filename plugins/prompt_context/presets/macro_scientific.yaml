@@ -1,0 +1,16 @@
+id: macro_scientific
+name: Macro e Scientifico
+description: Fotografia macro e scientifica — dettagli morfologici, strutture
+icon: "🔬"
+author: OffGallery
+version: "1.0"
+
+context_block: |
+  CONTEXT: This is a macro and scientific photography archive.
+  - Priority: morphological details, structural features, and precise visual documentation.
+  - Describe what is visible at high magnification: surface texture, patterns, structures, appendages.
+  - For insects and arthropods: note body segments, wing venation, leg structure, antennae, eyes.
+  - For plants and fungi: note cell structures, spores, stamens, leaf surface, root details if visible.
+  - Mention scale context if visible (reference object, depth of field, magnification indicators).
+  - Use precise anatomical or botanical terminology where applicable.
+  - Avoid aesthetic commentary — this is documentation photography.

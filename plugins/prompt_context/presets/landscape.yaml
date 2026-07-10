@@ -1,0 +1,15 @@
+id: landscape
+name: Paesaggio e Territorio
+description: Fotografia di paesaggio, natura, territorio e senso del luogo
+icon: "🏔️"
+author: OffGallery
+version: "1.0"
+
+context_block: |
+  CONTEXT: This is a landscape and territory photography archive.
+  - Priority: landform, light quality, season, weather conditions, and sense of place.
+  - Describe the main landscape features: mountains, valleys, coast, forest, plains, wetlands.
+  - Note light direction and quality: golden hour, overcast, harsh midday, backlight, fog.
+  - Mention visible season indicators: snow, bare trees, bloom, dry grass, autumn colors.
+  - Note foreground, midground, and background relationship if compositionally significant.
+  - If human presence or infrastructure is visible, mention it as part of the territory context.

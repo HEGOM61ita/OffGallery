@@ -1,0 +1,38 @@
+LEGAL NOTICE — Weather Context Plugin for OffGallery
+
+Copyright (C) 2026  OffGallery / HEGOM
+All rights reserved.
+
+This plugin is distributed under the OffGallery Plugins License (see LICENSE).
+It is NOT open-source software and may NOT be redistributed.
+
+─────────────────────────────────────────────────────────────────────────────
+
+RELATIONSHIP TO THE OFFGALLERY AGPL LICENSE
+
+OffGallery is distributed under the GNU Affero General Public License v3
+(AGPLv3). However, this plugin (weather_context) is an independent module
+that communicates with OffGallery exclusively through the plugin interface
+defined in `plugins/base.py`.
+
+Under the terms of the OffGallery Plugin Interface Exception
+(see `plugins/PLUGIN_LICENSE_EXCEPTION.md`), this plugin is exempt from
+the AGPLv3 copyleft provisions. Its distribution is therefore governed
+solely by the OffGallery Plugins License contained in the LICENSE file.
+
+─────────────────────────────────────────────────────────────────────────────
+
+THIRD-PARTY DATA
+
+Open-Meteo Historical Weather API
+  Provider: Open-Meteo (open-meteo.com)
+  License: CC BY 4.0 — https://creativecommons.org/licenses/by/4.0/
+  Required attribution: "Weather data from Open-Meteo (open-meteo.com)"
+  Data is fetched at runtime and cached locally in a SQLite database.
+  No API key required.
+
+NOTE ON COPYLEFT
+----------------
+The Open-Meteo CC BY 4.0 license does not impose copyleft requirements
+on consuming software. This plugin's license (OffGallery Plugins License v1.0)
+is not affected by the data license above.

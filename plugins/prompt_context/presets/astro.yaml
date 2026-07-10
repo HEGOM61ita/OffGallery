@@ -1,0 +1,16 @@
+id: astro
+name: Astrofotografia
+description: Fotografia astronomica e notturna — corpi celesti, condizioni di ripresa
+icon: "🔭"
+author: OffGallery
+version: "1.0"
+
+context_block: |
+  CONTEXT: This is an astrophotography archive.
+  - Priority: celestial objects, sky conditions, and night environment.
+  - Identify visible celestial elements: stars, Milky Way, Moon, planets, nebulae, star trails.
+  - Note sky quality: cloud cover, light pollution level, atmospheric clarity.
+  - If a landscape foreground is present, describe its relationship to the sky.
+  - Note any visible constellation patterns or notable star groupings if identifiable.
+  - Mention technical indicators if visible: star trails (long exposure), star points (short exposure).
+  - If aurora, meteor, or other transient phenomena are visible, prioritize their description.

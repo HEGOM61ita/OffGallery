@@ -1,0 +1,164 @@
+{
+  "id": "geonames",
+  "name": "GeoNames",
+  "version": "1.0.0",
+  "description": "Geolocalizzazione precisa: assegna coordinate GPS e gerarchia geografica a immagini sprovviste, o ricalcola la gerarchia con precisione su milioni di luoghi. Sostituisce il motore builtin.",
+  "icon": "📍",
+  "author": "OffGallery",
+  "license": "OffGallery Plugins License v1.0 — Proprietary, no redistribution",
+  "entry_point": "geonames_ui.py",
+  "requires_db": true,
+  "requires_download": true,
+  "pip_dependencies": [],
+  "min_offgallery_version": "1.0",
+
+  "type": "standalone",
+  "plugin_type": "geo_enricher",
+  "config_only": true,
+  "pipeline_stage": "pre_llm",
+
+  "replaces_builtin": "geo_enricher",
+
+  "processing_modes": [
+    {
+      "id": "no_gps",
+      "label_key": "mode.no_gps",
+      "description_key": "mode.no_gps.desc",
+      "condition": "gps_latitude IS NULL",
+      "requires_user_location": true
+    },
+    {
+      "id": "overwrite",
+      "label_key": "mode.overwrite",
+      "description_key": "mode.overwrite.desc",
+      "condition": "gps_latitude IS NOT NULL",
+      "requires_user_location": false
+    }
+  ],
+
+  "gallery_actions": [
+    {
+      "id": "assign_location",
+      "label_key": "gallery.assign_location",
+      "condition": "gps_null",
+      "requires_input": true
+    },
+    {
+      "id": "recalc_hierarchy",
+      "label_key": "gallery.recalc_hierarchy",
+      "condition": "any",
+      "requires_input": false
+    },
+    {
+      "id": "clear_gps",
+      "label_key": "gallery.clear_gps",
+      "condition": "any",
+      "requires_input": false,
+      "destructive": true
+    }
+  ],
+
+  "input_fields": ["gps_latitude", "gps_longitude"],
+  "output_fields": ["gps_latitude", "gps_longitude", "gps_altitude", "geo_hierarchy", "gps_modified"],
+
+  "llm_context_fields": ["geo_hierarchy"],
+
+  "tooltip_fields": [],
+
+  "db_columns": [
+    {"name": "gps_modified", "type": "INTEGER"}
+  ],
+
+  "search_filters": [],
+
+  "config_sections": [
+    {
+      "id": "direct_coords",
+      "label_key": "config.direct_coords",
+      "fields": [
+        {"id": "latitude",  "type": "float", "label_key": "config.latitude"},
+        {"id": "longitude", "type": "float", "label_key": "config.longitude"},
+        {"id": "altitude",  "type": "float", "label_key": "config.altitude", "optional": true}
+      ]
+    },
+    {
+      "id": "text_input",
+      "label_key": "config.text_input",
+      "fields": [
+        {"id": "location_name", "type": "text_search", "label_key": "config.location_name",
+         "description_key": "config.location_name.desc"}
+      ]
+    },
+    {
+      "id": "nation_data",
+      "label_key": "config.nation_data",
+      "fields": [
+        {"id": "selected_nations", "type": "nation_list", "label_key": "config.nations",
+         "description_key": "config.nations.desc"},
+        {"id": "download_action",  "type": "button",      "label_key": "config.download"}
+      ]
+    },
+    {
+      "id": "data_directory",
+      "label_key": "config.data_directory",
+      "fields": [
+        {"id": "data_dir", "type": "directory", "label_key": "config.data_dir",
+         "default": "__plugin_dir__",
+         "description_key": "config.data_dir.desc"}
+      ]
+    }
+  ],
+
+  "labels": {
+    "it": {
+      "processing.mode.only_no_gps": "Geotag: solo foto senza GPS",
+      "processing.mode.all_gps":     "Geotag: tutte le foto",
+      "mode.no_gps":               "Solo immagini senza GPS",
+      "mode.no_gps.desc":          "Assegna la località impostata nella config a tutte le immagini prive di coordinate",
+      "mode.overwrite":            "Sovrascrivi",
+      "mode.overwrite.desc":       "Ricalcola la gerarchia geografica con il database GeoNames su immagini con GPS già presente",
+      "gallery.assign_location":   "Assegna posizione...",
+      "gallery.recalc_hierarchy":  "Rielabora localizzazione",
+      "gallery.clear_gps":         "Cancella dati localizzazione",
+      "config.direct_coords":      "Coordinate dirette",
+      "config.latitude":           "Latitudine",
+      "config.longitude":          "Longitudine",
+      "config.altitude":           "Altitudine (m)",
+      "config.text_input":         "Ricerca per nome",
+      "config.location_name":      "Località",
+      "config.location_name.desc": "Digita il nome del luogo e seleziona dalla lista",
+      "config.nation_data":        "Database per nazione",
+      "config.nations":            "Nazioni scaricate",
+      "config.nations.desc":       "Seleziona la nazione e scarica i dati GeoNames (include borghi e località minori)",
+      "config.download":           "Scarica dati",
+      "config.data_directory":     "Directory dati",
+      "config.data_dir":           "Percorso",
+      "config.data_dir.desc":      "Cartella dove vengono salvati i file GeoNames scaricati. Default: cartella del plugin"
+    },
+    "en": {
+      "processing.mode.only_no_gps": "Geotag: no-GPS photos only",
+      "processing.mode.all_gps":     "Geotag: all photos",
+      "mode.no_gps":               "Images without GPS only",
+      "mode.no_gps.desc":          "Assigns the location set in config to all images lacking coordinates",
+      "mode.overwrite":            "Overwrite",
+      "mode.overwrite.desc":       "Recalculates geographic hierarchy using GeoNames database on images with existing GPS",
+      "gallery.assign_location":   "Assign location...",
+      "gallery.recalc_hierarchy":  "Reprocess location",
+      "gallery.clear_gps":         "Clear location data",
+      "config.direct_coords":      "Direct coordinates",
+      "config.latitude":           "Latitude",
+      "config.longitude":          "Longitude",
+      "config.altitude":           "Altitude (m)",
+      "config.text_input":         "Search by name",
+      "config.location_name":      "Location",
+      "config.location_name.desc": "Type the place name and select from the list",
+      "config.nation_data":        "Per-nation database",
+      "config.nations":            "Downloaded nations",
+      "config.nations.desc":       "Select a nation and download GeoNames data (includes villages and minor localities)",
+      "config.download":           "Download data",
+      "config.data_directory":     "Data directory",
+      "config.data_dir":           "Path",
+      "config.data_dir.desc":      "Folder where downloaded GeoNames files are stored. Default: plugin folder"
+    }
+  }
+}

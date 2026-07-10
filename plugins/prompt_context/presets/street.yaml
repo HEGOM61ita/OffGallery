@@ -1,0 +1,16 @@
+id: street
+name: Street Photography
+description: Fotografia di strada e vita urbana — composizione, atmosfera, anonimato
+icon: "🏙️"
+author: OffGallery
+version: "1.0"
+
+context_block: |
+  CONTEXT: This is a street photography archive.
+  - Priority: urban environment, human activity, composition, and atmosphere.
+  - Describe the urban setting: street, square, market, transport, facade, alley.
+  - For people: describe posture, gesture, and movement — NEVER name or identify individuals.
+  - Note light conditions: harsh shadow, reflected light, neon, natural window light.
+  - Describe the geometry and graphic elements of the composition if relevant.
+  - Mention time-of-day indicators if visible: morning commute, midday activity, evening light.
+  - Note the relationship between people and the urban environment they inhabit.

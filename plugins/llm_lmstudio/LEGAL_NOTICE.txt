@@ -1,0 +1,29 @@
+LEGAL NOTICE — LM Studio LLM Server Plugin for OffGallery
+
+Copyright (C) 2026  OffGallery / HEGOM
+All rights reserved.
+
+This plugin is distributed under the OffGallery Plugins License (see LICENSE).
+It is NOT open-source software and may NOT be redistributed.
+
+─────────────────────────────────────────────────────────────────────────────
+
+RELATIONSHIP TO THE OFFGALLERY AGPL LICENSE
+
+OffGallery is distributed under the GNU Affero General Public License v3
+(AGPLv3). However, this plugin (llm_lmstudio) is an independent module that
+communicates with OffGallery exclusively through the LLMVisionPlugin
+interface defined in `plugins/base.py`.
+
+Under the terms of the OffGallery Plugin Interface Exception
+(see `plugins/PLUGIN_LICENSE_EXCEPTION.md`), this plugin is exempt from
+the AGPLv3 copyleft provisions. Its distribution is therefore governed
+solely by the OffGallery Plugins License contained in the LICENSE file.
+
+─────────────────────────────────────────────────────────────────────────────
+
+THIRD-PARTY SOFTWARE
+
+This plugin communicates at runtime with LM Studio (https://lmstudio.ai),
+which is a separate, independently licensed program. LM Studio is NOT
+included in this plugin and must be installed separately by the user.

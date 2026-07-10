@@ -30,26 +30,31 @@ update_beta.*
 !utils/*.py
 !catalog_readers/
 !catalog_readers/*.py
-!plugins/
-!plugins/*.py
-!plugins/*.md
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║  PERICOLO: plugins/*/ è IGNORATO (non untracked) da questo repo.    ║
-# ║  git checkout da branch che le traccia → le CANCELLA dal disco.     ║
-# ║  NON usare mai branch temporanei nel main working tree per beta.     ║
-# ║  Usare SEMPRE update_beta.bat / update_beta.sh  per il push beta.   ║
-# ║  Recupero: git archive remotes/beta/main -- plugins/NOME/ | tar -x  ║
+# ║  PLUGIN — dal 2026-07: il CODICE dei plugin è pubblico (repo main).  ║
+# ║  Solo i DATI pesanti (scaricati/generati a runtime) restano esclusi. ║
+# ║  I plugin scaricano i propri dati via download_and_build_database(). ║
 # ╚══════════════════════════════════════════════════════════════════════╝
-# Sottodirectory plugin: solo nella repo privata beta, mai nella repo pubblica
-plugins/*/
-plugins/*/*
-# Dati runtime plugin (scaricati/generati a runtime, non nel repo)
-plugins/naturarea/*.tif
-plugins/naturarea/data/*.db
-plugins/naturarea/weather_cache.db
-plugins/weather_context/data/*.db
-plugins/bionomen/data/*.db
-plugins/geospecies/cache/*.json
+# Codice dei plugin: incluso nel repo pubblico
+!plugins/
+!plugins/**/
+!plugins/**/*.py
+!plugins/**/*.md
+!plugins/**/*.json
+!plugins/**/*.txt
+# Dati runtime plugin (scaricati/generati a runtime, MAI nel repo) — esclusi
+plugins/**/data/
+plugins/**/cache/
+plugins/**/*.tif
+plugins/**/*.db
+plugins/**/*.npy
+plugins/**/*.bin
+plugins/**/weather_cache.db
+plugins/*.zip
+# Config di stato locale dei plugin (contiene percorsi personali + dati d'uso,
+# rigenerato dai default al primo avvio) — MAI nel repo pubblico.
+# NB: manifest.json, presets/*.yaml e altri file strutturali restano tracciati.
+plugins/**/config.json
 
 # Configurazione
 !*.yaml

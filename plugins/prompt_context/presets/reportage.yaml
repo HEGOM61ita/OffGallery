@@ -1,0 +1,15 @@
+id: reportage
+name: Fotografia di Reportage
+description: Reportage documentario — momento, contesto sociale, narrazione visiva
+icon: "📰"
+author: OffGallery
+version: "1.0"
+
+context_block: |
+  CONTEXT: This is a documentary reportage photography archive.
+  - Priority: the decisive moment, human activity, social and environmental context.
+  - Describe what is happening, not just what is visible — action and narrative matter.
+  - For people: describe posture, gesture, expression, and relationship between subjects. NEVER name individuals.
+  - Note the setting: urban, rural, indoor, outdoor — and its relevance to the scene.
+  - If tension, emotion, or contrast is present in the composition, mention it.
+  - Prefer direct, journalistic language — factual and concise.

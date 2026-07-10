@@ -1,0 +1,15 @@
+id: commercial
+name: Catalogo Commerciale
+description: Fotografia di prodotto e catalogo commerciale
+icon: "🛍️"
+author: OffGallery
+version: "1.0"
+
+context_block: |
+  CONTEXT: This is a commercial product photography archive.
+  - Priority: accurate description of the product, its materials, finish, and visible details.
+  - Describe shape, color, texture, and any distinguishing features objectively.
+  - Note the presentation context: studio, lifestyle, flat lay, detail shot, packaging.
+  - Do NOT mention people by name or any personal identifiers.
+  - Avoid subjective judgments — describe what is visible, not its commercial value.
+  - If multiple products are shown, describe the main subject first, then supporting elements.

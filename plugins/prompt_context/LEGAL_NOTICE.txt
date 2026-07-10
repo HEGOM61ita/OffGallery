@@ -1,0 +1,15 @@
+OffGallery Plugin: prompt_context
+Copyright (C) 2026 OffGallery / HEGOM — All rights reserved.
+
+This plugin is distributed under the OffGallery Plugins License v1.0.
+It is proprietary software and may NOT be redistributed or modified
+without explicit written permission from the copyright holder.
+
+This plugin communicates with OffGallery exclusively through the
+PromptContextPlugin interface defined in plugins/base.py, and is therefore
+covered by the Plugin Interface Exception declared in that file.
+It is NOT subject to the GNU Affero General Public License v3 (AGPLv3)
+that governs the OffGallery core application.
+
+Third-party components:
+  - PyYAML (MIT License) — used for reading preset files

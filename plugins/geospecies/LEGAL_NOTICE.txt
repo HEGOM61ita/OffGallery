@@ -1,0 +1,37 @@
+GeoSpecies Plugin — Legal Notice
+==================================
+
+DATA ATTRIBUTION REQUIREMENTS
+-------------------------------
+
+This plugin uses data from the following sources. Attribution is required
+when publishing results derived from this data.
+
+1. GBIF — Global Biodiversity Information Facility
+   Website: https://www.gbif.org
+   License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+   Required attribution: "Species occurrence data from GBIF.org"
+   Full license: https://creativecommons.org/licenses/by/4.0/
+
+   The CC BY 4.0 license requires attribution when redistributing data,
+   but does NOT impose any copyleft requirement on software that queries
+   the GBIF API or uses GBIF data internally.
+
+2. eBird (optional, if configured)
+   Provider: Cornell Lab of Ornithology
+   Website: https://ebird.org
+   License: eBird API Terms of Use
+   Required attribution: "Bird data provided by eBird (https://ebird.org)"
+   API terms: https://www.birds.cornell.edu/home/ebird-api-terms-of-use/
+
+NOTE ON COPYLEFT
+----------------
+Neither GBIF (CC BY 4.0) nor eBird imposes copyleft requirements on
+consuming software. This plugin's license (OffGallery Plugins License v1.0)
+is not affected by the data licenses above.
+
+OFFLINE USE
+-----------
+Cached data downloaded via this plugin is subject to the data licenses
+above. The plugin itself stores data locally for offline use as permitted
+by the respective API terms of service.

@@ -1,0 +1,16 @@
+id: underwater
+name: Fotografia Subacquea
+description: Fotografia marina e subacquea — specie, habitat, visibilità
+icon: "🐠"
+author: OffGallery
+version: "1.0"
+
+context_block: |
+  CONTEXT: This is an underwater and marine photography archive.
+  - Priority: marine species identification, habitat type, and underwater environment.
+  - Describe water clarity and color (blue, green, murky), visible depth, and light penetration.
+  - For fish and invertebrates: note body shape, coloration, fins, and behavior if visible.
+  - Note substrate: sand, rock, coral, seagrass, sponge, posidonia meadow.
+  - If a reef, wall, or specific marine habitat is visible, describe it.
+  - Mention any schooling behavior, symbiotic relationships, or hunting activity if present.
+  - Prefer accurate marine biology terminology over generic descriptions.

@@ -1,0 +1,34 @@
+LEGAL NOTICE — GeoNames Plugin for OffGallery
+
+Copyright (C) 2026  OffGallery / HEGOM
+All rights reserved.
+
+This plugin is distributed under the OffGallery Plugins License (see LICENSE).
+It is NOT open-source software and may NOT be redistributed.
+
+─────────────────────────────────────────────────────────────────────────────
+
+RELATIONSHIP TO THE OFFGALLERY AGPL LICENSE
+
+The GeoNames plugin communicates with OffGallery exclusively through the
+GeoEnricherPlugin interface defined in plugins/base.py. It is therefore
+covered by the OffGallery Plugin Interface Exception declared in
+plugins/PLUGIN_LICENSE_EXCEPTION.md, and is NOT subject to the GNU Affero
+General Public License v3 (AGPLv3) that governs the OffGallery core.
+
+The plugin does not incorporate any part of the OffGallery codebase other
+than the interface definitions in plugins/base.py and plugins/loader.py,
+as required by the Plugin Interface Exception.
+
+─────────────────────────────────────────────────────────────────────────────
+
+GEOGRAPHIC DATA
+
+This plugin downloads and indexes data from GeoNames (geonames.org),
+licensed under the Creative Commons Attribution 4.0 License (CC BY 4.0).
+The downloaded data files and the compiled SQLite databases in the `data/`
+subdirectory are subject to both the CC BY 4.0 terms and the restrictions
+of the OffGallery Plugins License.
+
+Attribution: GeoNames geographic database — https://www.geonames.org
+License: https://creativecommons.org/licenses/by/4.0/
