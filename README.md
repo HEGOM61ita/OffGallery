@@ -50,6 +50,7 @@
 
 | Data | Cosa | Note |
 |------|------|------|
+| 11 lug 2026 | **Plugin gratuiti per tutti** | Tutti i plugin (BioNomen, GeoNames, GeoSpecies, NaturArea, Meteo, Ollama, LM Studio, Contesto Prompt) sono ora liberamente scaricabili, senza più richiesta via email. **Windows e Linux**: installali dall'installer grafico, sezione «Plugin». **macOS**: scarica lo zip dalla [pagina plugin](https://offgallery.app/#beta) ed estrai in `plugins/`. Gli zip contengono solo il codice; i dati (mappe, database specie) vengono scaricati a runtime. Incluso un fix a BioNomen: i nomi comuni escono sempre nella lingua di output selezionata. |
 | 20 mag 2026 | **Ricerca semantica potenziata con SigLIP (Google)** | Sostituisce CLIP con `google/siglip-so400m-patch14-384`: multilingua nativo (cerca in italiano direttamente, senza traduzione), addestrato su 10B coppie immagine-testo, più accurato su query in linguaggio naturale. Embedding 1152 float. |
 | 20 mag 2026 | **Ricerca semantica velocissima e interrompibile** | Completamente non bloccante: la UI resta reattiva durante la ricerca su 22.000+ immagini. Pulsante Stop funzionante. Fetch ottimizzato in due passaggi: embedding separati dai metadati, metadati caricati solo per i risultati che superano la soglia. |
 | 8 mag 2026 | **Installer guidato Windows — [`OffGallerySetup.exe`](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup.exe)** | Wizard in 5 schermate: rileva la GPU (NVIDIA/AMD/CPU), installa Miniconda, Python, librerie, modelli AI (~8 GB) e opzionalmente Ollama. Nessun terminale, nessuna configurazione manuale. Crea collegamento sul Desktop. |
@@ -291,7 +292,7 @@ Abilitano la generazione automatica di tag, descrizioni e titoli tramite modelli
 
 Il backend attivo si seleziona dal tab **Configurazione → Connessione LLM**. Il cambio non richiede riavvio; i dati già generati nel database restano invariati.
 
-> **Accesso beta — Plugin LLM**: Durante il periodo di beta testing i plugin sono distribuiti gratuitamente. Per riceverli, scrivere a **offgallery.ai.info@gmail.com** indicando: sistema operativo, RAM di sistema, GPU (modello e VRAM), e se si preferisce Ollama o LM Studio. L'indirizzo sarà utilizzato esclusivamente per l'invio del plugin e per eventuali notifiche di aggiornamento, senza altri scopi né condivisione con terze parti.
+> **Come installarli**: i plugin sono gratuiti. Su **Windows/Linux** usa l'installer grafico, sezione «Plugin». Su **macOS** scarica lo zip dalla [pagina plugin](https://offgallery.app/#beta) ed estrai la cartella in `plugins/`.
 
 ### Plugin Dati — arricchimento contestuale
 
@@ -305,7 +306,7 @@ Arricchiscono le foto già nel database con informazioni aggiuntive derivate dai
 | **Meteo** | Condizioni meteo storiche al momento dello scatto | GPS + data/ora + connessione internet | Temperatura, umidità, vento, precipitazioni, condizione (sereno/nuvoloso/pioggia…) |
 | **BioNomen** | Nomi comuni biologici in 6 lingue (GBIF) | BioCLIP | Nomi comuni aggiunti accanto al nome scientifico nel tooltip e nei tag |
 
-> **Accesso beta — Plugin Dati**: Durante il periodo di beta testing i plugin sono distribuiti gratuitamente. Per riceverli, scrivere a **offgallery.ai.info@gmail.com** indicando: sistema operativo, RAM di sistema, GPU (modello e VRAM), e quali plugin si desidera ricevere. L'indirizzo sarà utilizzato esclusivamente per l'invio e per eventuali notifiche di aggiornamento, senza altri scopi né condivisione con terze parti.
+> **Come installarli**: i plugin sono gratuiti. Su **Windows/Linux** usa l'installer grafico, sezione «Plugin». Su **macOS** scarica lo zip dalla [pagina plugin](https://offgallery.app/#beta) ed estrai la cartella in `plugins/`. Gli zip contengono solo il codice: i dati (mappe WDPA/ESA, database specie) vengono scaricati a runtime dal pannello di configurazione di ogni plugin.
 
 ## Architettura
 
@@ -721,7 +722,7 @@ Enable automatic generation of tags, descriptions and titles via local LLM Visio
 
 The active backend is selected from **Configuration → LLM Connection**. Switching does not require a restart; existing database data is not affected.
 
-> **Beta access — LLM Plugins**: During the beta testing period, plugins are distributed free of charge. To receive them, write to **offgallery.ai.info@gmail.com** stating: operating system, system RAM, GPU (model and VRAM), and whether you prefer Ollama or LM Studio. The address will be used solely to send the plugin and for update notifications — never for any other purpose or shared with third parties.
+> **How to install them**: the plugins are free. On **Windows/Linux** use the graphical installer, «Plugins» section. On **macOS** download the zip from the [plugins page](https://offgallery.app/#beta) and extract the folder into `plugins/`.
 
 ### Data Plugins — contextual enrichment
 
@@ -735,7 +736,7 @@ Enrich photos already in the database with additional information derived from m
 | **Weather** | Historical weather conditions at time of capture | GPS + date/time + internet | Temperature, humidity, wind, precipitation, condition (clear/cloudy/rain…) |
 | **BioNomen** | Common biological names in 6 languages (GBIF) | BioCLIP | Common names added alongside scientific name in tooltip and tags |
 
-> **Beta access — Data Plugins**: During the beta testing period, plugins are distributed free of charge. To receive them, write to **offgallery.ai.info@gmail.com** stating: operating system, system RAM, GPU (model and VRAM), and which plugins you wish to receive. The address will be used solely to send the plugin and for update notifications — never for any other purpose or shared with third parties.
+> **How to install them**: the plugins are free. On **Windows/Linux** use the graphical installer, «Plugins» section. On **macOS** download the zip from the [plugins page](https://offgallery.app/#beta) and extract the folder into `plugins/`. The zips contain only the code: data (WDPA/ESA maps, species databases) is downloaded at runtime from each plugin's configuration panel.
 
 ## Supported Formats
 
