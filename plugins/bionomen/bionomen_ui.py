@@ -29,10 +29,24 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QProgressBar, QDialog,
     QButtonGroup, QFrame, QDialogButtonBox,
-    QMessageBox, QCheckBox, QLineEdit, QFileDialog,
+    QMessageBox, QCheckBox, QLineEdit, QFileDialog, QComboBox,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QFont
+
+
+# Lingue selezionabili per il nome comune (ISO 639-1 → etichetta).
+# "auto" = eredita dalla lingua interfaccia OffGallery (llm_output_language).
+# Coerente con _LANG_MAP in bionomen.py.
+_LANGUAGE_CHOICES = [
+    ("auto", "Auto (segue interfaccia)"),
+    ("it",   "Italiano"),
+    ("en",   "English"),
+    ("de",   "Deutsch"),
+    ("fr",   "Français"),
+    ("es",   "Español"),
+    ("pt",   "Português"),
+]
 
 
 # Stile progress bar dark-gold (coerente con OffGallery processing_tab)
@@ -340,6 +354,19 @@ class ConfigDialog(QDialog):
         self.cb_online.setChecked(self._cfg.get("online_lookup", True))
         layout.addWidget(self.cb_online)
 
+        # Selettore lingua nome comune — indipendente dalla lingua dei testi LLM.
+        # Permette es. "descrizioni in italiano + nome comune in inglese".
+        lang_row = QHBoxLayout()
+        lang_row.addWidget(QLabel("Lingua nome comune:"))
+        self.combo_language = QComboBox()
+        for code, label in _LANGUAGE_CHOICES:
+            self.combo_language.addItem(label, code)
+        _cur_mode = self._cfg.get("language_mode", "auto")
+        _idx = self.combo_language.findData(_cur_mode)
+        self.combo_language.setCurrentIndex(_idx if _idx >= 0 else 0)
+        lang_row.addWidget(self.combo_language, stretch=1)
+        layout.addLayout(lang_row)
+
         layout.addWidget(_sep())
 
         # --- Bottoni OK/Annulla ---
@@ -375,6 +402,7 @@ class ConfigDialog(QDialog):
         self._cfg["data_dir"] = self._dir_edit.text().strip()
         self._cfg["mode"] = self.get_mode()
         self._cfg["online_lookup"] = self.cb_online.isChecked()
+        self._cfg["language_mode"] = self.combo_language.currentData() or "auto"
         bionomen.save_config(self._cfg)
         self.accept()
 
@@ -395,10 +423,12 @@ class BioNomenWindow(QMainWindow):
     Configura/DB/Avvia sono nella PluginCard di OffGallery.
     """
 
-    def __init__(self, db_path: str, config_path: Optional[str] = None):
+    def __init__(self, db_path: str, config_path: Optional[str] = None,
+                 offgallery_config: Optional[str] = None):
         super().__init__()
         self.db_path = db_path
         self.config_path = config_path
+        self.offgallery_config = offgallery_config
 
         self._language = self._load_language_from_config()
         self._mode = "unprocessed"
@@ -415,24 +445,10 @@ class BioNomenWindow(QMainWindow):
         self._build_ui()
 
     def _load_language_from_config(self) -> str:
-        """Legge la lingua default da config_new.yaml di OffGallery se disponibile."""
-        if not self.config_path:
-            return "it"
+        """Risolve la lingua nome comune: language_mode del plugin, o interfaccia se 'auto'."""
         try:
-            import yaml  # type: ignore
-            with open(self.config_path, "r", encoding="utf-8") as f:
-                config = yaml.safe_load(f)
-            lang = config.get("ui", {}).get("llm_output_language", "it")
-            # Normalizza: "italiano" → "it", "english" → "en", ecc.
-            lang_map = {
-                "italiano": "it", "italian": "it",
-                "english": "en", "inglese": "en",
-                "deutsch": "de", "tedesco": "de",
-                "francese": "fr", "french": "fr",
-                "spagnolo": "es", "spanish": "es",
-                "portoghese": "pt", "portuguese": "pt",
-            }
-            return lang_map.get(lang.lower(), lang[:2].lower() if len(lang) >= 2 else "it")
+            import bionomen
+            return bionomen.resolve_language(self.offgallery_config)
         except Exception:
             return "it"
 
@@ -554,29 +570,10 @@ class BioNomenWindow(QMainWindow):
 
 
 def _run_headless(db_path: str, mode: str, directory: str = None,
-                  ids_file: str = None, config_path: str = None):
+                  ids_file: str = None, config_path: str = None,
+                  offgallery_config: str = None):
     """Esegue l'elaborazione senza finestra Qt — emette PROGRESS su stdout."""
     import threading
-
-    # Carica lingua da config se disponibile
-    lang = "it"
-    if config_path:
-        try:
-            import yaml
-            with open(config_path, "r", encoding="utf-8") as f:
-                cfg = yaml.safe_load(f)
-            raw_lang = cfg.get("ui", {}).get("llm_output_language", "it")
-            lang_map = {
-                "italiano": "it", "italian": "it",
-                "english": "en", "inglese": "en",
-                "deutsch": "de", "tedesco": "de",
-                "francese": "fr", "french": "fr",
-                "spagnolo": "es", "spanish": "es",
-                "portoghese": "pt", "portuguese": "pt",
-            }
-            lang = lang_map.get(raw_lang.lower(), raw_lang[:2].lower() if len(raw_lang) >= 2 else "it")
-        except Exception:
-            pass
 
     stop_event = threading.Event()
 
@@ -585,6 +582,9 @@ def _run_headless(db_path: str, mode: str, directory: str = None,
 
     sys.path.insert(0, str(Path(__file__).parent))
     import bionomen
+
+    # Risolve la lingua nome comune: language_mode del plugin, o interfaccia se "auto".
+    lang = bionomen.resolve_language(offgallery_config)
 
     image_ids = None
     if mode == "ids" and ids_file:
@@ -617,7 +617,10 @@ def main():
     parser.add_argument("--db", required=True,
                         help="Path al database OffGallery")
     parser.add_argument("--config", default=None,
-                        help="Path al file config_new.yaml di OffGallery (opzionale)")
+                        help="Path al config.json del plugin BioNomen (opzionale)")
+    parser.add_argument("--offgallery-config", default=None,
+                        help="Path al config_new.yaml di OffGallery — usato per ereditare "
+                             "la lingua interfaccia quando language_mode='auto'")
     parser.add_argument("--mode", default=None,
                         choices=["unprocessed", "all", "ids", "directory"],
                         help="Modalita' elaborazione. Se fornito, avvia automaticamente.")
@@ -644,13 +647,15 @@ def main():
             directory=args.directory,
             ids_file=args.ids_file,
             config_path=args.config,
+            offgallery_config=args.offgallery_config,
         )
         return
 
     app = QApplication(sys.argv)
     app.setApplicationName("BioNomen")
 
-    window = BioNomenWindow(db_path=args.db, config_path=args.config)
+    window = BioNomenWindow(db_path=args.db, config_path=args.config,
+                            offgallery_config=args.offgallery_config)
 
     # Se modalita' e' passata da OffGallery, avvia elaborazione automaticamente
     if args.mode:

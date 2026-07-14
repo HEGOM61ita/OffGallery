@@ -66,6 +66,16 @@ _LANG_MAP = {
     "pt": "por",
 }
 
+# Normalizzazione nome lingua interfaccia OffGallery → codice ISO 639-1
+_UI_LANG_MAP = {
+    "italiano": "it", "italian": "it",
+    "english": "en", "inglese": "en",
+    "deutsch": "de", "tedesco": "de",
+    "francese": "fr", "french": "fr",
+    "spagnolo": "es", "spanish": "es",
+    "portoghese": "pt", "portuguese": "pt",
+}
+
 # Mappa codici lingua → lexicon iNaturalist (campo "lexicon" in taxon_names)
 _INAT_LEXICON = {
     "it": "italian",
@@ -103,6 +113,9 @@ def load_config() -> dict:
         "taxa_enabled": ["aves"],
         "mode": "unprocessed",
         "online_lookup": True,
+        # "auto" = eredita la lingua dall'interfaccia OffGallery (llm_output_language);
+        # un codice ISO 639-1 (es. "en") = lingua nome comune forzata, indipendente dai testi LLM
+        "language_mode": "auto",
     }
     if not _CONFIG_PATH.exists():
         return defaults
@@ -131,6 +144,47 @@ def get_data_dir() -> Path:
         p = _PLUGIN_DIR / p
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def _ui_language_from_offgallery(offgallery_config_path: Optional[str]) -> str:
+    """Legge la lingua interfaccia (llm_output_language) dal config_new.yaml di OffGallery.
+
+    Ritorna un codice ISO 639-1 (default "it") se il file non è leggibile.
+    """
+    if not offgallery_config_path:
+        return "it"
+    try:
+        import yaml  # type: ignore
+        with open(offgallery_config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+        lang = config.get("ui", {}).get("llm_output_language", "it")
+        return _UI_LANG_MAP.get(lang.lower(),
+                                lang[:2].lower() if len(lang) >= 2 else "it")
+    except Exception:
+        return "it"
+
+
+def resolve_language(offgallery_config_path: Optional[str] = None,
+                     plugin_cfg: Optional[dict] = None) -> str:
+    """Risolve la lingua effettiva del nome comune.
+
+    Regola:
+      - language_mode == "auto"  → eredita dalla lingua interfaccia OffGallery
+        (llm_output_language nel config_new.yaml passato).
+      - language_mode == <codice> → usa quel codice ISO 639-1 (indipendente dai testi LLM).
+
+    Args:
+        offgallery_config_path: path al config_new.yaml di OffGallery (per il caso auto).
+        plugin_cfg: config del plugin già caricato (evita riletture); se None viene caricato.
+
+    Returns:
+        Codice lingua ISO 639-1 (es. "it", "en").
+    """
+    cfg = plugin_cfg if plugin_cfg is not None else load_config()
+    mode = (cfg.get("language_mode") or "auto").strip().lower()
+    if mode and mode != "auto":
+        return mode
+    return _ui_language_from_offgallery(offgallery_config_path)
 
 
 # ---------------------------------------------------------------------------
@@ -834,6 +888,23 @@ def process_images(
 
     # Aggiunge colonna vernacular_name se non esiste
     _ensure_vernacular_column(conn)
+
+    # Verifica presenza dei DB nomi comuni per la lingua richiesta.
+    # Se un taxon abilitato non ha il DB scaricato in questa lingua, avvisa:
+    # senza DB locale il lookup ricade sull'online (se attivo) o non trova nulla.
+    # Il warning è visibile anche nella finestra del Process Tab (intercetta LOG: su stdout).
+    try:
+        cfg = load_config()
+        for _tx in cfg.get("taxa_enabled", []):
+            if not get_db_path(_tx, language).exists():
+                print(
+                    f"LOG:warning:BioNomen: database nomi comuni '{_tx}' in lingua "
+                    f"'{language}' non presente — scaricalo dal plugin BioNomen "
+                    f"(altrimenti i nomi comuni in questa lingua non verranno assegnati)",
+                    flush=True,
+                )
+    except Exception:
+        logger.warning("BioNomen: verifica presenza DB per lingua fallita", exc_info=True)
 
     # Seleziona le foto da elaborare in base alla modalità
     if mode == "all":

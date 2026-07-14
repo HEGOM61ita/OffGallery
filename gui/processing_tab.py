@@ -1481,6 +1481,50 @@ class ProcessingWorker(QThread):
     # PLUGIN PRE-LLM — esecuzione sincrona dentro il worker
     # ─────────────────────────────────────────────────────────────
 
+    def _purge_vernacular(self, db_manager, file_hash, vernacular_name):
+        """Azzera vernacular_name e rimuove il tag corrispondente da tags/llm_tags.
+
+        Rimuove SOLO il tag esattamente uguale a `vernacular_name` (case-insensitive):
+        usiamo il valore noto del campo, quindi non indoviniamo e non tocchiamo tag
+        legittimi. Agisce su una singola immagine (file_hash), mai sull'intero DB.
+        """
+        if not file_hash or not vernacular_name:
+            return
+        _target = vernacular_name.strip().lower()
+
+        def _strip(json_str):
+            """Rimuove il tag == target dal JSON array; ritorna (nuovo_json, cambiato)."""
+            try:
+                arr = json.loads(json_str) if json_str else []
+                if not isinstance(arr, list):
+                    return json_str, False
+            except Exception:
+                return json_str, False
+            filtered = [t for t in arr
+                        if not (isinstance(t, str) and t.strip().lower() == _target)]
+            if len(filtered) == len(arr):
+                return json_str, False
+            return json.dumps(filtered, ensure_ascii=False), True
+
+        try:
+            with self._db_lock:
+                row = db_manager.conn.execute(
+                    "SELECT tags, llm_tags FROM images WHERE file_hash = ?", (file_hash,)
+                ).fetchone()
+                if row is None:
+                    return
+                new_tags, ch1 = _strip(row[0])
+                new_llm,  ch2 = _strip(row[1])
+                db_manager.conn.execute(
+                    "UPDATE images SET vernacular_name = '', tags = ?, llm_tags = ? "
+                    "WHERE file_hash = ?",
+                    (new_tags, new_llm, file_hash),
+                )
+                db_manager.conn.commit()
+        except Exception:
+            # In multi-thread non silenziamo del tutto: logghiamo con stacktrace
+            logger.warning("Pulizia vernacular_name fallita per %s", file_hash, exc_info=True)
+
     def _run_pre_llm_plugins_sync(self, plugins, db_path, processed_ids):
         """Esegue i plugin pre_llm in sequenza sincrona, dentro il worker thread.
         Avviato dal watcher thread dopo che ExifTool ha completato tutti i DB insert.
@@ -1560,6 +1604,14 @@ class ProcessingWorker(QThread):
             config_json = Path(plugin_dir) / 'config.json'
             if config_json.exists():
                 cmd += ['--config', str(config_json)]
+            # Passa anche il config_new.yaml di OffGallery: serve ai plugin (es. BioNomen)
+            # che ereditano la lingua interfaccia quando in modalità "auto".
+            try:
+                _og_cfg = getattr(self, 'config_path', None)
+                if _og_cfg and Path(_og_cfg).exists():
+                    cmd += ['--offgallery-config', str(_og_cfg)]
+            except Exception:
+                pass
 
             cmd += ['--headless']
 
@@ -1631,6 +1683,15 @@ class ProcessingWorker(QThread):
         gen_desc_cfg = llm_gen_config.get('description', {})
         gen_title_cfg = llm_gen_config.get('title', {})
         processed = 0
+
+        # BioNomen attivo in questo run? Se NON lo è ma esiste un vernacular_name
+        # residuo (da una passata precedente), quando si (ri)genera il testo di
+        # un'immagine ne ripuliamo campo e tag: disattivare il plugin significa
+        # non volere più il nome comune. La pulizia riguarda solo le immagini
+        # effettivamente rigenerate (Sovrascrivi o immagini nuove), mai l'intero DB.
+        bionomen_active_this_run = any(
+            p.get('id') == 'bionomen' for p in self.pre_llm_plugins
+        )
 
         # Attende i plugin Pre-LLM prima di iniziare (se presenti)
         if pre_llm_done_event is not None:
@@ -1755,6 +1816,16 @@ class ProcessingWorker(QThread):
                     processed += 1
                     self._emit_progress_throttled('llm', processed, total)
                     continue
+
+                # Pulizia nome comune residuo: BioNomen disattivato in questo run ma
+                # l'immagine ha ancora un vernacular_name di una passata precedente.
+                # Poiché stiamo rigenerando il testo, azzeriamo campo e tag corrispondente
+                # (per qualsiasi lingua) così non contamina il nuovo output.
+                if not bionomen_active_this_run and vernacular_name:
+                    self._purge_vernacular(db_manager, _llm_file_hash, vernacular_name)
+                    self.log_message.emit(
+                        f"🧹 Nome comune rimosso ({fname}): BioNomen non attivo", "debug")
+                    vernacular_name = None
 
                 self.log_message.emit(f"🤖 LLM: {fname}", "info")
 
@@ -2149,6 +2220,7 @@ class ProcessingTab(QWidget):
         # Label modalità geo enricher (aggiornata in on_activated)
         self._geo_mode_label: 'QLabel | None' = None
         self._geo_mode_manifest: dict | None = None
+        self._bionomen_lang_label: 'QLabel | None' = None
         # Combo preset PromptContext (None se plugin non installato)
         self._prompt_context_combo: 'QComboBox | None' = None
         # Reader thread attivi durante esecuzione post-import
@@ -2320,6 +2392,18 @@ class ProcessingTab(QWidget):
                     # Salva riferimento per aggiornamento in on_activated()
                     self._geo_mode_label = mode_lbl
                     self._geo_mode_manifest = manifest
+                elif plugin_id == 'bionomen':
+                    # Sigla a 2 lettere della lingua nome comune in uso (stessa dimensione
+                    # della label plugin, colore diverso). Aggiornata in on_activated().
+                    lang_lbl = QLabel(self._bionomen_lang_sigla())
+                    lang_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #3FA66A;")
+                    lang_lbl.setToolTip("Lingua nome comune BioNomen")
+                    row_lay.addWidget(lang_lbl)
+                    self._bionomen_lang_label = lang_lbl
+                    if short_desc:
+                        desc_lbl = QLabel(short_desc)
+                        desc_lbl.setStyleSheet("font-size: 9px; color: #7f8c8d;")
+                        row_lay.addWidget(desc_lbl)
                 elif short_desc:
                     desc_lbl = QLabel(short_desc)
                     desc_lbl.setStyleSheet("font-size: 9px; color: #7f8c8d;")
@@ -2490,11 +2574,27 @@ class ProcessingTab(QWidget):
                 logger.warning(f"Errore propagazione preset a EmbGen: {e}")
         logger.info(f"Preset contesto prompt aggiornato da plugins_tab: {preset_id!r}")
 
+    def _bionomen_lang_sigla(self) -> str:
+        """Sigla 2 lettere (maiuscola) della lingua nome comune BioNomen risolta.
+        Rispetta language_mode del plugin (o eredita dall'interfaccia se 'auto')."""
+        try:
+            _bio_dir = get_app_dir() / 'plugins' / 'bionomen'
+            if str(_bio_dir) not in sys.path:
+                sys.path.insert(0, str(_bio_dir))
+            import bionomen as _bio
+            _og_cfg = getattr(self, 'config_path', None) or str(get_app_dir() / 'config_new.yaml')
+            return (_bio.resolve_language(_og_cfg) or 'it')[:2].upper()
+        except Exception:
+            return 'IT'
+
     def on_activated(self) -> None:
         """Chiamato da main_window quando si passa alla processing tab.
         Rilegge la config del geo enricher e aggiorna la label modalità.
         Sincronizza anche il dropdown preset prompt_context con la config."""
         self._refresh_prompt_context_combo()
+        # Aggiorna la sigla lingua BioNomen (la lingua può essere cambiata nel frattempo)
+        if self._bionomen_lang_label is not None:
+            self._bionomen_lang_label.setText(self._bionomen_lang_sigla())
         if self._geo_mode_label is None or self._geo_mode_manifest is None:
             return
         manifest = self._geo_mode_manifest
@@ -2648,6 +2748,14 @@ class ProcessingTab(QWidget):
         config_json = Path(plugin_dir) / 'config.json'
         if config_json.exists():
             cmd += ['--config', str(config_json)]
+        # Passa anche il config_new.yaml di OffGallery: serve ai plugin (es. BioNomen)
+        # che ereditano la lingua interfaccia quando in modalità "auto".
+        try:
+            _og_cfg = getattr(self, 'config_path', None)
+            if _og_cfg and Path(_og_cfg).exists():
+                cmd += ['--offgallery-config', str(_og_cfg)]
+        except Exception:
+            pass
         # Applica run_condition: bioclip_not_null → passa flag al subprocess
         if manifest.get('run_condition') == 'bioclip_not_null':
             cmd += ['--filter-bioclip']
