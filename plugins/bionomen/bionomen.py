@@ -1176,15 +1176,25 @@ def _fetch_gbif_vernacular_bulk(
         executor = ThreadPoolExecutor(max_workers=_WORKERS)
         futures = {executor.submit(_fetch_single_vernacular, t): t for t in tasks}
         try:
-            # timeout=20 su as_completed: se nessun future completa entro 20s, esci
-            for future in as_completed(futures, timeout=20):
+            # NIENTE timeout su as_completed: vale per l'INTERO batch (1000 specie
+            # con 3 worker = minuti), non per la singola richiesta. Con timeout=20
+            # ogni pagina veniva troncata dopo 20s e le specie non ancora completate
+            # andavano perse — è la causa dei DB gravemente incompleti.
+            # La protezione contro il blocco SSL/Defender sta già dove serve, cioè
+            # nella singola richiesta: _fetch_single_vernacular usa requests.get(
+            # timeout=8), che a differenza di urllib rispetta il timeout su HTTPS,
+            # e assorbe l'eccezione ritornando (sci_name, None, lang_code).
+            # Qui i future arrivano quindi sempre già risolti: niente timeout.
+            for future in as_completed(futures):
                 if stop_event and stop_event.is_set():
                     for f in futures:
                         f.cancel()
                     break
                 try:
-                    sci_name, vname, lc = future.result(timeout=15)
+                    sci_name, vname, lc = future.result()
                 except Exception:
+                    # Difesa residua: il worker cattura già tutto al suo interno
+                    logger.warning("BioNomen: worker fallito", exc_info=True)
                     processed += 1
                     _emit_progress(offset + processed, total_estimate)
                     continue
@@ -1206,10 +1216,6 @@ def _fetch_gbif_vernacular_bulk(
                     pending_rows.clear()
 
                 _emit_progress(offset + processed, total_estimate)
-        except TimeoutError:
-            # Nessun future completato in 20s — il thread è bloccato su Defender
-            # Salviamo quello che abbiamo e passiamo alla pagina successiva
-            logger.warning(f"BioNomen: timeout batch offset={offset}, continuo")
         finally:
             executor.shutdown(wait=False)
 
