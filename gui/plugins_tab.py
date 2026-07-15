@@ -518,7 +518,23 @@ class PluginCard(QFrame):
         self._download_worker.start()
 
     def _read_language_from_config(self) -> str:
-        """Legge la lingua di output da config_new.yaml di OffGallery."""
+        """Risolve la lingua del database da scaricare.
+
+        Se il plugin espone resolve_language() (es. BioNomen, che ha una lingua
+        propria indipendente dai testi LLM) è il plugin a decidere: altrimenti la
+        card scaricherebbe sempre nella lingua dell'interfaccia, ignorando il
+        selettore del plugin. Fallback: llm_output_language di OffGallery.
+        """
+        try:
+            mod = self._load_core_module()
+            if mod is not None and hasattr(mod, "resolve_language"):
+                lang = mod.resolve_language(self._config_path)
+                if lang:
+                    return lang
+        except Exception:
+            logger.warning("resolve_language del plugin fallita, uso la lingua UI",
+                           exc_info=True)
+
         if not self._config_path:
             return "it"
         try:

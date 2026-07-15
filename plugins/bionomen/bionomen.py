@@ -209,18 +209,29 @@ def is_database_present(taxon: str = None, language: str = None) -> bool:
     if taxon and language:
         db = get_db_path(taxon, language)
         return _db_has_data(db)
-    # Controlla almeno un DB tra quelli abilitati
+    # Controlla almeno un DB tra quelli abilitati, NELLA LINGUA RISOLTA.
+    # Nota: la chiave di config è "language_mode" (auto o codice ISO), non
+    # "language" — leggere "language" dava sempre il default "it", quindi la
+    # card dichiarava "database presente" guardando l'italiano anche quando la
+    # lingua richiesta era un'altra e il suo DB non esisteva.
     cfg = load_config()
+    lang = resolve_language(plugin_cfg=cfg)
     for t in cfg.get("taxa_enabled", []):
-        lang = cfg.get("language", "it")
         db = get_db_path(t, lang)
         if _db_has_data(db):
             return True
     return False
 
 
+# Sotto questa soglia il DB è considerato non scaricato: il lookup online crea il
+# file e ci scrive qualche nome man mano che elabora le foto, quindi "esiste la
+# tabella" non significa "database scaricato". Un download bulk reale produce
+# migliaia di righe anche per il taxon più piccolo.
+_MIN_ROWS_DOWNLOADED = 500
+
+
 def _db_has_data(db: Path) -> bool:
-    """Verifica se un file DB esiste e ha la tabella vernacular_names."""
+    """Verifica se il DB esiste ed è stato effettivamente popolato dal download."""
     if not db.exists():
         return False
     try:
@@ -228,10 +239,16 @@ def _db_has_data(db: Path) -> bool:
         cur = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='vernacular_names'"
         )
-        exists = cur.fetchone() is not None
+        if cur.fetchone() is None:
+            conn.close()
+            return False
+        # Contare le righe, non fermarsi all'esistenza della tabella: un file creato
+        # dal lookup online ne ha una manciata e NON è un database scaricato.
+        n = conn.execute("SELECT COUNT(*) FROM vernacular_names").fetchone()[0]
         conn.close()
-        return exists
+        return n >= _MIN_ROWS_DOWNLOADED
     except Exception:
+        logger.warning("BioNomen: verifica dati DB fallita per %s", db, exc_info=True)
         return False
 
 
