@@ -777,7 +777,7 @@
     <tr><td><strong>GeoNames →</strong></td><td>GeoNames plugin submenu: <em>Assign location…</em> (opens dialog with name search or direct coordinate entry), <em>Recalculate GPS hierarchy</em>, <em>Clear GPS data</em>. Visible only when the plugin is installed.</td></tr>
     <tr><td><strong>Run NaturArea</strong></td><td>Detects protected area and habitat from the GPS location (NaturArea plugin)</td></tr>
     <tr><td><strong>Run Weather</strong></td><td>Retrieves historical weather conditions at time of capture (Weather plugin — requires internet)</td></tr>
-    <tr><td><strong>Run BioNomen</strong></td><td>Adds common biological names in the configured language (BioNomen plugin)</td></tr>
+    <tr><td><strong>Run BioNomen</strong></td><td>Adds common biological names in the language configured in the plugin — independent from the LLM text language (BioNomen plugin)</td></tr>
   </tbody>
 </table>
 
@@ -1147,7 +1147,7 @@ Destination (e.g. E:\Backup):
     <tr><td><strong>Weather</strong></td><td>✅ Yes</td><td>—</td><td>✅ Yes</td><td>Historical weather conditions retrieved</td></tr>
     <tr><td><strong>Weather</strong></td><td>❌ No</td><td>—</td><td>—</td><td>Skipped — GPS required</td></tr>
     <tr><td><strong>Weather</strong></td><td>✅ Yes</td><td>—</td><td>❌ No</td><td>Connection error — log warning</td></tr>
-    <tr><td><strong>BioNomen</strong></td><td>—</td><td>✅ Yes</td><td>No (after first setup)</td><td>Common names added in configured language</td></tr>
+    <tr><td><strong>BioNomen</strong></td><td>—</td><td>✅ Yes</td><td>No (after first setup)</td><td>Common names added in the language configured in the plugin</td></tr>
     <tr><td><strong>BioNomen</strong></td><td>—</td><td>❌ No</td><td>—</td><td>Skipped — BioCLIP required</td></tr>
   </tbody>
 </table>
@@ -1249,8 +1249,65 @@ Destination (e.g. E:\Backup):
   <li>Start OffGallery</li>
   <li>Go to the <strong>Plugin</strong> tab and click <strong>Configure</strong> in the BioNomen card</li>
   <li>Select the taxa of interest (Aves, Mammalia, Reptilia, Amphibia, Insecta, Plantae)</li>
+  <li>Choose the <strong>Common name language</strong> (see below)</li>
   <li>Click <strong>Download database</strong></li>
 </ol>
+
+<p>Databases are split by <strong>taxon and language</strong>: each combination is a separate file (for example <code>bionomen_aves_en.db</code> for birds in English). This means every language you want to use requires its own download, even for taxa already downloaded in another language.</p>
+
+<h3>Common name language</h3>
+
+<p>The common name language is <strong>independent from the language of the LLM-generated texts</strong>. You can therefore get descriptions and titles in Italian but common names in English, or any other combination. The <strong>Common name language</strong> selector is in the <strong>Configure</strong> window of the BioNomen card.</p>
+
+<table>
+  <thead><tr><th>Setting</th><th>Behaviour</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Auto (follows interface)</strong></td>
+      <td>The common name inherits the language set in <strong>Config → LLM output language</strong>. This is the default: changing the text language also changes the common name language.</td>
+    </tr>
+    <tr>
+      <td><strong>Explicit language</strong><br><span class="sub">Italiano, English, Deutsch, Français, Español, Português</span></td>
+      <td>The common name is always assigned in the chosen language, whatever the LLM text language is.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>In the <strong>Process</strong> tab, next to the BioNomen label, a <strong>green two-letter code</strong> (<code>IT</code>, <code>EN</code>, …) shows the language actually in use at that moment. With <em>Auto</em> the code reflects the interface language; with an explicit language it shows the forced one. The code refreshes every time you enter the tab.</p>
+
+<h3>Use cases</h3>
+
+<table>
+  <thead><tr><th>Goal</th><th>Configuration</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Catalogue entirely in one language</td>
+      <td><em>Auto</em>, with LLM output language set accordingly</td>
+    </tr>
+    <tr>
+      <td>Descriptions in Italian, common names in English <span class="sub">(international ornithological nomenclature)</span></td>
+      <td>Explicit <em>English</em>, LLM output language set to Italian</td>
+    </tr>
+    <tr>
+      <td>Common names stable across text language changes</td>
+      <td>Explicit language — regenerating in other languages leaves the common name untouched</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Changing language on an already processed catalogue</h3>
+
+<p>The common name is rewritten only when a photo is reprocessed. To update photos already processed:</p>
+
+<ol>
+  <li>Download the taxa databases in the new language (if not already done)</li>
+  <li>Set the new language in the <strong>Common name language</strong> selector</li>
+  <li>Reprocess the photos with <strong>Overwrite</strong> enabled, or set mode <code>all</code> in the plugin configuration</li>
+</ol>
+
+<p>If an enabled taxon has no database downloaded in the requested language, BioNomen emits a <strong>warning in the Process tab window</strong> and common names in that language are not assigned. If <strong>online lookup</strong> is enabled the plugin still tries to retrieve the name from the GBIF/iNaturalist services, but this is slower and requires a connection: the local database remains the recommended route.</p>
+
+<p>If you <strong>disable BioNomen</strong> and regenerate the text of a photo, the leftover common name and its matching tag are automatically removed from that photo: disabling the plugin means you no longer want the common name. The cleanup only affects photos actually reprocessed, never the whole catalogue.</p>
 
 <hr>
 
