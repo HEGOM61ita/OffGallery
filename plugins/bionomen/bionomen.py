@@ -257,7 +257,9 @@ def get_database_info() -> dict:
     Ritorna un dict {taxon: {"date": str, "count": int}} per i DB presenti.
     """
     cfg = load_config()
-    lang = cfg.get("language", "it")
+    # "language" è una chiave morta (la config ha "language_mode"): usare
+    # resolve_language, altrimenti si riportano sempre i DB italiani.
+    lang = resolve_language(plugin_cfg=cfg)
     info = {}
     for taxon in cfg.get("taxa_enabled", []):
         db = get_db_path(taxon, lang)
@@ -1331,7 +1333,10 @@ def download_and_build_database(
     """
     cfg = load_config()
     if not language:
-        language = cfg.get("language", "it")
+        # "language" è una chiave morta (la config ha "language_mode"): senza
+        # resolve_language un download lanciato senza lingua esplicita finiva
+        # sempre in italiano, ignorando il selettore del plugin.
+        language = resolve_language(plugin_cfg=cfg)
     taxa_enabled = cfg.get("taxa_enabled", ["aves"])
 
     # Stime specie ACCEPTED nel backbone GBIF (aggiornate 2025)
