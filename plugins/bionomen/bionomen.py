@@ -324,6 +324,44 @@ _EXPECTED_COVERAGE = {
 }
 
 
+# Taxa per cui ha senso il filtro geografico: gli unici sopra il tetto GBIF.
+# Gli altri (9.815-21.100 specie) si scaricano interi in pochi minuti, un filtro
+# per paese aggiungerebbe complessità senza guadagno.
+COUNTRY_FILTERABLE = ("insecta", "plantae")
+
+
+def get_taxon_countries(taxon: str, plugin_cfg: Optional[dict] = None) -> List[str]:
+    """Paesi ISO-3166-alpha2 configurati per un taxon; lista vuota = tutto il mondo.
+
+    Il filtro vale solo per i taxa in COUNTRY_FILTERABLE: se qualcuno mettesse a
+    mano dei paesi su aves, verrebbero ignorati invece di produrre un DB monco.
+    """
+    if taxon not in COUNTRY_FILTERABLE:
+        return []
+    cfg = plugin_cfg if plugin_cfg is not None else load_config()
+    countries = (cfg.get("taxa_countries") or {}).get(taxon) or []
+    return [str(c).strip().upper() for c in countries if str(c).strip()]
+
+
+def get_downloaded_countries(taxon: str, language: str) -> List[str]:
+    """Paesi già presenti nel DB di un taxon (dai metadata). Vuoto = nessuno/mondiale."""
+    db = get_db_path(taxon, language)
+    if not db.exists():
+        return []
+    try:
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        row = conn.execute(
+            "SELECT value FROM metadata WHERE key='countries' LIMIT 1"
+        ).fetchone()
+        conn.close()
+    except Exception:
+        logger.warning("BioNomen: lettura paesi fallita per %s", db, exc_info=True)
+        return []
+    if not row or not row[0]:
+        return []
+    return [c for c in row[0].split(",") if c]
+
+
 def get_database_report(language: Optional[str] = None) -> List[dict]:
     """Report leggibile sullo stato dei DB, pensato per la UI (non per la CLI).
 
@@ -374,6 +412,19 @@ def get_database_report(language: Optional[str] = None) -> List[dict]:
             continue
 
         entry["rows"] = rows
+        # Un DB scaricato per paesi non va misurato col metro mondiale: le sue
+        # righe sono poche per scelta, non per difetto. Si dice cosa contiene.
+        dl_countries = get_downloaded_countries(taxon, lang)
+        entry["countries"] = dl_countries
+        if dl_countries and not inc_row:
+            entry["status"] = "ok"
+            # Il separatore migliaia si sostituisce PRIMA di unire i paesi:
+            # un replace(",", ".") sull'intera stringa rovinerebbe "IT, FR".
+            entry["detail"] = (f"{rows:,} nomi".replace(",", ".")
+                               + f" — {', '.join(dl_countries)}")
+            report.append(entry)
+            continue
+
         if inc_row:
             entry["status"] = "incomplete"
             entry["detail"] = (
@@ -428,6 +479,19 @@ def _init_taxon_db(taxon: str, language: str) -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS metadata (
             key   TEXT PRIMARY KEY,
             value TEXT
+        )
+    """)
+    # Specie GBIF già interrogate, incluse quelle risultate senza nome comune.
+    # Serve al download per paese: senza, aggiungere un paese ri-interrogherebbe
+    # da zero tutte le specie in comune coi paesi già scaricati (e la maggior
+    # parte delle specie un nome comune non ce l'ha, quindi non lascia traccia
+    # in vernacular_names). CREATE IF NOT EXISTS = i DB esistenti si adeguano da
+    # soli alla prima apertura, senza migrazioni.
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS vernacular_keys (
+            taxon_key INTEGER NOT NULL,
+            language  TEXT NOT NULL,
+            PRIMARY KEY (taxon_key, language)
         )
     """)
     conn.commit()
@@ -1254,9 +1318,90 @@ def _gbif_species_count(class_key: int) -> int:
 # include anche i taxa "orfani" appesi direttamente al padre senza passare per i
 # ranghi standard. Sotto Plantae sono 3.081 generi + 110 famiglie appesi al regno:
 # uno sharding per soli ranghi canonici li perderebbe (misurato: 4.327 specie).
+_FACET_LIMIT   = 200_000   # tetto richiesto al facet speciesKey (max reale: US insecta 96.763)
 _GBIF_PAGE_CAP = 100_000   # offset+limit massimo accettato da GBIF
 _SHARD_TARGET  = 90_000    # soglia di split: sotto questa un ramo si pagina intero
 _SHARD_MAX_DEPTH = 6       # regno→phylum→classe→ordine→famiglia→genere: mai infinito
+
+
+def _fetch_single_vernacular_by_key(args):
+    """Come _fetch_single_vernacular, ma parte da una chiave senza nome noto.
+
+    Il facet occurrence restituisce solo speciesKey: il nome scientifico va
+    chiesto a /species/{key}. Serve anche a scartare le chiavi che non sono
+    specie ACCEPTED (occurrence può riferirsi a sinonimi o a ranghi diversi).
+    Ritorna (sci_name|None, vernacular|None, lang_code).
+    """
+    import requests  # non è importato a livello di modulo
+    usage_key, lang_code, language = args
+    try:
+        surl = f"https://api.gbif.org/v1/species/{usage_key}"
+        resp = requests.get(surl, timeout=8, headers={"User-Agent": "BioNomen/2.0"})
+        resp.raise_for_status()
+        sp = resp.json()
+        if sp.get("rank") != "SPECIES" or sp.get("taxonomicStatus") != "ACCEPTED":
+            return (None, None, lang_code)
+        sci_name = sp.get("canonicalName") or sp.get("scientificName")
+        if not sci_name:
+            return (None, None, lang_code)
+    except Exception:
+        # Mai silenzioso: in un pool di thread un errore muto sparisce e il DB
+        # risulta semplicemente "povero" senza che nessuno sappia perché.
+        logger.warning("BioNomen: lookup specie %s fallito", usage_key, exc_info=True)
+        return (None, None, lang_code)
+    _, vname, lc = _fetch_single_vernacular((usage_key, sci_name, lang_code, language))
+    return (sci_name, vname, lc)
+
+
+def _gbif_species_keys_by_country(
+    class_key: int, countries: List[str], stop_event=None
+) -> List[int]:
+    """Chiavi delle specie sotto class_key effettivamente osservate nei paesi dati.
+
+    Perché occurrence e non species/search: il backbone tassonomico non ha
+    nazionalità — `species/search?country=IT` esiste ma è ignorato (verificato:
+    ritorna gli stessi 1.105.104 insetti del mondo intero). L'informazione
+    "questa specie sta in Italia" vive solo negli avvistamenti (occurrence).
+
+    Il facet speciesKey restituisce l'elenco completo in una sola chiamata, e
+    GBIF deduplica da sé quando i paesi sono più d'uno (IT 24.698 + FR 35.844 →
+    IT+FR 41.913, non la somma). Misurato 2026-07-17: insecta IT = 24.698 specie
+    contro 1.105.104 mondiali, cioè il 2,2%.
+    """
+    import urllib.parse
+    if not countries:
+        return []
+    params = [
+        ("taxonKey", class_key),
+        ("limit", 0),
+        ("facet", "speciesKey"),
+        ("facetLimit", _FACET_LIMIT),
+    ]
+    params += [("country", c) for c in countries]
+    url = "https://api.gbif.org/v1/occurrence/search?" + urllib.parse.urlencode(params)
+    try:
+        data = _gbif_get_json(url)
+    except Exception:
+        logger.warning("BioNomen: facet speciesKey fallito per key=%s paesi=%s",
+                       class_key, countries, exc_info=True)
+        raise
+    facets = data.get("facets") or []
+    if not facets:
+        return []
+    counts = facets[0].get("counts", [])
+    # Il facet ha comunque un tetto: se lo tocchiamo l'elenco è troncato e non
+    # va spacciato per completo (è lo stesso difetto del tetto di paginazione).
+    if len(counts) >= _FACET_LIMIT:
+        raise _GbifPageCapError(
+            f"facet speciesKey troncato a {_FACET_LIMIT} per paesi={countries}"
+        )
+    keys = []
+    for c in counts:
+        try:
+            keys.append(int(c["name"]))
+        except (KeyError, ValueError):
+            continue
+    return keys
 
 
 def _gbif_children(key: int, stop_event=None) -> List[dict]:
@@ -1575,6 +1720,117 @@ def _fetch_gbif_vernacular_bulk(
     return saved, truncated
 
 
+def _fetch_vernacular_by_keys(
+    keys: List[int],
+    language: str,
+    conn: sqlite3.Connection,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
+    stop_event=None,
+    processed_base: int = 0,
+    total_override: int = 0,
+) -> tuple:
+    """Scarica i nomi comuni per una lista esplicita di chiavi GBIF.
+
+    È il ramo "solo alcuni paesi": le chiavi arrivano dal facet occurrence, non
+    dalla paginazione del backbone, quindi il tetto di paginazione non si applica
+    proprio (non si pagina nulla).
+
+    Ritorna (record_salvati, troncato) come _fetch_gbif_vernacular_bulk.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import threading
+
+    _WORKERS    = 3
+    _BATCH_SIZE = 200
+    _UI_EVERY   = 50
+
+    lang_code = _LANG_MAP.get(language, language)
+    saved = 0
+    processed = 0
+    _last_ui = 0
+    total = total_override or len(keys)
+    db_lock = threading.Lock()
+
+    def _emit(current):
+        nonlocal _last_ui
+        if current - _last_ui >= _UI_EVERY or current >= total:
+            if progress_callback:
+                progress_callback(min(current, total), max(total, 1))
+            _last_ui = current
+
+    # Le chiavi già in cache non vanno richieste: è ciò che rende l'append di un
+    # nuovo paese economico (l'overlap con i paesi già scaricati è gratis).
+    todo = []
+    for k in keys:
+        with db_lock:
+            cached = conn.execute(
+                "SELECT 1 FROM vernacular_keys WHERE taxon_key=? AND language=?",
+                (k, lang_code),
+            ).fetchone() is not None
+        if cached:
+            processed += 1
+            _emit(processed_base + processed)
+        else:
+            todo.append((k, lang_code, language))
+
+    pending_rows = []
+    executor = ThreadPoolExecutor(max_workers=_WORKERS)
+    futures = [executor.submit(_fetch_single_vernacular_by_key, t) for t in todo]
+    try:
+        for fut in as_completed(futures):
+            if stop_event and stop_event.is_set():
+                for f in futures:
+                    f.cancel()
+                break
+            try:
+                sci_name, vname, lc = fut.result()
+            except Exception:
+                logger.warning("BioNomen: worker per-chiave fallito", exc_info=True)
+                processed += 1
+                _emit(processed_base + processed)
+                continue
+            processed += 1
+            if sci_name and vname:
+                pending_rows.append((sci_name, vname, lc))
+                saved += 1
+            if len(pending_rows) >= _BATCH_SIZE:
+                with db_lock:
+                    conn.executemany(
+                        """INSERT OR REPLACE INTO vernacular_names
+                           (scientific_name, vernacular_name, language, source, confidence)
+                           VALUES (?, ?, ?, 'gbif_bulk', 1)""",
+                        pending_rows,
+                    )
+                    conn.commit()
+                pending_rows.clear()
+            _emit(processed_base + processed)
+    finally:
+        executor.shutdown(wait=False)
+
+    if pending_rows:
+        with db_lock:
+            conn.executemany(
+                """INSERT OR REPLACE INTO vernacular_names
+                   (scientific_name, vernacular_name, language, source, confidence)
+                   VALUES (?, ?, ?, 'gbif_bulk', 1)""",
+                pending_rows,
+            )
+            conn.commit()
+
+    # Registra le chiavi interrogate (anche quelle senza nome comune): senza
+    # questo, riscaricare un paese già fatto ripeterebbe tutte le chiamate HTTP
+    # per le specie che un nome comune non ce l'hanno — cioè la maggioranza.
+    interrupted = bool(stop_event and stop_event.is_set())
+    if not interrupted:
+        with db_lock:
+            conn.executemany(
+                "INSERT OR REPLACE INTO vernacular_keys (taxon_key, language) VALUES (?, ?)",
+                [(k, lang_code) for k, _, _ in todo],
+            )
+            conn.commit()
+    return saved, interrupted
+
+
 def download_taxon_database(
     taxon: str,
     language: str,
@@ -1609,6 +1865,88 @@ def download_taxon_database(
     )
     if status_callback:
         status_callback(f"Download {taxon_label}...")
+
+    # --- Ramo "solo alcuni paesi" ---------------------------------------
+    # Attivo solo se la config elenca dei paesi per questo taxon. È pensato per
+    # insecta e plantae, gli unici sopra il tetto: insecta ha 1.105.104 specie nel
+    # mondo ma 24.698 osservate in Italia (2,2%), plantae 446.842 contro 16.020.
+    # I nomi finiscono nello stesso DB del download mondiale: aggiungere un paese
+    # è un append, e le specie in comune coi paesi già scaricati sono gratis
+    # (vernacular_keys). Nessuna traccia di "quale paese" nei nomi: non serve.
+    countries = get_taxon_countries(taxon)
+    if countries:
+        if status_callback:
+            status_callback(f"{taxon_label}: elenco specie di {', '.join(countries)}...")
+        all_keys: List[int] = []
+        seen = set()
+        truncated_any = False
+        for ck in class_keys:
+            if stop_event and stop_event.is_set():
+                break
+            try:
+                for k in _gbif_species_keys_by_country(ck, countries, stop_event=stop_event):
+                    if k not in seen:
+                        seen.add(k)
+                        all_keys.append(k)
+            except _GbifPageCapError as e:
+                logger.warning(
+                    "LOG:warning:BioNomen: %s — elenco specie troncato: %s. "
+                    "Selezionare meno paesi per volta.", taxon, e,
+                )
+                truncated_any = True
+            except Exception as e:
+                logger.warning(
+                    "LOG:warning:BioNomen: %s — elenco specie per paese fallito: %s",
+                    taxon, e,
+                )
+                truncated_any = True
+
+        logger.info("BioNomen: %s in %s = %s specie (mondo: %s)",
+                    taxon, countries, len(all_keys), _SPECIES_TOTAL_GBIF.get(taxon, "?"))
+        if count_callback and all_keys:
+            count_callback(len(all_keys))
+        if status_callback:
+            status_callback(f"{taxon_label}: {len(all_keys):,} specie da {', '.join(countries)}"
+                            .replace(",", "."))
+
+        saved, interrupted = _fetch_vernacular_by_keys(
+            keys=all_keys,
+            language=language,
+            conn=conn,
+            progress_callback=progress_callback,
+            stop_event=stop_event,
+            total_override=len(all_keys),
+        )
+        complete = not truncated_any and not interrupted
+        now = datetime.now().strftime("%d/%m/%y %H:%M")
+        if complete:
+            conn.execute(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES ('last_updated', ?)",
+                (now,),
+            )
+            conn.execute("DELETE FROM metadata WHERE key='incomplete'")
+            # Traccia i paesi già scaricati, così la UI può dirlo e l'utente sa
+            # cosa ha in casa prima di aggiungerne altri.
+            done = set(get_downloaded_countries(taxon, language)) | set(countries)
+            conn.execute(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES ('countries', ?)",
+                (",".join(sorted(done)),),
+            )
+        else:
+            reason = "interrotto dall'utente" if interrupted else "download troncato"
+            conn.execute(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES ('incomplete', ?)",
+                (f"{reason} il {now}",),
+            )
+        conn.commit()
+        conn.close()
+        if status_callback:
+            suffix = "" if complete else " (incompleto)"
+            status_callback(f"{taxon_label}: {saved:,} nomi salvati{suffix}".replace(",", "."))
+        logger.info("BioNomen: %s/%s paesi=%s %s — %s record",
+                    taxon, language, countries,
+                    "completato" if complete else "TRONCATO", saved)
+        return saved
 
     # Pianifica gli shard: ogni chiave del taxon viene spezzata ricorsivamente
     # finché ogni pezzo non sta sotto il tetto di paginazione GBIF. Per i taxa

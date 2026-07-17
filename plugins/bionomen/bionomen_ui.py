@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QProgressBar, QDialog,
     QButtonGroup, QFrame, QDialogButtonBox,
-    QMessageBox, QCheckBox, QLineEdit, QFileDialog, QComboBox,
+    QMessageBox, QCheckBox, QLineEdit, QFileDialog, QComboBox, QScrollArea,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QFont
@@ -38,6 +38,101 @@ from PyQt6.QtGui import QFont
 # Lingue selezionabili per il nome comune (ISO 639-1 → etichetta).
 # "auto" = eredita dalla lingua interfaccia OffGallery (llm_output_language).
 # Coerente con _LANG_MAP in bionomen.py.
+# Paesi di riserva se GBIF non è raggiungibile e non c'è ancora la cache: il
+# dialogo di configurazione deve restare usabile offline. Sono i più probabili
+# per l'utenza del plugin; per gli altri resta la digitazione del codice ISO.
+_COUNTRY_FALLBACK = [
+    {"iso2": "IT", "title": "Italia"},
+    {"iso2": "FR", "title": "Francia"},
+    {"iso2": "ES", "title": "Spagna"},
+    {"iso2": "DE", "title": "Germania"},
+    {"iso2": "CH", "title": "Svizzera"},
+    {"iso2": "AT", "title": "Austria"},
+    {"iso2": "GB", "title": "Regno Unito"},
+    {"iso2": "PT", "title": "Portogallo"},
+    {"iso2": "GR", "title": "Grecia"},
+    {"iso2": "SI", "title": "Slovenia"},
+    {"iso2": "HR", "title": "Croazia"},
+    {"iso2": "US", "title": "Stati Uniti"},
+]
+
+# GBIF restituisce i nomi dei paesi in inglese ("Italy", "Germany"): in un
+# dialogo italiano l'utente cerca "Italia" o "Germania" e non troverebbe nulla.
+# Si traducono i più probabili; per gli altri resta il nome inglese, che è
+# comunque cercabile insieme al codice ISO.
+_COUNTRY_IT = {
+    "IT": "Italia", "FR": "Francia", "ES": "Spagna", "DE": "Germania",
+    "CH": "Svizzera", "AT": "Austria", "GB": "Regno Unito", "PT": "Portogallo",
+    "GR": "Grecia", "SI": "Slovenia", "HR": "Croazia", "US": "Stati Uniti",
+    "NL": "Paesi Bassi", "BE": "Belgio", "IE": "Irlanda", "DK": "Danimarca",
+    "SE": "Svezia", "NO": "Norvegia", "FI": "Finlandia", "IS": "Islanda",
+    "PL": "Polonia", "CZ": "Rep. Ceca", "SK": "Slovacchia", "HU": "Ungheria",
+    "RO": "Romania", "BG": "Bulgaria", "RS": "Serbia", "AL": "Albania",
+    "TR": "Turchia", "RU": "Russia", "UA": "Ucraina", "MT": "Malta",
+    "CY": "Cipro", "MA": "Marocco", "TN": "Tunisia", "EG": "Egitto",
+    "ZA": "Sudafrica", "KE": "Kenya", "TZ": "Tanzania", "MG": "Madagascar",
+    "BR": "Brasile", "AR": "Argentina", "CL": "Cile", "PE": "Perù",
+    "MX": "Messico", "CR": "Costa Rica", "CA": "Canada", "AU": "Australia",
+    "NZ": "Nuova Zelanda", "JP": "Giappone", "CN": "Cina", "IN": "India",
+    "ID": "Indonesia", "TH": "Thailandia", "VN": "Vietnam", "PH": "Filippine",
+}
+
+
+def _country_label(iso2: str, title: str) -> str:
+    """Nome del paese in italiano se noto, altrimenti quello inglese di GBIF."""
+    return _COUNTRY_IT.get(iso2, title)
+
+
+_country_cache = None
+
+
+def _country_list():
+    """Elenco paesi {iso2, title} da GBIF, con cache su disco e fallback offline.
+
+    La cache evita di dipendere dalla rete ogni volta che si apre Configura;
+    il fallback evita che il dialogo diventi inutilizzabile senza rete.
+    """
+    global _country_cache
+    if _country_cache is not None:
+        return _country_cache
+
+    cache_file = Path(__file__).parent / "data" / "countries.json"
+    try:
+        import bionomen
+        cache_file = Path(bionomen.load_config().get("data_dir") or cache_file.parent) / "countries.json"
+    except Exception:
+        logger.warning("BioNomen: data_dir non risolvibile per la cache paesi",
+                       exc_info=True)
+
+    try:
+        import requests
+        data = requests.get("https://api.gbif.org/v1/enumeration/country",
+                            timeout=8, headers={"User-Agent": "BioNomen/2.0"}).json()
+        out = [{"iso2": c["iso2"], "title": c["title"]}
+               for c in data if c.get("iso2") and c.get("title")]
+        if out:
+            try:
+                cache_file.parent.mkdir(parents=True, exist_ok=True)
+                cache_file.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                logger.warning("BioNomen: scrittura cache paesi fallita", exc_info=True)
+            _country_cache = out
+            return out
+    except Exception:
+        logger.warning("BioNomen: elenco paesi da GBIF non disponibile, uso la cache",
+                       exc_info=True)
+
+    try:
+        if cache_file.exists():
+            _country_cache = json.loads(cache_file.read_text(encoding="utf-8"))
+            return _country_cache
+    except Exception:
+        logger.warning("BioNomen: cache paesi illeggibile", exc_info=True)
+
+    _country_cache = _COUNTRY_FALLBACK
+    return _country_cache
+
+
 _LANGUAGE_CHOICES = [
     ("auto", "Auto (segue interfaccia)"),
     ("it",   "Italiano"),
@@ -220,6 +315,93 @@ class DownloadWorker(QThread):
             self.signals.error.emit(str(e))
 
 
+class _CountryPickerDialog(QDialog):
+    """Selezione multipla di paesi con filtro di ricerca.
+
+    Stile e struttura allineati a ConfigDialog: stesso tema scuro, stessi
+    QCheckBox, stesso QDialogButtonBox Salva/Annulla.
+    """
+
+    def __init__(self, selected, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("BioNomen — scegli i paesi")
+        self.setStyleSheet(_DARK_STYLE)
+        self.setMinimumSize(360, 460)
+        self._checks = {}
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+
+        hint = QLabel("I paesi selezionati si sommano a quelli già scaricati.")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #8A8A8A; font-size: 11px;")
+        layout.addWidget(hint)
+
+        self._search = QLineEdit()
+        self._search.setPlaceholderText("Cerca paese…")
+        self._search.setStyleSheet(
+            "background: #1E1E1E; color: #E3E3E3; border: 1px solid #3A3A3A; "
+            "border-radius: 3px; padding: 3px 6px;"
+        )
+        self._search.textChanged.connect(self._filter)
+        layout.addWidget(self._search)
+
+        # Lista scrollabile: 250 paesi non stanno in un dialogo.
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border: 1px solid #3A3A3A; border-radius: 3px;")
+        inner = QWidget()
+        self._list_layout = QVBoxLayout(inner)
+        self._list_layout.setContentsMargins(8, 8, 8, 8)
+        self._list_layout.setSpacing(2)
+
+        # Etichetta italiana quando c'è, ma la ricerca guarda anche il nome
+        # inglese di GBIF: chi digita "Germany" trova comunque la Germania.
+        self._haystack = {}
+        # I già selezionati vanno in cima: in una lista alfabetica di 250 voci
+        # l'utente non vedrebbe le proprie scelte senza scorrere.
+        items = [(c["iso2"], _country_label(c["iso2"], c["title"]), c["title"])
+                 for c in _country_list()]
+        items.sort(key=lambda x: (x[0] not in selected, x[1]))
+        self._sep_line = None
+        for i, (iso2, label, en_title) in enumerate(items):
+            # Riga di stacco tra i selezionati (in cima) e tutti gli altri
+            if selected and i == len(selected) and self._sep_line is None:
+                self._sep_line = QFrame()
+                self._sep_line.setFrameShape(QFrame.Shape.HLine)
+                self._sep_line.setFrameShadow(QFrame.Shadow.Sunken)
+                self._list_layout.addWidget(self._sep_line)
+            cb = QCheckBox(f"{label}  ({iso2})")
+            cb.setChecked(iso2 in selected)
+            self._checks[iso2] = cb
+            self._haystack[iso2] = f"{label} {en_title} {iso2}".lower()
+            self._list_layout.addWidget(cb)
+        self._list_layout.addStretch()
+        scroll.setWidget(inner)
+        layout.addWidget(scroll, stretch=1)
+
+        btn_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Save
+        )
+        btn_box.button(QDialogButtonBox.StandardButton.Save).setText("Salva")
+        btn_box.button(QDialogButtonBox.StandardButton.Cancel).setText("Annulla")
+        btn_box.accepted.connect(self.accept)
+        btn_box.rejected.connect(self.reject)
+        layout.addWidget(btn_box)
+
+    def _filter(self, text: str):
+        needle = text.strip().lower()
+        for iso2, cb in self._checks.items():
+            cb.setVisible(not needle or needle in self._haystack.get(iso2, ""))
+        # Durante la ricerca lo stacco "selezionati / altri" non ha più senso
+        if self._sep_line is not None:
+            self._sep_line.setVisible(not needle)
+
+    def selected(self):
+        return [iso2 for iso2, cb in self._checks.items() if cb.isChecked()]
+
+
 class ConfigDialog(QDialog):
     """
     Dialog configurazione BioNomen.
@@ -306,6 +488,73 @@ class ConfigDialog(QDialog):
         grid.addLayout(col_left)
         grid.addLayout(col_right)
         layout.addLayout(grid)
+
+        layout.addWidget(_sep())
+
+        # --- Sezione Copertura geografica (solo insecta/plantae) ---
+        # Solo questi due taxa superano il tetto GBIF: insecta ha 1.105.104 specie
+        # nel mondo ma 24.698 osservate in Italia, plantae 446.842 contro 16.020.
+        # Per gli altri (9.815-21.100) il mondiale si scarica in pochi minuti e un
+        # filtro qui sarebbe solo un bottone in più senza guadagno.
+        geo_label = QLabel("Copertura geografica")
+        geo_label.setStyleSheet("font-weight: bold; font-size: 12px;")
+        layout.addWidget(geo_label)
+
+        geo_hint = QLabel(
+            "Insetti e piante contano milioni di specie in tutto il mondo. "
+            "Limitandoli ad alcuni paesi il download passa da giorni a minuti. "
+            "I paesi si possono aggiungere in seguito: i nuovi nomi si sommano a "
+            "quelli già scaricati."
+        )
+        geo_hint.setWordWrap(True)
+        geo_hint.setStyleSheet("color: #8A8A8A; font-size: 11px;")
+        layout.addWidget(geo_hint)
+
+        self._country_rows = {}
+        cfg_countries = self._cfg.get("taxa_countries") or {}
+        for taxon_id in bionomen.COUNTRY_FILTERABLE:
+            info = bionomen.TAXA.get(taxon_id)
+            if not info:
+                continue
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+
+            name = QLabel(info["label"])
+            name.setFixedWidth(150)
+            row.addWidget(name)
+
+            edit = QLineEdit(", ".join(cfg_countries.get(taxon_id, []) or []))
+            edit.setPlaceholderText("vuoto = tutto il mondo (lento)")
+            edit.setStyleSheet(
+                "background: #1E1E1E; color: #E3E3E3; border: 1px solid #3A3A3A; "
+                "border-radius: 3px; padding: 3px 6px;"
+            )
+            edit.setToolTip(
+                "Codici paese ISO separati da virgola, es: IT, FR, ES.\n"
+                "Vuoto = scarica tutte le specie del mondo."
+            )
+            row.addWidget(edit, stretch=1)
+
+            btn = QPushButton("Scegli…")
+            btn.setFixedWidth(80)
+            btn.clicked.connect(lambda _, t=taxon_id: self._pick_countries(t))
+            row.addWidget(btn)
+
+            # Cosa c'è già nel DB: rende evidente che aggiungere è un append.
+            try:
+                lang = bionomen.resolve_language(plugin_cfg=self._cfg)
+                done = bionomen.get_downloaded_countries(taxon_id, lang)
+            except Exception:
+                logger.warning("BioNomen: lettura paesi DB fallita per %s",
+                               taxon_id, exc_info=True)
+                done = []
+            state = QLabel("già scaricati: " + (", ".join(done) if done else "—"))
+            state.setStyleSheet("color: #5FAF5F; font-size: 11px;" if done
+                                else "color: #8A8A8A; font-size: 11px;")
+            row.addWidget(state)
+
+            self._country_rows[taxon_id] = edit
+            layout.addLayout(row)
 
         layout.addWidget(_sep())
 
@@ -411,6 +660,16 @@ class ConfigDialog(QDialog):
         sep.setFrameShadow(QFrame.Shadow.Sunken)
         return sep
 
+    def _pick_countries(self, taxon: str):
+        """Dialogo di selezione paesi per un taxon (lista con ricerca, multi-scelta)."""
+        edit = self._country_rows.get(taxon)
+        if edit is None:
+            return
+        current = {c.strip().upper() for c in edit.text().split(",") if c.strip()}
+        dlg = _CountryPickerDialog(current, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            edit.setText(", ".join(dlg.selected()))
+
     def _browse_dir(self):
         current = self._dir_edit.text() or str(Path(__file__).parent / "data")
         chosen = QFileDialog.getExistingDirectory(self, "Seleziona directory database", current)
@@ -429,6 +688,26 @@ class ConfigDialog(QDialog):
         self._cfg["mode"] = self.get_mode()
         self._cfg["online_lookup"] = self.cb_online.isChecked()
         self._cfg["language_mode"] = self.combo_language.currentData() or "auto"
+
+        # Paesi per taxon. Si validano qui: un codice sbagliato non darebbe errore
+        # da GBIF, darebbe zero specie — cioè un DB vuoto senza spiegazione.
+        valid = {c["iso2"] for c in _country_list()}
+        taxa_countries = {}
+        for taxon_id, edit in self._country_rows.items():
+            codes = [c.strip().upper() for c in edit.text().split(",") if c.strip()]
+            bad = [c for c in codes if c not in valid]
+            if bad:
+                QMessageBox.warning(
+                    self, "BioNomen",
+                    f"Codici paese non validi per {bionomen.TAXA[taxon_id]['label']}: "
+                    f"{', '.join(bad)}.\n\nUsare i codici ISO a due lettere "
+                    f"(es. IT, FR, ES) o il bottone «Scegli…»."
+                )
+                return
+            if codes:
+                taxa_countries[taxon_id] = codes
+        self._cfg["taxa_countries"] = taxa_countries
+
         bionomen.save_config(self._cfg)
         self.accept()
 
