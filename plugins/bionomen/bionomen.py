@@ -1404,6 +1404,71 @@ def _gbif_species_keys_by_country(
     return keys
 
 
+# Validità della mappa degli shard su disco. La tassonomia GBIF si muove di poco
+# in un mese; oltre, meglio ricalcolare che portarsi dietro rami spariti.
+_SHARD_CACHE_DAYS = 30
+
+
+def _shard_cache_path(taxon: str) -> Path:
+    return get_data_dir() / f"shards_{taxon}.json"
+
+
+def _shard_cache_signature(taxon: str) -> str:
+    """Firma delle chiavi del taxon: se cambiano in TAXA, la mappa non vale più."""
+    return ",".join(str(k) for k in TAXA.get(taxon, {}).get("class_keys", []))
+
+
+def _load_shard_cache(taxon: str) -> Optional[List[tuple]]:
+    """Mappa degli shard salvata da un download precedente, se ancora valida.
+
+    Serve soprattutto a rendere riprendibile il download mondiale: pianificare
+    insecta costa ~40 min di chiamate di count, e senza cache un download
+    interrotto (utente, riavvio, rete) li ripagherebbe tutti a barra ferma prima
+    di riprendere il lavoro vero. Il ramo per paese non passa di qui: prende le
+    chiavi dal facet occurrence in una chiamata sola.
+    """
+    path = _shard_cache_path(taxon)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        saved_at = datetime.fromisoformat(data["saved_at"])
+        if (datetime.now() - saved_at).days > _SHARD_CACHE_DAYS:
+            logger.info("BioNomen: mappa shard di %s scaduta, la ricalcolo", taxon)
+            return None
+        if data.get("signature") != _shard_cache_signature(taxon):
+            logger.info("BioNomen: chiavi di %s cambiate, ricalcolo la mappa shard", taxon)
+            return None
+        shards = [(int(k), str(n), int(c)) for k, n, c in data["shards"]]
+        if not shards:
+            return None
+        logger.info("BioNomen: riuso la mappa shard di %s (%s shard, del %s)",
+                    taxon, len(shards), saved_at.strftime("%d/%m/%y"))
+        return shards
+    except Exception:
+        logger.warning("BioNomen: mappa shard di %s illeggibile, la ricalcolo",
+                       taxon, exc_info=True)
+        return None
+
+
+def _save_shard_cache(taxon: str, shards: List[tuple]) -> None:
+    """Salva la mappa degli shard. Se fallisce non è grave: si ripianifica."""
+    if not shards:
+        return
+    try:
+        path = _shard_cache_path(taxon)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"saved_at": datetime.now().isoformat(),
+                        "signature": _shard_cache_signature(taxon),
+                        "shards": [[k, n, c] for k, n, c in shards]}),
+            encoding="utf-8",
+        )
+    except Exception:
+        logger.warning("BioNomen: salvataggio mappa shard di %s fallito",
+                       taxon, exc_info=True)
+
+
 def _gbif_children(key: int, stop_event=None) -> List[dict]:
     """Figli diretti di un taxon GBIF, a qualsiasi rango.
 
@@ -1638,13 +1703,20 @@ def _fetch_gbif_vernacular_bulk(
             )
             if not usage_key or not sci_name:
                 continue
-            # Già in cache → salta la chiamata HTTP
+            # Già interrogata → salta la chiamata HTTP. Si guardano DUE tabelle:
+            # vernacular_names ha solo le specie che un nome comune ce l'hanno,
+            # e per insecta sono ~l'1%. Senza vernacular_keys, riprendere un
+            # download interrotto ri-interrogherebbe il 99% del già fatto.
             with db_lock:
-                cur = conn.execute(
+                already_cached = conn.execute(
                     "SELECT 1 FROM vernacular_names WHERE scientific_name=? AND language=?",
                     (sci_name, lang_code),
-                )
-                already_cached = cur.fetchone() is not None
+                ).fetchone() is not None
+                if not already_cached:
+                    already_cached = conn.execute(
+                        "SELECT 1 FROM vernacular_keys WHERE taxon_key=? AND language=?",
+                        (usage_key, lang_code),
+                    ).fetchone() is not None
             if already_cached:
                 processed += 1
                 _emit_progress(processed_base + processed, total_estimate)
@@ -1710,6 +1782,20 @@ def _fetch_gbif_vernacular_bulk(
                 )
                 conn.commit()
             pending_rows.clear()
+
+        # Segna la pagina come interrogata, incluse le specie senza nome comune.
+        # DOPO il commit dei nomi, mai prima: al contrario, un crash tra le due
+        # scritture marcherebbe come fatte delle specie i cui nomi sono andati
+        # persi, e la ripresa le salterebbe per sempre.
+        # Si fa a pagina conclusa perché la pagina è già l'unità di commit: se il
+        # download si interrompe a metà, si rifà quella pagina, non tutto il taxon.
+        if tasks and not (stop_event and stop_event.is_set()):
+            with db_lock:
+                conn.executemany(
+                    "INSERT OR REPLACE INTO vernacular_keys (taxon_key, language) VALUES (?, ?)",
+                    [(t[0], lang_code) for t in tasks],
+                )
+                conn.commit()
 
         offset += len(results)
         if data.get("endOfRecords", True):
@@ -1952,14 +2038,21 @@ def download_taxon_database(
     # finché ogni pezzo non sta sotto il tetto di paginazione GBIF. Per i taxa
     # piccoli (aves, mammalia, reptilia, amphibia) non si spezza nulla: la lista
     # coincide con class_keys e il costo è una sola chiamata di count per chiave.
-    if status_callback:
-        status_callback(f"Analisi struttura {taxon_label}...")
-    shards: List[tuple] = []
-    for ck in class_keys:
-        if stop_event and stop_event.is_set():
-            break
-        shards.extend(_plan_shards(ck, taxon_label, stop_event=stop_event,
-                                   status_callback=status_callback))
+    # La mappa degli shard di un download precedente, se c'è, evita di ripagare
+    # la pianificazione (per insecta ~40 min di sole chiamate di count): è ciò
+    # che rende riprendibile un download mondiale interrotto a metà.
+    shards: List[tuple] = _load_shard_cache(taxon) or []
+    if not shards:
+        if status_callback:
+            status_callback(f"Analisi struttura {taxon_label}...")
+        for ck in class_keys:
+            if stop_event and stop_event.is_set():
+                break
+            shards.extend(_plan_shards(ck, taxon_label, stop_event=stop_event,
+                                       status_callback=status_callback))
+        # Non salvare una mappa monca: al prossimo giro sembrerebbe completa.
+        if shards and not (stop_event and stop_event.is_set()):
+            _save_shard_cache(taxon, shards)
 
     taxon_total = sum(c for _, _, c in shards)
     if taxon_total > 0 and count_callback:
