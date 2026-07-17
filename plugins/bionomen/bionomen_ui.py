@@ -78,6 +78,30 @@ _COUNTRY_IT = {
 }
 
 
+# Ritmo osservato del download (3 worker verso GBIF, 2 chiamate per specie nel
+# ramo per paese, 1 nel mondiale). Misurato: 238 Crocodylia in ~40 s.
+_SPECIES_PER_SEC = 6.0
+
+
+def _hours_estimate(taxon: str) -> str:
+    """Durata indicativa di un download mondiale, in parole povere."""
+    try:
+        import bionomen
+        n = bionomen._SPECIES_TOTAL_GBIF.get(taxon, 0)
+    except Exception:
+        logger.warning("BioNomen: stima durata non disponibile per %s",
+                       taxon, exc_info=True)
+        return "molte ore"
+    if not n:
+        return "molte ore"
+    hours = n / _SPECIES_PER_SEC / 3600
+    if hours >= 24:
+        return f"{hours / 24:.0f} giorni"
+    if hours >= 1:
+        return f"{hours:.0f} ore"
+    return f"{hours * 60:.0f} minuti"
+
+
 def _country_label(iso2: str, title: str) -> str:
     """Nome del paese in italiano se noto, altrimenti quello inglese di GBIF."""
     return _COUNTRY_IT.get(iso2, title)
@@ -422,6 +446,10 @@ class ConfigDialog(QDialog):
         self.setMinimumWidth(420)
         self.setStyleSheet(_DARK_STYLE)
 
+        # L'avviso sul download mondiale si mostra una volta sola per dialogo:
+        # chi ha già detto "sì, procedi" non va richiesto a ogni Salva.
+        self._confirmed_worldwide = False
+
         self._mode = current_mode
         self._count_unprocessed = count_unprocessed
         self._count_total = count_total
@@ -707,6 +735,43 @@ class ConfigDialog(QDialog):
             if codes:
                 taxa_countries[taxon_id] = codes
         self._cfg["taxa_countries"] = taxa_countries
+
+        # Avviso (non blocco) se si sta per scaricare il mondo intero su un taxon
+        # enorme: 1.105.104 specie a ~6 specie/s sono ~51 ore, e quasi nessuna ha
+        # un nome comune. Chi lo vuole davvero può procedere.
+        heavy = [t for t in bionomen.COUNTRY_FILTERABLE
+                 if t in taxa_enabled and not taxa_countries.get(t)]
+        if heavy and not self._confirmed_worldwide:
+            names = "\n".join(
+                f"  • {bionomen.TAXA[t]['label']}: "
+                f"{bionomen._SPECIES_TOTAL_GBIF.get(t, 0):,} specie"
+                f" (~{_hours_estimate(t)})".replace(",", ".")
+                for t in heavy
+            )
+            box = QMessageBox(self)
+            box.setWindowTitle("BioNomen — download mondiale")
+            box.setIcon(QMessageBox.Icon.Question)
+            box.setText(
+                "Stai per scaricare tutte le specie del mondo per:\n\n"
+                f"{names}\n\n"
+                "È un'operazione molto lunga, e la maggior parte di queste specie "
+                "non ha un nome comune in nessuna lingua.\n\n"
+                "Indicando uno o più paesi in «Copertura geografica» il download "
+                "richiede una frazione del tempo (es. Insecta in Italia: 24.698 "
+                "specie invece di 1.105.104), e i paesi si possono aggiungere in "
+                "seguito.\n\n"
+                "Procedere comunque con il download mondiale?"
+            )
+            # I bottoni standard di Qt sarebbero "Yes"/"No" in inglese: il resto
+            # del plugin è in italiano.
+            btn_yes = box.addButton("Scarica tutto il mondo",
+                                    QMessageBox.ButtonRole.AcceptRole)
+            box.addButton("Torna indietro", QMessageBox.ButtonRole.RejectRole)
+            box.setDefaultButton(box.buttons()[-1])
+            box.exec()
+            if box.clickedButton() is not btn_yes:
+                return
+            self._confirmed_worldwide = True
 
         bionomen.save_config(self._cfg)
         self.accept()
