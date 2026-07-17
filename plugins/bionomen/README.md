@@ -34,8 +34,24 @@ Le foto senza classificazione BioCLIP vengono silenziosamente saltate.
 
 | Opzione | Default | Descrizione |
 |---------|---------|-------------|
-| Lingua nomi comuni | `it` | Lingua dei nomi comuni (italiano, inglese, ecc.) |
-| Taxa abilitati | tutti | Gruppi tassonomici da cercare |
+| Lingua nomi comuni | `auto` | Lingua dei nomi comuni, indipendente da quella dei testi LLM |
+| Taxa abilitati | `aves` | Gruppi tassonomici da cercare |
+| Copertura geografica | vuoto (mondiale) | Paesi ISO per Insecta e Plantae (es. `IT, FR`) |
+
+---
+
+## Copertura geografica (solo Insecta e Plantae)
+
+Insetti e piante contano milioni di specie: scaricarle tutte richiede giorni, e quasi nessuna ha un nome comune. La sezione **Copertura geografica** del pannello Configura permette di limitare questi due taxa ad alcuni paesi, scaricando solo le specie effettivamente osservate lì.
+
+| Taxon | Mondiale | Solo Italia |
+|-------|----------|-------------|
+| Insecta | 1.105.104 specie (~2 giorni) | **24.698** (~1 ora) |
+| Plantae | 446.842 specie (~21 ore) | **16.020** |
+
+I paesi si possono **aggiungere in seguito**: i nuovi nomi si sommano a quelli già scaricati, nello stesso database, senza ripetere il lavoro già fatto. Campo vuoto = mondiale (con avviso prima di procedere).
+
+Per gli altri taxa il campo non compare: sono fra 9.800 e 21.100 specie e si scaricano in pochi minuti.
 
 ---
 
@@ -49,7 +65,7 @@ Le foto senza classificazione BioCLIP vengono silenziosamente saltate.
 
 ## Taxa supportati
 
-Aves, Mammalia, Reptilia, Amphibia, Insecta, Arachnida, Plantae, Fungi
+Aves, Mammalia, Reptilia, Amphibia, Insecta, Plantae
 
 ---
 
@@ -98,8 +114,24 @@ Photos without BioCLIP classification are silently skipped.
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| Common name language | `it` | Language for common names (Italian, English, etc.) |
-| Enabled taxa | all | Taxonomic groups to look up |
+| Common name language | `auto` | Language for common names, independent from the LLM text language |
+| Enabled taxa | `aves` | Taxonomic groups to look up |
+| Geographic coverage | empty (worldwide) | ISO countries for Insecta and Plantae (e.g. `IT, FR`) |
+
+---
+
+## Geographic coverage (Insecta and Plantae only)
+
+Insects and plants comprise millions of species: downloading them all takes days, and almost none have a common name. The **Geographic coverage** section of the Configure panel limits these two taxa to selected countries, downloading only the species actually recorded there.
+
+| Taxon | Worldwide | Italy only |
+|-------|-----------|------------|
+| Insecta | 1,105,104 species (~2 days) | **24,698** (~1 hour) |
+| Plantae | 446,842 species (~21 hours) | **16,020** |
+
+Countries can be **added later**: new names are appended to those already downloaded, in the same database, without repeating work already done. Empty field = worldwide (with a warning before proceeding).
+
+The field does not appear for the other taxa: they range from 9,800 to 21,100 species and download in a few minutes.
 
 ---
 
@@ -113,7 +145,7 @@ Photos without BioCLIP classification are silently skipped.
 
 ## Supported taxa
 
-Aves, Mammalia, Reptilia, Amphibia, Insecta, Arachnida, Plantae, Fungi
+Aves, Mammalia, Reptilia, Amphibia, Insecta, Plantae
 
 ---
 

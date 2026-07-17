@@ -1249,11 +1249,44 @@ Destination (e.g. E:\Backup):
   <li>Start OffGallery</li>
   <li>Go to the <strong>Plugin</strong> tab and click <strong>Configure</strong> in the BioNomen card</li>
   <li>Select the taxa of interest (Aves, Mammalia, Reptilia, Amphibia, Insecta, Plantae)</li>
+  <li>For <strong>Insecta</strong> and <strong>Plantae</strong>, set the countries under <strong>Geographic coverage</strong> (see below)</li>
   <li>Choose the <strong>Common name language</strong> (see below)</li>
   <li>Click <strong>Download database</strong></li>
 </ol>
 
 <p>Databases are split by <strong>taxon and language</strong>: each combination is a separate file (for example <code>bionomen_aves_en.db</code> for birds in English). This means every language you want to use requires its own download, even for taxa already downloaded in another language.</p>
+
+<h3>Geographic coverage (Insecta and Plantae)</h3>
+
+<p>Insects and plants comprise <strong>millions of species</strong> worldwide: downloading them all takes days, and the vast majority have no common name in any language. In the <strong>Configure</strong> window, the <strong>Geographic coverage</strong> section limits these two taxa to one or more countries, downloading only the species actually recorded there.</p>
+
+<table>
+  <tr><th>Taxon</th><th>Worldwide</th><th>Italy only</th></tr>
+  <tr><td><strong>Insecta</strong></td><td>1,105,104 species (~2 days)</td><td><strong>24,698 species</strong> (~1 hour)</td></tr>
+  <tr><td><strong>Plantae</strong></td><td>446,842 species (~21 hours)</td><td><strong>16,020 species</strong></td></tr>
+</table>
+
+<p>Countries are entered as two-letter ISO codes separated by commas (<code>IT, FR, ES</code>), or via the <strong>Choose…</strong> button, which opens the full searchable list.</p>
+
+<p><strong>Countries can be added at any time.</strong> If you download Italy today and add France and Spain tomorrow, the new names are <strong>appended</strong> to the existing ones: nothing starts over, and species shared between the two countries are not requested twice. Everything goes into the same database for that taxon, with no distinction of origin.</p>
+
+<p>Leaving the field <strong>empty</strong> downloads the whole world. This is allowed, but before proceeding the program warns about the duration and offers the alternative: if you confirm, the download starts anyway.</p>
+
+<p>The field does not appear for the other taxa (Aves, Mammalia, Reptilia, Amphibia): they range from 9,800 to 21,100 species and download entirely in a few minutes.</p>
+
+<h3>Checking whether a database is complete</h3>
+
+<p>The file <strong>size in KB</strong> does not tell you whether a database is complete: it is plain text, roughly 41 bytes per name. The useful indicator is the <strong>number of names</strong>, shown next to each taxon in the <strong>Configure</strong> window:</p>
+
+<ul>
+  <li><strong>✓ green</strong> — database complete, with the number of names and (if set) the downloaded countries</li>
+  <li><strong>⚠ orange</strong> — download interrupted or incomplete: run it again</li>
+  <li><strong>— grey</strong> — database not downloaded yet</li>
+</ul>
+
+<p>If a download is interrupted (network error, manual stop, or a reboot), the database is <strong>not</strong> marked as complete: it stays flagged as incomplete and you simply run it again. Work already done is not repeated, so resuming is much faster than the first download.</p>
+
+<p>It is normal for <strong>Insecta and Plantae to contain few names</strong> relative to their species count: most insects and plants have no common name in any language. This is not a failed download.</p>
 
 <h3>Common name language</h3>
 

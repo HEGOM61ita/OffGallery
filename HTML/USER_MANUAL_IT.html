@@ -1423,11 +1423,44 @@ Destinazione (es. E:\Backup):
   <li>Avvia OffGallery</li>
   <li>Vai nella tab <strong>Plugin</strong> e clicca <strong>Configura</strong> nella card BioNomen</li>
   <li>Seleziona i taxa di interesse (Aves, Mammalia, Reptilia, Amphibia, Insecta, Plantae)</li>
+  <li>Per <strong>Insecta</strong> e <strong>Plantae</strong>, indica i paesi in <strong>Copertura geografica</strong> (vedi sotto)</li>
   <li>Scegli la <strong>Lingua nome comune</strong> (vedi sotto)</li>
   <li>Clicca <strong>Scarica database</strong></li>
 </ol>
 
 <p>I database sono suddivisi per <strong>taxon e lingua</strong>: ogni combinazione è un file separato (ad esempio <code>bionomen_aves_it.db</code> per gli uccelli in italiano). Questo significa che ogni lingua che vuoi usare richiede il proprio download, anche per taxa già scaricati in un'altra lingua.</p>
+
+<h3>Copertura geografica (Insecta e Plantae)</h3>
+
+<p>Insetti e piante contano <strong>milioni di specie</strong> in tutto il mondo: scaricarle tutte richiede giorni, e la stragrande maggioranza non ha un nome comune in nessuna lingua. Nella finestra <strong>Configura</strong> la sezione <strong>Copertura geografica</strong> permette di limitare questi due taxa a uno o più paesi, scaricando solo le specie che vi sono state effettivamente osservate.</p>
+
+<table>
+  <tr><th>Taxon</th><th>Tutto il mondo</th><th>Solo Italia</th></tr>
+  <tr><td><strong>Insecta</strong></td><td>1.105.104 specie (~2 giorni)</td><td><strong>24.698 specie</strong> (~1 ora)</td></tr>
+  <tr><td><strong>Plantae</strong></td><td>446.842 specie (~21 ore)</td><td><strong>16.020 specie</strong></td></tr>
+</table>
+
+<p>I paesi si indicano con i codici ISO a due lettere separati da virgola (<code>IT, FR, ES</code>) oppure con il bottone <strong>Scegli…</strong>, che apre l'elenco completo con ricerca.</p>
+
+<p><strong>I paesi si possono aggiungere in qualsiasi momento.</strong> Se oggi scarichi l'Italia e domani aggiungi Francia e Spagna, i nuovi nomi <strong>si sommano</strong> a quelli già presenti: non si riparte da capo, e le specie comuni ai due paesi non vengono richieste una seconda volta. Tutto finisce nello stesso database del taxon, senza distinzione di provenienza.</p>
+
+<p>Lasciando il campo <strong>vuoto</strong> si scarica il mondo intero. È possibile, ma prima di procedere il programma avvisa della durata e propone l'alternativa: se confermi, il download parte comunque.</p>
+
+<p>Per gli altri taxa (Aves, Mammalia, Reptilia, Amphibia) il campo non compare: contano fra le 9.800 e le 21.100 specie e si scaricano interi in pochi minuti.</p>
+
+<h3>Verificare che un database sia completo</h3>
+
+<p>La <strong>dimensione in KB</strong> del file non indica se un database è completo: è testo puro, circa 41 byte per nome. L'indicatore utile è il <strong>numero di nomi</strong>, mostrato accanto a ogni taxon nella finestra <strong>Configura</strong>:</p>
+
+<ul>
+  <li><strong>✓ verde</strong> — database completo, con il numero di nomi e (se impostati) i paesi scaricati</li>
+  <li><strong>⚠ arancione</strong> — download interrotto o incompleto: va rilanciato</li>
+  <li><strong>— grigio</strong> — database non ancora scaricato</li>
+</ul>
+
+<p>Se un download si interrompe (per un errore di rete, un'interruzione manuale o un riavvio), il database <strong>non</strong> viene dichiarato completo: resta marcato come incompleto e basta rilanciarlo. Il lavoro già svolto non viene ripetuto, quindi la ripresa è molto più rapida del primo download.</p>
+
+<p>È normale che <strong>Insecta e Plantae contengano pochi nomi</strong> in rapporto al numero di specie: la maggior parte degli insetti e delle piante non ha un nome comune in nessuna lingua. Non è un download fallito.</p>
 
 <h3>Lingua del nome comune</h3>
 
