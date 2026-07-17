@@ -311,7 +311,9 @@ _SPECIES_TOTAL_GBIF = {
 
 # Copertura tipica attesa (nomi comuni trovati / specie totali) per un download
 # completo. Sotto questa soglia il DB è probabilmente incompleto.
-# Insecta e plantae sono bassissime perché le specie con nome comune sono poche.
+# Insecta e plantae sono bassissime perché le specie con nome comune sono poche:
+# è una proprietà della natura, non un sintomo di download fallito. La prova di
+# completezza NON è questa stima ma il flag 'incomplete' scritto dal download.
 _EXPECTED_COVERAGE = {
     "aves":     0.55,
     "mammalia": 0.30,
@@ -359,6 +361,11 @@ def get_database_report(language: Optional[str] = None) -> List[dict]:
             rows = conn.execute(
                 "SELECT COUNT(*) FROM vernacular_names WHERE vernacular_name != ''"
             ).fetchone()[0]
+            # Il download stesso dichiara se si è interrotto: è un'informazione
+            # certa, mentre la soglia di copertura è solo una stima.
+            inc_row = conn.execute(
+                "SELECT value FROM metadata WHERE key='incomplete' LIMIT 1"
+            ).fetchone()
             conn.close()
         except Exception:
             logger.warning("BioNomen: report DB fallito per %s", db, exc_info=True)
@@ -367,6 +374,14 @@ def get_database_report(language: Optional[str] = None) -> List[dict]:
             continue
 
         entry["rows"] = rows
+        if inc_row:
+            entry["status"] = "incomplete"
+            entry["detail"] = (
+                f"{rows:,} nomi — {inc_row[0]}: rilanciare il download"
+            ).replace(",", ".")
+            report.append(entry)
+            continue
+
         min_expected = int(expected * _EXPECTED_COVERAGE.get(taxon, 0.1))
         if rows < _MIN_ROWS_DOWNLOADED or rows < min_expected:
             entry["status"] = "incomplete"
@@ -1152,6 +1167,49 @@ def _fetch_single_vernacular(args):
     return (sci_name, None, lang_code)
 
 
+class _GbifPageCapError(Exception):
+    """GBIF ha rifiutato la pagina perché oltre il tetto di paginazione (100.000).
+
+    Va distinta da un errore di rete: non ha senso ritentarla, e non significa
+    che i dati siano finiti. Significa che il ramo andava spezzato in shard.
+    """
+
+
+def _gbif_get_json(url: str, retries: int = 4) -> dict:
+    """GET su GBIF con retry a backoff esponenziale.
+
+    Distingue tre esiti, che prima erano confusi in uno solo:
+    - successo → dict JSON;
+    - tetto di paginazione → _GbifPageCapError (inutile ritentare);
+    - errore di rete/server → riprova, e solo se insiste solleva l'eccezione.
+
+    Un errore transitorio di rete non deve mai essere scambiato per "dati finiti":
+    era il difetto che rendeva invisibili i download troncati.
+    """
+    import requests as _req
+    last_exc = None
+    for attempt in range(retries):
+        try:
+            resp = _req.get(url, timeout=20, headers={"User-Agent": "BioNomen/2.0"})
+            # 500/400 su offset alti = tetto di Elasticsearch, non errore transitorio
+            if resp.status_code in (400, 500) and "offset=" in url:
+                try:
+                    off = int(url.split("offset=")[1].split("&")[0])
+                except (ValueError, IndexError):
+                    off = 0
+                if off + 1000 > _GBIF_PAGE_CAP:
+                    raise _GbifPageCapError(f"offset {off} oltre il tetto GBIF")
+            resp.raise_for_status()
+            return resp.json()
+        except _GbifPageCapError:
+            raise
+        except Exception as e:
+            last_exc = e
+            if attempt < retries - 1:
+                time.sleep(2 ** attempt)  # 1s, 2s, 4s
+    raise last_exc
+
+
 def _gbif_species_count(class_key: int) -> int:
     """Ritorna il numero di specie ACCEPTED sotto una chiave GBIF (0 se non determinabile).
 
@@ -1178,6 +1236,122 @@ def _gbif_species_count(class_key: int) -> int:
         return 0
 
 
+# --------------------------------------------------------------------------
+# Sharding adattivo — aggira il tetto di paginazione di GBIF
+# --------------------------------------------------------------------------
+# GBIF species/search rifiuta offset+limit > 100.000 (index.max_result_window
+# di Elasticsearch): a 100.000 risponde, a 100.001 dà HTTP 500. Non è aggirabile
+# con retry o pazienza. Insecta (1.105.104 specie) e Plantae (446.842) stanno
+# sopra il tetto: paginandole dall'alto se ne raggiungeva solo il 9% e il 22%.
+#
+# La chiave è che il tetto vale PER QUERY, non in assoluto: se si spezza il taxon
+# in sotto-alberi abbastanza piccoli, ogni sotto-albero è interamente paginabile.
+# Misurato: Coleoptera (373.306) sfonda il tetto, ma nessuna delle sue 341
+# famiglie lo raggiunge (la maggiore, Curculionidae, ha 76.814 specie).
+#
+# Per enumerare i figli si usa /species/{key}/children e NON species/search con
+# rank=ORDER/FAMILY: children restituisce i figli diretti a QUALSIASI rank, quindi
+# include anche i taxa "orfani" appesi direttamente al padre senza passare per i
+# ranghi standard. Sotto Plantae sono 3.081 generi + 110 famiglie appesi al regno:
+# uno sharding per soli ranghi canonici li perderebbe (misurato: 4.327 specie).
+_GBIF_PAGE_CAP = 100_000   # offset+limit massimo accettato da GBIF
+_SHARD_TARGET  = 90_000    # soglia di split: sotto questa un ramo si pagina intero
+_SHARD_MAX_DEPTH = 6       # regno→phylum→classe→ordine→famiglia→genere: mai infinito
+
+
+def _gbif_children(key: int, stop_event=None) -> List[dict]:
+    """Figli diretti di un taxon GBIF, a qualsiasi rango.
+
+    Usa /species/{key}/children, che non ha il tetto di paginazione di
+    species/search e non filtra per rango: è l'unico modo di enumerare anche i
+    taxa appesi direttamente al padre fuori dai ranghi canonici.
+    """
+    out: List[dict] = []
+    offset = 0
+    while True:
+        if stop_event and stop_event.is_set():
+            break
+        url = f"https://api.gbif.org/v1/species/{key}/children?limit=100&offset={offset}"
+        try:
+            data = _gbif_get_json(url)
+        except Exception:
+            logger.warning("BioNomen: children falliti per key=%s offset=%s",
+                           key, offset, exc_info=True)
+            break
+        results = data.get("results", [])
+        out.extend(results)
+        if data.get("endOfRecords", True) or not results:
+            break
+        offset += len(results)
+    return out
+
+
+def _plan_shards(class_key: int, label: str, stop_event=None,
+                 status_callback: Optional[Callable[[str], None]] = None,
+                 _depth: int = 0) -> List[tuple]:
+    """Spezza un taxon in sotto-alberi interamente paginabili sotto il tetto GBIF.
+
+    Ritorna una lista di (key, nome, count). Scende ricorsivamente solo nei rami
+    che superano la soglia: per aves/mammalia/reptilia/amphibia non scende affatto
+    (una sola chiamata di count) e il comportamento resta identico a prima.
+    """
+    count = _gbif_species_count(class_key)
+    if count <= 0:
+        return []
+    if count <= _SHARD_TARGET:
+        return [(class_key, label, count)]
+    if _depth >= _SHARD_MAX_DEPTH:
+        # Ramo irriducibile: lo si scarica comunque, ma paginabile solo fino al
+        # tetto. Va detto, non nascosto.
+        logger.warning(
+            "BioNomen: %s ha %s specie e non è ulteriormente divisibile: "
+            "verranno scaricate le prime %s",
+            label, count, _GBIF_PAGE_CAP,
+        )
+        return [(class_key, label, count)]
+
+    children = _gbif_children(class_key, stop_event=stop_event)
+    if not children:
+        logger.warning("BioNomen: %s (%s specie) supera il tetto ma non ha figli "
+                       "enumerabili — troncato a %s", label, count, _GBIF_PAGE_CAP)
+        return [(class_key, label, count)]
+
+    logger.info("BioNomen: %s (%s specie) supera %s → split in %s sotto-taxa",
+                label, count, _SHARD_TARGET, len(children))
+    if status_callback:
+        status_callback(f"Analisi struttura {label} ({len(children)} sotto-taxa)...")
+
+    # I count dei figli in parallelo: sono centinaia (Insecta ne ha 453 al primo
+    # livello) e in serie costerebbero minuti di attesa a barra ferma.
+    from concurrent.futures import ThreadPoolExecutor
+
+    kids = []
+    for child in children:
+        ckey = child.get("key")
+        if not ckey:
+            continue
+        cname = child.get("scientificName") or child.get("canonicalName") or str(ckey)
+        kids.append((ckey, cname))
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        counts = list(ex.map(lambda kv: _gbif_species_count(kv[0]), kids))
+
+    shards: List[tuple] = []
+    for (ckey, cname), ccount in zip(kids, counts):
+        if stop_event and stop_event.is_set():
+            break
+        if ccount <= 0:
+            continue
+        if ccount <= _SHARD_TARGET:
+            # Caso normale: già paginabile, nessuna ricorsione e nessun costo.
+            shards.append((ckey, cname, ccount))
+        else:
+            shards.extend(_plan_shards(ckey, cname, stop_event=stop_event,
+                                       status_callback=status_callback,
+                                       _depth=_depth + 1))
+    return shards
+
+
 def _fetch_gbif_vernacular_bulk(
     class_key: int,
     language: str,
@@ -1187,7 +1361,7 @@ def _fetch_gbif_vernacular_bulk(
     stop_event=None,
     processed_base: int = 0,
     total_override: int = 0,
-) -> int:
+) -> tuple:
     """
     Scarica in bulk i nomi vernacolari da GBIF per una classe tassonomica.
 
@@ -1204,7 +1378,9 @@ def _fetch_gbif_vernacular_bulk(
             count della singola chiave: per i taxa multi-chiave il totale è la somma
             di tutte le chiavi, non quello della chiave corrente.
 
-    Ritorna il numero di record salvati.
+    Ritorna (record_salvati, troncato): `troncato` è True se il download si è
+    interrotto per un errore o per il tetto GBIF invece che per fine dei dati.
+    Il chiamante deve usarlo per NON dichiarare completo un DB che non lo è.
     """
     import urllib.request
     import urllib.parse
@@ -1222,6 +1398,7 @@ def _fetch_gbif_vernacular_bulk(
     total_estimate = total_override  # 0 = da determinare dalla prima pagina
     offset         = 0
     _last_ui       = 0  # Ultimo valore inviato alla UI
+    truncated      = False  # True se interrotto da errore/tetto, non da fine dati
 
     def _emit_progress(current, total):
         """Emette progress solo ogni _UI_EVERY record per non inondare Qt."""
@@ -1236,6 +1413,18 @@ def _fetch_gbif_vernacular_bulk(
 
     while True:
         if stop_event and stop_event.is_set():
+            break
+
+        # Guardia sul tetto: inutile emettere una richiesta che GBIF rifiuterà.
+        # Con lo sharding non dovrebbe mai scattare; se scatta, è un ramo
+        # irriducibile e il troncamento va dichiarato, non subito in silenzio.
+        if offset + _PAGE_SIZE > _GBIF_PAGE_CAP:
+            logger.warning(
+                "LOG:warning:BioNomen: key=%s raggiunge il tetto GBIF di %s record — "
+                "il resto del ramo non è raggiungibile via API",
+                class_key, _GBIF_PAGE_CAP,
+            )
+            truncated = True
             break
 
         # --- Recupera pagina elenco specie ---
@@ -1254,12 +1443,25 @@ def _fetch_gbif_vernacular_bulk(
             })
         )
         try:
-            import requests as _req
-            resp = _req.get(url, timeout=15, headers={"User-Agent": "BioNomen/2.0"})
-            resp.raise_for_status()
-            data = resp.json()
+            data = _gbif_get_json(url)
+        except _GbifPageCapError:
+            # Tetto di paginazione: il ramo andava spezzato più a fondo. Non è
+            # "fine dei dati" — va segnalato come troncamento, non ignorato.
+            logger.warning(
+                "LOG:warning:BioNomen: tetto GBIF raggiunto su key=%s a offset=%s — "
+                "il ramo resta incompleto", class_key, offset,
+            )
+            truncated = True
+            break
         except Exception as e:
-            logger.warning(f"GBIF bulk: errore fetch offset={offset}: {e}")
+            # Rete o server: dopo i retry di _gbif_get_json non è transitorio.
+            # NON è fine dei dati: il taxon va marcato incompleto, mai spacciato
+            # per completo (era il difetto che rendeva i troncamenti invisibili).
+            logger.warning(
+                "LOG:warning:BioNomen: errore fetch key=%s offset=%s: %s — "
+                "download troncato", class_key, offset, e,
+            )
+            truncated = True
             break
 
         results = data.get("results", [])
@@ -1370,7 +1572,7 @@ def _fetch_gbif_vernacular_bulk(
 
         time.sleep(0.05)  # Pausa cortesia verso GBIF
 
-    return saved
+    return saved, truncated
 
 
 def download_taxon_database(
@@ -1408,55 +1610,87 @@ def download_taxon_database(
     if status_callback:
         status_callback(f"Download {taxon_label}...")
 
-    # Totale REALE prima di iniziare: somma dei count di tutte le chiavi del taxon.
-    # Serve per una progress bar onesta — e per i taxa multi-chiave (Reptilia) è
-    # l'unico modo di avere un denominatore corretto, dato che ogni chiave conosce
-    # solo il proprio count.
-    per_key_counts = {}
+    # Pianifica gli shard: ogni chiave del taxon viene spezzata ricorsivamente
+    # finché ogni pezzo non sta sotto il tetto di paginazione GBIF. Per i taxa
+    # piccoli (aves, mammalia, reptilia, amphibia) non si spezza nulla: la lista
+    # coincide con class_keys e il costo è una sola chiamata di count per chiave.
+    if status_callback:
+        status_callback(f"Analisi struttura {taxon_label}...")
+    shards: List[tuple] = []
     for ck in class_keys:
         if stop_event and stop_event.is_set():
             break
-        per_key_counts[ck] = _gbif_species_count(ck)
-    taxon_total = sum(per_key_counts.values())
+        shards.extend(_plan_shards(ck, taxon_label, stop_event=stop_event,
+                                   status_callback=status_callback))
+
+    taxon_total = sum(c for _, _, c in shards)
     if taxon_total > 0 and count_callback:
         count_callback(taxon_total)
-    logger.info(f"BioNomen: {taxon} specie totali da GBIF = {taxon_total} {per_key_counts}")
+    logger.info(
+        "BioNomen: %s = %s specie in %s shard (tetto GBIF %s per query)",
+        taxon, taxon_total, len(shards), _GBIF_PAGE_CAP,
+    )
 
     saved          = 0
     processed_base = 0
-    for ck in class_keys:
+    truncated_any  = False
+    for idx, (skey, sname, scount) in enumerate(shards, 1):
         if stop_event and stop_event.is_set():
             break
-        # Chiave senza specie (es. una classe non presente nel backbone): saltala
-        if per_key_counts.get(ck, 0) <= 0:
-            logger.info(f"BioNomen: {taxon} chiave {ck} senza specie ACCEPTED — saltata")
-            continue
-        saved += _fetch_gbif_vernacular_bulk(
-            class_key=ck,
+        if len(shards) > 1 and status_callback:
+            status_callback(f"{taxon_label}: {sname} ({idx}/{len(shards)})")
+        s_saved, s_trunc = _fetch_gbif_vernacular_bulk(
+            class_key=skey,
             language=language,
             conn=conn,
             progress_callback=progress_callback,
-            # Il count globale del taxon è già stato comunicato: le singole chiavi
+            # Il count globale del taxon è già stato comunicato: i singoli shard
             # non devono sovrascriverlo col proprio.
             count_callback=None,
             stop_event=stop_event,
             processed_base=processed_base,
             total_override=taxon_total,
         )
-        processed_base += per_key_counts.get(ck, 0)
+        saved += s_saved
+        truncated_any = truncated_any or s_trunc
+        processed_base += scount
 
-    # Salva data aggiornamento
+    interrupted = bool(stop_event and stop_event.is_set())
+    complete    = not truncated_any and not interrupted
+
+    # `last_updated` è la prova che il DB è completo: scriverlo su un download
+    # troncato o interrotto è ciò che rendeva invisibili i DB monchi. Se non è
+    # completo si registra lo stato, così la UI può dirlo all'utente.
     now = datetime.now().strftime("%d/%m/%y %H:%M")
-    conn.execute(
-        "INSERT OR REPLACE INTO metadata (key, value) VALUES ('last_updated', ?)",
-        (now,),
-    )
+    if complete:
+        conn.execute(
+            "INSERT OR REPLACE INTO metadata (key, value) VALUES ('last_updated', ?)",
+            (now,),
+        )
+        conn.execute("DELETE FROM metadata WHERE key='incomplete'")
+    else:
+        reason = "interrotto dall'utente" if interrupted else "download troncato"
+        conn.execute(
+            "INSERT OR REPLACE INTO metadata (key, value) VALUES ('incomplete', ?)",
+            (f"{reason} il {now}",),
+        )
+        logger.warning(
+            "LOG:warning:BioNomen: %s/%s NON completo (%s) — %s nomi salvati, "
+            "rilanciare il download per completarlo",
+            taxon, language, reason, saved,
+        )
     conn.commit()
     conn.close()
 
-    logger.info(f"BioNomen: {taxon}/{language} completato — {saved} record salvati")
+    logger.info(
+        "BioNomen: %s/%s %s — %s record salvati",
+        taxon, language, "completato" if complete else "TRONCATO", saved,
+    )
     if status_callback:
-        status_callback(f"{taxon_label}: {saved:,} nomi salvati".replace(",", "."))
+        suffix = "" if complete else " (incompleto)"
+        status_callback(
+            f"{taxon_label}: {saved:,} nomi salvati{suffix}".replace(",", ".")
+        )
     return saved
 
 
