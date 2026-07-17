@@ -29,16 +29,28 @@ _PLUGIN_DIR = Path(__file__).parent
 # Percorso config.json del plugin
 _CONFIG_PATH = _PLUGIN_DIR / "config.json"
 
-# Taxa supportati: id → {label, class_key GBIF, nomi classe BioCLIP}
-# class_key: chiave GBIF per il download bulk (https://api.gbif.org/v1/species?classKey=...)
+# Taxa supportati: id → {label, class_keys GBIF, nomi classe BioCLIP}
+# class_keys: LISTA di chiavi GBIF da cui scaricare (highertaxonKey nella species/search).
+#   È una lista e non un singolo valore perché nel backbone GBIF moderno "Reptilia"
+#   non esiste più come classe accettata: la key storica 358 è PROPARTE_SYNONYM e
+#   restituisce count=0, mentre i rettili vivono in classi separate (Squamata,
+#   Testudines, Crocodylia, Sphenodontia). Vedi commento in download_taxon_database.
 # bioclip_classes: nomi che compaiono nel livello "Class" della tassonomia BioCLIP
 TAXA = {
-    "aves":      {"label": "Aves (Uccelli)",       "class_key": 212,    "bioclip_classes": ["Aves"]},
-    "mammalia":  {"label": "Mammalia (Mammiferi)",  "class_key": 359,    "bioclip_classes": ["Mammalia"]},
-    "reptilia":  {"label": "Reptilia (Rettili)",    "class_key": 358,    "bioclip_classes": ["Reptilia"]},
-    "amphibia":  {"label": "Amphibia (Anfibi)",     "class_key": 131,    "bioclip_classes": ["Amphibia"]},
-    "insecta":   {"label": "Insecta (Insetti)",     "class_key": 216,    "bioclip_classes": ["Insecta"]},
-    "plantae":   {"label": "Plantae (Piante)",      "class_key": 6,      "bioclip_classes": ["Magnoliopsida", "Liliopsida", "Pinopsida", "Polypodiopsida"]},
+    "aves":      {"label": "Aves (Uccelli)",       "class_keys": [212],   "bioclip_classes": ["Aves"]},
+    "mammalia":  {"label": "Mammalia (Mammiferi)",  "class_keys": [359],   "bioclip_classes": ["Mammalia"]},
+    # Reptilia: 4 classi GBIF distinte (~14.150 specie in totale).
+    #   11592253 Squamata (12.784) — sauri e serpenti
+    #   11418114 Testudines (1.136) — tartarughe
+    #   11493978 Crocodylia (238) — coccodrilli
+    #   11569602 Sphenodontia (tuatara)
+    # BioCLIP continua a etichettarli "Reptilia", quindi bioclip_classes resta invariato.
+    "reptilia":  {"label": "Reptilia (Rettili)",
+                  "class_keys": [11592253, 11418114, 11493978, 11569602],
+                  "bioclip_classes": ["Reptilia"]},
+    "amphibia":  {"label": "Amphibia (Anfibi)",     "class_keys": [131],   "bioclip_classes": ["Amphibia"]},
+    "insecta":   {"label": "Insecta (Insetti)",     "class_keys": [216],   "bioclip_classes": ["Insecta"]},
+    "plantae":   {"label": "Plantae (Piante)",      "class_keys": [6],     "bioclip_classes": ["Magnoliopsida", "Liliopsida", "Pinopsida", "Polypodiopsida"]},
 }
 
 # Termini geografici da filtrare nei nomi iNaturalist
@@ -281,6 +293,92 @@ def get_database_info() -> dict:
         except Exception:
             pass
     return info
+
+
+# Specie ACCEPTED note per taxon nel backbone GBIF (misurate 2026-07-17).
+# Servono come denominatore per dire all'utente "quanto è completo" un DB.
+# NOTA: non tutte le specie hanno un nome comune — per insecta/plantae la
+# stragrande maggioranza non ce l'ha in nessuna lingua, quindi la copertura
+# attesa è bassissima per natura e non indica un download fallito.
+_SPECIES_TOTAL_GBIF = {
+    "aves":       14641,
+    "mammalia":   21100,
+    "reptilia":   14204,
+    "amphibia":    9815,
+    "insecta":  1105104,
+    "plantae":   446842,
+}
+
+# Copertura tipica attesa (nomi comuni trovati / specie totali) per un download
+# completo. Sotto questa soglia il DB è probabilmente incompleto.
+# Insecta e plantae sono bassissime perché le specie con nome comune sono poche.
+_EXPECTED_COVERAGE = {
+    "aves":     0.55,
+    "mammalia": 0.30,
+    "reptilia": 0.20,
+    "amphibia": 0.45,
+    "insecta":  0.005,
+    "plantae":  0.005,
+}
+
+
+def get_database_report(language: Optional[str] = None) -> List[dict]:
+    """Report leggibile sullo stato dei DB, pensato per la UI (non per la CLI).
+
+    Per ogni taxon abilitato ritorna un dict:
+        {taxon, label, exists, rows, expected_total, status, detail}
+    dove status è uno tra "ok" | "incomplete" | "missing".
+
+    Serve a rispondere alla domanda "come faccio a sapere se i database sono
+    completi?" senza che l'utente debba aprire un terminale: la dimensione in KB
+    non è un indicatore utile, il numero di righe sì.
+    """
+    cfg = load_config()
+    lang = language or resolve_language(plugin_cfg=cfg)
+    report = []
+    for taxon in cfg.get("taxa_enabled", []):
+        label = TAXA.get(taxon, {}).get("label", taxon)
+        db = get_db_path(taxon, lang)
+        expected = _SPECIES_TOTAL_GBIF.get(taxon, 0)
+        entry = {
+            "taxon": taxon,
+            "label": label,
+            "language": lang,
+            "exists": db.exists(),
+            "rows": 0,
+            "expected_total": expected,
+            "status": "missing",
+            "detail": "",
+        }
+        if not db.exists():
+            entry["detail"] = "database non scaricato"
+            report.append(entry)
+            continue
+        try:
+            conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            rows = conn.execute(
+                "SELECT COUNT(*) FROM vernacular_names WHERE vernacular_name != ''"
+            ).fetchone()[0]
+            conn.close()
+        except Exception:
+            logger.warning("BioNomen: report DB fallito per %s", db, exc_info=True)
+            entry["detail"] = "database illeggibile"
+            report.append(entry)
+            continue
+
+        entry["rows"] = rows
+        min_expected = int(expected * _EXPECTED_COVERAGE.get(taxon, 0.1))
+        if rows < _MIN_ROWS_DOWNLOADED or rows < min_expected:
+            entry["status"] = "incomplete"
+            entry["detail"] = (
+                f"{rows:,} nomi — sembra incompleto, "
+                f"attesi almeno ~{min_expected:,}".replace(",", ".")
+            )
+        else:
+            entry["status"] = "ok"
+            entry["detail"] = f"{rows:,} nomi comuni".replace(",", ".")
+        report.append(entry)
+    return report
 
 
 def get_database_date() -> Optional[str]:
@@ -1054,6 +1152,32 @@ def _fetch_single_vernacular(args):
     return (sci_name, None, lang_code)
 
 
+def _gbif_species_count(class_key: int) -> int:
+    """Ritorna il numero di specie ACCEPTED sotto una chiave GBIF (0 se non determinabile).
+
+    Serve a conoscere il denominatore REALE della progress bar prima di iniziare:
+    è il campo "count" di species/search con gli stessi filtri usati dal download.
+    """
+    import urllib.parse
+    try:
+        import requests as _req
+        url = (
+            "https://api.gbif.org/v1/species/search?"
+            + urllib.parse.urlencode({
+                "highertaxonKey": class_key,
+                "rank":           "SPECIES",
+                "status":         "ACCEPTED",
+                "limit":          0,
+            })
+        )
+        resp = _req.get(url, timeout=15, headers={"User-Agent": "BioNomen/2.0"})
+        resp.raise_for_status()
+        return int(resp.json().get("count", 0) or 0)
+    except Exception:
+        logger.warning("BioNomen: count specie fallito per key=%s", class_key, exc_info=True)
+        return 0
+
+
 def _fetch_gbif_vernacular_bulk(
     class_key: int,
     language: str,
@@ -1061,15 +1185,24 @@ def _fetch_gbif_vernacular_bulk(
     progress_callback: Optional[Callable[[int, int], None]] = None,
     count_callback: Optional[Callable[[int], None]] = None,
     stop_event=None,
+    processed_base: int = 0,
+    total_override: int = 0,
 ) -> int:
     """
     Scarica in bulk i nomi vernacolari da GBIF per una classe tassonomica.
 
     Strategia:
-    - Pagina l'elenco specie via /v1/species?classKey=X (1000 per pagina)
-    - Parallelizza le chiamate /vernacularNames con ThreadPoolExecutor (8 worker)
+    - Pagina l'elenco specie via species/search?highertaxonKey=X (1000 per pagina)
+    - Parallelizza le chiamate /vernacularNames con ThreadPoolExecutor
     - Commit ogni 200 inserimenti per ridurre I/O SQLite
     - Emette progress per ogni specie processata (non per pagina)
+
+    Args:
+        processed_base: specie già elaborate da chiavi precedenti dello stesso taxon
+            (per i taxa multi-chiave come Reptilia), così il progress resta continuo.
+        total_override: denominatore da usare per il progress. Se >0 sostituisce il
+            count della singola chiave: per i taxa multi-chiave il totale è la somma
+            di tutte le chiavi, non quello della chiave corrente.
 
     Ritorna il numero di record salvati.
     """
@@ -1086,7 +1219,7 @@ def _fetch_gbif_vernacular_bulk(
     lang_code      = _LANG_MAP.get(language, language)
     saved          = 0
     processed      = 0  # Specie completamente elaborate (con o senza nome)
-    total_estimate = 0
+    total_estimate = total_override  # 0 = da determinare dalla prima pagina
     offset         = 0
     _last_ui       = 0  # Ultimo valore inviato alla UI
 
@@ -1110,8 +1243,6 @@ def _fetch_gbif_vernacular_bulk(
         # - supporta il campo "count" nel JSON di risposta
         # - filtra solo specie ACCEPTED del backbone (esclude sinonimi e duplicati)
         # - Aves: ~14.600 ACCEPTED vs ~90.500 totali con sinonimi
-        # Nota: alcuni taxa (es. Reptilia classKey=358) sono PROPARTE_SYNONYM nel backbone
-        # → per loro il fallback è classKey senza filtro status
         url = (
             "https://api.gbif.org/v1/species/search?"
             + urllib.parse.urlencode({
@@ -1133,29 +1264,12 @@ def _fetch_gbif_vernacular_bulk(
 
         results = data.get("results", [])
 
-        # Fallback per taxa problematici nel backbone (es. Reptilia = PROPARTE_SYNONYM):
-        # se count=0 e offset=0 riprova con classKey senza filtro status
-        if not results and offset == 0 and data.get("count", -1) == 0:
-            logger.info(f"GBIF bulk: highertaxonKey={class_key} restituisce 0 → fallback classKey")
-            url_fb = (
-                "https://api.gbif.org/v1/species/search?"
-                + urllib.parse.urlencode({
-                    "classKey": class_key,
-                    "rank":     "SPECIES",
-                    "status":   "ACCEPTED",
-                    "limit":    _PAGE_SIZE,
-                    "offset":   0,
-                })
-            )
-            try:
-                import requests as _req
-                resp_fb = _req.get(url_fb, timeout=15, headers={"User-Agent": "BioNomen/2.0"})
-                resp_fb.raise_for_status()
-                data = resp_fb.json()
-                results = data.get("results", [])
-            except Exception as e:
-                logger.warning(f"GBIF bulk: fallback classKey errore: {e}")
-
+        # NIENTE fallback su "classKey" quando count=0: era la causa del denominatore
+        # assurdo (19.563.307 invece di ~226.000). Per Reptilia highertaxonKey=358
+        # restituisce 0 perché 358 è PROPARTE_SYNONYM, e il fallback ripartiva con
+        # classKey=358, che GBIF interpreta in modo lasco e fa matchare quasi tutto
+        # il backbone. La soluzione corretta non è ripiegare su una query più larga,
+        # ma usare le chiavi giuste: vedi class_keys in TAXA.
         if not results:
             break
 
@@ -1186,7 +1300,7 @@ def _fetch_gbif_vernacular_bulk(
                 already_cached = cur.fetchone() is not None
             if already_cached:
                 processed += 1
-                _emit_progress(offset + processed, total_estimate)
+                _emit_progress(processed_base + processed, total_estimate)
                 continue
             tasks.append((usage_key, sci_name, lang_code, language))
 
@@ -1215,7 +1329,7 @@ def _fetch_gbif_vernacular_bulk(
                     # Difesa residua: il worker cattura già tutto al suo interno
                     logger.warning("BioNomen: worker fallito", exc_info=True)
                     processed += 1
-                    _emit_progress(offset + processed, total_estimate)
+                    _emit_progress(processed_base + processed, total_estimate)
                     continue
                 processed += 1
                 if vname:
@@ -1234,7 +1348,7 @@ def _fetch_gbif_vernacular_bulk(
                         conn.commit()
                     pending_rows.clear()
 
-                _emit_progress(offset + processed, total_estimate)
+                _emit_progress(processed_base + processed, total_estimate)
         finally:
             executor.shutdown(wait=False)
 
@@ -1284,22 +1398,52 @@ def download_taxon_database(
     if taxon not in TAXA:
         raise ValueError(f"Taxon sconosciuto: {taxon}. Validi: {list(TAXA.keys())}")
 
-    class_key   = TAXA[taxon]["class_key"]
+    class_keys  = TAXA[taxon]["class_keys"]
     taxon_label = TAXA[taxon]["label"]
     conn        = _init_taxon_db(taxon, language)
 
-    logger.info(f"BioNomen: download bulk {taxon} lingua={language} classKey={class_key}")
+    logger.info(
+        f"BioNomen: download bulk {taxon} lingua={language} class_keys={class_keys}"
+    )
     if status_callback:
         status_callback(f"Download {taxon_label}...")
 
-    saved = _fetch_gbif_vernacular_bulk(
-        class_key=class_key,
-        language=language,
-        conn=conn,
-        progress_callback=progress_callback,
-        count_callback=count_callback,
-        stop_event=stop_event,
-    )
+    # Totale REALE prima di iniziare: somma dei count di tutte le chiavi del taxon.
+    # Serve per una progress bar onesta — e per i taxa multi-chiave (Reptilia) è
+    # l'unico modo di avere un denominatore corretto, dato che ogni chiave conosce
+    # solo il proprio count.
+    per_key_counts = {}
+    for ck in class_keys:
+        if stop_event and stop_event.is_set():
+            break
+        per_key_counts[ck] = _gbif_species_count(ck)
+    taxon_total = sum(per_key_counts.values())
+    if taxon_total > 0 and count_callback:
+        count_callback(taxon_total)
+    logger.info(f"BioNomen: {taxon} specie totali da GBIF = {taxon_total} {per_key_counts}")
+
+    saved          = 0
+    processed_base = 0
+    for ck in class_keys:
+        if stop_event and stop_event.is_set():
+            break
+        # Chiave senza specie (es. una classe non presente nel backbone): saltala
+        if per_key_counts.get(ck, 0) <= 0:
+            logger.info(f"BioNomen: {taxon} chiave {ck} senza specie ACCEPTED — saltata")
+            continue
+        saved += _fetch_gbif_vernacular_bulk(
+            class_key=ck,
+            language=language,
+            conn=conn,
+            progress_callback=progress_callback,
+            # Il count globale del taxon è già stato comunicato: le singole chiavi
+            # non devono sovrascriverlo col proprio.
+            count_callback=None,
+            stop_event=stop_event,
+            processed_base=processed_base,
+            total_override=taxon_total,
+        )
+        processed_base += per_key_counts.get(ck, 0)
 
     # Salva data aggiornamento
     now = datetime.now().strftime("%d/%m/%y %H:%M")
@@ -1339,15 +1483,17 @@ def download_and_build_database(
         language = resolve_language(plugin_cfg=cfg)
     taxa_enabled = cfg.get("taxa_enabled", ["aves"])
 
-    # Stime specie ACCEPTED nel backbone GBIF (aggiornate 2025)
-    # Usato come denominatore per la progress bar prima che arrivi il count reale
+    # Stime specie ACCEPTED nel backbone GBIF — usate SOLO come denominatore
+    # provvisorio finché non arriva il count reale (che ora arriva subito, prima
+    # della prima pagina, da _gbif_species_count).
+    # Valori misurati contro l'API GBIF il 2026-07-17.
     _SPECIES_ESTIMATE = {
-        "aves":     15000,
-        "mammalia": 21000,
-        "reptilia": 10000,   # backbone problematico, stima conservativa
-        "amphibia": 10000,
-        "insecta":  120000,  # solo quelle con nomi vernacolari (totale ~1.1M ma 99% senza)
-        "plantae":  50000,   # idem
+        "aves":       14641,
+        "mammalia":   21100,
+        "reptilia":   14158,   # Squamata 12.784 + Testudines 1.136 + Crocodylia 238
+        "amphibia":    9815,
+        "insecta":  1105104,   # quasi tutte senza nome comune, ma vanno comunque interrogate
+        "plantae":   446842,
     }
 
     total_taxa = len(taxa_enabled)
@@ -1365,28 +1511,28 @@ def download_and_build_database(
         if stop_event and stop_event.is_set():
             break
 
-        taxon_label    = TAXA.get(taxon, {}).get("label", taxon)
-        taxon_estimate = real_counts[taxon]
+        taxon_label = TAXA.get(taxon, {}).get("label", taxon)
         logger.info(f"BioNomen: download [{idx+1}/{total_taxa}] {taxon}")
 
+        # Specie già completate dai taxa precedenti. Non usare le stime come base:
+        # global_done viene incrementato solo con i count reali (vedi in fondo al ciclo).
         taxon_start = global_done
 
         def _count_cb(real_count, _taxon=taxon):
-            # Sostituisce la stima con il count reale appena arriva dalla prima pagina GBIF
+            # Count reale del taxon: ora arriva PRIMA di iniziare a scaricare
             real_counts[_taxon] = real_count
             logger.info(f"BioNomen: {_taxon} count reale GBIF = {real_count}")
 
         def _cb(current, total, _taxon_start=taxon_start, _taxon=taxon):
-            # Aggiorna real_counts con il total che arriva da _fetch_gbif_vernacular_bulk
+            # `current` è già il progresso assoluto dentro il taxon (0..count_taxon)
             if total > 0:
                 real_counts[_taxon] = total
-            g_total   = _total_global()
-            # Lascia sempre 1 unità di margine: il 100% viene raggiunto solo
-            # quando download_taxon_database chiama status_callback("completato")
-            # Evita che la barra sembri finita mentre le ultime chiamate HTTP sono in corso
-            g_current = _taxon_start + min(current, real_counts[_taxon] - 1)
+            g_total = _total_global()
+            # Lascia sempre 1 unità di margine: il 100% del taxon si raggiunge solo
+            # quando è davvero finito, non mentre le ultime HTTP sono in volo.
+            g_current = _taxon_start + min(current, max(real_counts[_taxon] - 1, 0))
             if progress_callback:
-                progress_callback(g_current, g_total)
+                progress_callback(min(g_current, g_total), g_total)
 
         def _scb(text, _idx=idx):
             if status_callback:

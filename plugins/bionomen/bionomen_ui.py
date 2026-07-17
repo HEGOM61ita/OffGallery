@@ -268,6 +268,15 @@ class ConfigDialog(QDialog):
         self._taxa_checks = {}
         enabled = set(self._cfg.get("taxa_enabled", ["aves"]))
         taxa_items = list(bionomen.TAXA.items())
+
+        # Stato dei DB già scaricati, per taxon: mostrato accanto alla checkbox.
+        # La dimensione in KB non dice se un DB è completo (è solo testo), il
+        # numero di nomi sì → lo esponiamo qui invece di richiedere un terminale.
+        try:
+            report = {r["taxon"]: r for r in bionomen.get_database_report()}
+        except Exception:
+            report = {}
+
         grid = QHBoxLayout()
         col_left  = QVBoxLayout()
         col_right = QVBoxLayout()
@@ -276,7 +285,24 @@ class ConfigDialog(QDialog):
             cb = QCheckBox(info["label"])
             cb.setChecked(taxon_id in enabled)
             self._taxa_checks[taxon_id] = cb
-            (col_left if i < mid else col_right).addWidget(cb)
+
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.addWidget(cb)
+
+            rep = report.get(taxon_id)
+            if rep:
+                if rep["status"] == "ok":
+                    txt, color = f"✓ {rep['detail']}", "#5FAF5F"
+                elif rep["status"] == "incomplete":
+                    txt, color = f"⚠ {rep['detail']}", "#E0A84A"
+                else:
+                    txt, color = "— non scaricato", "#8A8A8A"
+                state = QLabel(txt)
+                state.setStyleSheet(f"color: {color}; font-size: 11px;")
+                row.addWidget(state)
+            row.addStretch()
+            (col_left if i < mid else col_right).addLayout(row)
         grid.addLayout(col_left)
         grid.addLayout(col_right)
         layout.addLayout(grid)
