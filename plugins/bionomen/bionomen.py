@@ -158,11 +158,34 @@ def get_data_dir() -> Path:
     return p
 
 
+def _find_offgallery_config() -> Optional[str]:
+    """Localizza il config_new.yaml di OffGallery risalendo dalla posizione del plugin.
+
+    Serve ai chiamanti che NON hanno il path sottomano: le funzioni di sola
+    lettura dello stato (is_database_present, get_database_info,
+    get_database_report) sono invocate anche dalla ConfigDialog e dalla card,
+    che non lo propagano. Senza questo fallback, con language_mode="auto" la
+    lingua cadeva sul default "it" e si cercavano DB bionomen_<taxon>_it.db
+    inesistenti mentre il download — che il path ce l'ha — aveva scritto _en.db:
+    da qui "Database non presente" a fronte di database perfettamente validi.
+
+    Il plugin resta standalone: si risale il filesystem, non si importa OffGallery.
+    """
+    # plugins/bionomen/bionomen.py → plugins/bionomen → plugins → root app
+    candidate = _PLUGIN_DIR.parent.parent / "config_new.yaml"
+    if candidate.exists():
+        return str(candidate)
+    return None
+
+
 def _ui_language_from_offgallery(offgallery_config_path: Optional[str]) -> str:
     """Legge la lingua interfaccia (llm_output_language) dal config_new.yaml di OffGallery.
 
+    Se il path non viene passato lo si cerca da soli (vedi _find_offgallery_config).
     Ritorna un codice ISO 639-1 (default "it") se il file non è leggibile.
     """
+    if not offgallery_config_path:
+        offgallery_config_path = _find_offgallery_config()
     if not offgallery_config_path:
         return "it"
     try:
@@ -226,6 +249,8 @@ def is_database_present(taxon: str = None, language: str = None) -> bool:
     # "language" — leggere "language" dava sempre il default "it", quindi la
     # card dichiarava "database presente" guardando l'italiano anche quando la
     # lingua richiesta era un'altra e il suo DB non esisteva.
+    # Con language_mode="auto" la lingua arriva dal config_new.yaml di
+    # OffGallery, che resolve_language localizza da sé: qui il path non c'è.
     cfg = load_config()
     lang = resolve_language(plugin_cfg=cfg)
     for t in cfg.get("taxa_enabled", []):
@@ -1588,9 +1613,15 @@ def _fetch_gbif_vernacular_bulk(
             count della singola chiave: per i taxa multi-chiave il totale è la somma
             di tutte le chiavi, non quello della chiave corrente.
 
-    Ritorna (record_salvati, troncato): `troncato` è True se il download si è
-    interrotto per un errore o per il tetto GBIF invece che per fine dei dati.
-    Il chiamante deve usarlo per NON dichiarare completo un DB che non lo è.
+    Ritorna (record_salvati, specie_interrogate, troncato).
+    `record_salvati` conta SOLO le specie che un nome comune ce l'hanno davvero:
+    è normale che sia molto minore di `specie_interrogate` (per Insecta ~25%,
+    la maggior parte degli insetti non ha nome volgare). I due numeri vanno
+    riportati distinti, altrimenti il log sembra denunciare una perdita di dati
+    che non c'è.
+    `troncato` è True se il download si è interrotto per un errore o per il
+    tetto GBIF invece che per fine dei dati: il chiamante deve usarlo per NON
+    dichiarare completo un DB che non lo è.
     """
     import urllib.request
     import urllib.parse
@@ -1605,6 +1636,11 @@ def _fetch_gbif_vernacular_bulk(
     lang_code      = _LANG_MAP.get(language, language)
     saved          = 0
     processed      = 0  # Specie completamente elaborate (con o senza nome)
+    # Specie realmente chieste a GBIF in questa esecuzione: esclude quelle
+    # saltate perché già in cache. È questo il numero da confrontare con
+    # `saved` nel log — `processed` include le saltate e farebbe sembrare una
+    # perdita di dati una ripresa che invece non aveva nulla da fare.
+    queried        = 0
     total_estimate = total_override  # 0 = da determinare dalla prima pagina
     offset         = 0
     _last_ui       = 0  # Ultimo valore inviato alla UI
@@ -1724,6 +1760,7 @@ def _fetch_gbif_vernacular_bulk(
             tasks.append((usage_key, sci_name, lang_code, language))
 
         # --- Esegui in parallelo ---
+        queried += len(tasks)
         pending_rows = []
         executor = ThreadPoolExecutor(max_workers=_WORKERS)
         futures = {executor.submit(_fetch_single_vernacular, t): t for t in tasks}
@@ -1803,7 +1840,7 @@ def _fetch_gbif_vernacular_bulk(
 
         time.sleep(0.05)  # Pausa cortesia verso GBIF
 
-    return saved, truncated
+    return saved, queried, truncated
 
 
 def _fetch_vernacular_by_keys(
@@ -1821,7 +1858,10 @@ def _fetch_vernacular_by_keys(
     dalla paginazione del backbone, quindi il tetto di paginazione non si applica
     proprio (non si pagina nulla).
 
-    Ritorna (record_salvati, troncato) come _fetch_gbif_vernacular_bulk.
+    Ritorna (record_salvati, specie_interrogate, interrotto), coerente con
+    _fetch_gbif_vernacular_bulk: `specie_interrogate` esclude quelle già presenti
+    in cache da un download precedente, quindi vale 0 quando non c'era più nulla
+    da fare — che è un successo, non un fallimento.
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import threading
@@ -1914,7 +1954,9 @@ def _fetch_vernacular_by_keys(
                 [(k, lang_code) for k, _, _ in todo],
             )
             conn.commit()
-    return saved, interrupted
+    # len(todo) e non `processed`: le chiavi già in cache non sono state chieste
+    # a GBIF, contarle renderebbe il log indistinguibile da una perdita di dati.
+    return saved, len(todo), interrupted
 
 
 def download_taxon_database(
@@ -1995,7 +2037,7 @@ def download_taxon_database(
             status_callback(f"{taxon_label}: {len(all_keys):,} specie da {', '.join(countries)}"
                             .replace(",", "."))
 
-        saved, interrupted = _fetch_vernacular_by_keys(
+        saved, queried, interrupted = _fetch_vernacular_by_keys(
             keys=all_keys,
             language=language,
             conn=conn,
@@ -2029,9 +2071,16 @@ def download_taxon_database(
         if status_callback:
             suffix = "" if complete else " (incompleto)"
             status_callback(f"{taxon_label}: {saved:,} nomi salvati{suffix}".replace(",", "."))
-        logger.info("BioNomen: %s/%s paesi=%s %s — %s record",
-                    taxon, language, countries,
-                    "completato" if complete else "TRONCATO", saved)
+        # Interrogate e salvate sono due numeri diversi e vanno detti entrambi:
+        # "0 record" da solo sembra un fallimento, mentre di norma significa che
+        # quelle specie erano già state interrogate da un download precedente.
+        logger.info(
+            "BioNomen: %s/%s paesi=%s %s — %s specie interrogate, "
+            "%s con nome comune%s",
+            taxon, language, countries,
+            "completato" if complete else "TRONCATO", queried, saved,
+            " (già tutte interrogate in precedenza)" if queried == 0 else "",
+        )
         return saved
 
     # Pianifica gli shard: ogni chiave del taxon viene spezzata ricorsivamente
@@ -2063,6 +2112,7 @@ def download_taxon_database(
     )
 
     saved          = 0
+    queried        = 0  # Specie interrogate: il denominatore di `saved` nel log
     processed_base = 0
     truncated_any  = False
     for idx, (skey, sname, scount) in enumerate(shards, 1):
@@ -2070,7 +2120,7 @@ def download_taxon_database(
             break
         if len(shards) > 1 and status_callback:
             status_callback(f"{taxon_label}: {sname} ({idx}/{len(shards)})")
-        s_saved, s_trunc = _fetch_gbif_vernacular_bulk(
+        s_saved, s_queried, s_trunc = _fetch_gbif_vernacular_bulk(
             class_key=skey,
             language=language,
             conn=conn,
@@ -2083,6 +2133,7 @@ def download_taxon_database(
             total_override=taxon_total,
         )
         saved += s_saved
+        queried += s_queried
         truncated_any = truncated_any or s_trunc
         processed_base += scount
 
@@ -2113,9 +2164,12 @@ def download_taxon_database(
     conn.commit()
     conn.close()
 
+    # Vedi il ramo per-paesi: interrogate e con-nome sono numeri diversi, e uno
+    # scarto ampio è fisiologico (moltissime specie non hanno nome volgare).
     logger.info(
-        "BioNomen: %s/%s %s — %s record salvati",
-        taxon, language, "completato" if complete else "TRONCATO", saved,
+        "BioNomen: %s/%s %s — %s specie interrogate, %s con nome comune%s",
+        taxon, language, "completato" if complete else "TRONCATO", queried, saved,
+        " (già tutte interrogate in precedenza)" if queried == 0 else "",
     )
     if status_callback:
         suffix = "" if complete else " (incompleto)"
