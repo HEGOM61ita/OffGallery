@@ -616,15 +616,12 @@ def _lookup_gbif(scientific_name: str, language: str) -> Optional[str]:
         results = vdata.get("results", [])
         lang_code = _LANG_MAP.get(language, language)
 
-        for entry in results:
-            entry_lang = entry.get("language", "")
-            if entry_lang == lang_code and entry.get("vernacularName"):
-                return entry["vernacularName"]
-
-        for entry in results:
-            entry_lang = entry.get("language", "")
-            if entry_lang == language and entry.get("vernacularName"):
-                return entry["vernacularName"]
+        # Due passate (prima il codice ISO-3, poi la lingua grezza), ciascuna
+        # con lo stesso filtro anti-sigla usato dal downloader bulk.
+        for wanted in (lang_code, language):
+            picked = _pick_vernacular(results, wanted, wanted)
+            if picked:
+                return picked
 
         return None
 
@@ -1234,6 +1231,43 @@ def process_images(
     return total, matched, not_matched
 
 
+def _is_banding_code(name: str) -> bool:
+    """True se il nome è un codice di banding ornitologico, non un nome comune.
+
+    GBIF serve, mescolati ai nomi veri e spesso per primi, i codici alpha-4 dei
+    ringing schemes: "BEVU" per Gypaetus barbatus (BEarded VUlture), "AMRO" per
+    American Robin. Sono tutto maiuscole, una parola sola, 4-6 lettere. Nessun
+    nome comune inglese o italiano vero ha quella forma, quindi la regola non
+    ha falsi positivi realistici (le sigle non sono nomi: "OK" è troppo corto).
+    """
+    if not name:
+        return False
+    n = name.strip()
+    return n.isalpha() and n.isupper() and 4 <= len(n) <= 6
+
+
+def _pick_vernacular(results: list, lang_code: str, language: str) -> Optional[str]:
+    """Sceglie il nome comune migliore tra quelli restituiti da GBIF.
+
+    Prima si prendeva semplicemente il primo entry nella lingua giusta: per
+    Gypaetus barbatus GBIF elenca "BEVU" prima di "Bearded Vulture", quindi in
+    DB finiva la sigla. Qui si scartano i codici di banding e, a parità, si
+    preferisce il nome marcato `preferred` da GBIF.
+    """
+    fallback = None
+    for entry in results:
+        if entry.get("language", "") not in (lang_code, language):
+            continue
+        name = (entry.get("vernacularName") or "").strip()
+        if not name or _is_banding_code(name):
+            continue
+        if entry.get("preferred"):
+            return name
+        if fallback is None:
+            fallback = name
+    return fallback
+
+
 def _fetch_single_vernacular(args):
     """
     Worker per ThreadPoolExecutor: recupera il nome vernacolare di una singola specie.
@@ -1247,12 +1281,11 @@ def _fetch_single_vernacular(args):
         resp = requests.get(vurl, timeout=8, headers={"User-Agent": "BioNomen/2.0"})
         resp.raise_for_status()
         vdata = resp.json()
-        for entry in vdata.get("results", []):
-            entry_lang = entry.get("language", "")
-            if entry_lang in (lang_code, language) and entry.get("vernacularName"):
-                return (sci_name, entry["vernacularName"], lang_code)
+        picked = _pick_vernacular(vdata.get("results", []), lang_code, language)
+        if picked:
+            return (sci_name, picked, lang_code)
     except Exception:
-        pass
+        logger.warning("BioNomen: vernacular %s fallito", usage_key, exc_info=True)
     return (sci_name, None, lang_code)
 
 
