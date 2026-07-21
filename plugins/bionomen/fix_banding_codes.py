@@ -10,10 +10,17 @@ Riscaricare l'intero DB non serve: le voci sbagliate sono riconoscibili e sono
 poche, quindi qui si ri-interrogano solo quelle. Le voci corrette non vengono
 toccate e il DB resta lo stesso file.
 
+Un secondo difetto, corretto insieme al primo, riguardava la scelta del nome
+quando GBIF ne offre molti: si prendeva il primo della lista, che è in ordine
+alfabetico e non per rilevanza ("American Cross Fox" invece di "Red Fox"). Le
+voci sbagliate così non sono riconoscibili guardando il DB, quindi correggerle
+richiede di ri-interrogare ogni specie: è l'opzione --all, molto più lenta.
+
 Uso:
     python fix_banding_codes.py                    # ripara i DB in ./data
     python fix_banding_codes.py /percorso/data     # ripara i DB in quella cartella
     python fix_banding_codes.py --dry-run          # elenca soltanto, non scrive
+    python fix_banding_codes.py --all              # ricontrolla ogni voce (lento)
 """
 
 import os
@@ -38,11 +45,22 @@ def _find_dbs(data_dir: str):
     )
 
 
-def _bad_rows(conn):
-    """Voci il cui 'nome comune' è in realtà un codice di banding."""
+def _bad_rows(conn, all_rows: bool = False):
+    """Voci da ri-interrogare.
+
+    Di default solo quelle il cui 'nome comune' è un codice di banding: sono
+    riconoscibili dalla forma, quindi si correggono in pochi minuti.
+
+    Con all_rows si riprendono TUTTE le voci. Serve per il secondo difetto —
+    il nome scelto in ordine alfabetico invece che per numero di fonti
+    ("American Cross Fox" al posto di "Red Fox") — che dal DB non è
+    riconoscibile: l'unico modo è richiedere di nuovo ogni specie.
+    """
     rows = conn.execute(
         "SELECT scientific_name, vernacular_name, language FROM vernacular_names"
     ).fetchall()
+    if all_rows:
+        return rows
     return [r for r in rows if _is_banding_code(r[1])]
 
 
@@ -73,16 +91,16 @@ def _refetch(args):
         return (sci_name, None)
 
 
-def fix_db(db_path: str, dry_run: bool = False) -> None:
+def fix_db(db_path: str, dry_run: bool = False, all_rows: bool = False) -> None:
     conn = sqlite3.connect(db_path)
     try:
-        bad = _bad_rows(conn)
+        bad = _bad_rows(conn, all_rows=all_rows)
         name = os.path.basename(db_path)
         if not bad:
             print(f"{name}: nessun codice di banding, niente da fare")
             return
 
-        print(f"{name}: {len(bad)} voci da correggere")
+        print(f"{name}: {len(bad)} voci da ricontrollare")
         if dry_run:
             for sci, vern, _ in bad[:20]:
                 print(f"  {sci} -> '{vern}'")
@@ -90,10 +108,13 @@ def fix_db(db_path: str, dry_run: bool = False) -> None:
                 print(f"  ... e altre {len(bad) - 20}")
             return
 
-        # Il nome vero non sempre esiste: le voci senza sostituto vengono
-        # rimosse, perché una sigla in DB è peggio dell'assenza del nome (nella
-        # ricerca compare come se fosse una specie a sé).
-        updated = removed = 0
+        # Una voce senza sostituto va rimossa solo se quella attuale è una sigla:
+        # una sigla è peggio dell'assenza (nella ricerca compare come se fosse
+        # una specie a sé). In modalità --all invece la si lascia com'è: qui un
+        # "nessun risultato" è quasi sempre GBIF irraggiungibile, e cancellare
+        # cancellerebbe nomi validi.
+        old_by_sci = {r[0]: r[1] for r in bad}
+        updated = removed = kept = 0
         with ThreadPoolExecutor(max_workers=_WORKERS) as ex:
             futures = [
                 ex.submit(_refetch, (sci, lang)) for sci, _, lang in bad
@@ -101,30 +122,40 @@ def fix_db(db_path: str, dry_run: bool = False) -> None:
             for i, fut in enumerate(as_completed(futures), 1):
                 sci, new_name = fut.result()
                 if new_name:
-                    conn.execute(
-                        "UPDATE vernacular_names SET vernacular_name=? "
-                        "WHERE scientific_name=?",
-                        (new_name, sci),
-                    )
-                    updated += 1
-                else:
+                    if new_name != old_by_sci.get(sci):
+                        conn.execute(
+                            "UPDATE vernacular_names SET vernacular_name=? "
+                            "WHERE scientific_name=?",
+                            (new_name, sci),
+                        )
+                        updated += 1
+                    else:
+                        kept += 1
+                elif _is_banding_code(old_by_sci.get(sci, "")):
                     conn.execute(
                         "DELETE FROM vernacular_names WHERE scientific_name=?",
                         (sci,),
                     )
                     removed += 1
+                else:
+                    kept += 1
                 if i % 50 == 0:
                     conn.commit()
                     print(f"  {i}/{len(bad)}...")
         conn.commit()
-        print(f"{name}: {updated} corrette, {removed} rimosse (nessun nome vero su GBIF)")
+        print(
+            f"{name}: {updated} corrette, {kept} già giuste, "
+            f"{removed} rimosse (nessun nome vero su GBIF)"
+        )
     finally:
         conn.close()
 
 
 def main():
-    args = [a for a in sys.argv[1:] if a != "--dry-run"]
+    flags = {"--dry-run", "--all"}
+    args = [a for a in sys.argv[1:] if a not in flags]
     dry_run = "--dry-run" in sys.argv
+    all_rows = "--all" in sys.argv
     data_dir = args[0] if args else os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "data"
     )
@@ -134,8 +165,11 @@ def main():
         print(f"Nessun DB BioNomen trovato in {data_dir}")
         return 1
 
+    if all_rows:
+        print("Modalità --all: ricontrollo di ogni voce, può richiedere a lungo.\n")
+
     for db in dbs:
-        fix_db(db, dry_run=dry_run)
+        fix_db(db, dry_run=dry_run, all_rows=all_rows)
     return 0
 
 
