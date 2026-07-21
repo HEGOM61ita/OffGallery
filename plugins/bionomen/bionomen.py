@@ -1249,23 +1249,82 @@ def _is_banding_code(name: str) -> bool:
 def _pick_vernacular(results: list, lang_code: str, language: str) -> Optional[str]:
     """Sceglie il nome comune migliore tra quelli restituiti da GBIF.
 
-    Prima si prendeva semplicemente il primo entry nella lingua giusta: per
-    Gypaetus barbatus GBIF elenca "BEVU" prima di "Bearded Vulture", quindi in
-    DB finiva la sigla. Qui si scartano i codici di banding e, a parità, si
-    preferisce il nome marcato `preferred` da GBIF.
+    GBIF restituisce la lista in ordine ALFABETICO, non per rilevanza: prendere
+    il primo entry significa prendere il nome alfabeticamente più basso. Da qui
+    "American Cross Fox" al posto di "Red Fox" per Vulpes vulpes, e "BEVU" al
+    posto di "Bearded Vulture" per Gypaetus barbatus.
+
+    Il segnale utile è invece quante fonti indipendenti riportano lo stesso
+    nome: "Red Fox" compare in 10 checklist, "American Cross Fox" in una sola.
+    Si vota quindi per numero di fonti distinte, con questi criteri in ordine:
+
+    1. il nome marcato `preferred` da GBIF, se c'è (raro: spesso è assente);
+    2. altrimenti il nome citato dal maggior numero di fonti distinte;
+    3. a parità di voti, il più corto — i nomi lunghi sono tipicamente varianti
+       qualificate ("American Robin (migratorius Group)" contro "American Robin");
+    4. a parità di lunghezza, l'ordine alfabetico, così l'esito è deterministico
+       e due download successivi non producono DB diversi.
+
+    Le varianti che differiscono solo per maiuscole ("Red Fox" / "Red fox")
+    sono lo stesso nome e i loro voti si sommano; si riporta la forma più
+    frequente, a parità quella capitalizzata.
     """
-    fallback = None
+    # voti[chiave] = [n_fonti_distinte, {forma: n}, preferred]
+    votes: dict = {}
     for entry in results:
         if entry.get("language", "") not in (lang_code, language):
             continue
         name = (entry.get("vernacularName") or "").strip()
         if not name or _is_banding_code(name):
             continue
+        key = name.lower()
+        slot = votes.setdefault(key, [set(), {}, False])
+        # Una fonte che ripete lo stesso nome non vale due voti; quelle prive di
+        # `source` si contano una a una, altrimenti collasserebbero in un voto solo.
+        slot[0].add(entry.get("source") or f"__anon{len(slot[0])}")
+        slot[1][name] = slot[1].get(name, 0) + 1
         if entry.get("preferred"):
-            return name
-        if fallback is None:
-            fallback = name
-    return fallback
+            slot[2] = True
+
+    if not votes:
+        return None
+
+    def _form(slot) -> str:
+        """Forma da riportare tra le varianti di maiuscole dello stesso nome.
+
+        La maiuscola iniziale conta PIU' della frequenza: molte fonti scrivono
+        i nomi tutti minuscoli, quindi votare solo per conteggio faceva uscire
+        "short-tailed shearwater" al posto di "Short-Tailed Shearwater".
+        """
+        return max(
+            slot[1].items(),
+            key=lambda kv: (kv[0][:1].isupper(), kv[1]),
+        )[0]
+
+    best = max(
+        votes.values(),
+        key=lambda s: (s[2], len(s[0]), -len(_form(s)), _neg_alpha(_form(s))),
+    )
+    return _form(best)
+
+
+class _neg_alpha:
+    """Ordina le stringhe al contrario, per usare `max` come tie-break alfabetico.
+
+    Serve perché gli altri criteri vogliono il massimo (più voti, più corto) ma
+    a parità si vuole la PRIMA stringa in ordine alfabetico, cioè il minimo.
+    """
+
+    __slots__ = ("s",)
+
+    def __init__(self, s: str):
+        self.s = s
+
+    def __lt__(self, other) -> bool:
+        return self.s > other.s
+
+    def __eq__(self, other) -> bool:
+        return self.s == other.s
 
 
 def _fetch_single_vernacular(args):
