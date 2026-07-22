@@ -943,6 +943,12 @@ def lookup_vernacular_name(
         if stop_event and stop_event.is_set():
             return None
 
+        # Scarta note di pronuncia arrivate da qualsiasi fonte (non solo GBIF):
+        # "(Pronounce: Sha-mee or Sham-wa)" non è un nome comune.
+        if result and _is_pronunciation_note(result):
+            print(f"LOG:warning:BioNomen [{scientific_name}]: nota di pronuncia scartata ('{result}')", flush=True)
+            result = None
+
         if result:
             print(f"SOURCE:{source} (online):{scientific_name}", flush=True)
             # Salva nel DB locale solo se il vincitore è GBIF (fonte più affidabile)
@@ -1246,6 +1252,23 @@ def _is_banding_code(name: str) -> bool:
     return n.isalpha() and n.isupper() and 4 <= len(n) <= 6
 
 
+def _is_pronunciation_note(name: str) -> bool:
+    """True se la voce è un'annotazione di pronuncia, non un nome comune.
+
+    Alcune checklist GBIF infilano nel campo vernacularName note di pronuncia
+    invece di nomi: per Rupicapra rupicapra (chamois, il camoscio) compare
+    "(Pronounce: Sha-mee or Sham-wa)". La stringa finisce nel dropdown "Nome
+    comune" e nei tag delle foto. Il marcatore "pronounce"/"pronunci" è
+    specifico: nessun nome comune reale lo contiene, quindi niente falsi
+    positivi. NON si filtra sulla sola parentesi: moltissimi nomi validi ne
+    hanno una (varianti regionali, sinonimi: "(American) Purple Gallinule").
+    """
+    if not name:
+        return False
+    n = name.lower()
+    return "pronounce" in n or "pronunci" in n
+
+
 def _pick_vernacular(results: list, lang_code: str, language: str) -> Optional[str]:
     """Sceglie il nome comune migliore tra quelli restituiti da GBIF.
 
@@ -1275,7 +1298,7 @@ def _pick_vernacular(results: list, lang_code: str, language: str) -> Optional[s
         if entry.get("language", "") not in (lang_code, language):
             continue
         name = (entry.get("vernacularName") or "").strip()
-        if not name or _is_banding_code(name):
+        if not name or _is_banding_code(name) or _is_pronunciation_note(name):
             continue
         key = name.lower()
         slot = votes.setdefault(key, [set(), {}, False])

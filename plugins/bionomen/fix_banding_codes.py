@@ -30,7 +30,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from bionomen import _LANG_MAP, _is_banding_code, _pick_vernacular  # noqa: E402
+from bionomen import (  # noqa: E402
+    _LANG_MAP,
+    _is_banding_code,
+    _is_pronunciation_note,
+    _pick_vernacular,
+)
 
 _WORKERS = 3
 
@@ -45,11 +50,21 @@ def _find_dbs(data_dir: str):
     )
 
 
+def _is_junk(name: str) -> bool:
+    """Voce da scartare riconoscibile dal DB: sigla di banding o nota di pronuncia.
+
+    Entrambe sono peggio dell'assenza — nella ricerca compaiono come se fossero
+    una specie a sé ("BEVU", "(Pronounce: Sha-mee or Sham-wa)").
+    """
+    return _is_banding_code(name) or _is_pronunciation_note(name)
+
+
 def _bad_rows(conn, all_rows: bool = False):
     """Voci da ri-interrogare.
 
-    Di default solo quelle il cui 'nome comune' è un codice di banding: sono
-    riconoscibili dalla forma, quindi si correggono in pochi minuti.
+    Di default solo quelle il cui 'nome comune' è spazzatura riconoscibile dal
+    DB: un codice di banding ("BEVU") o una nota di pronuncia ("(Pronounce:
+    ...)"). Sono riconoscibili dalla forma, quindi si correggono in pochi minuti.
 
     Con all_rows si riprendono TUTTE le voci. Serve per il secondo difetto —
     il nome scelto in ordine alfabetico invece che per numero di fonti
@@ -61,7 +76,7 @@ def _bad_rows(conn, all_rows: bool = False):
     ).fetchall()
     if all_rows:
         return rows
-    return [r for r in rows if _is_banding_code(r[1])]
+    return [r for r in rows if _is_junk(r[1])]
 
 
 def _refetch(args):
@@ -97,7 +112,7 @@ def fix_db(db_path: str, dry_run: bool = False, all_rows: bool = False) -> None:
         bad = _bad_rows(conn, all_rows=all_rows)
         name = os.path.basename(db_path)
         if not bad:
-            print(f"{name}: nessun codice di banding, niente da fare")
+            print(f"{name}: nessuna voce spazzatura (sigle/pronuncia), niente da fare")
             return
 
         print(f"{name}: {len(bad)} voci da ricontrollare")
@@ -108,9 +123,10 @@ def fix_db(db_path: str, dry_run: bool = False, all_rows: bool = False) -> None:
                 print(f"  ... e altre {len(bad) - 20}")
             return
 
-        # Una voce senza sostituto va rimossa solo se quella attuale è una sigla:
-        # una sigla è peggio dell'assenza (nella ricerca compare come se fosse
-        # una specie a sé). In modalità --all invece la si lascia com'è: qui un
+        # Una voce senza sostituto va rimossa solo se quella attuale è spazzatura
+        # (sigla di banding o nota di pronuncia): è peggio dell'assenza, nella
+        # ricerca compare come se fosse una specie a sé. In modalità --all invece
+        # la si lascia com'è: qui un
         # "nessun risultato" è quasi sempre GBIF irraggiungibile, e cancellare
         # cancellerebbe nomi validi.
         old_by_sci = {r[0]: r[1] for r in bad}
@@ -131,7 +147,7 @@ def fix_db(db_path: str, dry_run: bool = False, all_rows: bool = False) -> None:
                         updated += 1
                     else:
                         kept += 1
-                elif _is_banding_code(old_by_sci.get(sci, "")):
+                elif _is_junk(old_by_sci.get(sci, "")):
                     conn.execute(
                         "DELETE FROM vernacular_names WHERE scientific_name=?",
                         (sci,),
