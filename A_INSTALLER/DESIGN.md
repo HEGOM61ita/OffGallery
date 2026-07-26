@@ -420,15 +420,19 @@ Base URL: `https://repo.anaconda.com/miniconda/`
 | macOS | Scarica `.dmg` |
 | Linux | Scarica `.AppImage` |
 
-### ExifTool (bundled su Windows, da package manager su Linux/macOS)
+### ExifTool (bundled su Windows, versione congelata su Linux)
 
 | Piattaforma | Metodo |
 |---|---|
 | Windows | Bundled in `exiftool_files/` — nessuna installazione |
-| macOS | `brew install exiftool` oppure `.pkg` da exiftool.org |
-| Linux Ubuntu/Debian | `sudo apt install libimage-exiftool-perl` |
-| Linux Fedora | `sudo dnf install perl-Image-ExifTool` |
-| Linux Arch | `sudo pacman -S perl-image-exiftool` |
+| Linux | Tarball congelato scaricato in `~/.local/lib/exiftool` — no sudo, no package manager (vedi `B_INSTALLER/components/exiftool_linux.py`) |
+| macOS | Nessun installer grafico: `brew install exiftool`, poi risolto dal PATH |
+
+**Nota su exiftool.org (luglio 2026):** DreamHost ha disabilitato il sito ufficiale.
+`ver.txt` risponde ancora, ma tutti i tarball e il `.pkg` macOS danno **404**. Il
+download da exiftool.org è stato quindi rimosso dall'installer Linux, che ora usa
+una versione congelata su HuggingFace (primaria) con SourceForge come fallback.
+Non reintrodurre exiftool.org né link al `.pkg` senza prima verificarne lo stato.
 
 ### Argos Translate — percorso dati
 

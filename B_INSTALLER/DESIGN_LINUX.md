@@ -50,7 +50,7 @@ Le due directory sono indipendenti.
 
 | File | Descrizione |
 |------|-------------|
-| `components/exiftool_linux.py` | Installazione ExifTool tramite apt/dnf/pacman/zypper via sudo. Rilevamento automatico del package manager. |
+| `components/exiftool_linux.py` | Installazione ExifTool da tarball con versione congelata in `~/.local/` — nessun sudo, nessun package manager. |
 | `OffGallerySetup_linux.spec` | Spec PyInstaller per Linux: ricerca Tcl/Tk in CONDA_PREFIX/lib e /usr/lib. Nessuna sezione binaries (non servono DLL). |
 | `build_linux.sh` | Script di build: attiva conda, verifica pyinstaller, lancia lo spec. |
 | `DESIGN_LINUX.md` | Questo file. |
@@ -66,13 +66,23 @@ al font di sistema (Liberation Sans, DejaVu Sans, ecc. a seconda della distro).
 Non viene specificato un font esplicito per evitare dipendenze da pacchetti font.
 
 ### 2. ExifTool bundled vs. system
-**Problema**: Su Windows `exiftool_files/` è bundled con l'app.
-Su Linux ExifTool è un pacchetto di sistema (`libimage-exiftool-perl` / `perl-Image-ExifTool`).
-**Soluzione**: Nuovo step nell'installer che rileva il package manager (`apt-get`,
-`dnf`, `yum`, `pacman`, `zypper`) e installa il pacchetto corretto via `sudo`.
-La password sudo viene gestita dal sistema operativo (PAM/keyring), non dall'installer.
+**Problema**: Su Windows `exiftool_files/` è bundled con l'app. Su Linux no.
+**Soluzione attuale**: l'installer scarica il tarball standalone e lo estrae in
+`~/.local/lib/exiftool`, con un wrapper `~/.local/bin/exiftool` che lo invoca via
+perl. **Nessun sudo, nessun package manager** — l'approccio via `apt`/`dnf`/`pacman`
+è stato abbandonato perché richiedeva privilegi di root e dava versioni diverse a
+seconda della distro.
 Se l'installazione fallisce, l'utente riceve le istruzioni manuali e può procedere
 comunque (ExifTool è necessario per leggere EXIF ma non blocca l'avvio dell'app).
+
+**Sorgente del tarball (aggiornato luglio 2026)**: versione **congelata**
+(`EXIFTOOL_VERSION` + `EXIFTOOL_SHA256` nel sorgente), scaricata da HuggingFace
+`HEGOM/OffGallery-models/exiftool/` con SourceForge come fallback. Il download da
+`exiftool.org` è stato rimosso: DreamHost ha disabilitato il sito e i tarball
+danno 404 (`ver.txt` invece risponde ancora, per cui l'installer leggeva la
+versione giusta e falliva solo dopo, al download).
+Congelare la versione allinea ExifTool agli altri asset di terze parti già su HF
+(vedi `argos-it-en/`) e rende l'installazione riproducibile.
 
 ### 3. Fix Tcl/Tk nel bundle PyInstaller
 **Problema**: Su Windows le DLL Tcl/Tk vanno bundlate esplicitamente.
@@ -154,7 +164,7 @@ Per una distribuzione universale (distro agnosttica):
 - [x] `ui/__init__.py` — font fallback
 - [x] `ui/wizard.py` — font cross-platform, ExifTool step, shortcut dual (menu + Desktop)
 - [x] `ui/dashboard.py` — font cross-platform, sezione ExifTool
-- [x] `components/exiftool_linux.py` — installazione via apt/dnf/pacman/zypper
+- [x] `components/exiftool_linux.py` — tarball con versione congelata in `~/.local/`, no sudo
 - [x] `OffGallerySetup_linux.spec` — Tcl/Tk Linux, no DLL Windows
 - [x] `build_linux.sh` — script di build
 - [x] Tutti i moduli cross-platform copiati da A_INSTALLER
