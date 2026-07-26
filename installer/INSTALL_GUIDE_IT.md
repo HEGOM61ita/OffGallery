@@ -176,7 +176,9 @@ conda run -n OffGallery pip install -r installer/requirements_offgallery.txt
 
 # 4. Installa ExifTool
 brew install exiftool
-# Se non hai Homebrew: https://brew.sh — oppure scarica il .pkg da https://exiftool.org
+# Se non hai Homebrew: https://brew.sh
+# In alternativa scarica il pacchetto da https://sourceforge.net/projects/exiftool/files/
+# (exiftool.org al momento non distribuisce i download — vedi avviso nella sua home)
 
 # 5. Ollama (opzionale)
 brew install ollama
@@ -490,7 +492,10 @@ Se l'installer one-click fallisce sullo step Ollama (errori di rete, timeout, ec
 
 ### macOS: ExifTool non trovato
 - Installa tramite Homebrew: `brew install exiftool`
-- Oppure scarica il `.pkg` da [exiftool.org](https://exiftool.org)
+- In alternativa scarica il pacchetto da [SourceForge](https://sourceforge.net/projects/exiftool/files/)
+- Nota: il sito **exiftool.org non distribuisce più i download** (il provider ha
+  disattivato il servizio); i vecchi link al `.pkg` restituiscono 404. La home page
+  del progetto rimanda a SourceForge finché la situazione non si risolve.
 
 ### macOS: avviso "non può essere aperto" (Gatekeeper)
 - Usa **tasto destro → Apri** su `OffGallery.app` o `OffGallery.command`

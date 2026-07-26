@@ -239,7 +239,7 @@ Il wizard installa automaticamente tutto il necessario: Miniconda, ambiente Pyth
 1. Installa [Miniconda](https://docs.anaconda.com/miniconda/install/) per macOS (scegli la versione arm64 per Apple Silicon, x86_64 per Intel)
 2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
 3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
-4. Installa ExifTool: `brew install exiftool` (richiede [Homebrew](https://brew.sh)) o scarica il `.pkg` da [exiftool.org](https://exiftool.org)
+4. Installa ExifTool: `brew install exiftool` (richiede [Homebrew](https://brew.sh)). In alternativa scarica il pacchetto da [SourceForge](https://sourceforge.net/projects/exiftool/files/) — il sito exiftool.org al momento non distribuisce i download (vedi la nota in home page)
 5. (Opzionale) Installa [Ollama](https://ollama.com/download) e `ollama pull qwen3-vl:8b-instruct-q4_K_M`
 6. Avvia: `conda run -n OffGallery python gui_launcher.py`
 
@@ -664,7 +664,7 @@ The wizard installs everything automatically: Miniconda, Python environment, lib
 1. Install [Miniconda](https://docs.anaconda.com/miniconda/install/) for macOS (arm64 for Apple Silicon, x86_64 for Intel)
 2. `conda create -n OffGallery python=3.12 --override-channels -c conda-forge -y`
 3. `conda run -n OffGallery pip install -r installer/requirements_offgallery.txt`
-4. Install ExifTool: `brew install exiftool`
+4. Install ExifTool: `brew install exiftool` (or download the package from [SourceForge](https://sourceforge.net/projects/exiftool/files/) — exiftool.org currently does not serve downloads)
 5. (Optional) Install [Ollama](https://ollama.com/download) and `ollama pull qwen3-vl:8b-instruct-q4_K_M`
 
 - **Windows**: the `OffGallerySetup.exe` wizard handles the entire installation — no separate guide needed.
