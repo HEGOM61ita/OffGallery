@@ -80,7 +80,13 @@ def main():
         input("\n  Premi INVIO per chiudere.")
         return
 
-    print("  Aggiornamento disponibile!")
+    if local in ("dev", "(sconosciuta)"):
+        # VERSION è il segnaposto del repo o manca: non sappiamo da quale commit
+        # provenga questa copia. L'utente ha lanciato l'updater apposta, quindi si
+        # procede — ma senza affermare che esista una versione più recente.
+        print("  Versione locale non determinabile: verrà riscaricata l'ultima.")
+    else:
+        print("  Aggiornamento disponibile!")
     print()
     risposta = input("  Vuoi aggiornare adesso? (s/n): ").strip().lower()
     if risposta not in ("s", "si", "y", "yes"):
@@ -104,7 +110,15 @@ def main():
 
         print("  Estrazione...")
         with zipfile.ZipFile(zip_path, "r") as z:
+            # GitHub scrive lo SHA completo del commit nel commento dell'archivio:
+            # è la fonte autorevole della versione scaricata. Il file VERSION che
+            # arriva dentro lo zip è invece un segnaposto e non va usato.
+            zip_sha = (z.comment or b"").decode("utf-8", "ignore").strip()
             z.extractall(tmp)
+
+        # Se il commento manca (zip non generato da GitHub) si ripiega sullo SHA
+        # già ottenuto dall'API: entrambi indicano la punta di main.
+        new_version = zip_sha[:7] if len(zip_sha) >= 7 else remote
 
         # Lo zip estrae in una cartella tipo "OffGallery-main"
         src_dirs = [d for d in tmp.iterdir() if d.is_dir() and d.name != "__MACOSX"]
@@ -136,14 +150,16 @@ def main():
                 shutil.copy2(item, dest)
                 updated.append(str(rel))
 
-        # Aggiorna VERSION con il nuovo hash
-        (app_dir / "VERSION").write_text(remote + "\n")
+        # Scrive VERSION con lo SHA del commit effettivamente scaricato.
+        # Va fatto DOPO la copia dei file: lo zip contiene un VERSION segnaposto
+        # ("dev") che altrimenti sovrascriverebbe questo valore.
+        (app_dir / "VERSION").write_text(new_version + "\n")
 
     print()
     print(f"  Aggiornati  : {len(updated)} file")
     print(f"  Non toccati : Models/, database/, logs/, config_new.yaml")
     print()
-    print(f"  Aggiornamento completato! ({local} -> {remote})")
+    print(f"  Aggiornamento completato! ({local} -> {new_version})")
     print("  Riavvia OffGallery per usare la nuova versione.")
     print()
     input("  Premi INVIO per chiudere.")

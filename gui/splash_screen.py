@@ -351,6 +351,13 @@ def _check_for_updates(parent_window):
         if remote is None or local == remote:
             return  # Nessun aggiornamento o rete non disponibile
 
+        # "dev" è il segnaposto che il repo porta nel file VERSION: significa
+        # "installazione da sorgente/zip non ancora passata dall'updater", non
+        # "versione vecchia". Confrontarlo con l'hash remoto darebbe un avviso
+        # di aggiornamento sempre vero, anche su una copia appena scaricata.
+        if local in ("dev", "(sconosciuta)"):
+            return
+
         from PyQt6.QtWidgets import QMessageBox
         msg_key = "update.msg.body_git" if is_git else "update.msg.body"
         body = t(msg_key, local=local, remote=remote)
