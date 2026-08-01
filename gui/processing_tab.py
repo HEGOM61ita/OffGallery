@@ -1027,6 +1027,9 @@ class ProcessingWorker(QThread):
             _t_db = time.monotonic()
             is_new    = False
             ai_fields = {}
+            # Deve esistere anche quando l'immagine è già nel DB e viene saltata:
+            # in quel ramo nessuno assegna image_id, e il return finale lo legge
+            image_id  = None
             with self._db_lock:
                 # image_exists va chiamata dentro il lock: evita race condition
                 # tra check e INSERT (snapshot WAL vecchio su cursore thread-local)
