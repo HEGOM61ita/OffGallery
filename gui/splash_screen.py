@@ -550,6 +550,15 @@ def run_with_splash():
         emb_gen = EmbeddingGenerator(_config)
 
         splash.add_log(t("splash.msg.init_ui"))
+
+        # Stacca la cattura log PRIMA di costruire la finestra principale.
+        # MainWindow.__init__ apre il DB e altri sottosistemi che emettono
+        # logger.info(): con l'handler ancora attivo ogni messaggio finisce in
+        # SplashScreen.add_log → QApplication.processEvents(), che forza un
+        # repaint della splash mentre sta per essere distrutta. Su xcb (Linux)
+        # è un segfault certo — stessa causa già documentata in add_log/finish().
+        restore_log_capture()
+
         window = MainWindow(preloaded_models={
             'embedding_generator': emb_gen,
             'initialized': True,
