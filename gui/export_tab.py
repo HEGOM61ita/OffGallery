@@ -40,6 +40,24 @@ from i18n import t
 logger = logging.getLogger(__name__)
 
 
+def _csv_single_line(value):
+    """Riduce un valore a una riga sola per l'export CSV.
+
+    Descrizioni e titoli generati dal LLM possono contenere a capo. Il modulo
+    csv li quota correttamente — Excel/LibreOffice rileggono il file senza
+    errori — ma aperto in un editor di testo il CSV sembra avere righe spezzate
+    a metà. Sostituiamo gli a capo con uno spazio: un record = una riga.
+    """
+    if value is None:
+        return ''
+    if not isinstance(value, str):
+        return value  # numeri e booleani già formattati a monte
+    # \r\n prima di \r e \n isolati, altrimenti CRLF diventa due spazi
+    cleaned = value.replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ')
+    # Collassa gli spazi multipli nati dalla sostituzione
+    return ' '.join(cleaned.split())
+
+
 class ExportTab(QWidget):
     """
     Export Tab - Modalità IBRIDA
@@ -1468,7 +1486,7 @@ class ExportTab(QWidget):
                     # Valori colonne plugin
                     for _field, _label in self._plugin_csv_columns:
                         row.append(data.get(_field, ''))
-                    writer.writerow(row)
+                    writer.writerow([_csv_single_line(v) for v in row])
             
             return True
 

@@ -860,7 +860,7 @@
   "export.msg.no_operation": "Seleziona almeno un'operazione da eseguire.",
   "export.msg.missing_dir_title": "Directory mancante",
   "export.msg.missing_dir": "Specifica una directory di output.\nRichiesta per: {reasons}.",
-  "export.msg.missing_csv_dir": "Specifica la directory dove salvare il file CSV.",
+  "export.msg.missing_csv_dir": "Il file CSV è un file unico e serve una cartella dove salvarlo.\n\nIndicala nel campo \"Directory CSV\", oppure disattiva l'esportazione CSV se non ti serve.\n\nGli XMP non sono coinvolti: restano dove hai scelto.",
   "export.dialog.select_output_dir": "Seleziona Directory di Output",
   "export.dialog.select_csv_dir": "Seleziona Directory CSV",
   "export.confirm.xmp_original_loc": "accanto agli originali",
