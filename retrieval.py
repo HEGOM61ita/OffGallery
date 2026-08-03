@@ -121,49 +121,58 @@ class ImageRetrieval:
 
         # 3. SQL FETCH — due passaggi per supportare cancel e minimizzare memoria:
         # Passaggio A: solo id + clip_embedding (blob pesanti, nessun metadato)
-        emb_sql = "SELECT id, clip_embedding FROM images WHERE clip_embedding IS NOT NULL"
-        if filters_sql:
-            emb_sql += f" AND {filters_sql}"
-
-        try:
-            self.db.cursor.execute(emb_sql, filter_params or [])
-        except Exception as e:
-            logger.error(f"Errore SQL embedding fetch: {e}")
-            return [], 0
-
-        # Deserializzazione in batch con check cancel ogni 500 righe
+        #
+        # Solo per la ricerca semantica: _tag_pipeline confronta esclusivamente
+        # testo (tags, llm_tags, title, description, vernacular_name) e non tocca
+        # mai gli embedding. Caricarli in modalità tag era inutile e — peggio —
+        # il "if not emb_list: return" più sotto azzerava la ricerca per tag su
+        # database senza embedding, dove invece i tag ci sono eccome.
         id_list  = []
         emb_list = []
-        BATCH = 500
-        while True:
-            if cancel_flag is not None and cancel_flag():
-                logger.info("Ricerca annullata durante fetch embedding")
+        if mode == "semantic":
+            emb_sql = "SELECT id, clip_embedding FROM images WHERE clip_embedding IS NOT NULL"
+            if filters_sql:
+                emb_sql += f" AND {filters_sql}"
+
+            try:
+                self.db.cursor.execute(emb_sql, filter_params or [])
+            except Exception as e:
+                logger.error(f"Errore SQL embedding fetch: {e}")
                 return [], 0
-            rows = self.db.cursor.fetchmany(BATCH)
-            if not rows:
-                break
-            for row_id, raw_data in rows:
-                try:
-                    if isinstance(raw_data, bytes):
-                        if len(raw_data) >= 2 and raw_data[0] == 0x80 and raw_data[1] in (2, 3, 4, 5):
-                            import pickle as _pk
-                            emb_raw = _pk.loads(raw_data)
-                            emb = np.array(emb_raw.get('image_embedding') if isinstance(emb_raw, dict) else emb_raw, dtype=np.float32)
-                        elif len(raw_data) >= 4 and len(raw_data) % 4 == 0:
-                            emb = np.frombuffer(raw_data, dtype=np.float32).copy()
+
+            # Deserializzazione in batch con check cancel ogni 500 righe
+            BATCH = 500
+            while True:
+                if cancel_flag is not None and cancel_flag():
+                    logger.info("Ricerca annullata durante fetch embedding")
+                    return [], 0
+                rows = self.db.cursor.fetchmany(BATCH)
+                if not rows:
+                    break
+                for row_id, raw_data in rows:
+                    try:
+                        if isinstance(raw_data, bytes):
+                            if len(raw_data) >= 2 and raw_data[0] == 0x80 and raw_data[1] in (2, 3, 4, 5):
+                                import pickle as _pk
+                                emb_raw = _pk.loads(raw_data)
+                                emb = np.array(emb_raw.get('image_embedding') if isinstance(emb_raw, dict) else emb_raw, dtype=np.float32)
+                            elif len(raw_data) >= 4 and len(raw_data) % 4 == 0:
+                                emb = np.frombuffer(raw_data, dtype=np.float32).copy()
+                            else:
+                                continue
                         else:
-                            continue
-                    else:
-                        emb = np.array(raw_data, dtype=np.float32)
-                    id_list.append(row_id)
-                    emb_list.append(emb)
-                except Exception:
-                    pass
+                            emb = np.array(raw_data, dtype=np.float32)
+                        id_list.append(row_id)
+                        emb_list.append(emb)
+                    except Exception:
+                        pass
 
-        if not emb_list:
-            return [], 0
+            # Senza embedding la ricerca semantica non ha nulla da confrontare.
+            # Vale solo qui: la pipeline tag lavora su testo e prosegue comunque.
+            if not emb_list:
+                return [], 0
 
-        logger.info(f"Embedding caricati: {len(emb_list)} su {total_found_in_db} totali")
+            logger.info(f"Embedding caricati: {len(emb_list)} su {total_found_in_db} totali")
 
         # 4. LOGICA DI SOGLIA
         threshold = min_threshold if min_threshold is not None else self.default_threshold
@@ -188,10 +197,12 @@ class ImageRetrieval:
                    datetime_digitized, datetime_modified, processed_date,
                    aesthetic_score, technical_score, lr_rating, color_label,
                    bioclip_taxonomy, geo_hierarchy, is_raw{plugin_cols}
-            FROM images WHERE clip_embedding IS NOT NULL
+            FROM images
             """
+            # Nessun vincolo su clip_embedding: la ricerca per tag confronta
+            # testo, e una foto con i tag ma senza embedding va trovata lo stesso.
             if filters_sql:
-                full_sql += f" AND {filters_sql}"
+                full_sql += f" WHERE {filters_sql}"
             self.db.cursor.execute(full_sql, filter_params or [])
             cols = [d[0] for d in self.db.cursor.description]
             tag_candidates = [dict(zip(cols, r)) for r in self.db.cursor.fetchall()]
