@@ -1008,8 +1008,74 @@ class MainWindow(QMainWindow):
         if geometry:
             self.restoreGeometry(geometry)
     
+    def _stop_running_threads(self, timeout_ms=5000):
+        """Ferma ordinatamente i QThread figli ancora in esecuzione.
+
+        Percorre i QThread trovati fra i figli della finestra: segnala lo stop
+        con i meccanismi già presenti (is_running / stop() / requestInterruption)
+        e attende la fine entro timeout_ms. Se un thread non risponde si procede
+        comunque: bloccare la chiusura sarebbe peggio del warning di Qt.
+        """
+        from PyQt6.QtCore import QThread
+
+        try:
+            threads = self.findChildren(QThread)
+        except Exception:
+            logger.warning("Impossibile enumerare i QThread figli", exc_info=True)
+            return
+
+        running = []
+        for th in threads:
+            try:
+                if not th.isRunning():
+                    continue
+            except RuntimeError:
+                continue  # oggetto C++ già distrutto: nulla da fermare
+            running.append(th)
+
+            # Flag cooperativo usato dai worker del progetto (ProcessingWorker & co.)
+            if hasattr(th, 'is_running'):
+                try:
+                    th.is_running = False
+                except Exception:
+                    logger.warning("Errore azzerando is_running", exc_info=True)
+            # Alcuni worker escono da un pause loop: sbloccarli o non vedranno lo stop
+            if hasattr(th, 'is_paused'):
+                try:
+                    th.is_paused = False
+                except Exception:
+                    logger.warning("Errore azzerando is_paused", exc_info=True)
+            if hasattr(th, 'stop') and callable(th.stop):
+                try:
+                    th.stop()
+                except Exception:
+                    logger.warning("Errore in stop() del thread", exc_info=True)
+            try:
+                th.requestInterruption()
+            except Exception:
+                logger.warning("Errore in requestInterruption()", exc_info=True)
+
+        if not running:
+            return
+
+        logger.info("Chiusura: attendo %d thread ancora attivi", len(running))
+        for th in running:
+            try:
+                if not th.wait(timeout_ms):
+                    logger.warning(
+                        "Thread %s non terminato entro %d ms: chiusura forzata",
+                        th.__class__.__name__, timeout_ms)
+            except RuntimeError:
+                pass  # distrutto nel frattempo: va bene così
+
     def closeEvent(self, event):
         """Gestisce chiusura finestra"""
+        # Ferma i QThread ancora attivi PRIMA di smontare qualsiasi risorsa.
+        # Senza questo Qt distrugge l'oggetto QThread mentre gira ancora:
+        # "QThread: Destroyed while thread is still running" → abort (codice 134).
+        # Si presenta chiudendo la finestra durante o subito dopo un'elaborazione.
+        self._stop_running_threads()
+
         # Cleanup database manager
         if hasattr(self, 'db_manager') and self.db_manager:
             try:

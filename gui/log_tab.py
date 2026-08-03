@@ -5,6 +5,7 @@ Cattura tutti i log dell'applicazione e li mostra in un widget scrollabile
 
 import sys
 import logging
+import traceback
 from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, 
@@ -30,11 +31,21 @@ COLORS = {
 class LogHandler(logging.Handler, QObject):
     """Custom logging handler che emette segnali PyQt"""
     log_received = pyqtSignal(str, str, str)  # timestamp, level, message
-    
+
+    # logging.shutdown() a fine processo fa getattr(h, 'flushOnClose', True) su
+    # OGNI handler mai creato: _handlerList li trattiene tramite weakref e
+    # removeHandler()/close() NON li rimuove da lì. Su un LogHandler il cui
+    # oggetto Qt è già stato distrutto quel getattr solleva RuntimeError, che
+    # shutdown() non intercetta (cattura solo OSError/ValueError) → traceback
+    # "Exception ignored in atexit callback" a finestra già chiusa.
+    # Definendolo come attributo di classe il getattr lo trova senza toccare
+    # l'istanza morta, e con False shutdown() salta anche la flush().
+    flushOnClose = False
+
     def __init__(self):
         logging.Handler.__init__(self)
         QObject.__init__(self)
-        
+
     def emit(self, record):
         try:
             timestamp = datetime.fromtimestamp(record.created).strftime("%H:%M:%S")
@@ -43,6 +54,15 @@ class LogHandler(logging.Handler, QObject):
             self.log_received.emit(timestamp, level, message)
         except Exception:
             pass  # Non possiamo loggare errori del logging handler
+
+    def close(self):
+        """Chiusura che non tocca mai l'oggetto Qt sottostante.
+        Chiamata sia da cleanup() sia da logging.shutdown() a fine processo,
+        quando il QObject può essere già stato distrutto da Qt."""
+        try:
+            logging.Handler.close(self)
+        except Exception:
+            pass
 
 
 class LogTab(QWidget):
@@ -356,9 +376,25 @@ class LogTab(QWidget):
         """Cleanup risorse quando si chiude"""
         if self.log_handler:
             logging.getLogger().removeHandler(self.log_handler)
-        
+            # removeHandler() NON toglie l'handler da logging._handlerList, la
+            # lista interna che logging.shutdown() percorre a fine processo.
+            # Senza close() Python lo tocca comunque quando l'oggetto Qt
+            # sottostante è già stato distrutto → RuntimeError nell'atexit.
+            # Il disconnect evita che un log tardivo tenti un emit su widget morti.
+            try:
+                self.log_handler.log_received.disconnect()
+            except (TypeError, RuntimeError):
+                pass  # già disconnesso o oggetto C++ non più valido
+            try:
+                self.log_handler.close()
+            except Exception:
+                # Nessun logger qui: stiamo smontando il sistema di logging.
+                # Un fallimento non deve impedire il ripristino di stdout/stderr.
+                traceback.print_exc(file=self.original_stderr)
+            self.log_handler = None
+
         # Ripristina stdout/stderr originali
-        sys.stdout = self.original_stdout 
+        sys.stdout = self.original_stdout
         sys.stderr = self.original_stderr
 
 
