@@ -555,7 +555,10 @@ class EmbeddingGenerator:
 
     def _get_models_dir(self) -> Path:
         """Restituisce il percorso assoluto della directory modelli dal config."""
-        rel = self.config.get('models_repository', {}).get('models_dir', 'Models')
+        # "or" e non il default di .get(): in YAML una voce "models_dir:" senza
+        # valore è None, e Path(None) solleva TypeError facendo fallire il
+        # caricamento di TUTTI i modelli
+        rel = self.config.get('models_repository', {}).get('models_dir') or 'Models'
         p = Path(rel)
         return p if p.is_absolute() else get_app_dir() / p
 
@@ -602,10 +605,19 @@ class EmbeddingGenerator:
             from transformers import AutoProcessor, AutoModel
 
             models_dir = self._get_models_dir()
-            clip_subfolder = self.config.get('models_repository', {}).get('models', {}).get('clip', 'clip')
+
+            # dict.get() restituisce il default solo se la CHIAVE manca: una
+            # config con "clip:" senza valore (o aggiornata da una versione
+            # precedente a SigLIP) restituisce None, e "models_dir / None"
+            # solleva TypeError anziché ricadere sul download. Da qui i
+            # messaggi "cartella locale non valida (... not NoneType)".
+            clip_subfolder = self.config.get('models_repository', {}).get('models', {}).get('clip') or 'clip'
             clip_local = models_dir / clip_subfolder
-            frozen_repo = self.config.get('models_repository', {}).get('huggingface_repo', '')
-            fallback_model = self.embedding_config.get('models', {}).get('clip', {}).get('model_name', 'google/siglip-so400m-patch14-384')
+            frozen_repo = self.config.get('models_repository', {}).get('huggingface_repo') or ''
+            fallback_model = (
+                self.embedding_config.get('models', {}).get('clip', {}).get('model_name')
+                or 'google/siglip-so400m-patch14-384'
+            )
 
             loaded = False
 
@@ -701,10 +713,12 @@ class EmbeddingGenerator:
             from transformers import AutoImageProcessor, AutoModel
 
             models_dir = self._get_models_dir()
-            dinov2_subfolder = self.config.get('models_repository', {}).get('models', {}).get('dinov2', 'dinov2')
+            # "or" e non il default di .get(): una chiave presente ma vuota
+            # darebbe None e "models_dir / None" solleverebbe TypeError
+            dinov2_subfolder = self.config.get('models_repository', {}).get('models', {}).get('dinov2') or 'dinov2'
             dinov2_local = models_dir / dinov2_subfolder
             frozen_repo = self.config.get('models_repository', {}).get('huggingface_repo', '')
-            fallback_model = self.embedding_config.get('models', {}).get('dinov2', {}).get('model_name', 'facebook/dinov2-base')
+            fallback_model = self.embedding_config.get('models', {}).get('dinov2', {}).get('model_name') or 'facebook/dinov2-base'
 
             loaded = False
 
@@ -785,7 +799,7 @@ class EmbeddingGenerator:
             import torch.nn as nn
 
             models_dir = self._get_models_dir()
-            aesthetic_subfolder = self.config.get('models_repository', {}).get('models', {}).get('aesthetic', 'aesthetic')
+            aesthetic_subfolder = self.config.get('models_repository', {}).get('models', {}).get('aesthetic') or 'aesthetic'
             aesthetic_dir = models_dir / aesthetic_subfolder
 
             # Repo congelato e fallback
@@ -982,8 +996,9 @@ class EmbeddingGenerator:
 
             models_dir = self._get_models_dir()
             models_mapping = self.config.get('models_repository', {}).get('models', {})
-            bioclip_subfolder = models_mapping.get('bioclip', 'bioclip')
-            treeoflife_subfolder = models_mapping.get('treeoflife', 'treeoflife')
+            # "or" e non il default di .get(): vedi nota in _init_clip
+            bioclip_subfolder = models_mapping.get('bioclip') or 'bioclip'
+            treeoflife_subfolder = models_mapping.get('treeoflife') or 'treeoflife'
             bioclip_dir = models_dir / bioclip_subfolder
             treeoflife_dir = models_dir / treeoflife_subfolder
 
