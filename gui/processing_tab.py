@@ -13,10 +13,10 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QGridLayout,
     QLabel, QPushButton, QProgressBar, QTextEdit,
     QMessageBox, QDialog, QScrollArea, QApplication,
-    QCheckBox, QRadioButton, QButtonGroup, QSpinBox, QFileDialog
+    QCheckBox, QRadioButton, QButtonGroup, QSpinBox, QFileDialog, QLineEdit
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QFontMetrics
 from datetime import datetime
 import time
 import json
@@ -31,6 +31,27 @@ from catalog_readers.lightroom_reader import LightroomCatalogReader
 from i18n import t
 
 logger = logging.getLogger(__name__)
+
+
+def _fit_group_title(group_box, extra: int = 32):
+    """Garantisce al QGroupBox la larghezza minima per mostrare tutto il titolo.
+
+    Su Linux i font di sistema sono più larghi che su Windows: la larghezza
+    minima del gruppo la decide il contenuto, non il titolo, e titoli come
+    "Sorgente Immagini" venivano tagliati in "Sorgente Immagi".
+    `extra` copre bordo, indentazione e l'eventuale emoji iniziale.
+    """
+    try:
+        titolo = group_box.title()
+        if not titolo:
+            return
+        fm = QFontMetrics(group_box.font())
+        larghezza = fm.horizontalAdvance(titolo) + extra
+        if larghezza > group_box.minimumWidth():
+            group_box.setMinimumWidth(larghezza)
+    except Exception:
+        # Mai far fallire la costruzione della UI per una questione estetica
+        logger.warning("Impossibile adattare il titolo del gruppo", exc_info=True)
 
 
 class PhotoBarrier:
@@ -2904,6 +2925,7 @@ class ProcessingTab(QWidget):
 
         # ===== SORGENTE IMMAGINI (unica sezione per dir + catalogo) =====
         source_group = QGroupBox(t("processing.group.source_icon"))
+        _fit_group_title(source_group)
         source_grid = QGridLayout()
         source_grid.setVerticalSpacing(2)
         source_grid.setHorizontalSpacing(6)
@@ -2917,8 +2939,25 @@ class ProcessingTab(QWidget):
         self.source_btn_group.addButton(self.source_dir_radio, 0)
         source_grid.addWidget(self.source_dir_radio, 0, 0)
 
-        self.input_dir_label = QLabel(t("processing.label.no_dir"))
-        self.input_dir_label.setStyleSheet(path_label_style)
+        # Campo percorso scrivibile: su Linux i percorsi si copiano dal
+        # terminale, e una QLabel costringeva a navigare col dialog.
+        # Il percorso digitato viene validato alla pressione di Invio o
+        # quando il campo perde il fuoco.
+        self.input_dir_label = QLineEdit()
+        self.input_dir_label.setPlaceholderText(t("processing.label.no_dir"))
+        # Stile proprio: path_label_style è scritto per QLabel e non si
+        # applicherebbe a un QLineEdit
+        self.input_dir_label.setStyleSheet("""
+            QLineEdit {
+                color: #2c3e50; padding: 4px 8px;
+                background-color: #ecf0f1;
+                border: 1px solid #bdc3c7;
+                border-radius: 3px; font-size: 11px;
+            }
+        """)
+        self.input_dir_label.setClearButtonEnabled(True)
+        self.input_dir_label.returnPressed.connect(self._on_input_dir_return)
+        self.input_dir_label.editingFinished.connect(self._on_input_dir_typed)
         source_grid.addWidget(self.input_dir_label, 0, 1)
 
         self.browse_btn = QPushButton(t("processing.btn.select"))
@@ -2980,6 +3019,7 @@ class ProcessingTab(QWidget):
 
         # --- Modalità Processing ---
         options_group = QGroupBox(t("processing.group.mode"))
+        _fit_group_title(options_group)
         options_layout = QVBoxLayout()
         options_layout.setContentsMargins(6, 4, 6, 4)
         options_layout.setSpacing(2)
@@ -3288,6 +3328,7 @@ class ProcessingTab(QWidget):
 
         # ===== TERMINAL LOG (si espande per riempire lo spazio disponibile) =====
         terminal_group = QGroupBox(t("processing.group.terminal_log"))
+        _fit_group_title(terminal_group)
         self._terminal_group = terminal_group
         terminal_layout = QVBoxLayout()
         terminal_layout.setContentsMargins(5, 2, 5, 2)
@@ -3354,6 +3395,45 @@ class ProcessingTab(QWidget):
         except Exception as e:
             logger.debug(f"Errore init terminale: {e}")
     
+    def _on_input_dir_typed(self):
+        """Valida il percorso digitato a mano nel campo directory.
+
+        Collegato sia a returnPressed sia a editingFinished: quest'ultimo
+        scatta a ogni perdita di fuoco, quindi si esce subito se il testo
+        non è cambiato, per non riscansionare la cartella a ogni click.
+        """
+        testo = self.input_dir_label.text().strip()
+        if not testo:
+            return
+
+        # Nessuna modifica rispetto alla directory già impostata: niente da fare
+        if testo == getattr(self, '_input_dir_confirmed', None):
+            return
+
+        percorso = Path(testo).expanduser()
+        if not percorso.is_dir():
+            # Avviso solo su Invio esplicito (il flag è impostato dallo slot
+            # _on_input_dir_return): mostrarlo anche a ogni perdita di fuoco
+            # aprirebbe una finestra a ogni click mentre si digita.
+            if not getattr(self, '_input_dir_enter_pressed', False):
+                return
+            self._input_dir_enter_pressed = False
+            QMessageBox.warning(
+                self,
+                t("processing.msg.error_title"),
+                t("processing.msg.dir_not_exist", path=percorso)
+            )
+            return
+
+        self._input_dir_enter_pressed = False
+        self.set_input_directory(str(percorso))
+
+    def _on_input_dir_return(self):
+        """Invio nel campo directory: segnala che l'utente ha confermato,
+        così un percorso errato produce un avviso invece di essere ignorato."""
+        self._input_dir_enter_pressed = True
+        self._on_input_dir_typed()
+
     def select_input_directory(self):
         """Apre dialog per selezione directory input"""
         from PyQt6.QtWidgets import QFileDialog
@@ -3379,13 +3459,15 @@ class ProcessingTab(QWidget):
             # Aggiorna UI
             self.input_dir_label.setText(str(directory))
             self.input_dir_label.setStyleSheet("""
-                QLabel {
+                QLineEdit {
                     color: #2c3e50; padding: 4px 8px;
                     background-color: #ecf0f1;
                     border: 1px solid #bdc3c7;
                     border-radius: 3px; font-size: 11px;
                 }
             """)
+            # Percorso accettato: evita di riscansionare a ogni perdita di fuoco
+            self._input_dir_confirmed = str(directory)
             # Directory selezionata, abilita processing
             
             # Salva in config
@@ -3498,8 +3580,15 @@ class ProcessingTab(QWidget):
                 if input_dir and Path(input_dir).exists():
                     self.set_input_directory(input_dir)
                 elif input_dir:
-                    self.input_dir_label.setText(t("processing.label.dir_not_available"))
-                    self.input_dir_label.setStyleSheet("color: #cc3333;")
+                    # Il campo è scrivibile: si lascia il percorso salvato in
+                    # chiaro (l'utente può correggerlo) segnalandolo in rosso,
+                    # anziché sostituirlo con un testo non utilizzabile.
+                    self.input_dir_label.setText(str(input_dir))
+                    self.input_dir_label.setToolTip(t("processing.label.dir_not_available"))
+                    self.input_dir_label.setStyleSheet(
+                        "QLineEdit { color: #cc3333; padding: 4px 8px;"
+                        " border: 1px solid #cc3333; border-radius: 3px; font-size: 11px; }"
+                    )
 
             # Carica stato Active modelli embedding da config
             models_cfg = config.get('embedding', {}).get('models', {})
@@ -3562,8 +3651,8 @@ class ProcessingTab(QWidget):
 
     def _on_subdirs_changed(self, state):
         """Ri-scansiona quando cambia il checkbox sotto-cartelle"""
-        input_dir_text = self.input_dir_label.text()
-        if input_dir_text not in [t("processing.label.no_dir"), t("processing.label.dir_not_available")]:
+        input_dir_text = self.input_dir_label.text().strip()
+        if input_dir_text and input_dir_text not in [t("processing.label.no_dir"), t("processing.label.dir_not_available")]:
             self.scan_directory()
 
     def _on_source_changed(self, source_id):
@@ -3646,8 +3735,8 @@ class ProcessingTab(QWidget):
     def refresh_scan(self):
         """Aggiorna scansione directory e stato database"""
         try:
-            input_dir_text = self.input_dir_label.text()
-            if input_dir_text in [t("processing.label.no_dir"), t("processing.label.dir_not_available")]:
+            input_dir_text = self.input_dir_label.text().strip()
+            if not input_dir_text or input_dir_text in [t("processing.label.no_dir"), t("processing.label.dir_not_available")]:
                 QMessageBox.warning(self, t("processing.msg.warning_title"), t("processing.msg.select_dir_first"))
                 return
 
@@ -3668,8 +3757,8 @@ class ProcessingTab(QWidget):
         """Scansiona directory per contare immagini NON processate"""
         try:
             # Ottieni directory input dall'UI
-            input_dir_text = self.input_dir_label.text()
-            if input_dir_text in [t("processing.label.no_dir"), t("processing.label.dir_not_available")]:
+            input_dir_text = self.input_dir_label.text().strip()
+            if not input_dir_text or input_dir_text in [t("processing.label.no_dir"), t("processing.label.dir_not_available")]:
                 self.scan_label.setText(t("processing.msg.select_dir_stats"))
                 return
 
@@ -3825,8 +3914,8 @@ class ProcessingTab(QWidget):
                 return
         else:
             # Verifica directory selezionata
-            input_dir_text = self.input_dir_label.text()
-            if input_dir_text in [t("processing.label.no_dir"), t("processing.label.dir_not_available")]:
+            input_dir_text = self.input_dir_label.text().strip()
+            if not input_dir_text or input_dir_text in [t("processing.label.no_dir"), t("processing.label.dir_not_available")]:
                 QMessageBox.warning(self, t("processing.msg.error_title"), t("processing.msg.select_input_dir_first"))
                 return
             if not Path(input_dir_text).exists():
