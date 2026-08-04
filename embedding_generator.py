@@ -532,6 +532,21 @@ class EmbeddingGenerator:
                 result = ', '.join(translated)
             else:
                 result = argostranslate.translate.translate(text_en, 'en', self._tag_lang)
+
+            # Controllo di plausibilità: se il testo in ingresso è GIÀ nella lingua
+            # dei tag, il modello EN→xx produce spazzatura anziché rifiutarsi.
+            # Misurato su argostranslate EN→IT: "folaga" → "Condividi su Google",
+            # "gabbiano" → "Non lo so.", "farfalla" → "in un paese".
+            # Una traduzione con molte più parole dell'originale è quindi da buttare.
+            if result:
+                parole_in = len(str(text_en).split())
+                parole_out = len(str(result).split())
+                if parole_out > parole_in + 1:
+                    logger.debug(
+                        f"Traduzione scartata (probabile rumore): '{text_en}' → '{result}'"
+                    )
+                    return text_en
+
             logger.debug(f"Tag query: '{text_en}' → '{result}' ({self._tag_lang})")
             return result
         except Exception as e:

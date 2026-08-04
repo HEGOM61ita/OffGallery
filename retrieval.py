@@ -114,10 +114,30 @@ class ImageRetrieval:
         
         # 2. QUERY LANGUAGE
         # SigLIP è multilingua: la query viene passata direttamente senza traduzione IT→EN.
-        # Per il matching tag/keyword si usa comunque la lingua dei contenuti (llm_output_language).
+        # Per il matching tag/keyword si cerca con PIÙ varianti della query.
+        #
+        # _translate_to_tag_language presume che il testo in ingresso sia inglese
+        # (nasce dalla vecchia pipeline CLIP, dove la query veniva prima tradotta
+        # IT→EN). Con SigLIP quel passaggio non c'è più: la query arriva nella
+        # lingua dell'utente. Passare "folaga" a un traduttore EN→IT restituisce
+        # testo arbitrario, e il tag "Folaga" — presente nel database — non veniva
+        # più trovato. Da qui la ricerca per tag muta in italiano.
+        #
+        # Soluzione: la query ORIGINALE è sempre una variante di ricerca; la
+        # traduzione si aggiunge (utile a chi cerca in inglese contenuti italiani)
+        # ma non sostituisce mai l'originale.
         query_en = query_text  # SigLIP non richiede EN: passata così com'è
-        query_tag = self.embedding_gen._translate_to_tag_language(query_text)
-        logger.info(f"🔤 Query: '{query_text}' | Tag lang: '{query_tag}'")
+
+        query_variants = [query_text]
+        translated = self.embedding_gen._translate_to_tag_language(query_text)
+        if translated and self._normalize(translated) != self._normalize(query_text):
+            query_variants.append(translated)
+
+        # Il deep search semantico riceve tutte le varianti unite: qui il match
+        # è un bonus di punteggio parola-per-parola, non un filtro, quindi
+        # l'unione non falsa i risultati e recupera anche il termine tradotto.
+        query_tag = " ".join(query_variants)
+        logger.info(f"🔤 Query: '{query_text}' | Varianti tag: {query_variants}")
 
         # 3. SQL FETCH — due passaggi per supportare cancel e minimizzare memoria:
         # Passaggio A: solo id + clip_embedding (blob pesanti, nessun metadato)
@@ -206,7 +226,7 @@ class ImageRetrieval:
             self.db.cursor.execute(full_sql, filter_params or [])
             cols = [d[0] for d in self.db.cursor.description]
             tag_candidates = [dict(zip(cols, r)) for r in self.db.cursor.fetchall()]
-            results = self._tag_pipeline(query_tag, tag_candidates, fuzzy=fuzzy, include_description=include_description, include_title=include_title)
+            results = self._tag_pipeline(query_variants, tag_candidates, fuzzy=fuzzy, include_description=include_description, include_title=include_title)
 
         # 6. APPLICAZIONE LIMITE FINALE
         # Applichiamo il limite richiesto dall'utente sulla lista finale elaborata
@@ -373,16 +393,39 @@ class ImageRetrieval:
         return final_results
 
     def _tag_pipeline(self, query_text, candidates, fuzzy=True, include_description=True, include_title=True):
-        """Pipeline Tag unica e definitiva: gestisce sia ricerca ESATTA che FUZZY."""
+        """Pipeline Tag unica e definitiva: gestisce sia ricerca ESATTA che FUZZY.
+
+        query_text accetta una stringa oppure una lista di varianti della query
+        (es. originale + traduzione). Con più varianti un'immagine è un risultato
+        se corrisponde ad almeno una: così "folaga" trova i tag italiani anche
+        quando la traduzione automatica produce un termine diverso.
+        """
         results = []
 
-        # 1. Preparazione Query
+        # 1. Preparazione Query — normalizza l'ingresso a lista di varianti
+        variants = [query_text] if isinstance(query_text, str) else list(query_text)
+        variants = [v for v in variants if v and str(v).strip()]
+        if not variants:
+            return []
+
         if fuzzy:
-            query_stems = self._get_stems(query_text)
-            logger.info(f"🏷️ Tag Search [FUZZY] - Radici query: {query_stems}")
+            # Un set di stems per variante: il match richiede che UNA variante
+            # sia soddisfatta, non l'unione indiscriminata di tutte (che
+            # gonfierebbe il denominatore di match_ratio falsando lo score).
+            variant_stems = [self._get_stems(v) for v in variants]
+            variant_stems = [s for s in variant_stems if s]
+            if not variant_stems:
+                return []
+            logger.info(f"🏷️ Tag Search [FUZZY] - Radici per variante: {[sorted(s) for s in variant_stems]}")
         else:
-            query_terms = [self._normalize(t.strip()) for t in query_text.split() if t.strip()]
-            logger.info(f"🏷️ Tag Search [EXACT] - Termini: {query_terms}")
+            variant_terms = []
+            for v in variants:
+                terms = [self._normalize(t.strip()) for t in str(v).split() if t.strip()]
+                if terms:
+                    variant_terms.append(terms)
+            if not variant_terms:
+                return []
+            logger.info(f"🏷️ Tag Search [EXACT] - Termini per variante: {variant_terms}")
 
         # 2. Ciclo di filtraggio con scoring
         for img in candidates:
@@ -414,24 +457,33 @@ class ImageRetrieval:
                 if img_id not in self.stems_cache:
                     self.stems_cache[img_id] = self._get_stems(content_text)
                 img_stems = self.stems_cache[img_id]
-                
-                matched_stems = sum(1 for q_s in query_stems if q_s in img_stems)
-                if matched_stems > 0:
-                    # Score basato su % di match + lunghezza contenuto
-                    match_ratio = matched_stems / len(query_stems)
+
+                # Ogni variante è valutata a sé: vince il rapporto di match
+                # migliore, così una traduzione infelice non penalizza la query
+                # originale (e viceversa).
+                best_ratio = 0.0
+                for q_stems in variant_stems:
+                    matched_stems = sum(1 for q_s in q_stems if q_s in img_stems)
+                    if matched_stems:
+                        best_ratio = max(best_ratio, matched_stems / len(q_stems))
+
+                if best_ratio > 0:
                     content_bonus = min(0.1, len(content_text) / 1000)  # Bonus per contenuto ricco
-                    final_score = match_ratio + content_bonus
-                    
+                    final_score = best_ratio + content_bonus
+
                     img['final_score'] = round(final_score, 3)
                     results.append(img)
             else:
                 # Verifica che ogni termine esatto sia presente
-                matched_terms = sum(1 for q_t in query_terms if q_t in content_text)
-                if matched_terms > 0:
-                    # Score per exact match
-                    match_ratio = matched_terms / len(query_terms)
-                    final_score = match_ratio + 0.1  # Base bonus per exact match
-                    
+                best_ratio = 0.0
+                for q_terms in variant_terms:
+                    matched_terms = sum(1 for q_t in q_terms if q_t in content_text)
+                    if matched_terms:
+                        best_ratio = max(best_ratio, matched_terms / len(q_terms))
+
+                if best_ratio > 0:
+                    final_score = best_ratio + 0.1  # Base bonus per exact match
+
                     img['final_score'] = round(final_score, 3)
                     results.append(img)
         
