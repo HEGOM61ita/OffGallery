@@ -32,6 +32,18 @@ VERSION_URL = (
     f"/{GITHUB_BRANCH}/VERSION"
 )
 
+# Ultima release pubblicata: è l'unica fonte di un numero leggibile ("v1.0.27").
+# Il file VERSION nel repo contiene il segnaposto "dev", uguale a ogni commit:
+# confrontarlo con se stesso faceva concludere "nessun aggiornamento" per
+# sempre, e dopo l'estrazione riscriveva "dev" sopra la versione installata.
+RELEASE_API = (
+    f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}"
+    f"/releases/latest"
+)
+
+# Valori che nel file VERSION non identificano una build reale
+_VERSION_SEGNAPOSTO = {"dev", "", "sconosciuta"}
+
 # File locale dove viene salvata la versione installata
 VERSION_FILE = "VERSION"
 
@@ -67,9 +79,25 @@ def installed_version(install_path: str) -> Optional[str]:
 
 
 def remote_version() -> Optional[str]:
-    """Scarica la versione disponibile su GitHub. None se offline o errore."""
+    """
+    Versione disponibile su GitHub: il tag dell'ultima release (es. "v1.0.27").
+    Se le release non sono raggiungibili ripiega sul file VERSION del repo.
+    None se offline o errore.
+    """
     try:
-        return download_text(VERSION_URL).strip()
+        import json
+        data = json.loads(download_text(RELEASE_API))
+        tag = (data.get("tag_name") or "").strip()
+        if tag:
+            return tag
+    except Exception:
+        pass
+
+    try:
+        val = download_text(VERSION_URL).strip()
+        # "dev" non è una versione: meglio ammettere di non sapere che
+        # affermare il falso confrontando due segnaposto identici.
+        return None if val in _VERSION_SEGNAPOSTO else val
     except Exception:
         return None
 
@@ -78,12 +106,20 @@ def update_available(install_path: str) -> Optional[str]:
     """
     Confronta versione installata con quella remota.
     Restituisce la versione remota se è diversa, None se uguale o non verificabile.
+
+    Se la copia locale non è identificabile (VERSION = "dev", tipico di chi ha
+    aggiornato a mano) l'aggiornamento va comunque proposto: non sappiamo cosa
+    ci sia installato, e in dubbio è meglio riallinearlo che lasciarlo indietro.
     """
-    local  = installed_version(install_path)
     remote = remote_version()
-    if remote and local and remote != local:
+    if not remote:
+        return None
+
+    local = installed_version(install_path)
+    if local is None or local in _VERSION_SEGNAPOSTO:
         return remote
-    return None
+
+    return remote if remote != local else None
 
 
 # ---------------------------------------------------------------------------
@@ -110,6 +146,10 @@ def install_core(
     # Download ZIP in memoria (evita file temporanei su disco)
     _log(log_cb, f"Download sorgente da GitHub ({GITHUB_USER}/{GITHUB_REPO})...")
 
+    # Letta PRIMA dell'estrazione: subito dopo il download è la versione che
+    # stiamo effettivamente installando.
+    scaricata = remote_version()
+
     zip_path = os.path.join(install_path, ".core_download.zip")
     try:
         download_file(
@@ -121,6 +161,11 @@ def install_core(
     finally:
         if os.path.isfile(zip_path):
             os.remove(zip_path)
+
+    # Va fatto DOPO l'estrazione: lo zip contiene un VERSION con "dev" che
+    # altrimenti cancella il numero reale. Senza questo il Manager mostrava
+    # sempre "dev" e non rilevava mai un aggiornamento disponibile.
+    _scrivi_versione(install_path, scaricata, log_cb)
 
     _ensure_plugins_dir(install_path, log_cb)
 
@@ -258,6 +303,25 @@ def ensure_core(
 # ---------------------------------------------------------------------------
 # Helper privati
 # ---------------------------------------------------------------------------
+
+def _scrivi_versione(install_path: str, versione: Optional[str],
+                     log_cb: Optional[Callable]):
+    """
+    Registra in VERSION la release appena installata.
+
+    Se la versione non è determinabile (offline) il file viene lasciato com'è
+    dallo zip: meglio "dev" che un numero inventato.
+    """
+    if not versione or versione in _VERSION_SEGNAPOSTO:
+        _log(log_cb, "Versione remota non determinabile: VERSION non aggiornato.")
+        return
+    try:
+        with open(os.path.join(install_path, VERSION_FILE), "w",
+                  encoding="utf-8") as f:
+            f.write(versione + "\n")
+    except OSError as e:
+        _log(log_cb, f"Impossibile scrivere VERSION: {e}")
+
 
 def _has_existing_install(install_path: str) -> bool:
     """True se gui_launcher.py esiste nella cartella — segno di installazione precedente."""

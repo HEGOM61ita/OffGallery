@@ -631,6 +631,17 @@ class EmbeddingGenerator:
             def _clip_mancanti(cartella):
                 return [f for f in _clip_richiesti if not (cartella / f).exists()]
 
+            # Conflitto protobuf/sentencepiece: protobuf 7 rifiuta lo schema di
+            # sentencepiece 0.2.1 e il tokenizer SigLIP non parte. È un problema
+            # di librerie, NON dei file del modello: riscaricare i 3 GB non serve
+            # a niente e i passi 2 e 3 (download da rete) fallirebbero uguale.
+            # Va riconosciuto per fermarsi subito e dire cosa fare davvero.
+            def _e_conflitto_protobuf(err):
+                _t = str(err)
+                return 'descriptor pool' in _t or 'character_coverage' in _t
+
+            _conflitto = None
+
             # 1. Cartella locale (models_dir/clip/)
             if clip_local.exists() and (clip_local / 'config.json').exists():
                 _mancanti = _clip_mancanti(clip_local)
@@ -646,6 +657,10 @@ class EmbeddingGenerator:
                     loaded = True
                     logger.info("[OK] SigLIP caricato da locale")
                 except Exception as e:
+                    if _e_conflitto_protobuf(e):
+                        # Inutile tentare rete: fallirebbe con lo stesso errore.
+                        _conflitto = e
+                        raise
                     logger.warning(f"SigLIP: cartella locale non valida ({e}), uso repo...")
 
             # 2. Repo congelato: copia file per file (evita save_pretrained)
@@ -731,7 +746,29 @@ class EmbeddingGenerator:
             try:
                 _mancanti = [f for f in ('config.json', 'model.safetensors', 'spiece.model')
                              if not (clip_local / f).exists()]
-                if _mancanti:
+                if _conflitto is not None or _e_conflitto_protobuf(e):
+                    # Causa nota: librerie incompatibili, non modello mancante.
+                    # Dare il comando esatto evita di riscaricare 3 GB a vuoto.
+                    try:
+                        import google.protobuf as _pb
+                        _vpb = _pb.__version__
+                    except Exception:
+                        _vpb = 'sconosciuta'
+                    try:
+                        import sentencepiece as _sp
+                        _vsp = _sp.__version__
+                    except Exception:
+                        _vsp = 'sconosciuta'
+                    logger.error(
+                        "SigLIP NON disponibile: i file del modello sono a posto, "
+                        "ma due librerie Python sono incompatibili tra loro "
+                        f"(protobuf {_vpb} con sentencepiece {_vsp}). "
+                        "NON serve riscaricare il modello. "
+                        "Correggere l'ambiente con: "
+                        'pip install "protobuf==6.33.1" "sentencepiece==0.2.1" '
+                        "e riavviare OffGallery."
+                    )
+                elif _mancanti:
                     logger.error(
                         f"SigLIP NON disponibile: file mancanti in {clip_local} "
                         f"({', '.join(_mancanti)}). La ricerca per frase non "

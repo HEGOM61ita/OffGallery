@@ -20,6 +20,7 @@ GITHUB_REPO   = "OffGallery"
 GITHUB_BRANCH = "main"
 GITHUB_ZIP    = f"https://github.com/{GITHUB_USER}/{GITHUB_REPO}/archive/refs/heads/{GITHUB_BRANCH}.zip"
 GITHUB_API    = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/commits/{GITHUB_BRANCH}"
+GITHUB_RELEASE = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/releases/latest"
 
 # Cartelle e file che appartengono all'utente — non vengono mai sovrascritti
 PROTECTED_DIRS  = {"Models", "database", "logs", "INPUT"}
@@ -34,6 +35,24 @@ def get_local_version(app_dir: Path) -> str:
 
 
 def get_remote_version() -> str | None:
+    """
+    Tag dell'ultima release (es. "v1.0.27"), lo stesso valore che scrive
+    OffGallery Manager: i due aggiornatori devono parlare la stessa lingua,
+    altrimenti ognuno vede la versione dell'altro come "diversa" e propone
+    aggiornamenti a vuoto. Se le release non rispondono, ripiega sullo SHA.
+    """
+    try:
+        req = urllib.request.Request(
+            GITHUB_RELEASE,
+            headers={"User-Agent": "OffGallery-Updater"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            tag = (json.loads(resp.read()).get("tag_name") or "").strip()
+            if tag:
+                return tag
+    except Exception:
+        pass
+
     try:
         req = urllib.request.Request(
             GITHUB_API,
@@ -110,15 +129,13 @@ def main():
 
         print("  Estrazione...")
         with zipfile.ZipFile(zip_path, "r") as z:
-            # GitHub scrive lo SHA completo del commit nel commento dell'archivio:
-            # è la fonte autorevole della versione scaricata. Il file VERSION che
-            # arriva dentro lo zip è invece un segnaposto e non va usato.
-            zip_sha = (z.comment or b"").decode("utf-8", "ignore").strip()
             z.extractall(tmp)
 
-        # Se il commento manca (zip non generato da GitHub) si ripiega sullo SHA
-        # già ottenuto dall'API: entrambi indicano la punta di main.
-        new_version = zip_sha[:7] if len(zip_sha) >= 7 else remote
+        # Si registra il tag della release (stesso formato usato da OffGallery
+        # Manager), non lo SHA del commit: due formati diversi nello stesso file
+        # VERSION farebbero vedere a ciascun aggiornatore la scrittura dell'altro
+        # come una versione sconosciuta.
+        new_version = remote
 
         # Lo zip estrae in una cartella tipo "OffGallery-main"
         src_dirs = [d for d in tmp.iterdir() if d.is_dir() and d.name != "__MACOSX"]

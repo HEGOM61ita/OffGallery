@@ -204,7 +204,10 @@ class ImageRetrieval:
                 logger.warning(
                     f"Ricerca semantica senza risultati: nessuna delle "
                     f"{total_found_in_db} foto ha l'impronta visiva (SigLIP). "
-                    f"Installare SigLIP e rielaborare, oppure usare la ricerca per tag."
+                    f"Se SigLIP risulta già installato il problema è nel suo "
+                    f"caricamento, non nel modello: cercare 'SigLIP' più su nel "
+                    f"log. Altrimenti installarlo e rielaborare. In alternativa "
+                    f"usare la ricerca per tag."
                 )
                 return [], 0
 

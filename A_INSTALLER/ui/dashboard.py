@@ -340,7 +340,15 @@ class DashboardPage(tk.Frame):
         except Exception:
             pass
 
-        self._version_lbl.configure(text=f"versione {ver}" if ver else "")
+        # Mostrare installata e disponibile insieme: con la sola "versione dev"
+        # non si capiva se l'aggiornamento fosse stato applicato davvero.
+        if ver and new_ver:
+            _txt = f"versione {ver} → disponibile {new_ver}"
+        elif ver:
+            _txt = f"versione {ver}"
+        else:
+            _txt = ""
+        self._version_lbl.configure(text=_txt)
 
         if new_ver:
             core_action_label = "Aggiorna"

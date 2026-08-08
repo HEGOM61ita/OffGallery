@@ -35,6 +35,9 @@ scikit-image==0.25.2
 argostranslate==1.10.0
 ctranslate2==4.6.1
 sentencepiece==0.2.1
+# Deve restare sulla major 6: protobuf 7 rifiuta lo schema di sentencepiece 0.2.1
+# e SigLIP non si carica più (vedi requirements_offgallery.txt degli installer)
+protobuf==6.33.1
 
 # === UI ===
 PyQt6==6.10.0

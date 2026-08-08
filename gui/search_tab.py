@@ -641,6 +641,27 @@ class SearchTab(QWidget):
                 and not getattr(self, '_avviso_embedding_mostrato', False)):
             self._avviso_embedding_mostrato = True
             self.results_label.setText("⚠️ 0 — impronta visiva assente")
+
+            # Il rimedio dipende dalla causa: se i file di SigLIP sono già sul
+            # disco, il modello non c'entra e dire "scaricalo" fa perdere ore e
+            # gigabyte (è successo). In quel caso il guasto è nelle librerie.
+            _rimedio = (
+                "<b>Per abilitare la ricerca per frase:</b> apri "
+                "<b>OffGallery Manager</b> → <b>Modelli AI</b> → <b>Scarica</b> "
+                "accanto a SigLIP, poi rielabora le foto."
+            )
+            if self._siglip_presente_su_disco():
+                _rimedio = (
+                    "<b>Attenzione: il modello SigLIP è già installato</b>, "
+                    "quindi <b>non serve riscaricarlo</b>. Non si carica per "
+                    "un conflitto tra librerie Python.<br><br>"
+                    "<b>Come risolvere:</b> apri il terminale e lancia<br>"
+                    "<code>conda activate OffGallery</code><br>"
+                    '<code>pip install "protobuf==6.33.1" "sentencepiece==0.2.1"</code>'
+                    "<br><br>Poi riavvia OffGallery e rielabora le foto. "
+                    "Il dettaglio dell'errore è nella scheda <b>Log</b>."
+                )
+
             QMessageBox.information(
                 self,
                 "Ricerca per frase non disponibile",
@@ -650,13 +671,33 @@ class SearchTab(QWidget):
                 "non può restituire risultati, anche se le foto sono catalogate "
                 "ed etichettate correttamente.<br><br>"
                 "<b>Cosa puoi fare subito:</b> passa a <b>Ricerca per tag</b> "
-                "qui sopra — funziona sulle etichette e non richiede SigLIP.<br><br>"
-                "<b>Per abilitare la ricerca per frase:</b> apri "
-                "<b>OffGallery Manager</b> → <b>Modelli AI</b> → <b>Scarica</b> "
-                "accanto a SigLIP, poi rielabora le foto."
+                "qui sopra — funziona sulle etichette e non richiede SigLIP."
+                "<br><br>" + _rimedio
             )
 
         self.search_executed.emit(results)
+
+    def _siglip_presente_su_disco(self) -> bool:
+        """True se i file di SigLIP sono già installati.
+
+        Serve a distinguere "modello mancante" da "modello presente ma non
+        caricabile": nel secondo caso il rimedio è l'ambiente Python, non un
+        nuovo download da 3 GB.
+        """
+        try:
+            cfg = self.config or {}
+            repo = cfg.get('models_repository', {}) or {}
+            models_dir = repo.get('models_dir') or 'Models'
+            base = Path(models_dir)
+            if not base.is_absolute():
+                # Relativo = rispetto alla root dell'app (parent di gui/)
+                base = Path(__file__).resolve().parent.parent / base
+            cartella = base / ((repo.get('models', {}) or {}).get('clip') or 'clip')
+            return all((cartella / f).exists()
+                       for f in ('config.json', 'model.safetensors', 'spiece.model'))
+        except Exception:
+            logger.warning("Verifica presenza SigLIP non riuscita", exc_info=True)
+            return False
 
     def _on_search_error(self, traceback_str):
         """Chiamato dal SearchWorker in caso di errore."""
