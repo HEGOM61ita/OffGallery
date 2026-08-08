@@ -621,8 +621,25 @@ class EmbeddingGenerator:
 
             loaded = False
 
+            # File indispensabili al caricamento di SigLIP. spiece.model è il
+            # vocabolario del tokenizer: senza, SiglipTokenizer riceve
+            # vocab_file=None e solleva "expected str, bytes or os.PathLike
+            # object, not NoneType" — messaggio che non lascia capire quale
+            # file manchi. Controllarne la presenza permette un errore chiaro.
+            _clip_richiesti = ('config.json', 'model.safetensors', 'spiece.model')
+
+            def _clip_mancanti(cartella):
+                return [f for f in _clip_richiesti if not (cartella / f).exists()]
+
             # 1. Cartella locale (models_dir/clip/)
             if clip_local.exists() and (clip_local / 'config.json').exists():
+                _mancanti = _clip_mancanti(clip_local)
+                if _mancanti:
+                    logger.warning(
+                        f"SigLIP: installazione incompleta in {clip_local} — "
+                        f"mancano: {', '.join(_mancanti)}. "
+                        f"Riscaricare SigLIP da OffGallery Manager → Modelli AI."
+                    )
                 try:
                     self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
                     self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
@@ -654,13 +671,17 @@ class EmbeddingGenerator:
                         except Exception:
                             pass  # file opzionale o non presente
 
-                    if (clip_local / 'config.json').exists() and (clip_local / 'model.safetensors').exists():
+                    _mancanti = _clip_mancanti(clip_local)
+                    if not _mancanti:
                         self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
                         self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
                         loaded = True
                         logger.info("[OK] SigLIP caricato da repo")
                     else:
-                        logger.warning("SigLIP: repo congelato incompleto, uso fallback...")
+                        logger.warning(
+                            f"SigLIP: repo congelato incompleto (mancano: "
+                            f"{', '.join(_mancanti)}), uso fallback..."
+                        )
                 except Exception as e:
                     logger.warning(f"SigLIP: repo congelato non disponibile ({e}), uso fallback...")
 
@@ -705,6 +726,25 @@ class EmbeddingGenerator:
                 pass
         except Exception as e:
             logger.error(f"SigLIP: {e}", exc_info=True)
+            # Messaggio conclusivo comprensibile: senza questo nel log resta
+            # solo il TypeError del tokenizer, che non dice cosa fare.
+            try:
+                _mancanti = [f for f in ('config.json', 'model.safetensors', 'spiece.model')
+                             if not (clip_local / f).exists()]
+                if _mancanti:
+                    logger.error(
+                        f"SigLIP NON disponibile: file mancanti in {clip_local} "
+                        f"({', '.join(_mancanti)}). La ricerca per frase non "
+                        f"funzionerà. Riscaricare SigLIP da OffGallery Manager "
+                        f"→ Modelli AI."
+                    )
+                else:
+                    logger.error(
+                        "SigLIP NON disponibile: i file ci sono ma il "
+                        "caricamento è fallito. La ricerca per frase non funzionerà."
+                    )
+            except Exception:
+                logger.warning("Diagnostica SigLIP non riuscita", exc_info=True)
             self.clip_enabled = False
 
     def _init_dinov2(self):
