@@ -58,7 +58,7 @@ MODELS: list[ModelSpec] = [
             ModelFile(remote_path="clip/special_tokens_map.json",      local_name="special_tokens_map.json",      size_mb=0),
             ModelFile(remote_path="clip/tokenizer_config.json",        local_name="tokenizer_config.json",        size_mb=0),
             ModelFile(remote_path="clip/tokenizer.json",               local_name="tokenizer.json",               size_mb=0),
-            ModelFile(remote_path="clip/sentencepiece.bpe.model",      local_name="sentencepiece.bpe.model",      size_mb=1),
+            ModelFile(remote_path="clip/spiece.model",                 local_name="spiece.model",                 size_mb=1),
         ],
     ),
     ModelSpec(
@@ -186,6 +186,13 @@ def download_models(
         for file_idx, mf in enumerate(spec.files):
             dest = os.path.join(model_dir, mf.local_name)
 
+            # File già scaricato in un tentativo precedente: si salta.
+            # Senza questo, il fallimento di un singolo file accessorio
+            # costringeva a riscaricare da zero anche i 3,5 GB dei pesi.
+            if not force and os.path.isfile(dest) and os.path.getsize(dest) > 0:
+                _log(log_cb, f"  · {mf.local_name} già presente, salto")
+                continue
+
             def _cb(p: DownloadProgress, fi=file_idx, mi=model_idx, mf=mf, spec=spec):
                 if progress_cb:
                     progress_cb(ModelProgress(
@@ -213,6 +220,10 @@ def download_models(
                 _log(log_cb, f"  ✓ {mf.local_name}")
             except DownloadError as exc:
                 _log(log_cb, f"  ✗ {mf.local_name}: {exc}")
+                if "404" in str(exc):
+                    # 404 = il file non esiste sul server: riprovare non serve,
+                    # va corretto il nome nell'elenco qui sopra
+                    _log(log_cb, f"    (file non presente sul server — non è un problema di rete)")
                 success = False
                 break
 

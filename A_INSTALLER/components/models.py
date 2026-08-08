@@ -198,6 +198,13 @@ def download_models(
         for file_idx, mf in enumerate(spec.files):
             dest = os.path.join(model_dir, mf.local_name)
 
+            # File già scaricato in un tentativo precedente: si salta.
+            # Senza questo, un download interrotto costringeva a riscaricare
+            # da zero anche i 3,5 GB dei pesi.
+            if not force and os.path.isfile(dest) and os.path.getsize(dest) > 0:
+                _log(log_cb, f"  · {mf.local_name} già presente, salto")
+                continue
+
             def _cb(p: DownloadProgress, fi=file_idx, mi=model_idx, mf=mf, spec=spec):
                 if progress_cb:
                     progress_cb(ModelProgress(
@@ -225,6 +232,10 @@ def download_models(
                 _log(log_cb, f"  ✓ {mf.local_name}")
             except DownloadError as exc:
                 _log(log_cb, f"  ✗ {mf.local_name}: {exc}")
+                if "404" in str(exc):
+                    # 404 = il file non esiste sul server: riprovare non serve,
+                    # va corretto il nome nell'elenco qui sopra
+                    _log(log_cb, f"    (file non presente sul server — non è un problema di rete)")
                 success = False
                 break
 
