@@ -351,6 +351,25 @@ def _check_for_updates(parent_window):
         if remote is None or local == remote:
             return  # Nessun aggiornamento o rete non disponibile
 
+        # In repo git i due lati parlano lingue diverse: "local" è uno SHA
+        # (148fe5a), "remote" è il tag della release (v1.0.27). Spesso indicano
+        # lo stesso commit, ma il confronto testuale li vede diversi e avvisa a
+        # sproposito. Si risolve il tag nel suo SHA e si riconfronta.
+        if is_git and remote.startswith('v'):
+            try:
+                _r = subprocess.run(
+                    ['git', 'rev-list', '-n', '1', '--abbrev-commit', remote],
+                    capture_output=True, text=True, cwd=str(app_dir), timeout=5,
+                    **subprocess_creation_kwargs()
+                )
+                _sha_tag = _r.stdout.strip()
+                # Lunghezze abbreviate diverse: basta il prefisso comune
+                if _sha_tag and (_sha_tag.startswith(local) or local.startswith(_sha_tag)):
+                    return
+            except Exception:
+                logging.getLogger(__name__).debug(
+                    "Risoluzione tag remoto non riuscita", exc_info=True)
+
         # "dev" è il segnaposto che il repo porta nel file VERSION: significa
         # "installazione da sorgente/zip non ancora passata dall'updater", non
         # "versione vecchia". Confrontarlo con l'hash remoto darebbe un avviso
