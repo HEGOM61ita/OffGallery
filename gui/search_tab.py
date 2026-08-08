@@ -88,6 +88,9 @@ class SearchWorker(QThread):
                 max_results=self.max_results,
                 cancel_flag=lambda: self._cancelled,
             )
+            # Motivo di un eventuale risultato vuoto (es. SigLIP non installato):
+            # serve alla UI per spiegare il perché invece di dire solo "0 risultati"
+            self.empty_reason = getattr(retriever, 'last_empty_reason', None)
             if not self._cancelled:
                 self.finished.emit(results, total)
         except Exception as e:
@@ -629,6 +632,30 @@ class SearchTab(QWidget):
             self.results_label.setText(f"✅ {n}/{total_candidates} (Smart Filter: -{filtered_out})")
         else:
             self.results_label.setText(f"✅ {n}/{total_candidates}")
+
+        # Zero risultati perché nessuna foto ha l'impronta visiva: senza
+        # spiegazione sembra un catalogo vuoto, mentre le foto ci sono e sono
+        # anche etichettate. Mostrato una volta sola per sessione.
+        if (n == 0
+                and getattr(self._search_worker, 'empty_reason', None) == 'no_embeddings'
+                and not getattr(self, '_avviso_embedding_mostrato', False)):
+            self._avviso_embedding_mostrato = True
+            self.results_label.setText("⚠️ 0 — impronta visiva assente")
+            QMessageBox.information(
+                self,
+                "Ricerca per frase non disponibile",
+                "<b>Nessuna foto ha l'impronta visiva.</b><br><br>"
+                "L'impronta è generata dal modello <b>SigLIP</b> e serve alla "
+                "ricerca per frase descrittiva. Senza di essa questa modalità "
+                "non può restituire risultati, anche se le foto sono catalogate "
+                "ed etichettate correttamente.<br><br>"
+                "<b>Cosa puoi fare subito:</b> passa a <b>Ricerca per tag</b> "
+                "qui sopra — funziona sulle etichette e non richiede SigLIP.<br><br>"
+                "<b>Per abilitare la ricerca per frase:</b> apri "
+                "<b>OffGallery Manager</b> → <b>Modelli AI</b> → <b>Scarica</b> "
+                "accanto a SigLIP, poi rielabora le foto."
+            )
+
         self.search_executed.emit(results)
 
     def _on_search_error(self, traceback_str):

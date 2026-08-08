@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
     QCheckBox, QRadioButton, QButtonGroup, QSpinBox, QFileDialog, QLineEdit
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QFontMetrics
+from PyQt6.QtGui import QFont
 from datetime import datetime
 import time
 import json
@@ -29,29 +29,9 @@ from utils.paths import get_app_dir
 from utils.tag_utils import normalize_tags
 from catalog_readers.lightroom_reader import LightroomCatalogReader
 from i18n import t
+from gui.ui_utils import fit_group_title
 
 logger = logging.getLogger(__name__)
-
-
-def _fit_group_title(group_box, extra: int = 32):
-    """Garantisce al QGroupBox la larghezza minima per mostrare tutto il titolo.
-
-    Su Linux i font di sistema sono più larghi che su Windows: la larghezza
-    minima del gruppo la decide il contenuto, non il titolo, e titoli come
-    "Sorgente Immagini" venivano tagliati in "Sorgente Immagi".
-    `extra` copre bordo, indentazione e l'eventuale emoji iniziale.
-    """
-    try:
-        titolo = group_box.title()
-        if not titolo:
-            return
-        fm = QFontMetrics(group_box.font())
-        larghezza = fm.horizontalAdvance(titolo) + extra
-        if larghezza > group_box.minimumWidth():
-            group_box.setMinimumWidth(larghezza)
-    except Exception:
-        # Mai far fallire la costruzione della UI per una questione estetica
-        logger.warning("Impossibile adattare il titolo del gruppo", exc_info=True)
 
 
 class PhotoBarrier:
@@ -155,6 +135,7 @@ class ProcessingWorker(QThread):
     finished = pyqtSignal(dict)  # statistiche finali
     plugin_progress = pyqtSignal(str, int, int)  # plugin_id, current, total
     critical_gpu_error = pyqtSignal(str, str)  # model_key, messaggio errore
+    models_unavailable = pyqtSignal(list)  # modelli selezionati ma non caricati
 
     def __init__(self, config_path, input_directory, embedding_gen=None, options=None,
                  include_subdirs=False, image_list=None, pre_llm_plugins=None,
@@ -484,10 +465,18 @@ class ProcessingWorker(QThread):
             }
 
             # Avvisa modelli selezionati ma non disponibili
+            _non_caricati = []
             for _mk in ('clip', 'dinov2', 'aesthetic', 'technical', 'bioclip'):
                 if emb_flags.get(_mk, {}).get('active', False) and not _avail_map.get(_mk, False):
                     self.log_message.emit(
                         f"⚠️ {_mk.upper()} selezionato ma non caricato — saltato", "warning")
+                    _non_caricati.append(_mk)
+
+            # Un modello selezionato che non parte lascia il lavoro incompleto in
+            # silenzio: la sua barra resta a zero e nessuno se ne accorge finché
+            # la ricerca non restituisce nulla. Va detto a schermo, non solo nel log.
+            if _non_caricati:
+                self.models_unavailable.emit(_non_caricati)
 
             # Modelli embedding attivi (escluso BioCLIP che ha thread dedicato)
             _EMB_MODELS = [
@@ -2925,7 +2914,7 @@ class ProcessingTab(QWidget):
 
         # ===== SORGENTE IMMAGINI (unica sezione per dir + catalogo) =====
         source_group = QGroupBox(t("processing.group.source_icon"))
-        _fit_group_title(source_group)
+        fit_group_title(source_group)
         source_grid = QGridLayout()
         source_grid.setVerticalSpacing(2)
         source_grid.setHorizontalSpacing(6)
@@ -3019,7 +3008,7 @@ class ProcessingTab(QWidget):
 
         # --- Modalità Processing ---
         options_group = QGroupBox(t("processing.group.mode"))
-        _fit_group_title(options_group)
+        fit_group_title(options_group)
         options_layout = QVBoxLayout()
         options_layout.setContentsMargins(6, 4, 6, 4)
         options_layout.setSpacing(2)
@@ -3328,7 +3317,7 @@ class ProcessingTab(QWidget):
 
         # ===== TERMINAL LOG (si espande per riempire lo spazio disponibile) =====
         terminal_group = QGroupBox(t("processing.group.terminal_log"))
-        _fit_group_title(terminal_group)
+        fit_group_title(terminal_group)
         self._terminal_group = terminal_group
         terminal_layout = QVBoxLayout()
         terminal_layout.setContentsMargins(5, 2, 5, 2)
@@ -4063,6 +4052,7 @@ class ProcessingTab(QWidget):
             self.worker.finished.connect(self.processing_finished)
             self.worker.plugin_progress.connect(self._on_plugin_progress)
             self.worker.critical_gpu_error.connect(self._on_critical_gpu_error)
+            self.worker.models_unavailable.connect(self._on_models_unavailable)
 
             # Reset progress bar per-modello e cache setRange
             self._progress_range_set.clear()
@@ -4180,6 +4170,53 @@ class ProcessingTab(QWidget):
         if model_key == 'exiftool' and total > 0:
             pct = int(current * 100 / total)
             self.scan_label.setText(f"⏳ {current:,} / {total:,}  ({pct}%)")
+
+    def _on_models_unavailable(self, model_keys: list):
+        """Modelli selezionati ma non caricati: avviso a schermo.
+
+        Senza questo avviso l'elaborazione prosegue e sembra riuscita, ma i
+        dati di quei modelli non vengono mai prodotti: la barra resta a zero e
+        il problema emerge molto più tardi, quando la ricerca non trova nulla.
+        """
+        _nomi = {
+            'clip':      'SigLIP (ricerca per frase)',
+            'dinov2':    'DINOv2 (foto simili)',
+            'aesthetic': 'Punteggio estetico',
+            'technical': 'Punteggio tecnico',
+            'bioclip':   'BioCLIP (riconoscimento specie)',
+        }
+        elenco = "<br>".join(f"• <b>{_nomi.get(k, k.upper())}</b>" for k in model_keys)
+
+        # Barra grigia con etichetta esplicita: resterebbe a zero senza spiegazione
+        _bar_map = {
+            'clip':      getattr(self, 'pt_clip_bar', None),
+            'dinov2':    getattr(self, 'pt_dinov2_bar', None),
+            'aesthetic': getattr(self, 'pt_aesthetic_bar', None),
+            'technical': getattr(self, 'pt_musiq_bar', None),
+            'bioclip':   getattr(self, 'pt_bioclip_bar', None),
+        }
+        for k in model_keys:
+            bar = _bar_map.get(k)
+            if bar is not None:
+                bar.setToolTip("Modello non caricato — questa fase viene saltata")
+                bar.setStyleSheet("""
+                    QProgressBar { border: 1px solid #555; background: #2a2a2a;
+                                   border-radius: 3px; max-height: 8px; }
+                """)
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Modelli non disponibili")
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setText(
+            f"<b>Questi modelli sono selezionati ma non risultano installati:</b>"
+            f"<br><br>{elenco}<br><br>"
+            f"L'elaborazione prosegue <b>saltando</b> queste fasi: i dati "
+            f"corrispondenti non verranno generati.<br><br>"
+            f"Per installarli: apri <b>OffGallery Manager</b> → sezione "
+            f"<b>Modelli AI</b> → pulsante <b>Scarica</b> accanto al modello."
+        )
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.exec()
 
     def _on_critical_gpu_error(self, model_key: str, error_msg: str):
         """GPU crash rilevato durante il processing: LED rosso + popup bloccante."""

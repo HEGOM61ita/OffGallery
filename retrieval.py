@@ -19,6 +19,9 @@ class ImageRetrieval:
         self.max_results = config.get('search', {}).get('max_results', 100)
         self.default_threshold = 0.15 # Abbassiamo il default dato il rumore multilingua
         self.stems_cache = {}  # Cache per stems delle immagini
+        # Motivo dell'ultimo risultato vuoto ('no_embeddings' o None): permette
+        # alla UI di spiegare il perché invece di mostrare solo "0 risultati"
+        self.last_empty_reason = None
 
     def _plugin_columns(self) -> str:
         """Ritorna le colonne plugin che esistono nel DB, lette dai manifest installati.
@@ -62,6 +65,9 @@ class ImageRetrieval:
         
         # Usa max_results passato come parametro, altrimenti default dalla config
         effective_limit = max_results if max_results is not None else self.max_results
+
+        # Azzerato a ogni ricerca: vale solo per l'esito corrente
+        self.last_empty_reason = None
         
         # --- 0. CONTEGGIO TOTALE REALE (Senza LIMIT) ---
         # Questa query serve per sapere quante immagini esistono in totale con questi filtri
@@ -190,6 +196,16 @@ class ImageRetrieval:
             # Senza embedding la ricerca semantica non ha nulla da confrontare.
             # Vale solo qui: la pipeline tag lavora su testo e prosegue comunque.
             if not emb_list:
+                # Caso tipico: SigLIP non installato → nessuna foto ha l'impronta
+                # visiva. La ricerca semantica è la modalità predefinita, quindi
+                # l'utente vede "nessun risultato" pur avendo foto ben etichettate.
+                # Lo si segnala esplicitamente: senza questo, la causa è invisibile.
+                self.last_empty_reason = 'no_embeddings'
+                logger.warning(
+                    f"Ricerca semantica senza risultati: nessuna delle "
+                    f"{total_found_in_db} foto ha l'impronta visiva (SigLIP). "
+                    f"Installare SigLIP e rielaborare, oppure usare la ricerca per tag."
+                )
                 return [], 0
 
             logger.info(f"Embedding caricati: {len(emb_list)} su {total_found_in_db} totali")

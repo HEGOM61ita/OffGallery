@@ -336,6 +336,22 @@ class MainWindow(QMainWindow):
         user_lang = self.config.get('ui', {}).get('user_language', 'it')
         i18n_module.load_language(user_lang)
 
+        # Titoli dei riquadri: su Linux i font di sistema sono più larghi che su
+        # Windows e i titoli dei QGroupBox venivano tagliati ("Sorgente Immagi"
+        # invece di "Sorgente Immagini"). Lo stile si applica a tutti i riquadri
+        # dell'applicazione, non solo a quelli corretti singolarmente.
+        self.setStyleSheet(self.styleSheet() + """
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: 8px;
+                padding: 0 6px 0 6px;
+            }
+            QGroupBox {
+                margin-top: 10px;
+            }
+        """)
+
         # === MODELLI AI ===
         if preloaded_models is not None:
             # Modelli già inizializzati dal thread di caricamento (caso normale)
@@ -389,7 +405,17 @@ class MainWindow(QMainWindow):
 
 
         self.init_ui()
-        
+
+        # Adatta i titoli di TUTTI i riquadri dell'applicazione (~66): su Linux
+        # i font più larghi li troncavano ("Sorgente Immagi"). Fatto qui una
+        # volta sola, così vale anche per i riquadri aggiunti in futuro.
+        try:
+            from gui.ui_utils import fit_all_group_titles
+            _n = fit_all_group_titles(self)
+            logger.debug("Titoli riquadri adattati: %d", _n)
+        except Exception:
+            logger.warning("Adattamento titoli riquadri non riuscito", exc_info=True)
+
         # Ripristina geometria finestra
         self.restore_geometry()
     
