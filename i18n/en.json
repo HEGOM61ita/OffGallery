@@ -382,7 +382,7 @@
   "config.check.check_updates": "Check for updates on startup",
   "config.info.check_updates": "ℹ️ If enabled, checks for new versions on GitHub at startup",
   "update.msg.title": "Update available",
-  "update.msg.body": "Installed version: {local}\nAvailable version: {remote}\n\nTo update:\n• Windows: run update.bat\n• Linux/Mac: run ./update.sh\n• From source (git): run git pull",
+  "update.msg.body": "Installed version: {local}\nAvailable version: {remote}\n\nRecommended: open OffGallery Manager and click Update.\n\nAlternatively, from a terminal in the OffGallery folder:\n• Windows: update.bat\n• Linux/Mac: bash update.sh\n• From source (git): git pull",
   "update.msg.body_git": "Installed version: {local}\nAvailable version: {remote}\n\nTo update, run:\n  git pull",
   "update.msg.up_to_date": "OffGallery is up to date (version {local})",
   "config.msg.saved_ok_full": "Full configuration saved!",
