@@ -824,11 +824,8 @@ class EmbeddingGenerator:
                         f"sentencepiece {_vsp} non è compatibile con protobuf "
                         f"{_vpb} installata, e nemmeno la copia interna a "
                         "transformers ha funzionato. NON serve riscaricare il "
-                        "modello: reinstallare sentencepiece con "
-                        'pip install --force-reinstall --no-binary :all: '
-                        '"sentencepiece==0.2.1" '
-                        "oppure ricreare l'ambiente da OffGallery Manager "
-                        "(Ambiente Python → Ricrea)."
+                        "modello. Rimedio: OffGallery Manager → Ambiente "
+                        "Python → Ricrea."
                     )
                 elif _mancanti:
                     logger.error(
