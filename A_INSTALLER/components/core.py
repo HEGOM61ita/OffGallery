@@ -78,6 +78,35 @@ def installed_version(install_path: str) -> Optional[str]:
         return None
 
 
+def _sha_del_tag(tag: str) -> Optional[str]:
+    """SHA abbreviato del commit a cui punta un tag di release. None se offline."""
+    try:
+        import json
+        url = (f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}"
+               f"/commits/{tag}")
+        return (json.loads(download_text(url)).get("sha") or "")[:7] or None
+    except Exception:
+        return None
+
+
+def _stessa_versione(local: str, remote: str) -> bool:
+    """
+    True se le due stringhe indicano la stessa build.
+
+    Le versioni installate prima della v1.0.28 contengono lo SHA del commit
+    ("64e9555") mentre la versione remota è il tag ("v1.0.28"): un confronto
+    testuale le vede sempre diverse e propone un aggiornamento già applicato.
+    Si risolve il tag nel suo SHA e si confronta con quello.
+    """
+    if local == remote:
+        return True
+    if remote.startswith("v") and not local.startswith("v"):
+        sha = _sha_del_tag(remote)
+        if sha and (sha.startswith(local) or local.startswith(sha)):
+            return True
+    return False
+
+
 def remote_version() -> Optional[str]:
     """
     Versione disponibile su GitHub: il tag dell'ultima release (es. "v1.0.27").
@@ -119,7 +148,7 @@ def update_available(install_path: str) -> Optional[str]:
     if local is None or local in _VERSION_SEGNAPOSTO:
         return remote
 
-    return remote if remote != local else None
+    return None if _stessa_versione(local, remote) else remote
 
 
 # ---------------------------------------------------------------------------
