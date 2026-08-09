@@ -626,6 +626,13 @@ class EmbeddingGenerator:
             # vocab_file=None e solleva "expected str, bytes or os.PathLike
             # object, not NoneType" — messaggio che non lascia capire quale
             # file manchi. Controllarne la presenza permette un errore chiaro.
+            # use_fast=True su ogni AutoProcessor: il tokenizer "lento" legge
+            # spiece.model passando da sentencepiece → protobuf, catena che si
+            # rompe con TypeError "Invalid default '0.9995'" quando le due
+            # librerie provengono da canali diversi (conda vs pip) anche a
+            # parità di numero di versione. Il tokenizer veloce legge
+            # tokenizer.json, che è già nella cartella del modello e non tocca
+            # protobuf: il problema viene aggirato, non tamponato.
             _clip_richiesti = ('config.json', 'model.safetensors', 'spiece.model')
 
             def _clip_mancanti(cartella):
@@ -653,15 +660,35 @@ class EmbeddingGenerator:
                     )
                 try:
                     self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
-                    self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
+                    self.clip_processor = AutoProcessor.from_pretrained(str(clip_local), use_fast=True)
                     loaded = True
                     logger.info("[OK] SigLIP caricato da locale")
                 except Exception as e:
                     if _e_conflitto_protobuf(e):
-                        # Inutile tentare rete: fallirebbe con lo stesso errore.
-                        _conflitto = e
-                        raise
-                    logger.warning(f"SigLIP: cartella locale non valida ({e}), uso repo...")
+                        # AutoProcessor è ricaduto sul tokenizer lento nonostante
+                        # use_fast. Si assemblano i due pezzi a mano: il tokenizer
+                        # veloce legge tokenizer.json e non tocca protobuf.
+                        try:
+                            from transformers import (SiglipImageProcessor,
+                                                      SiglipProcessor,
+                                                      AutoTokenizer)
+                            _tok = AutoTokenizer.from_pretrained(
+                                str(clip_local), use_fast=True)
+                            _img = SiglipImageProcessor.from_pretrained(str(clip_local))
+                            self.clip_processor = SiglipProcessor(
+                                image_processor=_img, tokenizer=_tok)
+                            loaded = True
+                            logger.info(
+                                "[OK] SigLIP caricato da locale "
+                                "(tokenizer veloce: protobuf aggirato)")
+                        except Exception as e2:
+                            # Inutile tentare la rete: stesso errore.
+                            _conflitto = e
+                            logger.error(
+                                f"SigLIP: anche il tokenizer veloce è fallito ({e2})")
+                            raise e
+                    else:
+                        logger.warning(f"SigLIP: cartella locale non valida ({e}), uso repo...")
 
             # 2. Repo congelato: copia file per file (evita save_pretrained)
             if not loaded and frozen_repo:
@@ -689,7 +716,7 @@ class EmbeddingGenerator:
                     _mancanti = _clip_mancanti(clip_local)
                     if not _mancanti:
                         self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
-                        self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
+                        self.clip_processor = AutoProcessor.from_pretrained(str(clip_local), use_fast=True)
                         loaded = True
                         logger.info("[OK] SigLIP caricato da repo")
                     else:
@@ -712,13 +739,13 @@ class EmbeddingGenerator:
                         ignore_patterns=['*.msgpack', '*.h5', 'rust_model.ot', 'tf_model.h5', 'flax_model.msgpack']
                     )
                     self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
-                    self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
+                    self.clip_processor = AutoProcessor.from_pretrained(str(clip_local), use_fast=True)
                     logger.info(f"[OK] SigLIP caricato e salvato (fallback: {fallback_model})")
                     loaded = True
                 except Exception as fe:
                     logger.error(f"SigLIP: snapshot_download fallito ({fe}), provo from_pretrained in memoria...")
                     self.clip_model = self._model_to_device(AutoModel.from_pretrained(fallback_model), 'clip')
-                    self.clip_processor = AutoProcessor.from_pretrained(fallback_model)
+                    self.clip_processor = AutoProcessor.from_pretrained(fallback_model, use_fast=True)
                     logger.info(f"[OK] SigLIP caricato in memoria senza persistenza (fallback: {fallback_model})")
                     loaded = True
 
@@ -759,14 +786,21 @@ class EmbeddingGenerator:
                         _vsp = _sp.__version__
                     except Exception:
                         _vsp = 'sconosciuta'
+                    _ha_fast = (clip_local / 'tokenizer.json').exists()
                     logger.error(
                         "SigLIP NON disponibile: i file del modello sono a posto, "
-                        "ma due librerie Python sono incompatibili tra loro "
-                        f"(protobuf {_vpb} con sentencepiece {_vsp}). "
-                        "NON serve riscaricare il modello. "
-                        "Correggere l'ambiente con: "
-                        'pip install "protobuf==6.33.1" "sentencepiece==0.2.1" '
-                        "e riavviare OffGallery."
+                        "ma protobuf e sentencepiece non si parlano "
+                        f"(protobuf {_vpb}, sentencepiece {_vsp}). "
+                        "NON serve riscaricare il modello."
+                        + ("" if _ha_fast else
+                           " Manca tokenizer.json nella cartella del modello: "
+                           "riscaricare SigLIP da OffGallery Manager lo aggiunge "
+                           "ed evita del tutto questa libreria.")
+                        + " Se il problema persiste dopo l'aggiornamento di "
+                        "OffGallery, reinstallare le due librerie dallo stesso "
+                        "canale: "
+                        'pip install --force-reinstall "protobuf==6.33.1" '
+                        '"sentencepiece==0.2.1"'
                     )
                 elif _mancanti:
                     logger.error(
