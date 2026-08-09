@@ -642,10 +642,17 @@ class EmbeddingGenerator:
             # sentencepiece 0.2.1, entrambe da canali diversi). Reinstallarle
             # non serve: pip rimette lo stesso file.
             #
-            # import_protobuf() ha però un secondo ramo che usa una copia
-            # interna a transformers (sentencepiece_model_pb2_new), sana. Lo si
-            # forza sostituendo temporaneamente la funzione, così il tokenizer
-            # si costruisce senza toccare il modulo difettoso.
+            # transformers ne include una copia sana
+            # (transformers.utils.sentencepiece_model_pb2_new). La si mette in
+            # sys.modules SOTTO IL NOME del modulo rotto, così qualunque
+            # "from sentencepiece import sentencepiece_model_pb2" riceve quella
+            # buona: Python serve sys.modules prima di leggere dal disco.
+            #
+            # Sostituire invece convert_slow_tokenizer.import_protobuf NON basta
+            # (tentato in 4cdc8c6, fallito sui log del 09/08 h18:30):
+            # tokenization_siglip.py fa "from ...convert_slow_tokenizer import
+            # import_protobuf" in cima al file, quindi ha già la propria copia
+            # del riferimento e non vede la sostituzione.
             _bypass_attivo = False
 
             def _e_conflitto_protobuf(err):
@@ -653,17 +660,24 @@ class EmbeddingGenerator:
                 return 'descriptor pool' in _t or 'character_coverage' in _t
 
             def _carica_con_pb2_interno(percorso):
-                """Costruisce il processor forzando la copia di protobuf interna
-                a transformers. Restituisce il processor o solleva."""
-                import transformers.convert_slow_tokenizer as _cst
+                """Costruisce il processor neutralizzando il pb2 difettoso di
+                sentencepiece. Restituisce il processor o solleva."""
+                import sys as _sys
                 from transformers.utils import (
                     sentencepiece_model_pb2_new as _pb2_sano)
-                _orig = _cst.import_protobuf
-                _cst.import_protobuf = lambda *a, **k: _pb2_sano
+
+                _nome = 'sentencepiece.sentencepiece_model_pb2'
+                _prec = _sys.modules.get(_nome)
+                _sys.modules[_nome] = _pb2_sano
                 try:
                     return AutoProcessor.from_pretrained(str(percorso))
                 finally:
-                    _cst.import_protobuf = _orig
+                    # Ripristino fedele: se il modulo non era caricato va tolto,
+                    # non lasciato puntare alla copia sana.
+                    if _prec is None:
+                        _sys.modules.pop(_nome, None)
+                    else:
+                        _sys.modules[_nome] = _prec
 
             _conflitto = None
 
@@ -678,6 +692,8 @@ class EmbeddingGenerator:
                     )
                 try:
                     self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
+                    # Primo tentativo senza rete di sicurezza: se l'ambiente è
+                    # sano si carica normalmente e sys.modules resta intatto.
                     self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
                     loaded = True
                     logger.info("[OK] SigLIP caricato da locale")
