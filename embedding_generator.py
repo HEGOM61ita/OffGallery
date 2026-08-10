@@ -7,15 +7,6 @@ LLM: Qwen2-VL via Ollama per descrizioni e tag AI
 
 """
 
-# Prima di tutto il resto: sentencepiece deve registrare i propri schemi nel
-# descriptor pool di protobuf prima di argostranslate/stanza, altrimenti la
-# registrazione viene rifiutata e SigLIP non parte (vedi gui_launcher.py).
-# Ripetuto qui perché questo modulo è usabile anche senza il launcher.
-try:
-    from sentencepiece import sentencepiece_model_pb2 as _sp_pb2  # noqa: F401
-except Exception:
-    pass
-
 import logging
 import numpy as np
 from pathlib import Path
