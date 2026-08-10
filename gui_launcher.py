@@ -9,6 +9,25 @@ Download automatico modelli al primo avvio, poi modalità offline.
 import os
 import sys
 from pathlib import Path
+
+# PRIMA di qualsiasi altro import: sentencepiece deve registrare i propri
+# schemi nel descriptor pool globale di protobuf prima che lo faccia chiunque
+# altro. argostranslate → stanza carica protobuf all'avvio del traduttore; se
+# arriva per prima, la registrazione di sentencepiece viene poi rifiutata con
+#   TypeError: Couldn't build proto file into descriptor pool:
+#   Invalid default '0.9995' for field TrainerSpec.character_coverage
+# e SigLIP non parte, pur essendo installato correttamente. L'ordine è l'unica
+# cosa che cambia: lo stesso ambiente carica SigLIP senza errori se
+# sentencepiece viene importato per primo.
+# Non modifica il comportamento di protobuf né disinstalla nulla: si limita a
+# far avvenire prima una registrazione che sarebbe comunque avvenuta dopo.
+try:
+    from sentencepiece import sentencepiece_model_pb2 as _sp_pb2  # noqa: F401
+except Exception:
+    # Ambiente senza sentencepiece o già compromesso: non è un motivo per non
+    # avviare l'app — SigLIP segnalerà il problema con un messaggio chiaro.
+    pass
+
 import log_manager
 
 
