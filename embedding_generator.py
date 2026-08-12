@@ -818,14 +818,28 @@ class EmbeddingGenerator:
                         _vsp = _sp.__version__
                     except Exception:
                         _vsp = 'sconosciuta'
+                    # Il ripiego sulla copia interna a transformers qui non può
+                    # riuscire: il descriptor pool di protobuf accetta ogni
+                    # schema UNA SOLA VOLTA e non è svuotabile, quindi a pb2
+                    # difettoso già caricato risponde "duplicate file name
+                    # sentencepiece_model.proto" (osservato sull'ambiente di
+                    # Sergio, rapporto del 2026-08-12). Non va quindi citato
+                    # come tentativo fallito: confonde e basta.
+                    #
+                    # Il rimedio da suggerire per primo è ricompilare
+                    # sentencepiece: le ruote precompilate portano un
+                    # sentencepiece_model_pb2 generato da un protoc che può non
+                    # accordarsi con la protobuf presente.
                     logger.error(
-                        "SigLIP NON disponibile: i file del modello sono a posto. "
-                        "Il modulo sentencepiece_model_pb2 del pacchetto "
-                        f"sentencepiece {_vsp} non è compatibile con protobuf "
-                        f"{_vpb} installata, e nemmeno la copia interna a "
-                        "transformers ha funzionato. NON serve riscaricare il "
-                        "modello. Rimedio: OffGallery Manager → Ambiente "
-                        "Python → Ricrea."
+                        "SigLIP NON disponibile: i file del modello sono a "
+                        "posto, NON serve riscaricarlo. Il modulo "
+                        f"sentencepiece_model_pb2 di sentencepiece {_vsp} non è "
+                        f"compatibile con protobuf {_vpb}. "
+                        "Rimedio (da terminale, con l'ambiente di OffGallery "
+                        f'attivo): pip install --force-reinstall --no-binary :all: "sentencepiece=={_vsp}" '
+                        "— ricompila il modulo sul posto e di norma risolve. "
+                        "Se non basta: OffGallery Manager → Ambiente Python → "
+                        "Ricrea."
                     )
                 elif _mancanti:
                     logger.error(
