@@ -653,31 +653,59 @@ class EmbeddingGenerator:
             # tokenization_siglip.py fa "from ...convert_slow_tokenizer import
             # import_protobuf" in cima al file, quindi ha già la propria copia
             # del riferimento e non vede la sostituzione.
-            _bypass_attivo = False
-
             def _e_conflitto_protobuf(err):
                 _t = str(err)
                 return 'descriptor pool' in _t or 'character_coverage' in _t
 
-            def _carica_con_pb2_interno(percorso):
-                """Costruisce il processor neutralizzando il pb2 difettoso di
-                sentencepiece. Restituisce il processor o solleva."""
-                import sys as _sys
-                from transformers.utils import (
-                    sentencepiece_model_pb2_new as _pb2_sano)
+            def _prepara_pb2_sano():
+                """Mette la copia protobuf di transformers al posto di quella di
+                sentencepiece PRIMA di ogni tentativo di caricamento.
 
+                Va fatto in anticipo, non come ripiego dopo un errore: protobuf
+                tiene un registro globale degli schemi (il "descriptor pool") che
+                accetta ogni schema UNA SOLA VOLTA e non è svuotabile. Se il file
+                difettoso di sentencepiece viene eseguito per primo, lo schema
+                sentencepiece_model.proto resta occupato e ogni tentativo
+                successivo fallisce comunque — la copia sana riceve
+                "duplicate file name" oppure ripropone l'errore originale
+                "Invalid default '0.9995'". È quello che accadeva col ripiego a
+                posteriori (rapporto di Sergio del 12/08/2026: il traceback parte
+                da sentencepiece_model_pb2_new.py, cioè fallisce già all'import
+                della copia sana).
+
+                Registrandola in sys.modules prima, il file rotto non viene mai
+                eseguito: transformers.convert_slow_tokenizer.import_protobuf()
+                fa "from sentencepiece import sentencepiece_model_pb2" e Python
+                serve sys.modules senza leggere dal disco.
+
+                Ritorna True se la copia sana è stata installata.
+                """
+                import sys as _sys
                 _nome = 'sentencepiece.sentencepiece_model_pb2'
-                _prec = _sys.modules.get(_nome)
-                _sys.modules[_nome] = _pb2_sano
+                if _nome in _sys.modules:
+                    # Già caricato (sano o rotto): non c'è più nulla da fare,
+                    # il pool ha già registrato lo schema.
+                    return False
                 try:
-                    return AutoProcessor.from_pretrained(str(percorso))
-                finally:
-                    # Ripristino fedele: se il modulo non era caricato va tolto,
-                    # non lasciato puntare alla copia sana.
-                    if _prec is None:
-                        _sys.modules.pop(_nome, None)
-                    else:
-                        _sys.modules[_nome] = _prec
+                    from transformers.utils import (
+                        sentencepiece_model_pb2_new as _pb2_sano)
+                except Exception as _e:
+                    logger.debug(
+                        "SigLIP: copia protobuf interna a transformers non "
+                        "disponibile (%s) — si procede con quella di "
+                        "sentencepiece.", _e)
+                    return False
+                _sys.modules[_nome] = _pb2_sano
+                return True
+
+            # Preventivo: se l'ambiente è sano non cambia nulla (la copia di
+            # transformers descrive lo stesso schema), se è difettoso evita
+            # l'errore invece di doverlo rimediare quando è troppo tardi.
+            if _prepara_pb2_sano():
+                logger.debug(
+                    "SigLIP: in uso la copia protobuf interna a transformers "
+                    "per leggere spiece.model (previene il conflitto con "
+                    "sentencepiece_model_pb2).")
 
             _conflitto = None
 
@@ -699,22 +727,12 @@ class EmbeddingGenerator:
                     logger.info("[OK] SigLIP caricato da locale")
                 except Exception as e:
                     if _e_conflitto_protobuf(e):
-                        # sentencepiece_model_pb2 difettoso: si riprova con la
-                        # copia interna a transformers.
-                        try:
-                            self.clip_processor = _carica_con_pb2_interno(clip_local)
-                            loaded = True
-                            _bypass_attivo = True
-                            logger.info(
-                                "[OK] SigLIP caricato da locale (usata la copia "
-                                "protobuf interna a transformers: il modulo di "
-                                "sentencepiece è difettoso)")
-                        except Exception as e2:
-                            # Inutile tentare la rete: stesso errore.
-                            _conflitto = e
-                            logger.error(
-                                f"SigLIP: fallito anche con protobuf interno ({e2})")
-                            raise e
+                        # Qui il bypass preventivo non ha potuto agire (schema
+                        # già registrato da un import precedente) oppure non è
+                        # bastato: non c'è un secondo tentativo possibile, il
+                        # descriptor pool non si svuota. Si riporta l'errore.
+                        _conflitto = e
+                        raise e
                     else:
                         logger.warning(f"SigLIP: cartella locale non valida ({e}), uso repo...")
 
@@ -744,9 +762,8 @@ class EmbeddingGenerator:
                     _mancanti = _clip_mancanti(clip_local)
                     if not _mancanti:
                         self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
-                        self.clip_processor = (_carica_con_pb2_interno(clip_local)
-                                               if _bypass_attivo else
-                                               AutoProcessor.from_pretrained(str(clip_local)))
+                        # Il bypass protobuf è già attivo da _prepara_pb2_sano().
+                        self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
                         loaded = True
                         logger.info("[OK] SigLIP caricato da repo")
                     else:
@@ -769,9 +786,8 @@ class EmbeddingGenerator:
                         ignore_patterns=['*.msgpack', '*.h5', 'rust_model.ot', 'tf_model.h5', 'flax_model.msgpack']
                     )
                     self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
-                    self.clip_processor = (_carica_con_pb2_interno(clip_local)
-                                               if _bypass_attivo else
-                                               AutoProcessor.from_pretrained(str(clip_local)))
+                    # Il bypass protobuf è già attivo da _prepara_pb2_sano().
+                    self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
                     logger.info(f"[OK] SigLIP caricato e salvato (fallback: {fallback_model})")
                     loaded = True
                 except Exception as fe:
@@ -834,12 +850,13 @@ class EmbeddingGenerator:
                         "SigLIP NON disponibile: i file del modello sono a "
                         "posto, NON serve riscaricarlo. Il modulo "
                         f"sentencepiece_model_pb2 di sentencepiece {_vsp} non è "
-                        f"compatibile con protobuf {_vpb}. "
-                        "Rimedio (da terminale, con l'ambiente di OffGallery "
-                        f'attivo): pip install --force-reinstall --no-binary :all: "sentencepiece=={_vsp}" '
-                        "— ricompila il modulo sul posto e di norma risolve. "
-                        "Se non basta: OffGallery Manager → Ambiente Python → "
-                        "Ricrea."
+                        f"compatibile con protobuf {_vpb}, e lo schema risulta "
+                        "già registrato da un altro modulo caricato prima di "
+                        "SigLIP: in quel caso non è più rimediabile a caldo "
+                        "(protobuf accetta ogni schema una sola volta per "
+                        "processo). Rimedio: OffGallery Manager → Ambiente "
+                        "Python → Ricrea, che reinstalla le versioni "
+                        "verificate. Riavviare poi OffGallery."
                     )
                 elif _mancanti:
                     logger.error(
