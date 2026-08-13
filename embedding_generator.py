@@ -842,21 +842,32 @@ class EmbeddingGenerator:
                     # Sergio, rapporto del 2026-08-12). Non va quindi citato
                     # come tentativo fallito: confonde e basta.
                     #
-                    # Il rimedio da suggerire per primo è ricompilare
-                    # sentencepiece: le ruote precompilate portano un
-                    # sentencepiece_model_pb2 generato da un protoc che può non
-                    # accordarsi con la protobuf presente.
+                    # Il caso di Sergio (12-13/08/2026) si è risolto ricreando
+                    # l'ambiente Python dal Manager: il binario protobuf è stato
+                    # sostituito (_message.cpython-312-*.so -> _message.abi3.so)
+                    # e dopo la sostituzione SigLIP carica con ENTRAMBI i motori,
+                    # 'upb' e 'python' (diagnostica_siglip.py del 13/08). Quindi
+                    # era un file danneggiato o mal accoppiato, non il motore in
+                    # sé e non le versioni. Non si nomina più un colpevole che
+                    # non è dimostrato: si dice cosa ha funzionato davvero e si
+                    # rimanda allo script che misura.
+                    try:
+                        from google.protobuf.internal import api_implementation
+                        _impl = api_implementation.Type()
+                    except Exception:
+                        _impl = 'sconosciuta'
                     logger.error(
                         "SigLIP NON disponibile: i file del modello sono a "
-                        "posto, NON serve riscaricarlo. Il modulo "
-                        f"sentencepiece_model_pb2 di sentencepiece {_vsp} non è "
-                        f"compatibile con protobuf {_vpb}, e lo schema risulta "
-                        "già registrato da un altro modulo caricato prima di "
-                        "SigLIP: in quel caso non è più rimediabile a caldo "
-                        "(protobuf accetta ogni schema una sola volta per "
-                        "processo). Rimedio: OffGallery Manager → Ambiente "
-                        "Python → Ricrea, che reinstalla le versioni "
-                        "verificate. Riavviare poi OffGallery."
+                        "posto, NON serve riscaricarlo, e le versioni "
+                        f"installate (protobuf {_vpb}, sentencepiece {_vsp}, "
+                        f"motore '{_impl}') sono quelle previste. Il difetto è "
+                        "nell'installazione di protobuf, che legge male i valori "
+                        "decimali dello schema di sentencepiece. Rimedio che ha "
+                        "funzionato in un caso reale: OffGallery Manager → "
+                        "Ambiente Python → Ricrea, POI riavviare OffGallery (la "
+                        "sostituzione del file difettoso ha effetto solo al "
+                        "riavvio successivo). Per capire cosa sta succedendo "
+                        "prima di reinstallare: python diagnostica_siglip.py"
                     )
                 elif _mancanti:
                     logger.error(
