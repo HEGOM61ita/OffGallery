@@ -52,11 +52,25 @@ def logo_path() -> str:
     return os.path.join(base, "assets", "logo_header.png")
 
 
-def _center_window(win: tk.Tk, w: int, h: int):
+def _center_window(win: tk.Tk, w: int, h: int) -> int:
+    """Centra la finestra, riducendone l'altezza se lo schermo non la contiene.
+
+    Su Linux i caratteri di sistema sono mediamente più grandi che su Windows,
+    quindi le stesse righe occupano più spazio in verticale: con un'altezza
+    fissa l'ultima sezione della dashboard (riga Ollama e il suo pulsante)
+    finiva tagliata dal bordo inferiore — segnalato su Linux Mint, 13/08/2026.
+    Si tiene un margine per barra delle applicazioni e decorazioni della
+    finestra, che qui non sono misurabili in modo affidabile.
+
+    Ritorna l'altezza effettivamente usata, così il chiamante può regolare di
+    conseguenza l'altezza minima.
+    """
     win.update_idletasks()
+    h = min(h, int(win.winfo_screenheight() * 0.85))
     x = (win.winfo_screenwidth()  - w) // 2
     y = (win.winfo_screenheight() - h) // 2
     win.geometry(f"{w}x{h}+{x}+{y}")
+    return h
 
 
 # ---------------------------------------------------------------------------
@@ -79,9 +93,14 @@ class AppWindow:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("OffGallery Manager")
-        self.root.geometry("780x680")
-        self.root.resizable(False, False)
-        _center_window(self.root, 780, 680)
+        # Ridimensionabile: se il contenuto non entra (caratteri di sistema più
+        # grandi, tema con più spaziatura) l'utente può allargare la finestra
+        # invece di trovarsi un pulsante tagliato a metà e nessun rimedio.
+        self.root.resizable(True, True)
+        _h = _center_window(self.root, 780, 680)
+        # L'altezza minima non deve superare quella concessa dallo schermo,
+        # altrimenti su schermi bassi la finestra tornerebbe a sforare.
+        self.root.minsize(780, min(560, _h))
 
         # Stato condiviso fra le pagine
         self.profile:          str               = "leggero"
