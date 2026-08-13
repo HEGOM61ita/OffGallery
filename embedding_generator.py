@@ -92,8 +92,15 @@ class EmbeddingGenerator:
         if self.embedding_config.get('translation', {}).get('enabled', True):
             self._init_translator()
 
-        # Traduttore EN → lingua contenuti (per ricerca tag)
-        self._tag_lang = self.config.get('ui', {}).get('llm_output_language', 'it')
+        # Traduttore lingua query → lingua contenuti (per ricerca tag).
+        # Sono due impostazioni distinte: la lingua in cui l'utente SCRIVE le
+        # ricerche e quella in cui l'LLM ha SCRITTO tag e descrizioni. Non si
+        # deducono l'una dall'altra né dalla lingua dell'interfaccia: chi ha la
+        # GUI in italiano può benissimo cercare in inglese.
+        _ui = self.config.get('ui', {})
+        self._tag_lang = _ui.get('llm_output_language', 'it')
+        self._query_lang = _ui.get('query_language', _ui.get('user_language', 'it'))
+        self._translate_query = _ui.get('translate_query', True)
         self._tag_translator_ready = False
         self._init_tag_translator()
 
@@ -457,101 +464,133 @@ class EmbeddingGenerator:
             logger.warning("Argostranslate non disponibile - traduzioni disabilitate")
             self.translator = None
 
+    def _tag_translation_path(self):
+        """Percorso di traduzione da lingua query a lingua tag, come lista di
+        coppie da applicare in sequenza.
+
+        I pacchetti Argos formano una stella centrata sull'inglese: esistono
+        en→X e X→en per 49 lingue, ma quasi nessuna coppia diretta fra due
+        lingue non inglesi (verificato sull'indice ufficiale: solo es↔pt). E il
+        pivot NON è automatico — chiedere it→fr con i soli pacchetti it→en ed
+        en→fr installati solleva un errore invece di concatenarli.
+
+        Ritorna [] se non serve tradurre (lingue uguali).
+        """
+        src, dst = self._query_lang, self._tag_lang
+        if src == dst:
+            return []
+        if src == 'en' or dst == 'en':
+            return [(src, dst)]
+        return [(src, 'en'), ('en', dst)]
+
     def _init_tag_translator(self):
-        """Verifica/installa pacchetto Argos EN→lingua_contenuti per ricerca tag.
-        Chiamato a startup: stesso pattern di _init_translator, nessun side effect a runtime."""
-        if self._tag_lang == 'en':
-            # I tag sono in inglese: nessuna traduzione necessaria
+        """Verifica che i pacchetti Argos per il percorso query→tag siano già
+        installati. Chiamato a startup.
+
+        Nessun download a runtime: OffGallery deve funzionare offline e un
+        pacchetto pesa ~100 MB. Se manca, la ricerca usa la query originale e
+        lo si scrive nel log — meglio nessuna traduzione che una sbagliata.
+        """
+        if not self._translate_query:
+            logger.info("Traduzione query per ricerca tag disattivata da configurazione")
+            return
+
+        percorso = self._tag_translation_path()
+        if not percorso:
+            # Query e tag nella stessa lingua: non c'è nulla da tradurre.
+            # È il caso più comune, ed è anche quello che prima produceva
+            # spazzatura (si traduceva it→it presumendo un ingresso inglese).
             self._tag_translator_ready = True
+            logger.info(
+                f"Ricerca tag: query e contenuti in '{self._tag_lang}', "
+                f"nessuna traduzione necessaria"
+            )
             return
 
         try:
             import argostranslate.package
-            import argostranslate.translate
-            import logging
-            logging.getLogger('argostranslate.utils').setLevel(logging.WARNING)
+            import logging as _logging
+            _logging.getLogger('argostranslate.utils').setLevel(_logging.WARNING)
 
-            # Verifica se il pacchetto EN→X è già installato
             try:
                 installed = argostranslate.package.get_installed_packages()
             except Exception:
                 installed = []
 
-            has_pkg = any(
-                p.from_code == 'en' and p.to_code == self._tag_lang
-                for p in installed
-            )
+            coppie_installate = {(p.from_code, p.to_code) for p in installed}
+            mancanti = [c for c in percorso if c not in coppie_installate]
 
-            if has_pkg:
+            if not mancanti:
                 self._tag_translator_ready = True
-                logger.info(f"[OK] Traduttore EN→{self._tag_lang} disponibile per ricerca tag")
+                _descr = " → ".join([percorso[0][0]] + [d for _, d in percorso])
+                logger.info(f"[OK] Traduttore ricerca tag disponibile ({_descr})")
                 return
 
-            # Pacchetto non installato: tenta download dall'indice ufficiale Argos
+            _elenco = ", ".join(f"{a}→{b}" for a, b in mancanti)
             logger.warning(
-                f"⚠️ Pacchetto traduzione EN→{self._tag_lang} non installato. "
-                f"Tentativo download in corso..."
+                f"⚠️ Ricerca tag senza traduzione: manca il pacchetto {_elenco}. "
+                f"Le ricerche useranno la query così com'è scritta "
+                f"({self._query_lang}), mentre tag e descrizioni sono in "
+                f"'{self._tag_lang}'. Per tradurre, scaricare il pacchetto "
+                f"lingua da OffGallery Manager."
             )
-            try:
-                argostranslate.package.update_package_index()
-                available = argostranslate.package.get_available_packages()
-                pkg = next(
-                    (p for p in available
-                     if p.from_code == 'en' and p.to_code == self._tag_lang),
-                    None
-                )
-                if pkg:
-                    download_path = pkg.download()
-                    argostranslate.package.install_from_path(download_path)
-                    self._tag_translator_ready = True
-                    logger.info(f"[OK] Pacchetto EN→{self._tag_lang} installato — ricerca tag attiva")
-                else:
-                    logger.warning(
-                        f"⚠️ Pacchetto EN→{self._tag_lang} non trovato nell'indice Argos. "
-                        f"La ricerca tag userà la query in inglese (risultati parziali possibili)."
-                    )
-            except Exception as e:
-                logger.warning(
-                    f"⚠️ Download EN→{self._tag_lang} fallito ({e}). "
-                    f"La ricerca tag userà la query in inglese (risultati parziali possibili)."
-                )
 
         except ImportError:
             logger.warning("Argostranslate non disponibile — ricerca tag senza traduzione")
 
-    def _translate_to_tag_language(self, text_en: str) -> str:
-        """Traduce la query EN nella lingua dei contenuti per il matching tag.
-        Ritorna il testo originale se la traduzione non è disponibile."""
-        if self._tag_lang == 'en' or not self._tag_translator_ready:
-            return text_en
+    def _translate_to_tag_language(self, query_text: str) -> str:
+        """Traduce la query dalla lingua in cui l'utente scrive a quella di tag
+        e descrizioni, per il matching testuale. Ritorna il testo originale se
+        la traduzione non serve o non è disponibile.
+
+        La versione precedente traduceva sempre 'en'→lingua_tag presumendo che
+        la query fosse inglese: era l'eredità della pipeline CLIP, dove la query
+        veniva prima tradotta in inglese. Con SigLIP quel passaggio non c'è più
+        e la query arriva nella lingua dell'utente, così il modello riceveva
+        italiano dichiarandolo inglese. Argos in quel caso non si rifiuta:
+        "traduce" comunque e restituisce la frase italiana più simile per
+        suono, pescata dai testi web su cui è addestrato. Da qui
+        'uccello'→'Suggerimento', 'folaga'→'Condividi su Google',
+        'uccellino su ramo'→'Condividi su Twitter' (log di Sergio, 13/08/2026).
+
+        Nella direzione corretta lo stesso modello funziona bene:
+        'uccello'→'bird', "airone nell'erba alta"→'heron in the tall grass'.
+        """
+        if not self._translate_query or not self._tag_translator_ready:
+            return query_text
+
+        percorso = self._tag_translation_path()
+        if not percorso:
+            return query_text
+
         try:
             import argostranslate.translate
-            if ',' in text_en:
-                parts = [p.strip() for p in text_en.split(',')]
-                translated = [argostranslate.translate.translate(p, 'en', self._tag_lang) for p in parts if p]
-                result = ', '.join(translated)
+
+            def _traduci(testo: str) -> str:
+                # Il pivot va concatenato a mano: Argos non lo fa da sé.
+                for src, dst in percorso:
+                    testo = argostranslate.translate.translate(testo, src, dst)
+                return testo
+
+            if ',' in query_text:
+                parts = [p.strip() for p in query_text.split(',')]
+                result = ', '.join(_traduci(p) for p in parts if p)
             else:
-                result = argostranslate.translate.translate(text_en, 'en', self._tag_lang)
+                result = _traduci(query_text)
 
-            # Controllo di plausibilità: se il testo in ingresso è GIÀ nella lingua
-            # dei tag, il modello EN→xx produce spazzatura anziché rifiutarsi.
-            # Misurato su argostranslate EN→IT: "folaga" → "Condividi su Google",
-            # "gabbiano" → "Non lo so.", "farfalla" → "in un paese".
-            # Una traduzione con molte più parole dell'originale è quindi da buttare.
-            if result:
-                parole_in = len(str(text_en).split())
-                parole_out = len(str(result).split())
-                if parole_out > parole_in + 1:
-                    logger.debug(
-                        f"Traduzione scartata (probabile rumore): '{text_en}' → '{result}'"
-                    )
-                    return text_en
+            if not result or not str(result).strip():
+                return query_text
 
-            logger.debug(f"Tag query: '{text_en}' → '{result}' ({self._tag_lang})")
+            logger.debug(
+                f"Tag query: '{query_text}' ({self._query_lang}) → "
+                f"'{result}' ({self._tag_lang})"
+            )
             return result
         except Exception as e:
-            logger.debug(f"Traduzione EN→{self._tag_lang} fallita: {e}")
-            return text_en
+            logger.debug(
+                f"Traduzione {self._query_lang}→{self._tag_lang} fallita: {e}"
+            )
+            return query_text
 
     def _get_models_dir(self) -> Path:
         """Restituisce il percorso assoluto della directory modelli dal config."""

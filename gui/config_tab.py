@@ -1351,6 +1351,29 @@ class ConfigTab(QWidget):
         self.llm_output_lang_combo.setToolTip(t("config.tooltip.llm_output_lang"))
         adv_layout.addWidget(self.llm_output_lang_combo, 2, 1, 1, 2)
 
+        # Lingua delle ricerche: distinta sia dall'interfaccia sia dall'output
+        # LLM. Non si deduce dal testo digitato — il rilevamento automatico su
+        # query di una o due parole sbaglia troppo (misurato: "farfalla"→gallese,
+        # "bird"→turco, "rapace"→rumeno, con confidenza 1.00 sugli errori).
+        adv_layout.addWidget(QLabel(t("config.label.query_lang")), 2, 3)
+        self.query_lang_combo = NoWheelComboBox()
+        for code, label in [
+            ("it", "🇮🇹 Italiano"),
+            ("en", "🇬🇧 English"),
+            ("fr", "🇫🇷 Français"),
+            ("de", "🇩🇪 Deutsch"),
+            ("es", "🇪🇸 Español"),
+            ("pt", "🇵🇹 Português"),
+        ]:
+            self.query_lang_combo.addItem(label, code)
+        self.query_lang_combo.setToolTip(t("config.tooltip.query_lang"))
+        adv_layout.addWidget(self.query_lang_combo, 2, 4)
+
+        self.translate_query_check = QCheckBox(t("config.check.translate_query"))
+        self.translate_query_check.setChecked(True)
+        self.translate_query_check.setToolTip(t("config.tooltip.translate_query"))
+        adv_layout.addWidget(self.translate_query_check, 2, 5)
+
         layout.addLayout(adv_layout)
         group_box.setLayout(layout)
         return group_box
@@ -1884,10 +1907,19 @@ class ConfigTab(QWidget):
             self._load_llm_models()
 
             # Lingua output LLM
-            llm_lang = self.config.get('ui', {}).get('llm_output_language', 'it')
+            _ui_cfg = self.config.get('ui', {})
+            llm_lang = _ui_cfg.get('llm_output_language', 'it')
             idx = self.llm_output_lang_combo.findData(llm_lang)
             if idx >= 0:
                 self.llm_output_lang_combo.setCurrentIndex(idx)
+
+            # Lingua delle ricerche (default: lingua interfaccia, non quella dei tag)
+            query_lang = _ui_cfg.get('query_language', _ui_cfg.get('user_language', 'it'))
+            idx_q = self.query_lang_combo.findData(query_lang)
+            if idx_q >= 0:
+                self.query_lang_combo.setCurrentIndex(idx_q)
+
+            self.translate_query_check.setChecked(_ui_cfg.get('translate_query', True))
 
             # Parametri generation LLM
             gen_params = llm.get('generation', {})
@@ -2241,10 +2273,12 @@ class ConfigTab(QWidget):
                 'check_on_startup': self.check_updates_checkbox.isChecked()
             }
 
-            # UI (preserva user_language, aggiorna llm_output_language)
+            # UI (preserva user_language, aggiorna le lingue gestite qui)
             if 'ui' not in self.config:
                 self.config['ui'] = {}
             self.config['ui']['llm_output_language'] = self.llm_output_lang_combo.currentData()
+            self.config['ui']['query_language'] = self.query_lang_combo.currentData()
+            self.config['ui']['translate_query'] = self.translate_query_check.isChecked()
             
             # PRESERVA tutte le altre sezioni esistenti non gestite dall'UI
             
