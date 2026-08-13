@@ -514,16 +514,30 @@ class DatabaseManager:
             return None
     
     def get_image_by_filepath(self, filepath):
-        """Recupera record immagine per filepath completo"""
+        """Recupera record immagine per filepath completo.
+
+        Come filepath_exists, ripiega sulla forma risolta del percorso: senza,
+        su unità di rete mappate il record esiste ma non viene trovato.
+        """
         try:
             self.cursor.execute("SELECT * FROM images WHERE filepath = ?", (str(filepath),))
             result = self.cursor.fetchone()
-            
+
+            if result is None:
+                try:
+                    risolto = str(Path(str(filepath)).resolve())
+                except Exception:
+                    risolto = str(filepath)
+                if risolto != str(filepath):
+                    self.cursor.execute(
+                        "SELECT * FROM images WHERE filepath = ?", (risolto,))
+                    result = self.cursor.fetchone()
+
             if result:
                 columns = [description[0] for description in self.cursor.description]
                 return dict(zip(columns, result))
             return None
-            
+
         except Exception as e:
             logger.error(f"Errore get_image_by_filepath: {e}")
             return None
@@ -539,13 +553,73 @@ class DatabaseManager:
             logger.error(f"Errore image_exists: {e}")
             return False
 
+    @staticmethod
+    def _norm_path(filepath) -> str:
+        """Forma canonica di un percorso per confronti fra DB e disco.
+
+        Serve perché la stessa immagine può presentarsi con scritture diverse:
+        separatori '\\' o '/', maiuscole/minuscole (su Windows il filesystem non
+        le distingue), e soprattutto unità di rete mappate — 'Z:\\Foto\\x.jpg' e
+        '\\\\NAS\\Foto\\x.jpg' sono lo stesso file. Un confronto testuale grezzo
+        le vede diverse e fa risultare "nuove" immagini già catalogate.
+        """
+        s = str(filepath).replace('\\', '/').rstrip('/')
+        return s.lower()
+
     def filepath_exists(self, filepath: str) -> bool:
-        """Verifica se un'immagine con questo filepath è già presente nel DB."""
+        """Verifica se un'immagine con questo filepath è già presente nel DB.
+
+        Confronta prima per uguaglianza esatta (indicizzata, il caso normale) e
+        solo in caso di esito negativo ripiega su un confronto normalizzato.
+        Il ripiego serve ai percorsi di rete: la scrittura usa
+        image_path.resolve(), che su un'unità mappata restituisce la forma UNC
+        del server, mentre la ricerca riceve il percorso come l'utente l'ha
+        scelto (Z:\\...). Le due stringhe non coincidono e la modalità
+        "Solo nuove immagini" rielaborava l'intera cartella — segnalato da Raul
+        il 13/08/2026 su Z:\\ben_Foto\\Farfalle\\edit: 31 immagini rielaborate
+        invece di 5, mentre i plugin ne vedevano correttamente 5.
+        """
         if not filepath:
             return False
         try:
             self.cursor.execute("SELECT id FROM images WHERE filepath = ?", (str(filepath),))
-            return self.cursor.fetchone() is not None
+            if self.cursor.fetchone() is not None:
+                return True
+
+            # Secondo tentativo: stessa trasformazione usata in scrittura.
+            # È questa a coprire le unità di rete mappate, dove resolve()
+            # converte 'Z:\\...' nella forma UNC '\\\\NAS\\...' che sta nel DB.
+            try:
+                risolto = str(Path(str(filepath)).resolve())
+            except Exception:
+                risolto = str(filepath)
+            if risolto != str(filepath):
+                self.cursor.execute(
+                    "SELECT id FROM images WHERE filepath = ?", (risolto,))
+                if self.cursor.fetchone() is not None:
+                    return True
+
+            # Terzo tentativo: confronto sulla forma canonica, ristretto alle
+            # righe con lo stesso nome file — così si copre anche il caso
+            # inverso (DB scritto con la lettera di unità, ricerca in UNC) e le
+            # differenze di separatori o maiuscole, senza scandire la tabella.
+            nome = Path(str(filepath)).name
+            if not nome:
+                return False
+            # COLLATE NOCASE: su Windows il filesystem non distingue le
+            # maiuscole, quindi 'P5070221.JPG' e 'p5070221.jpg' sono lo stesso
+            # file e devono entrambi entrare fra i candidati.
+            self.cursor.execute(
+                "SELECT filepath FROM images WHERE filename = ? COLLATE NOCASE",
+                (nome,))
+            righe = self.cursor.fetchall()
+            if not righe:
+                return False
+            attesi = {self._norm_path(filepath), self._norm_path(risolto)}
+            for (fp_db,) in righe:
+                if fp_db and self._norm_path(fp_db) in attesi:
+                    return True
+            return False
         except Exception as e:
             logger.error(f"Errore filepath_exists: {e}")
             return False
@@ -594,9 +668,23 @@ class DatabaseManager:
         fpaths_list = list(filepaths)
         result = {}
 
+        # Su unità di rete mappate il DB contiene la forma risolta (UNC) mentre
+        # qui arrivano i percorsi come li vede l'utente (Z:\...): si interroga
+        # con entrambe le scritture e si riporta il risultato sulla chiave
+        # originale, che è quella con cui il chiamante farà il confronto.
+        _orig_per_risolto = {}
+        for _p in fpaths_list:
+            try:
+                _r = str(Path(str(_p)).resolve())
+            except Exception:
+                _r = str(_p)
+            if _r != str(_p):
+                _orig_per_risolto[_r] = str(_p)
+
         try:
-            for i in range(0, len(fpaths_list), 500):
-                batch = fpaths_list[i:i + 500]
+            _da_cercare = fpaths_list + list(_orig_per_risolto.keys())
+            for i in range(0, len(_da_cercare), 500):
+                batch = _da_cercare[i:i + 500]
                 placeholders = ','.join('?' * len(batch))
                 if valid_fields:
                     cols = ', '.join(valid_fields)
@@ -605,7 +693,7 @@ class DatabaseManager:
                         batch
                     ).fetchall()
                     for row in rows:
-                        fpath = row[0]
+                        fpath = _orig_per_risolto.get(row[0], row[0])
                         presence = {}
                         for j, field in enumerate(valid_fields):
                             val = row[j + 1]
@@ -617,7 +705,7 @@ class DatabaseManager:
                         batch
                     ).fetchall()
                     for row in rows:
-                        result[row[0]] = {}
+                        result[_orig_per_risolto.get(row[0], row[0])] = {}
         except Exception as e:
             logger.error(f"Errore get_fields_presence_bulk: {e}")
             return {}
@@ -628,14 +716,13 @@ class DatabaseManager:
         if not filepath:
             return False
         try:
-            self.cursor.execute(
-                "SELECT success, error_message FROM images WHERE filepath = ?", (str(filepath),)
-            )
-            row = self.cursor.fetchone()
+            # Passa da get_image_by_filepath per avere lo stesso ripiego sui
+            # percorsi di rete: con la query diretta, su unità mappate il record
+            # non veniva trovato e gli errori precedenti risultavano assenti.
+            row = self.get_image_by_filepath(filepath)
             if row is None:
                 return False
-            success, error_message = row
-            return (success == 0) or bool(error_message)
+            return (row.get('success') == 0) or bool(row.get('error_message'))
         except Exception as e:
             logger.error(f"Errore had_processing_errors: {e}")
             return False
