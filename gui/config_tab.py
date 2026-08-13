@@ -1369,10 +1369,14 @@ class ConfigTab(QWidget):
         self.query_lang_combo.setToolTip(t("config.tooltip.query_lang"))
         adv_layout.addWidget(self.query_lang_combo, 2, 4)
 
+        # Riga propria e tre colonne: l'etichetta è una frase intera (~48
+        # caratteri in italiano, 55 in inglese) e in una colonna sola verrebbe
+        # tagliata, soprattutto su Linux dove i caratteri di sistema sono più
+        # grandi.
         self.translate_query_check = QCheckBox(t("config.check.translate_query"))
         self.translate_query_check.setChecked(True)
         self.translate_query_check.setToolTip(t("config.tooltip.translate_query"))
-        adv_layout.addWidget(self.translate_query_check, 2, 5)
+        adv_layout.addWidget(self.translate_query_check, 3, 0, 1, 3)
 
         # Nella grande maggioranza dei casi si cerca nella stessa lingua in cui
         # sono scritti i tag: cambiando la lingua dell'output AI si allinea
