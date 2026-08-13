@@ -97,9 +97,16 @@ class EmbeddingGenerator:
         # ricerche e quella in cui l'LLM ha SCRITTO tag e descrizioni. Non si
         # deducono l'una dall'altra né dalla lingua dell'interfaccia: chi ha la
         # GUI in italiano può benissimo cercare in inglese.
+        # Retrocompatibilità: nei config esistenti query_language non c'è. Si
+        # ripiega sulla lingua dei TAG, non su quella dell'interfaccia, così chi
+        # sta già lavorando non si ritrova la traduzione accesa a sua insaputa —
+        # con GUI in italiano e tag in inglese il ripiego sull'interfaccia
+        # avrebbe iniziato a tradurre senza che nessuno l'abbia chiesto, per
+        # giunta senza il pacchetto installato. Lingue uguali = nessuna
+        # traduzione = comportamento identico a prima.
         _ui = self.config.get('ui', {})
         self._tag_lang = _ui.get('llm_output_language', 'it')
-        self._query_lang = _ui.get('query_language', _ui.get('user_language', 'it'))
+        self._query_lang = _ui.get('query_language', self._tag_lang)
         self._translate_query = _ui.get('translate_query', True)
         self._tag_translator_ready = False
         self._init_tag_translator()

@@ -1374,9 +1374,35 @@ class ConfigTab(QWidget):
         self.translate_query_check.setToolTip(t("config.tooltip.translate_query"))
         adv_layout.addWidget(self.translate_query_check, 2, 5)
 
+        # Nella grande maggioranza dei casi si cerca nella stessa lingua in cui
+        # sono scritti i tag: cambiando la lingua dell'output AI si allinea
+        # anche quella delle ricerche, così l'impostazione normale non richiede
+        # né una seconda scelta né alcun pacchetto di traduzione. Chi le vuole
+        # diverse (catalogo ereditato con tag in un'altra lingua) modifica la
+        # tendina subito dopo, e la scelta manuale non viene più sovrascritta.
+        self._query_lang_toccata = False
+        self.query_lang_combo.activated.connect(
+            lambda _idx: setattr(self, '_query_lang_toccata', True))
+        self.llm_output_lang_combo.currentIndexChanged.connect(
+            self._on_llm_output_lang_changed)
+
         layout.addLayout(adv_layout)
         group_box.setLayout(layout)
         return group_box
+
+    def _on_llm_output_lang_changed(self, _idx: int):
+        """Allinea la lingua delle ricerche a quella dell'output AI.
+
+        Si ferma se l'utente ha già scelto a mano la lingua delle ricerche:
+        chi ha un catalogo con tag in una lingua diversa da quella in cui cerca
+        non deve vedersi riscrivere l'impostazione a ogni modifica.
+        """
+        if getattr(self, '_query_lang_toccata', False):
+            return
+        code = self.llm_output_lang_combo.currentData()
+        idx = self.query_lang_combo.findData(code)
+        if idx >= 0 and idx != self.query_lang_combo.currentIndex():
+            self.query_lang_combo.setCurrentIndex(idx)
 
     def _on_llm_backend_changed(self, btn_id: int):
         """Aggiorna endpoint di default al cambio backend, solo se non personalizzato."""
@@ -1913,11 +1939,16 @@ class ConfigTab(QWidget):
             if idx >= 0:
                 self.llm_output_lang_combo.setCurrentIndex(idx)
 
-            # Lingua delle ricerche (default: lingua interfaccia, non quella dei tag)
-            query_lang = _ui_cfg.get('query_language', _ui_cfg.get('user_language', 'it'))
+            # Lingua delle ricerche. Se assente (config precedenti) si allinea a
+            # quella dei tag: lingue uguali = nessuna traduzione = comportamento
+            # identico a prima dell'aggiornamento.
+            query_lang = _ui_cfg.get('query_language', llm_lang)
             idx_q = self.query_lang_combo.findData(query_lang)
             if idx_q >= 0:
                 self.query_lang_combo.setCurrentIndex(idx_q)
+            # Se le due lingue sono già diverse è una scelta deliberata
+            # dell'utente: l'allineamento automatico non deve annullarla.
+            self._query_lang_toccata = (query_lang != llm_lang)
 
             self.translate_query_check.setChecked(_ui_cfg.get('translate_query', True))
 
