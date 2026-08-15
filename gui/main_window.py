@@ -46,6 +46,43 @@ COLORS = {
 }
 
 
+def _installed_version() -> str:
+    """Versione da mostrare nell'header.
+
+    Il file VERSION del repo contiene il segnaposto "dev": è il valore che vede
+    chi lavora da sorgente o ha scompattato lo zip a mano. In quel caso "dev" da
+    solo non dice nulla all'utente, quindi in un repo git si mostra lo SHA breve
+    di HEAD, che identifica davvero la copia in uso.
+    """
+    app_dir = get_app_dir()
+    try:
+        version_file = app_dir / "VERSION"
+        raw = version_file.read_text(encoding="utf-8").strip() if version_file.exists() else ""
+    except OSError:
+        logger.warning("Lettura del file VERSION non riuscita", exc_info=True)
+        raw = ""
+
+    if raw and raw not in ("dev", "sconosciuta"):
+        return raw
+
+    # Copia da sorgente: lo SHA di HEAD è l'unico identificativo disponibile
+    if (app_dir / ".git").exists():
+        try:
+            import subprocess
+            from utils.subprocess_utils import subprocess_creation_kwargs
+            result = subprocess.run(
+                ['git', 'rev-parse', '--short', 'HEAD'],
+                capture_output=True, text=True, cwd=str(app_dir), timeout=5,
+                **subprocess_creation_kwargs()
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return f"dev ({result.stdout.strip()})"
+        except Exception:
+            logger.debug("Lettura SHA di HEAD non riuscita", exc_info=True)
+
+    return raw or t("main.label.version_unknown")
+
+
 class AppHeader(QFrame):
     """Header principale con logo OffGallery grande e responsive"""
 
@@ -160,6 +197,20 @@ class AppHeader(QFrame):
         """)
         self.subtitle_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         brand_layout.addWidget(self.subtitle_label)
+
+        # Versione installata — senza questa etichetta l'utente non ha modo di
+        # sapere quale copia sta usando, e non può verificare se un
+        # aggiornamento è andato a buon fine (segnalazione utente 2026-08-15).
+        self.version_label = QLabel(t("main.label.app_version", version=_installed_version()))
+        self.version_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 11px;
+                color: {COLORS['grigio_medio']};
+                background: transparent;
+            }}
+        """)
+        self.version_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        brand_layout.addWidget(self.version_label)
         brand_layout.addSpacing(10)
 
         # Selettore lingua — allineato a sinistra, distaccato dal sottotitolo

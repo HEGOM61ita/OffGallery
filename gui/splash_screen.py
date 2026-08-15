@@ -371,14 +371,25 @@ def _check_for_updates(parent_window):
                     "Risoluzione tag remoto non riuscita", exc_info=True)
 
         # "dev" è il segnaposto che il repo porta nel file VERSION: significa
-        # "installazione da sorgente/zip non ancora passata dall'updater", non
-        # "versione vecchia". Confrontarlo con l'hash remoto darebbe un avviso
-        # di aggiornamento sempre vero, anche su una copia appena scaricata.
-        if local in ("dev", "(sconosciuta)"):
+        # "copia non passata dall'updater", non "versione vecchia".
+        #
+        # Da sorgente git si tace: lo sviluppatore aggiorna con git pull e il
+        # confronto con l'hash remoto darebbe un avviso sempre vero.
+        #
+        # Su un'installazione (niente .git) invece il segnaposto indica una copia
+        # scompattata a mano, di cui non si conosce l'età: OffGallery Manager in
+        # questo caso propone già l'aggiornamento, e tacere qui rendeva i due
+        # incoerenti — l'utente non veniva mai avvisato dall'app (segnalazione
+        # 2026-08-15). Si avvisa, senza affermare che la copia sia più vecchia.
+        local_ignota = local in ("dev", "(sconosciuta)")
+        if local_ignota and is_git:
             return
 
         from PyQt6.QtWidgets import QMessageBox
-        msg_key = "update.msg.body_git" if is_git else "update.msg.body"
+        if local_ignota:
+            msg_key = "update.msg.body_unknown"
+        else:
+            msg_key = "update.msg.body_git" if is_git else "update.msg.body"
         body = t(msg_key, local=local, remote=remote)
 
         QMessageBox.information(parent_window, t("update.msg.title"), body)

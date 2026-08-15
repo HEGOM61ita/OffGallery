@@ -652,7 +652,10 @@ class ExportTab(QWidget):
             for (fp,) in self.db_manager.cursor.fetchall():
                 d = str(Path(fp).parent)
                 dir_counts[d] = dir_counts.get(d, 0) + 1
-            self._dir_widget.refresh(dir_counts)
+            # refresh() ricostruisce l'albero da zero (tree.clear()): senza
+            # rimetterle, le cartelle spuntate dall'utente si perderebbero a
+            # ogni ritorno sulla scheda.
+            self._dir_widget.refresh(dir_counts, pre_selected=list(self._selected_dirs or []))
         except Exception as e:
             logger.warning(f"Caricamento albero directory export: {e}", exc_info=True)
 
@@ -2112,6 +2115,14 @@ class ExportTab(QWidget):
     # ------------------------------------------------------------------
 
     def on_activated(self):
+        # I conteggi dell'albero directory venivano letti una sola volta, quando
+        # il database veniva collegato all'avvio. Dopo un processing la scheda
+        # mostrava ancora i numeri vecchi (37 invece di 125), mentre l'export
+        # rileggeva il DB ed esportava il totale corretto: incoerenza segnalata
+        # da un utente il 2026-08-15. Si ricarica a ogni apertura della scheda,
+        # come già fanno Ricerca e Statistiche.
+        self._load_dir_filter()
+
         if not self.main_window:
             return
 

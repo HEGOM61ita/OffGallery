@@ -410,10 +410,12 @@
     <tr><td><strong>Generate Tags</strong></td><td>Enable keyword generation for each image</td><td>On</td></tr>
     <tr><td><strong>Generate Description</strong></td><td>Enable narrative description generation</td><td>On</td></tr>
     <tr><td><strong>Generate Title</strong></td><td>Enable short title generation</td><td>On</td></tr>
-    <tr><td><strong>Max tags</strong></td><td>Maximum number of tags to generate</td><td>10</td></tr>
+    <tr><td><strong>Max tags</strong></td><td>Maximum number of tags to generate. This is the value that decides how many descriptive tags are written: do not confuse it with <em>Species hypotheses to evaluate</em> in the BioCLIP panel of the Configuration tab, which is an independent parameter (see note below)</td><td>10</td></tr>
     <tr><td><strong>Overwrite</strong></td><td>If selected, overwrites existing tags/description/title. If not selected: tags are merged (only new ones added); description and title are skipped if already present.</td><td>Off</td></tr>
   </tbody>
 </table>
+
+<p><strong>Note — «Max tags» and BioCLIP are two different things.</strong> In the Configuration tab, the BioCLIP panel has a <em>Species hypotheses to evaluate</em> field (previously labelled «Max Tags per Image», a name that caused confusion). That number does <strong>not</strong> set how many tags are produced: it states how many candidate species BioCLIP considers before picking the most likely one. Only a single scientific name ever ends up in the tags. The two values do not conflict and need not match: setting 20 tags in Processing does not require raising the BioCLIP parameter to 20. The recommended BioCLIP value remains 5.</p>
 
 <h3>Grid: effect of Overwrite per field type</h3>
 
@@ -770,7 +772,7 @@
   <tbody>
     <tr><td><strong>Open in external editor</strong></td><td>Opens the original file in Lightroom, Capture One, or another configured editor</td></tr>
     <tr><td><strong>Show in file manager</strong></td><td>Opens the folder containing the original file</td></tr>
-    <tr><td><strong>Find similar images</strong></td><td>Starts a visual similarity search (DINOv2) using this image as the query</td></tr>
+    <tr><td><strong>Find similar images</strong></td><td>Starts a visual similarity search (DINOv2) using this image as the query. The <em>Similarity threshold</em> sets how alike two images must be to count as related: low values return many results, including loose matches; high values return fewer but tighter ones. Recommended: 0.30–0.40. The default is set in Configuration → DINOv2 and does not affect tags, descriptions or processing</td></tr>
     <tr><td><strong>Edit tags</strong></td><td>Opens an inline editor to add/remove tags manually</td></tr>
     <tr><td><strong>Regenerate AI</strong></td><td>Regenerates tags, description and title for this single image</td></tr>
     <tr><td><strong>Export XMP</strong></td><td>Immediately exports the XMP sidecar for this image</td></tr>
@@ -1579,6 +1581,11 @@ Destination (e.g. E:\Backup):
 
 <h3>Does LM Studio work with NVIDIA GPUs?</h3>
 <p>Yes. LM Studio automatically detects NVIDIA GPUs and uses CUDA. No extra configuration needed. LM Studio is especially useful for <strong>AMD GPU</strong> users (DirectML support), where Ollama doesn't work well. With NVIDIA, both backends work equally well.</p>
+
+<h3>How do I know which version of OffGallery I am running?</h3>
+<p>The version number is shown <strong>in the header of the main window</strong>, below the «Offline Privacy-First Architecture» subtitle (for example <em>Version v1.0.31</em>). The same value appears in the top-right corner of OffGallery Manager.</p>
+<p>If you see <strong>«dev»</strong> instead of a number, the copy was not installed through OffGallery Manager — typically it was unpacked by hand from a ZIP archive, or you are running from source. In that case the program cannot tell whether it is up to date and says so at startup, suggesting you realign it with OffGallery Manager. After an update performed by the Manager, the version number is reported correctly.</p>
+<p>Note: the GitHub commits page shows codes such as <code>b994342</code>, which identify individual changes and are not version numbers. Version numbers (<code>v1.0.31</code>) live in the repository's <em>Releases</em> section.</p>
 
 <h3>Do I need to reconfigure the LLM backend after updating?</h3>
 <p>No. If you were using Ollama, it continues to work automatically. The system detects Ollama as the default backend even if your configuration file doesn't have the backend entry yet. The backend selector appears in the Configuration tab only for those who want to switch.</p>

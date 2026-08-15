@@ -1193,9 +1193,17 @@ class ConfigTab(QWidget):
         layout.addWidget(self.bioclip_threshold, 0, 1)
 
         # Max Tag
-        layout.addWidget(QLabel(t("config.label.max_tags_per_image")), 1, 0)
+        # NON è il numero di tag prodotti: BioCLIP restituisce comunque un solo
+        # nome di specie. È il "k" delle ipotesi che il modello valuta prima di
+        # scegliere. L'etichetta precedente ("Max Tag per Immagine") faceva
+        # credere che fosse in conflitto col numero di tag del Processing
+        # (segnalazione utente 2026-08-15).
+        _bioclip_k_label = QLabel(t("config.label.bioclip_candidates"))
+        _bioclip_k_label.setToolTip(t("config.tooltip.bioclip_candidates"))
+        layout.addWidget(_bioclip_k_label, 1, 0)
         self.bioclip_max_tags = NoWheelSpinBox()
         self.bioclip_max_tags.setRange(1, 20)
+        self.bioclip_max_tags.setToolTip(t("config.tooltip.bioclip_candidates"))
         layout.addWidget(self.bioclip_max_tags, 1, 1)
         
         # Inizializza stato

@@ -583,10 +583,12 @@
     <tr><td><strong>Genera Tag</strong></td><td>Attiva la generazione di parole chiave descrittive dell'immagine</td></tr>
     <tr><td><strong>Genera Descrizione</strong></td><td>Attiva la generazione di una descrizione narrativa</td></tr>
     <tr><td><strong>Genera Titolo</strong></td><td>Attiva la generazione di un titolo breve</td></tr>
-    <tr><td><strong>Max tag</strong></td><td>Numero massimo di tag da generare (default: 10)</td></tr>
+    <tr><td><strong>Max tag</strong></td><td>Numero massimo di tag da generare (default: 10). È questo il valore che determina quanti tag descrittivi vengono scritti: non va confuso con <em>Ipotesi di specie da valutare</em> nel riquadro BioCLIP della Configurazione, che è un parametro indipendente (vedi nota sotto)</td></tr>
     <tr><td><strong>Sovrascrivi</strong></td><td>Se selezionato, sovrascrive tag/descrizione/titolo esistenti. Se non selezionato: per i tag fa merge (aggiunge solo i nuovi); per descrizione e titolo salta se già presenti.</td></tr>
   </tbody>
 </table>
+
+<p><strong>Nota — «Max tag» e BioCLIP sono due cose diverse.</strong> Nella scheda Configurazione, il riquadro BioCLIP contiene un campo <em>Ipotesi di specie da valutare</em> (in precedenza chiamato «Max Tag per Immagine», nome che generava confusione). Quel numero <strong>non</strong> stabilisce quanti tag vengono prodotti: indica quante specie candidate BioCLIP considera prima di scegliere la più probabile. Nei tag finisce comunque un solo nome scientifico. I due valori non sono in conflitto e non è necessario allinearli: se in Elaborazione si impostano 20 tag, non serve portare a 20 anche il parametro BioCLIP. Il valore consigliato per BioCLIP resta 5.</p>
 
 <h3>Griglia: effetto di Sovrascrivi per tipo di campo</h3>
 
@@ -944,7 +946,7 @@
   <tbody>
     <tr><td><strong>Apri in editor esterno</strong></td><td>Apre il file originale in Lightroom, Capture One, o altro editor configurato</td></tr>
     <tr><td><strong>Mostra in Esplora Risorse</strong></td><td>Apre la cartella contenente il file originale</td></tr>
-    <tr><td><strong>Trova immagini simili</strong></td><td>Avvia una ricerca per similarità visiva (DINOv2) usando questa immagine come query</td></tr>
+    <tr><td><strong>Trova immagini simili</strong></td><td>Avvia una ricerca per similarità visiva (DINOv2) usando questa immagine come query. La <em>Soglia di similarità</em> stabilisce quanto due immagini debbano somigliarsi per essere considerate affini: valori bassi restituiscono molti risultati, anche poco pertinenti; valori alti ne restituiscono pochi ma più mirati. Valore consigliato: 0,30–0,40. Il valore predefinito si imposta in Configurazione → DINOv2 e non influisce su tag, descrizioni o elaborazione</td></tr>
     <tr><td><strong>Modifica tag</strong></td><td>Apre un editor inline per aggiungere/rimuovere tag manualmente</td></tr>
     <tr><td><strong>Rigenera AI</strong></td><td>Rigenera tag, descrizione e titolo per questa singola immagine</td></tr>
     <tr><td><strong>Export XMP</strong></td><td>Esporta subito il file XMP per questa immagine</td></tr>
@@ -1753,6 +1755,11 @@ Destinazione (es. E:\Backup):
 
 <h3>LM Studio funziona con GPU NVIDIA?</h3>
 <p>Sì. LM Studio rileva automaticamente le GPU NVIDIA e usa CUDA. Non serve configurare nulla di diverso. LM Studio è particolarmente utile per chi ha <strong>GPU AMD</strong> (supporto DirectML), dove Ollama non funziona bene. Con NVIDIA entrambi i backend funzionano.</p>
+
+<h3>Come faccio a sapere quale versione di OffGallery sto usando?</h3>
+<p>Il numero di versione è indicato <strong>nell'intestazione della finestra principale</strong>, sotto il sottotitolo «Architettura Offline Privacy-First» (per esempio <em>Versione v1.0.31</em>). Lo stesso valore compare in alto a destra in OffGallery Manager.</p>
+<p>Se al posto del numero compare <strong>«dev»</strong> significa che la copia non è stata installata tramite OffGallery Manager — tipicamente è stata scompattata a mano da un archivio ZIP, oppure si lavora direttamente dai sorgenti. In quel caso il programma non può stabilire se sia aggiornata e, all'avvio, lo segnala invitando ad allinearla con OffGallery Manager. Dopo un aggiornamento eseguito dal Manager, il numero di versione viene mostrato correttamente.</p>
+<p>Nota: nella pagina dei commit di GitHub si vedono codici come <code>b994342</code>, che identificano le singole modifiche e non corrispondono al numero di versione. I numeri di versione (<code>v1.0.31</code>) si trovano nella sezione <em>Releases</em> del repository.</p>
 
 <h3>Dopo l'aggiornamento devo riconfigurare il backend LLM?</h3>
 <p>No. Se usavi Ollama, continua a funzionare automaticamente. Il sistema rileva Ollama come backend predefinito anche se il tuo file di configurazione non ha ancora la voce corrispondente. Il selettore del backend appare nel tab Configurazione solo per chi vuole cambiare.</p>
