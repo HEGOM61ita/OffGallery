@@ -329,7 +329,7 @@ def _check_for_updates(parent_window):
     Confronta versione locale con ultimo commit remoto.
     In repo git usa origin/main come riferimento locale, altrimenti legge il file VERSION."""
     try:
-        from update import get_local_version, get_remote_version
+        from update import get_local_version, get_remote_version, GITHUB_RELEASES_PAGE
         app_dir = get_app_dir()
 
         is_git = (app_dir / '.git').exists()
@@ -390,7 +390,8 @@ def _check_for_updates(parent_window):
             msg_key = "update.msg.body_unknown"
         else:
             msg_key = "update.msg.body_git" if is_git else "update.msg.body"
-        body = t(msg_key, local=local, remote=remote)
+        body = t(msg_key, local=local, remote=remote,
+                 releases_url=GITHUB_RELEASES_PAGE)
 
         QMessageBox.information(parent_window, t("update.msg.title"), body)
 

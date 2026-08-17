@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Optional
 
 from components.conda_env  import ensure_env, python_executable
 from components.core       import ensure_core, installed_version, update_available
+from components.manager_version import (MANAGER_VERSION, RELEASES_PAGE,
+                                        manager_update_available)
 from components.miniconda  import conda_executable, find_conda, conda_version
 from components.models     import MODELS, download_models, model_exists
 from components.plugins    import PLUGINS, download_plugins, plugin_exists
@@ -229,7 +231,7 @@ class DashboardPage(tk.Frame):
 
     def _build(self):
         # Header
-        header = tk.Frame(self, bg=ACCENT, height=56)
+        header = self._header = tk.Frame(self, bg=ACCENT, height=56)
         header.pack(fill="x")
         header.pack_propagate(False)
         _add_logo(header)
@@ -237,6 +239,19 @@ class DashboardPage(tk.Frame):
                                      font=("Segoe UI", 9),
                                      bg=ACCENT, fg="#bbdefb")
         self._version_lbl.pack(side="right", padx=20)
+
+        # Banda di avviso "questo Manager è vecchio": creata sempre, mostrata
+        # solo quando serve. Senza, chi ha un Manager anteriore alla 1.0.29
+        # continuerebbe ad aggiornare l'app senza mai vederne cambiare la
+        # versione, e senza capire perché (segnalazione 2026-08-17).
+        self._manager_bar = tk.Frame(self, bg="#fff3cd")
+        self._manager_lbl = tk.Label(
+            self._manager_bar, bg="#fff3cd", fg="#664d03",
+            font=("Segoe UI", 9), justify="left", anchor="w", wraplength=700)
+        self._manager_lbl.pack(side="left", padx=(16, 8), pady=6)
+        ttk.Button(self._manager_bar, text="Scarica",
+                   command=self._open_releases_page).pack(side="right",
+                                                          padx=16, pady=6)
 
         body = tk.Frame(self, bg=BG)
         body.pack(fill="both", expand=True)
@@ -324,6 +339,43 @@ class DashboardPage(tk.Frame):
         ttk.Separator(self._comp_frame, orient="horizontal").pack(fill="x", pady=6)
 
     # ------------------------------------------------------------------
+    # Versione del Manager stesso
+    # ------------------------------------------------------------------
+
+    def _open_releases_page(self):
+        import webbrowser
+        try:
+            webbrowser.open(RELEASES_PAGE)
+        except Exception:
+            messagebox.showinfo(
+                "Scarica OffGallery Manager",
+                f"Apri questo indirizzo nel browser:\n\n{RELEASES_PAGE}")
+
+    def _check_manager_version(self):
+        """Interroga GitHub in un thread: la rete non deve congelare la finestra."""
+        def worker():
+            try:
+                nuova = manager_update_available()
+            except Exception:
+                nuova = None
+            # Il ritorno alla UI passa sempre dal thread di tkinter.
+            self.after(0, lambda: self._show_manager_bar(nuova))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _show_manager_bar(self, nuova: Optional[str]):
+        if not nuova:
+            self._manager_bar.pack_forget()
+            return
+        self._manager_lbl.configure(
+            text=(f"OffGallery Manager {MANAGER_VERSION} è superato: "
+                  f"è disponibile {nuova}. Il Manager non si aggiorna da solo — "
+                  f"scarica il nuovo OffGallerySetup, sostituisci questo file "
+                  f"e riapri."))
+        # Subito sotto l'header, prima del corpo già impacchettato.
+        self._manager_bar.pack(fill="x", after=self._header)
+
+    # ------------------------------------------------------------------
     # Refresh
     # ------------------------------------------------------------------
 
@@ -349,6 +401,7 @@ class DashboardPage(tk.Frame):
         else:
             _txt = ""
         self._version_lbl.configure(text=_txt)
+        self._check_manager_version()
 
         if new_ver:
             core_action_label = "Aggiorna"

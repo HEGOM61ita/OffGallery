@@ -388,7 +388,7 @@
   "update.msg.title": "Aggiornamento disponibile",
   "update.msg.body": "Versione installata: {local}\nVersione disponibile: {remote}\n\nModo consigliato: apri OffGallery Manager e premi Aggiorna.\n\nIn alternativa, da terminale nella cartella di OffGallery:\n• Windows: update.bat\n• Linux/Mac: bash update.sh\n• Da sorgente (git): git pull",
   "update.msg.body_git": "Versione installata: {local}\nVersione disponibile: {remote}\n\nPer aggiornare esegui:\n  git pull",
-  "update.msg.body_unknown": "Questa copia di OffGallery non riporta un numero di versione: è stata installata a mano e non è possibile stabilire se sia aggiornata.\n\nUltima versione pubblicata: {remote}\n\nPer riallinearla apri OffGallery Manager e premi Aggiorna: da lì in poi la versione sarà indicata correttamente.",
+  "update.msg.body_unknown": "Questa copia di OffGallery non riporta un numero di versione, quindi non è possibile stabilire se sia aggiornata.\n\nUltima versione pubblicata: {remote}\n\nApri OffGallery Manager e premi Aggiorna.\n\nSe hai già premuto Aggiorna e la versione resta \"dev\", il tuo OffGallery Manager è di una versione precedente alla 1.0.29 e non sa registrare il numero di versione. Il Manager non si aggiorna da solo: scarica OffGallerySetup.exe dalla pagina qui sotto, sostituisci quello che hai e premi Aggiorna un'ultima volta.\n\n{releases_url}",
   "update.msg.up_to_date": "OffGallery è aggiornato (versione {local})",
   "config.msg.saved_ok_full": "Configurazione completa salvata!",
   "config.msg.save_error": "Errore salvataggio configurazione:\n{error}",

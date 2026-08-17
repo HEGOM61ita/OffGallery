@@ -21,6 +21,10 @@ GITHUB_BRANCH = "main"
 GITHUB_ZIP    = f"https://github.com/{GITHUB_USER}/{GITHUB_REPO}/archive/refs/heads/{GITHUB_BRANCH}.zip"
 GITHUB_API    = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/commits/{GITHUB_BRANCH}"
 GITHUB_RELEASE = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/releases/latest"
+# Pagina da cui l'utente scarica a mano OffGallerySetup: il Manager non si
+# aggiorna da solo, e chi ne ha una copia anteriore alla 1.0.29 resta bloccato
+# su VERSION="dev" finché non la sostituisce (segnalazione 2026-08-17).
+GITHUB_RELEASES_PAGE = f"https://github.com/{GITHUB_USER}/{GITHUB_REPO}/releases/latest"
 
 # Cartelle e file che appartengono all'utente — non vengono mai sovrascritti
 PROTECTED_DIRS  = {"Models", "database", "logs", "INPUT"}
