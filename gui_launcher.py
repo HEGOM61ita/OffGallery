@@ -9,6 +9,34 @@ Download automatico modelli al primo avvio, poi modalità offline.
 import os
 import sys
 from pathlib import Path
+
+# --- PRIMA di qualunque altro import applicativo ---------------------------
+# Mette la copia protobuf sana di transformers al posto di quella difettosa di
+# sentencepiece. Va fatto QUI, non dentro il caricamento di SigLIP, perche'
+# protobuf tiene un registro globale degli schemi (il "descriptor pool") che
+# accetta ogni schema UNA SOLA VOLTA e non e' svuotabile: chi arriva per primo
+# occupa il posto, chi arriva dopo viene respinto.
+#
+# Il rimedio dentro _init_clip() arrivava troppo tardi ogni volta che qualcosa
+# caricava sentencepiece_model_pb2 prima di SigLIP. Nel caso di Sergio
+# (18/08/2026) a farlo e' la catena del traduttore: due avvii sulla STESSA
+# macchina e con codice SigLIP identico byte per byte differiscono solo per la
+# riga che precede SigLIP nel log --
+#   traduttore ramo A -> "copia protobuf ... NON disponibile" -> SigLIP KO
+#   traduttore ramo B -> "in uso la copia protobuf ..."       -> SigLIP OK
+# Da qui la fragilita': una modifica alla ricerca per tag poteva rompere SigLIP.
+#
+# NON confondere con 3360dab (revertato in cab7bf5): quello importava per primo
+# il modulo DIFETTOSO di sentencepiece, che registra comunque uno schema
+# invalido e quindi non poteva funzionare. Qui si registra la copia SANA.
+try:
+    from transformers.utils import sentencepiece_model_pb2_new as _pb2_sano
+    sys.modules['sentencepiece.sentencepiece_model_pb2'] = _pb2_sano
+except Exception:
+    # transformers assente o senza quella copia: si prosegue, il rimedio di
+    # riserva in embedding_generator.py resta al suo posto.
+    pass
+
 import log_manager
 
 
