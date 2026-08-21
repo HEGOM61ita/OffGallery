@@ -45,8 +45,48 @@ class DirectoryTreeWidget(QWidget):
         self._updating_checks  = False
         self._build_ui()
 
+    @staticmethod
+    def _merge_equivalent_roots(dir_counts: dict) -> dict:
+        """Fonde le directory che differiscono solo per la radice del percorso.
+
+        Windows consegna la radice (server UNC o lettera di unità) con
+        maiuscole variabili, quindi la stessa cartella di rete può essere
+        registrata nel DB sia come '\\\\MYCLOUD-180438\\...' sia come
+        '\\\\mycloud-180438\\...'. Senza questa fusione l'albero mostra due
+        radici separate con i conteggi divisi, e chi spunta l'una non trova le
+        immagini finite sotto l'altra (segnalato da Raul il 21/08/2026:
+        1304 + 11 invece di 1315).
+
+        Come rappresentante si tiene la scrittura più frequente, così l'albero
+        continua a mostrare il percorso nella forma in cui l'utente lo vede in
+        Esplora risorse invece di imporne una inventata.
+        """
+        gruppi = defaultdict(list)
+        for d, n in dir_counts.items():
+            p = Path(d)
+            radice = p.anchor
+            # Chiave: radice normalizzata + resto del percorso intatto. Il
+            # resto non va abbassato, su Linux '/home/Foto' e '/home/foto'
+            # sono davvero due cartelle diverse.
+            chiave = (radice.lower() + str(p)[len(radice):]) if radice else str(p)
+            gruppi[chiave].append((d, n))
+
+        fusi = {}
+        for voci in gruppi.values():
+            if len(voci) == 1:
+                d, n = voci[0]
+                fusi[d] = fusi.get(d, 0) + n
+                continue
+            totale = sum(n for _, n in voci)
+            # Più immagini = forma prevalente; a parità, ordine alfabetico per
+            # un risultato stabile fra un avvio e l'altro.
+            rappresentante = max(voci, key=lambda v: (v[1], v[0]))[0]
+            fusi[rappresentante] = fusi.get(rappresentante, 0) + totale
+        return fusi
+
     def refresh(self, dir_counts: dict, pre_selected: list = None):
         """Ricostruisce l'albero con i dati forniti (tipicamente estratti dal DB)."""
+        dir_counts        = self._merge_equivalent_roots(dir_counts or {})
         self.dir_counts   = dir_counts
         self.pre_selected = set(pre_selected or [])
         self._leaf_items  = {}

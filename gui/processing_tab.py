@@ -25,7 +25,7 @@ import queue
 
 import logging
 
-from utils.paths import get_app_dir
+from utils.paths import get_app_dir, canonical_filepath
 from utils.tag_utils import normalize_tags
 from catalog_readers.lightroom_reader import LightroomCatalogReader
 from i18n import t
@@ -964,7 +964,10 @@ class ProcessingWorker(QThread):
             # Assembla image_data con i metadati EXIF
             image_data = {
                 'filename': fname,
-                'filepath': str(image_path.resolve()),
+                # Radice del percorso in minuscolo: Windows la consegna con
+                # maiuscole variabili e la stessa cartella finirebbe nel DB
+                # come due voci distinte (vedi canonical_filepath)
+                'filepath': canonical_filepath(image_path.resolve()),
                 'file_size': image_path.stat().st_size,
                 'file_format': image_path.suffix.lower().replace('.', ''),
                 'is_raw': is_raw,
