@@ -6,7 +6,7 @@ import sys
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QTabWidget, QWidget,
     QVBoxLayout, QHBoxLayout, QStatusBar, QMessageBox,
-    QSizePolicy, QLabel, QFrame, QComboBox
+    QSizePolicy, QLabel, QFrame, QComboBox, QCheckBox
 )
 from PyQt6.QtCore import Qt, QSettings, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon, QPalette, QColor, QPixmap, QFont
@@ -447,6 +447,7 @@ class MainWindow(QMainWindow):
                     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
                     self.db_manager = DatabaseManager(db_path)
                     logger.info("Database manager inizializzato: %s", db_path)
+                    self._chiedi_migrazione_percorsi(db_path)
                 except Exception as e:
                     logger.warning("Errore inizializzazione database: %s", e, exc_info=True)
                     self.db_manager = None
@@ -1078,6 +1079,92 @@ class MainWindow(QMainWindow):
             f"🇮🇹 Riavvia OffGallery per applicare.\n"
             f"🇬🇧 Restart OffGallery to apply."
         )
+
+    def _chiedi_migrazione_percorsi(self, db_path: str):
+        """Propone di allineare i percorsi registrati due volte, con o senza backup.
+
+        Compare solo se nel database la stessa cartella risulta scritta in due
+        modi diversi — il caso segnalato da Raul il 21/08/2026, dove l'archivio
+        appariva diviso in due voci nelle schede Export e Ricerca. Su archivi
+        coerenti non si vede mai nulla.
+
+        Il backup è proposto ma non imposto: chi ha già una propria copia non
+        deve aspettare la duplicazione di un database che può pesare centinaia
+        di MB.
+        """
+        try:
+            from utils.path_migration import anteprima, migrate_database, dimensione_mb
+
+            info = anteprima(self.db_manager.conn)
+            if not info:
+                return  # archivio già coerente: nessun disturbo all'utente
+
+            righe = "\n".join(f"    {v}\n        → {n}" for v, n in info['radici'])
+            peso = dimensione_mb(db_path)
+
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Question)
+            box.setWindowTitle("Percorsi da allineare")
+            box.setText(
+                f"<b>{info['record']} immagini</b> risultano registrate con un percorso "
+                f"scritto in modo diverso dalle altre della stessa cartella."
+            )
+            box.setInformativeText(
+                f"Windows a volte restituisce lo stesso percorso di rete con "
+                f"maiuscole diverse. OffGallery lo interpreta come due cartelle "
+                f"separate, e l'archivio appare diviso in due nelle schede "
+                f"Export e Ricerca.\n\n"
+                f"Allineandoli tornano a essere una cartella sola.\n\n"
+                f"Percorsi interessati:\n{righe}\n\n"
+                f"Le foto sul disco non vengono toccate, e tag, descrizioni e "
+                f"punteggi restano invariati."
+            )
+
+            chk = QCheckBox(
+                f"Salva prima una copia del database ({peso:.0f} MB)" if peso
+                else "Salva prima una copia del database"
+            )
+            chk.setChecked(True)
+            chk.setToolTip(
+                "Deseleziona solo se hai già un backup tuo: la copia viene "
+                "creata accanto al database e puoi eliminarla quando vuoi."
+            )
+            box.setCheckBox(chk)
+
+            btn_si = box.addButton("Allinea", QMessageBox.ButtonRole.AcceptRole)
+            box.addButton("Non ora", QMessageBox.ButtonRole.RejectRole)
+            box.setDefaultButton(btn_si)
+            box.exec()
+
+            if box.clickedButton() is not btn_si:
+                logger.info("Migrazione percorsi rimandata dall'utente")
+                return
+
+            fare_backup = chk.isChecked()
+            corretti = migrate_database(self.db_manager.conn, db_path, backup=fare_backup)
+
+            if corretti:
+                nota = ("\n\nUna copia del database è stata salvata accanto "
+                        "all'originale: puoi eliminarla quando hai verificato "
+                        "che è tutto a posto.") if fare_backup else ""
+                QMessageBox.information(
+                    self, "Percorsi allineati",
+                    f"{corretti} immagini allineate.\n\n"
+                    f"L'archivio non risulta più diviso in due nelle schede "
+                    f"Export e Ricerca.{nota}"
+                )
+            else:
+                # migrate_database ha rinunciato: quasi sempre backup fallito
+                QMessageBox.warning(
+                    self, "Percorsi non allineati",
+                    "Non è stato possibile completare l'operazione e il "
+                    "database non è stato modificato.\n\n"
+                    "Puoi riprovare al prossimo avvio. Nel frattempo "
+                    "l'archivio resta utilizzabile normalmente."
+                )
+        except Exception as e:
+            # Un problema qui non deve impedire l'avvio dell'applicazione
+            logger.warning("Proposta migrazione percorsi non riuscita: %s", e, exc_info=True)
 
     def restore_geometry(self):
         """Ripristina geometria finestra salvata"""

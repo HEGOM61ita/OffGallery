@@ -330,16 +330,10 @@ class DatabaseManager:
             logger.info("Migrazione DB completata: filename non è più UNIQUE")
 
         self.conn.commit()
-
-        # Uniforma la radice dei percorsi scritti prima di canonical_filepath():
-        # su archivi già coerenti esce subito senza scrivere (vedi utils/path_migration)
-        try:
-            from utils.path_migration import migrate_database
-            migrate_database(self.conn, self.db_path)
-        except Exception as e:
-            # L'app resta utilizzabile anche senza migrazione: non bloccare l'avvio
-            logger.warning("Migrazione percorsi saltata: %s", e, exc_info=True)
-
+        # NOTA: la migrazione dei percorsi (utils/path_migration) NON viene
+        # eseguita qui. Richiede una scelta dell'utente sul backup, e questa
+        # classe è usata anche da thread e script senza interfaccia: la
+        # chiama main_window all'avvio, dove si può aprire una finestra.
         logger.info(f"Database schema completo inizializzato: {self.db_path}")
     
     def insert_image(self, image_data: Dict[str, Any]) -> Optional[int]:
