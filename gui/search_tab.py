@@ -280,7 +280,9 @@ class SearchTab(QWidget):
         params = []
 
         # --- DIRECTORY FILTER (ambito ricerca) ---
-        if self._dir_widget is not None:
+        # Il gruppo è spuntabile: se l'utente lo disattiva si aspetta di cercare
+        # su tutto l'archivio, anche se dentro erano rimaste directory spuntate.
+        if self._dir_widget is not None and self._dir_group.isChecked():
             selected_dirs = self._dir_widget.get_selected_dirs()
             if selected_dirs:
                 dir_clauses = " OR ".join(["filepath LIKE ?" for _ in selected_dirs])
@@ -633,11 +635,33 @@ class SearchTab(QWidget):
         else:
             self.results_label.setText(f"✅ {n}/{total_candidates}")
 
+        _motivo = getattr(self._search_worker, 'empty_reason', None)
+
+        # Zero risultati perché i filtri non lasciano passare nessuna foto.
+        # Va detto subito e senza tirare in ballo i modelli: il colpevole più
+        # probabile è l'ambito directory rimasto attivo senza che si veda.
+        if n == 0 and _motivo == 'no_candidates':
+            self.results_label.setText("⚠️ 0 — nessuna foto supera i filtri")
+            QMessageBox.information(
+                self,
+                "Nessuna foto supera i filtri",
+                "<b>I filtri attivi escludono tutto l'archivio.</b><br><br>"
+                "Nessun modello AI è coinvolto: la ricerca non ha proprio "
+                "foto su cui lavorare.<br><br>"
+                "<b>Da controllare per primo:</b> il riquadro "
+                "<b>📁 Ambito ricerca — Directory</b> qui sopra. Se è attivo, "
+                "premi <b>Deseleziona tutto</b> oppure togli la spunta al "
+                "riquadro per cercare su tutto l'archivio.<br><br>"
+                "Verifica poi gli altri filtri (Camera, Rating, date)."
+            )
+            self.search_executed.emit(results)
+            return
+
         # Zero risultati perché nessuna foto ha l'impronta visiva: senza
         # spiegazione sembra un catalogo vuoto, mentre le foto ci sono e sono
         # anche etichettate. Mostrato una volta sola per sessione.
         if (n == 0
-                and getattr(self._search_worker, 'empty_reason', None) == 'no_embeddings'
+                and _motivo == 'no_embeddings'
                 and not getattr(self, '_avviso_embedding_mostrato', False)):
             self._avviso_embedding_mostrato = True
             self.results_label.setText("⚠️ 0 — impronta visiva assente")
@@ -967,7 +991,11 @@ class SearchTab(QWidget):
                 )
                 db_manager.conn.commit()
 
-            self._dir_widget.refresh(dir_counts)
+            # on_activated() scatta a ogni ritorno sulla scheda Ricerca (anche
+            # subito dopo una ricerca, che passa dalla Gallery): ricostruire
+            # l'albero azzerando le spunte faceva sparire il filtro appena
+            # impostato sotto gli occhi dell'utente.
+            self._dir_widget.refresh(dir_counts, keep_selection=True)
         except Exception as e:
             self.log_message(f"⚠️ Caricamento albero directory: {e}", "warning")
 
@@ -2536,8 +2564,9 @@ class SearchTab(QWidget):
         if self.location_lat_filter.text().strip() and self.location_lon_filter.text().strip():
             return True
 
-        # Directory filter
-        if self._dir_widget is not None and self._dir_widget.get_selected_dirs():
+        # Directory filter — conta solo se il gruppo è attivo, come in _build_sql_filters
+        if (self._dir_widget is not None and self._dir_group.isChecked()
+                and self._dir_widget.get_selected_dirs()):
             return True
 
         return False

@@ -84,8 +84,16 @@ class DirectoryTreeWidget(QWidget):
             fusi[rappresentante] = fusi.get(rappresentante, 0) + totale
         return fusi
 
-    def refresh(self, dir_counts: dict, pre_selected: list = None):
-        """Ricostruisce l'albero con i dati forniti (tipicamente estratti dal DB)."""
+    def refresh(self, dir_counts: dict, pre_selected: list = None, keep_selection: bool = False):
+        """Ricostruisce l'albero con i dati forniti (tipicamente estratti dal DB).
+
+        Con keep_selection=True le directory attualmente spuntate restano tali:
+        serve a chi ricostruisce l'albero a ogni riapertura della scheda, dove
+        azzerare la selezione senza dirlo lasciava l'utente convinto che il
+        filtro fosse ancora attivo.
+        """
+        if keep_selection and pre_selected is None:
+            pre_selected = self._get_selected_dirs()
         dir_counts        = self._merge_equivalent_roots(dir_counts or {})
         self.dir_counts   = dir_counts
         self.pre_selected = set(pre_selected or [])
@@ -93,6 +101,10 @@ class DirectoryTreeWidget(QWidget):
         self.tree.clear()
         self._populate_tree()
         self._update_counter()
+        # La ricostruzione cambia di fatto la selezione (la azzera, o la
+        # ripristina): senza questo segnale il badge di chi ci sta attorno
+        # resta fermo all'ultimo valore e contraddice l'albero.
+        self.selection_changed.emit(self._get_selected_dirs())
 
     def get_selected_dirs(self) -> list:
         """Restituisce la lista delle directory selezionate (checked)."""
@@ -293,6 +305,17 @@ class DirectoryTreeWidget(QWidget):
             root_item.setFont(0, font)
 
             self._build_subtree(root_item, sub_dirs, root_label)
+
+            # AutoTristate serve a propagare la spunta ai figli; su un nodo che
+            # figli non ne ha, Qt ricalcola lo stato dai discendenti (nessuno) e
+            # la spunta non regge. Succede quando le immagini stanno
+            # direttamente nella radice — es. '/mnt/bosco' senza sottocartelle:
+            # la casella si svuotava da sola e la ricerca applicava un filtro
+            # directory che non corrispondeva a nulla (segnalato da Sergio il
+            # 18/08/2026: 0 risultati su 5 immagini regolarmente elaborate).
+            if root_item.childCount() == 0:
+                root_item.setFlags(root_item.flags() & ~Qt.ItemFlag.ItemIsAutoTristate)
+
             root_item.setExpanded(True)
 
         self._update_aggregate_counts()
@@ -335,6 +358,8 @@ class DirectoryTreeWidget(QWidget):
                 child_item.setData(0, Qt.ItemDataRole.UserRole + 1, children[()])
                 self._leaf_items[full_path] = child_item
                 child_item.setText(0, f"{name}  ({children[()]})")
+                # Foglia: niente AutoTristate, o la spunta non regge (vedi _populate_tree)
+                child_item.setFlags(child_item.flags() & ~Qt.ItemFlag.ItemIsAutoTristate)
                 if full_path in self.pre_selected:
                     child_item.setCheckState(0, Qt.CheckState.Checked)
             else:
@@ -348,6 +373,8 @@ class DirectoryTreeWidget(QWidget):
                         child_item.setData(0, Qt.ItemDataRole.UserRole, full_path)
                         child_item.setData(0, Qt.ItemDataRole.UserRole + 1, only_val)
                         self._leaf_items[full_path] = child_item
+                        # Foglia compattata: niente AutoTristate (vedi _populate_tree)
+                        child_item.setFlags(child_item.flags() & ~Qt.ItemFlag.ItemIsAutoTristate)
                         if full_path in self.pre_selected:
                             child_item.setCheckState(0, Qt.CheckState.Checked)
                         continue

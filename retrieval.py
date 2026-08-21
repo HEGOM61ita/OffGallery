@@ -19,8 +19,11 @@ class ImageRetrieval:
         self.max_results = config.get('search', {}).get('max_results', 100)
         self.default_threshold = 0.15 # Abbassiamo il default dato il rumore multilingua
         self.stems_cache = {}  # Cache per stems delle immagini
-        # Motivo dell'ultimo risultato vuoto ('no_embeddings' o None): permette
-        # alla UI di spiegare il perché invece di mostrare solo "0 risultati"
+        # Motivo dell'ultimo risultato vuoto: permette alla UI di spiegare il
+        # perché invece di mostrare solo "0 risultati".
+        #   'no_candidates' — i filtri escludono ogni foto (colpa dei filtri)
+        #   'no_embeddings' — foto presenti, ma senza impronta visiva (SigLIP)
+        #   None            — nessun esito vuoto da spiegare
         self.last_empty_reason = None
 
     def _plugin_columns(self) -> str:
@@ -81,6 +84,22 @@ class ImageRetrieval:
         except Exception as e:
             logger.error(f"Errore nel conteggio totale: {e}")
             total_found_in_db = 0
+
+        # 0-bis. NESSUN CANDIDATO
+        # Vale per ogni modalità, campo vuoto compreso: se i filtri non lasciano
+        # passare nemmeno una foto non c'è niente da confrontare, né embedding
+        # né tag, e la causa è nei filtri — non nei modelli. Senza questa
+        # distinzione l'utente vedeva accusare SigLIP per un filtro directory
+        # rimasto attivo, e reinstallava l'ambiente Python per niente
+        # (segnalato il 18/08/2026).
+        if total_found_in_db == 0:
+            self.last_empty_reason = 'no_candidates'
+            logger.warning(
+                "Ricerca senza risultati: i filtri attivi non lasciano passare "
+                "nessuna foto (0 candidati). Non è un problema dei modelli: "
+                "controllare i filtri, in particolare 'Ambito ricerca — Directory'."
+            )
+            return [], 0
 
         # 1. CONTROLLO QUERY VUOTA
         if not query_text.strip():
@@ -196,10 +215,11 @@ class ImageRetrieval:
             # Senza embedding la ricerca semantica non ha nulla da confrontare.
             # Vale solo qui: la pipeline tag lavora su testo e prosegue comunque.
             if not emb_list:
-                # Caso tipico: SigLIP non installato → nessuna foto ha l'impronta
-                # visiva. La ricerca semantica è la modalità predefinita, quindi
-                # l'utente vede "nessun risultato" pur avendo foto ben etichettate.
-                # Lo si segnala esplicitamente: senza questo, la causa è invisibile.
+                # Qui le foto ci sono di sicuro (il caso "0 candidati" è già
+                # uscito più su): mancano solo le impronte visive. Distinguere i
+                # due casi conta — accusare SigLIP quando il colpevole era un
+                # filtro directory ha mandato un utente a reinstallare protobuf
+                # per niente (18/08/2026).
                 self.last_empty_reason = 'no_embeddings'
                 logger.warning(
                     f"Ricerca semantica senza risultati: nessuna delle "
