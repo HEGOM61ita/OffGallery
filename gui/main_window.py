@@ -1099,35 +1099,45 @@ class MainWindow(QMainWindow):
             if not info:
                 return  # archivio già coerente: nessun disturbo all'utente
 
-            righe = "\n".join(f"    {v}\n        → {n}" for v, n in info['radici'])
+            # Un percorso sotto l'altro con "diventa": la freccia da sola non
+            # dice in che verso si legge.
+            righe = "\n".join(f"    {v}\n    diventa  {n}" for v, n in info['radici'])
             peso = dimensione_mb(db_path)
 
             box = QMessageBox(self)
             box.setIcon(QMessageBox.Icon.Question)
-            box.setWindowTitle("Percorsi da allineare")
+            box.setWindowTitle("Cartelle doppie nell'archivio")
+            n_radici = len(info['radici'])
+            quante = ("Una cartella del tuo archivio risulta" if n_radici == 1
+                      else f"{n_radici} cartelle del tuo archivio risultano")
             box.setText(
-                f"<b>{info['record']} immagini</b> risultano registrate con un percorso "
-                f"scritto in modo diverso dalle altre della stessa cartella."
+                f"{quante} registrata due volte, e <b>{info['record']} immagini</b> "
+                f"sono finite sotto il doppione."
+                if n_radici == 1 else
+                f"{quante} registrate due volte, e <b>{info['record']} immagini</b> "
+                f"sono finite sotto i doppioni."
             )
             box.setInformativeText(
-                f"Windows a volte restituisce lo stesso percorso di rete con "
-                f"maiuscole diverse. OffGallery lo interpreta come due cartelle "
-                f"separate, e l'archivio appare diviso in due nelle schede "
-                f"Export e Ricerca.\n\n"
-                f"Allineandoli tornano a essere una cartella sola.\n\n"
-                f"Percorsi interessati:\n{righe}\n\n"
-                f"Le foto sul disco non vengono toccate, e tag, descrizioni e "
-                f"punteggi restano invariati."
+                f"Succede perché Windows a volte scrive lo stesso percorso con "
+                f"le maiuscole e a volte con le minuscole. Per OffGallery "
+                f"diventano due cartelle diverse, e in Export e Ricerca "
+                f"l'archivio appare diviso in due.\n\n"
+                f"Con \"Allinea\" ogni doppione torna a essere una cartella "
+                f"sola:\n{righe}\n\n"
+                f"Le foto sul disco non vengono spostate né modificate, e tag, "
+                f"descrizioni, titoli e punteggi restano come sono.\n\n"
+                f"È un\'operazione da fare una volta sola."
             )
 
             chk = QCheckBox(
-                f"Salva prima una copia del database ({peso:.0f} MB)" if peso
-                else "Salva prima una copia del database"
+                f"Salva prima una copia di sicurezza dell'archivio ({peso:.0f} MB)" if peso
+                else "Salva prima una copia di sicurezza dell'archivio"
             )
             chk.setChecked(True)
             chk.setToolTip(
-                "Deseleziona solo se hai già un backup tuo: la copia viene "
-                "creata accanto al database e puoi eliminarla quando vuoi."
+                "Consigliato. Toglila solo se hai già una copia tua: il file "
+                "viene salvato accanto all'archivio e puoi cancellarlo quando "
+                "hai visto che è tutto a posto."
             )
             box.setCheckBox(chk)
 
@@ -1144,23 +1154,24 @@ class MainWindow(QMainWindow):
             corretti = migrate_database(self.db_manager.conn, db_path, backup=fare_backup)
 
             if corretti:
-                nota = ("\n\nUna copia del database è stata salvata accanto "
-                        "all'originale: puoi eliminarla quando hai verificato "
-                        "che è tutto a posto.") if fare_backup else ""
+                nota = ("\n\nLa copia di sicurezza è salvata accanto "
+                        "all'archivio: puoi cancellarla quando hai visto che "
+                        "è tutto a posto.") if fare_backup else ""
                 QMessageBox.information(
-                    self, "Percorsi allineati",
-                    f"{corretti} immagini allineate.\n\n"
-                    f"L'archivio non risulta più diviso in due nelle schede "
-                    f"Export e Ricerca.{nota}"
+                    self, "Fatto",
+                    f"{corretti} immagini rimesse nella cartella giusta.\n\n"
+                    f"In Export e Ricerca l'archivio non è più diviso in due. "
+                    f"Questo avviso non tornerà più.{nota}"
                 )
             else:
                 # migrate_database ha rinunciato: quasi sempre backup fallito
                 QMessageBox.warning(
-                    self, "Percorsi non allineati",
-                    "Non è stato possibile completare l'operazione e il "
-                    "database non è stato modificato.\n\n"
-                    "Puoi riprovare al prossimo avvio. Nel frattempo "
-                    "l'archivio resta utilizzabile normalmente."
+                    self, "Operazione non riuscita",
+                    "Non è stato possibile completare l'operazione: "
+                    "l'archivio non è stato modificato.\n\n"
+                    "Di solito succede quando manca spazio sul disco per la "
+                    "copia di sicurezza. Puoi riprovare al prossimo avvio; "
+                    "nel frattempo OffGallery funziona normalmente."
                 )
         except Exception as e:
             # Un problema qui non deve impedire l'avvio dell'applicazione
