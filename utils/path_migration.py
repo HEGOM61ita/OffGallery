@@ -18,9 +18,13 @@ Solo dove la stessa radice compare con DUE scritture diverse. Un archivio
 scritto tutto come 'I:\\...' è già coerente e non viene toccato: abbassarlo a
 'i:\\...' riscriverebbe ogni riga senza risolvere niente (verificato sul DB
 reale di Mike, dove sarebbero stati riscritti 22.307 record su 22.307).
-Le righe vengono allineate alla scrittura più frequente — la stessa scelta
-fatta dall'albero directory, così il percorso resta quello che l'utente
-riconosce.
+Dove invece le scritture sono due, si allinea alla forma CANONICA — la stessa
+che `canonical_filepath()` usa per i record nuovi, cioè radice in minuscolo.
+Allinearsi alla scrittura più frequente sembrava più rispettoso di come
+l'utente vede il percorso, ma metteva migrazione e scrittura una contro
+l'altra: la migrazione alzava tutto a maiuscolo, la prima immagine nuova
+rientrava in minuscolo e al riavvio successivo la migrazione ripartiva — un
+ciclo senza fine (segnalato da Raul il 22/08/2026).
 
 NON è solo cosmesi: i confronti esatti sul percorso — per esempio
 `UPDATE images SET sync_state = ? WHERE filepath = ?` in export_tab — non
@@ -43,7 +47,7 @@ filename in db_manager_new, percorsi relativi→assoluti in search_tab).
 import logging
 import shutil
 import sqlite3
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -61,15 +65,19 @@ def _radici_da_allineare(conn: sqlite3.Connection) -> dict:
 
     Si interviene solo dove convivono DAVVERO due scritture della stessa radice
     — il caso di Raul, '\\\\MYCLOUD-180438\\...' accanto a
-    '\\\\mycloud-180438\\...'. Come forma di destinazione si tiene la più
-    frequente, la stessa scelta fatta dall'albero directory: l'utente continua a
-    leggere il percorso come lo conosce invece di vederselo cambiare sotto.
+    '\\\\mycloud-180438\\...'. La destinazione è la forma CANONICA (radice in
+    minuscolo), non la più frequente: è la stessa che `canonical_filepath()`
+    scrive per ogni immagine nuova, quindi dopo la migrazione il database resta
+    coerente anche quando si aggiungono altre foto. Con la forma più frequente
+    le due regole si contraddicevano e la migrazione si riproponeva ad ogni
+    avvio.
 
     Returns:
         dict: {radice_da_sostituire: radice_di_destinazione}, vuoto se non c'è
               nessuna ambiguità
     """
-    conteggi = defaultdict(Counter)
+    # Le varianti di ogni radice, raggruppate per la loro forma minuscola.
+    varianti_per_radice = defaultdict(set)
     try:
         for (fp,) in conn.execute(
                 "SELECT filepath FROM images WHERE filepath IS NOT NULL"):
@@ -77,7 +85,7 @@ def _radici_da_allineare(conn: sqlite3.Connection) -> dict:
                 continue
             radice = Path(fp).anchor
             if radice:
-                conteggi[radice.lower()][radice] += 1
+                varianti_per_radice[radice.lower()].add(radice)
     except sqlite3.Error as e:
         # Database assente, tabella non ancora creata, file corrotto: non è
         # compito di questo modulo diagnosticarlo, si tira indietro.
@@ -85,12 +93,13 @@ def _radici_da_allineare(conn: sqlite3.Connection) -> dict:
         return {}
 
     da_allineare = {}
-    for varianti in conteggi.values():
+    for varianti in varianti_per_radice.values():
         if len(varianti) < 2:
             continue  # radice già scritta in un modo solo: niente da fare
-        # Più immagini = forma prevalente; a parità, ordine alfabetico per un
-        # risultato stabile fra un avvio e l'altro.
-        destinazione = max(varianti.items(), key=lambda v: (v[1], v[0]))[0]
+        # Forma canonica: la stessa che canonical_filepath() scrive per i record
+        # nuovi. Solo così migrazione e scrittura convergono sullo stesso testo,
+        # invece di rincorrersi ad ogni avvio.
+        destinazione = next(iter(varianti)).lower()
         for variante in varianti:
             if variante != destinazione:
                 da_allineare[variante] = destinazione
