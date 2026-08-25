@@ -1118,6 +1118,98 @@ class ConfigTab(QWidget):
             return
         entry = sel[0].data(Qt.ItemDataRole.UserRole)
         self._apply_matrix_params(entry['params'])
+        self._offer_save_and_restart(entry.get('name', ''))
+
+    def _offer_save_and_restart(self, matrix_name: str = ''):
+        """Chiede se salvare la matrice appena caricata e riavviare.
+
+        Spostare le tendine non sposta i modelli: quelli gia' caricati restano
+        sulla scheda dove sono finche' il programma non riparte. Dirlo qui evita
+        che l'utente creda di aver gia' cambiato qualcosa.
+        """
+        nome = f" «{matrix_name}»" if matrix_name else ""
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle("Matrice caricata")
+        box.setText(
+            f"La matrice{nome} è stata caricata nelle impostazioni."
+        )
+        box.setInformativeText(
+            "I modelli già in funzione restano però sulla scheda dove sono: "
+            "cambiano scheda solo al prossimo avvio di OffGallery.\n\n"
+            "Vuoi salvare la configurazione adesso?"
+        )
+        btn_salva_riavvia = box.addButton("Salva e riavvia", QMessageBox.ButtonRole.AcceptRole)
+        btn_salva         = box.addButton("Salva soltanto", QMessageBox.ButtonRole.ApplyRole)
+        btn_dopo          = box.addButton("Più tardi", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(btn_salva_riavvia)
+        try:
+            # Import locale: evita una dipendenza fra moduli GUI solo per lo stile
+            from gui.gallery_widgets import apply_popup_style
+            apply_popup_style(box)
+        except Exception as e:
+            logger.debug(f"Stile popup non applicato: {e}")
+        box.exec()
+
+        clicked = box.clickedButton()
+        if clicked is btn_dopo:
+            return
+
+        # Salvataggio silenzioso: save_config() mostra una finestra propria e
+        # farne comparire due di fila sarebbe fastidioso. Si guarda l'esito, non
+        # l'assenza di eccezione: save_config gestisce gli errori al suo interno.
+        try:
+            saved = self.save_config(silent=True)
+        except Exception as e:
+            logger.error(f"Salvataggio configurazione dopo carica matrice fallito: {e}", exc_info=True)
+            saved = False
+
+        if not saved:
+            # save_config ha gia' mostrato il motivo: qui basta non riavviare
+            # su una configurazione che non e' stata scritta.
+            logger.warning("Riavvio annullato: la configurazione non e' stata salvata")
+            return
+
+        if clicked is btn_salva_riavvia:
+            self._restart_application()
+
+    def _restart_application(self):
+        """Riavvia OffGallery per applicare l'assegnazione dei device ai modelli."""
+        try:
+            import sys as _sys
+            import os as _os
+            from PyQt6.QtWidgets import QApplication as _QApp
+
+            # Il comando di riavvio dipende da come il programma e' stato lanciato:
+            # da eseguibile compilato sys.executable e' gia' l'applicazione e
+            # sys.argv[0] la ripeterebbe; da sorgente serve l'interprete davanti.
+            if getattr(_sys, 'frozen', False):
+                args = [_sys.executable] + _sys.argv[1:]
+            else:
+                args = [_sys.executable] + _sys.argv
+
+            app = _QApp.instance()
+            if app is not None:
+                app.closeAllWindows()
+
+            import subprocess as _sub
+            try:
+                from utils.subprocess_utils import subprocess_creation_kwargs
+                _kwargs = subprocess_creation_kwargs()
+            except Exception:
+                _kwargs = {}
+            _sub.Popen(args, cwd=_os.getcwd(), **_kwargs)
+
+            if app is not None:
+                app.quit()
+        except Exception as e:
+            logger.error(f"Riavvio automatico fallito: {e}", exc_info=True)
+            QMessageBox.warning(
+                self, "Riavvio non riuscito",
+                "La configurazione è stata salvata, ma il riavvio automatico "
+                "non è riuscito.\n\nChiudi e riapri OffGallery a mano perché i "
+                "modelli cambino scheda."
+            )
 
     def create_dinov2_section(self):
         """Crea sezione configurazione DINOv2 (MODIFICATO - rimosso checkbox enabled e device)"""
@@ -2157,8 +2249,14 @@ class ConfigTab(QWidget):
             else:
                 print(f"CRITICAL: Cannot set default values: {e}")
 
-    def save_config(self):
-        """Salva config completa su file preservando sezioni non gestite"""
+    def save_config(self, silent: bool = False):
+        """Salva config completa su file preservando sezioni non gestite.
+
+        Args:
+            silent: se True non mostra la finestra di conferma. Serve a chi
+                    salva come passo intermedio di un'altra operazione e ha gia'
+                    una propria finestra da mostrare.
+        """
         self._backup_config_file()
         try:
             # Database & Paths - PRESERVA input_dir se esiste
@@ -2329,16 +2427,19 @@ class ConfigTab(QWidget):
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 yaml.dump(self.config, f, allow_unicode=True, default_flow_style=False)
             
-            QMessageBox.information(self, t("config.msg.success_title"), t("config.msg.saved_ok_full"))
+            if not silent:
+                QMessageBox.information(self, t("config.msg.success_title"), t("config.msg.saved_ok_full"))
 
             if self.parent_window and hasattr(self.parent_window, 'update_status'):
                 self.parent_window.update_status(t("config.msg.saved_ok"))
 
             self.config_saved.emit(self.config)
+            return True
 
         except Exception as e:
             QMessageBox.critical(self, t("config.msg.error_title"), t("config.msg.save_error", error=e))
-    
+            return False
+
     def get_config(self):
         """Ritorna config corrente"""
         return self.config
