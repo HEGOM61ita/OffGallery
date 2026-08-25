@@ -18,6 +18,8 @@ Vedere plugins/PLUGIN_LICENSE_EXCEPTION.md.
 """
 
 import logging
+import subprocess
+import time
 from typing import Optional
 
 from .base import LLMVisionPlugin, PromptContextPlugin
@@ -203,12 +205,100 @@ def _find_ollama_exe() -> Optional[str]:
     return None
 
 
+def _find_lms_exe() -> Optional[str]:
+    """Cerca 'lms', lo strumento a riga di comando di LM Studio.
+
+    Viene installato insieme al programma ma non sempre finisce nel PATH:
+    di qui la ricerca nei percorsi noti. Il file .lmstudio-home-pointer, se
+    presente, indica dove LM Studio tiene i propri dati.
+    """
+    import shutil, os, platform
+
+    found = shutil.which("lms")
+    if found:
+        return found
+
+    candidates = []
+
+    # LM Studio annota la propria cartella dati in questo file
+    try:
+        pointer = os.path.expanduser("~/.lmstudio-home-pointer")
+        if os.path.isfile(pointer):
+            with open(pointer, encoding='utf-8') as f:
+                home = f.read().strip()
+            if home:
+                candidates.append(os.path.join(home, "bin", "lms.exe"))
+                candidates.append(os.path.join(home, "bin", "lms"))
+    except Exception as e:
+        logger.debug(f"Lettura .lmstudio-home-pointer fallita: {e}")
+
+    candidates += [
+        os.path.expanduser("~/.lmstudio/bin/lms"),
+        os.path.expanduser("~/.cache/lm-studio/bin/lms"),
+        "/usr/local/bin/lms",
+    ]
+    if platform.system() == "Windows":
+        candidates += [
+            os.path.expanduser(r"~\.lmstudio\bin\lms.exe"),
+            os.path.expanduser(r"~\.cache\lm-studio\bin\lms.exe"),
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "LM-Studio", "lms.exe"),
+        ]
+
+    for p in candidates:
+        if p and os.path.isfile(p):
+            return p
+    return None
+
+
 def _try_load_lmstudio(llm_config: dict) -> Optional[LLMVisionPlugin]:
     try:
         from .llm_lmstudio.plugin import LMStudioPlugin
         plugin = LMStudioPlugin(llm_config)
         if plugin.is_available():
             return plugin
+
+        # Non risponde: prova ad accendere il server, come si fa con Ollama.
+        # Si usa 'lms server start' e non l'avvio del programma: accendere il
+        # server e' cio' che serve, e non apre finestre sullo schermo.
+        lms_exe = _find_lms_exe()
+        if not lms_exe:
+            logger.info(
+                "LM Studio non risponde e lo strumento 'lms' non e' stato trovato: "
+                "avvio automatico non possibile. Se LM Studio e' installato, "
+                "abilita 'lms' dal programma (Developer > Install CLI), oppure "
+                "accendi il server a mano."
+            )
+            return None
+
+        logger.info(f"LM Studio non risponde — avvio del server: {lms_exe} server start")
+        try:
+            from utils.subprocess_utils import subprocess_creation_kwargs
+            _kwargs = subprocess_creation_kwargs()
+        except Exception:
+            _kwargs = {}
+        result = subprocess.run(
+            [lms_exe, "server", "start"],
+            capture_output=True, text=True, timeout=30, **_kwargs
+        )
+        if result.returncode != 0:
+            logger.warning(
+                f"Avvio del server LM Studio non riuscito "
+                f"(codice {result.returncode}): {(result.stderr or '').strip()[:200]}"
+            )
+            return None
+
+        # Il server impiega qualche istante ad accettare richieste
+        for _ in range(15):
+            time.sleep(1)
+            if plugin.is_available():
+                logger.info("Server LM Studio avviato correttamente.")
+                return plugin
+        logger.warning("Server LM Studio avviato ma non risponde dopo 15 secondi.")
+
+    except FileNotFoundError:
+        logger.info("Strumento 'lms' non eseguibile — avvio automatico non possibile.")
+    except subprocess.TimeoutExpired:
+        logger.warning("Avvio del server LM Studio: nessuna risposta entro 30 secondi.")
     except Exception as e:
-        logger.debug(f"LM Studio plugin non caricabile: {e}")
+        logger.debug(f"LM Studio plugin non caricabile: {e}", exc_info=True)
     return None

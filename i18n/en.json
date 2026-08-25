@@ -991,12 +991,12 @@
   "config.overlay.llm_plugin_desc": "This section requires an optional LLM Vision plugin (Ollama or LM Studio). The plugin enhances tag, title and description generation for your photos using local vision models.",
   "config.overlay.llm_plugin_request": "To receive the plugin, write to:",
   "config.overlay.llm_plugin_note": "Emails will not be used for purposes other than plugin updates and notifications.",
-  "config.msg.connection_reason_refused": "Check two things, in this order:\n\n1. that {provider} is open\n2. that its server is switched on inside it\n\n{hint}",
+  "config.msg.connection_reason_refused": "OffGallery tried to start the {provider} server on its own, without success.\n\nCheck two things, in this order:\n\n1. that {provider} is installed and open\n2. that its server is switched on inside it\n\n{hint}",
   "config.msg.connection_reason_timeout": "It took too long to answer.\n\nIt is probably loading a model: wait a moment and try again.",
   "config.msg.connection_reason_host": "The address «{endpoint}» leads nowhere.\n\nCheck that it is spelled correctly.",
   "config.msg.connection_reason_status": "It answered by refusing the request (code {code}).\n\nThe server is on but something went wrong: check that the model named in the settings is actually loaded.",
   "config.msg.connection_reason_generic": "Check that {provider} is open and that its server is switched on.",
-  "config.msg.connection_hint_lmstudio": "The first is not enough — this is the step most people miss. In LM Studio the server is started from the «Developer» section.",
+  "config.msg.connection_hint_lmstudio": "The second step is the one most people miss: in LM Studio the server is started from the «Developer» section.\n\nFor OffGallery to start it on its own, the «lms» tool is needed — it is installed from there too.",
   "config.msg.connection_hint_ollama": "Ollama normally starts on its own with the computer. If it is not responding, try restarting it.",
   "config.msg.connection_reason_refused_ollama": "Ollama is not running.\n\nIt normally starts on its own with the computer: try starting it, or restarting it if it appears to be open already."
 }

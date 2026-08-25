@@ -2555,7 +2555,16 @@ class ConfigTab(QWidget):
             else:
                 check_url = f"{endpoint}/v1/models"
 
-            response = requests.get(check_url, timeout=5)
+            try:
+                response = requests.get(check_url, timeout=5)
+            except requests.ConnectionError:
+                # Non risponde: prova ad accenderlo, come fa il caricamento
+                # normale del plugin. Cosi' il messaggio d'errore puo' dire con
+                # verita' che il tentativo c'e' stato.
+                if self._prova_avvio_backend(is_ollama):
+                    response = requests.get(check_url, timeout=5)
+                else:
+                    raise
 
             if response.status_code == 200:
                 data = response.json()
@@ -2607,6 +2616,30 @@ class ConfigTab(QWidget):
 
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(3000, self.reset_test_button)
+
+    def _prova_avvio_backend(self, is_ollama: bool) -> bool:
+        """Prova ad avviare il programma LLM che non risponde.
+
+        Restituisce True solo se dopo il tentativo il server risponde davvero,
+        cosi' il chiamante sa se vale la pena riprovare la richiesta.
+        """
+        try:
+            import sys as _sys
+            from utils.paths import get_app_dir
+            _pd = str(get_app_dir() / 'plugins')
+            if _pd not in _sys.path:
+                _sys.path.insert(0, _pd)
+            llm_cfg = (self.config.get('embedding', {})
+                                  .get('models', {})
+                                  .get('llm_vision', {}))
+            if is_ollama:
+                from plugins.loader import _try_load_ollama as _avvia
+            else:
+                from plugins.loader import _try_load_lmstudio as _avvia
+            return _avvia(dict(llm_cfg)) is not None
+        except Exception as e:
+            logger.debug(f"Tentativo di avvio del backend fallito: {e}", exc_info=True)
+            return False
 
     def _spiega_errore_connessione(self, errore: Exception, provider: str, endpoint: str) -> str:
         """Traduce l'errore tecnico di connessione nel motivo, in parole comprensibili.
