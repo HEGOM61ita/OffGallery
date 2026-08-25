@@ -506,28 +506,100 @@ class RAWProcessor:
         image = self._extract_thumbnail_raw(raw_path, target_size, profile_name)
         return self._apply_exif_orientation(image, raw_path)
 
-    def _apply_exif_orientation(self, image: Optional[Image.Image], raw_path: Path = None) -> Optional[Image.Image]:
-        """Raddrizza l'immagine secondo il tag EXIF Orientation, azzerandolo dopo la rotazione.
+    # Rotazioni PIL corrispondenti ai valori EXIF Orientation 2..8
+    _ORIENTATION_OPS = {
+        2: (Image.Transpose.FLIP_LEFT_RIGHT,),
+        3: (Image.Transpose.ROTATE_180,),
+        4: (Image.Transpose.FLIP_TOP_BOTTOM,),
+        5: (Image.Transpose.FLIP_LEFT_RIGHT, Image.Transpose.ROTATE_90),
+        6: (Image.Transpose.ROTATE_270,),
+        7: (Image.Transpose.FLIP_LEFT_RIGHT, Image.Transpose.ROTATE_270),
+        8: (Image.Transpose.ROTATE_90,),
+    }
 
-        Niente doppia rotazione: ImageOps.exif_transpose() agisce solo se il tag Orientation
-        e' presente e diverso da 1, e lo rimuove dall'immagine restituita. Le immagini che
-        arrivano da rawpy (Image.fromarray) sono gia' raddrizzate da rawpy stesso e non
-        portano alcun tag EXIF, quindi qui restano intatte."""
+    def _apply_exif_orientation(self, image: Optional[Image.Image], raw_path: Path = None) -> Optional[Image.Image]:
+        """Raddrizza l'immagine secondo l'orientamento dichiarato, senza ruotare due volte.
+
+        Tre casi, in quest'ordine:
+
+        1. L'immagine e' gia' raddrizzata (contrassegno posto da chi usa rawpy,
+           che applica da se' l'orientamento del sensore): non si tocca.
+        2. L'immagine porta il tag EXIF Orientation (tipico dei JPEG e TIFF):
+           si usa exif_transpose, che ruota e rimuove il tag.
+        3. L'immagine non ha alcun tag (tipico delle preview estratte dai RAW
+           con ExifTool, che escono "nude"): l'orientamento si chiede al file
+           di partenza, altrimenti le foto verticali resterebbero coricate.
+        """
         if image is None:
             return None
         try:
-            orientation = image.getexif().get(274)
-            rotated = ImageOps.exif_transpose(image)
-            if rotated is None:
+            # Caso 1 — gia' raddrizzata a monte
+            if image.info.get('_offgallery_already_oriented'):
                 return image
-            if orientation and orientation != 1:
-                name = raw_path.name if raw_path is not None else '?'
-                logger.debug(f"Orientamento EXIF {orientation} applicato: {name} -> {rotated.size}")
+
+            # Caso 2 — il tag e' sull'immagine
+            orientation = image.getexif().get(274)
+            if orientation:
+                rotated = ImageOps.exif_transpose(image)
+                if rotated is None:
+                    return image
+                if orientation != 1:
+                    name = raw_path.name if raw_path is not None else '?'
+                    logger.debug(
+                        f"Orientamento EXIF {orientation} applicato: {name} -> {rotated.size}"
+                    )
+                return rotated
+
+            # Caso 3 — nessun tag: chiedere al file
+            if raw_path is None:
+                return image
+            orientation = self._read_orientation_from_file(raw_path)
+            if not orientation or orientation == 1:
+                return image
+
+            rotated = image
+            for op in self._ORIENTATION_OPS.get(orientation, ()):
+                rotated = rotated.transpose(op)
+            logger.debug(
+                f"Orientamento {orientation} letto dal file e applicato: "
+                f"{raw_path.name} -> {rotated.size}"
+            )
             return rotated
+
         except Exception as e:
-            # Un tag EXIF malformato non deve far perdere l'immagine
-            logger.warning(f"Raddrizzamento EXIF fallito, uso l'immagine come estratta: {e}", exc_info=True)
+            # Un orientamento malformato non deve far perdere l'immagine
+            logger.warning(f"Raddrizzamento fallito, uso l'immagine come estratta: {e}", exc_info=True)
             return image
+
+    def _read_orientation_from_file(self, file_path: Path) -> Optional[int]:
+        """Legge l'orientamento dichiarato dal file, con memoria dei valori gia' letti.
+
+        Serve per le preview estratte dai RAW: ExifTool le restituisce senza
+        metadati, quindi il tag va cercato nel file che le contiene. Il risultato
+        viene ricordato perche' la stessa immagine viene estratta piu' volte, una
+        per ogni modello, e ogni lettura costa l'avvio di un processo esterno.
+        """
+        chiave = str(file_path)
+        cache = getattr(self, '_orientation_cache', None)
+        if cache is None:
+            cache = self._orientation_cache = {}
+        if chiave in cache:
+            return cache[chiave]
+
+        valore = None
+        try:
+            result = subprocess.run(
+                [_exiftool_executable(), '-Orientation', '-n', '-S', '-s', str(file_path)],
+                capture_output=True, text=True, timeout=10,
+                **subprocess_creation_kwargs()
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                valore = self._parse_orientation(result.stdout.strip())
+        except Exception as e:
+            logger.debug(f"Lettura orientamento fallita per {file_path.name}: {e}")
+
+        cache[chiave] = valore
+        return valore
 
     def _extract_thumbnail_raw(self, raw_path: Path, target_size: int = None, profile_name: str = None) -> Optional[Image.Image]:
         """
@@ -608,14 +680,24 @@ class RAWProcessor:
         try:
             import rawpy
             with rawpy.imread(str(raw_path)) as raw:
-                # Postprocessing completo per massima qualità
+                # Postprocessing completo per massima qualita'.
+                # output_bps=8 e non 16: PIL non sa costruire un'immagine da un
+                # array a 16 bit per canale ("Cannot handle this data type"),
+                # quindi con 16 questo metodo falliva SEMPRE e ripiegava in
+                # silenzio sulla preview della fotocamera. I modelli lavorano
+                # comunque a 8 bit: i 16 bit non arrivavano da nessuna parte.
+                # rawpy applica gia' l'orientamento del sensore (sizes.flip).
                 rgb = raw.postprocess(
                     use_camera_wb=True,
                     no_auto_bright=False,
-                    output_bps=16  # 16-bit per massima qualità
+                    output_bps=8
                 )
                 image = Image.fromarray(rgb)
-                
+                # Contrassegno: rawpy ha gia' applicato l'orientamento del
+                # sensore. Senza questo, _apply_exif_orientation leggerebbe
+                # l'orientamento dal file e ruoterebbe una seconda volta.
+                image.info['_offgallery_already_oriented'] = True
+
                 # Resize mantenendo proporzioni
                 w, h = image.size
                 max_side = max(w, h)
