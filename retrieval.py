@@ -21,9 +21,12 @@ class ImageRetrieval:
         self.stems_cache = {}  # Cache per stems delle immagini
         # Motivo dell'ultimo risultato vuoto: permette alla UI di spiegare il
         # perché invece di mostrare solo "0 risultati".
-        #   'no_candidates' — i filtri escludono ogni foto (colpa dei filtri)
-        #   'no_embeddings' — foto presenti, ma senza impronta visiva (SigLIP)
-        #   None            — nessun esito vuoto da spiegare
+        #   'no_candidates'  — i filtri escludono ogni foto (colpa dei filtri)
+        #   'no_embeddings'  — foto presenti, ma senza impronta visiva (SigLIP)
+        #   'old_embeddings' — impronte presenti ma di un modello precedente
+        #                      (768 valori del vecchio CLIP contro i 1152 di
+        #                      SigLIP): vanno rielaborate, NON riscaricato SigLIP
+        #   None             — nessun esito vuoto da spiegare
         self.last_empty_reason = None
 
     def _plugin_columns(self) -> str:
@@ -314,6 +317,14 @@ class ImageRetrieval:
                 f"⚠️ {skipped} embedding ignorati (dimensione {emb_list[0].shape[0] if emb_list else '?'} "
                 f"!= attesa {expected_dim}). Rielaborare le foto per rigenerare gli embedding SigLIP."
             )
+        # Le impronte ci sono, ma di un modello precedente. Va segnalato anche
+        # quando qualcuna compatibile sopravvive: con 21.000 foto escluse su
+        # 21.500 la ricerca e' di fatto cieca, e senza spiegazione la UI
+        # manderebbe a riscaricare SigLIP, che invece funziona benissimo.
+        if skipped and skipped > len(valid_embs):
+            self.last_empty_reason = 'old_embeddings'
+            self._old_embeddings_count = skipped
+
         if not valid_embs:
             return []
 

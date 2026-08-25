@@ -657,6 +657,27 @@ class SearchTab(QWidget):
             self.search_executed.emit(results)
             return
 
+        # Impronte presenti, ma di un modello precedente: SigLIP funziona e
+        # riscaricarlo non serve a niente. Senza questo caso a parte l'utente
+        # riceveva il messaggio "scarica SigLIP", perdendo tempo e gigabyte.
+        if (n == 0
+                and _motivo == 'old_embeddings'
+                and not getattr(self, '_avviso_embedding_vecchi_mostrato', False)):
+            self._avviso_embedding_vecchi_mostrato = True
+            self.results_label.setText("⚠️ 0 — impronte da rifare")
+            QMessageBox.information(
+                self,
+                "Foto da rielaborare",
+                "<b>Le tue foto hanno un'impronta visiva creata da una versione "
+                "precedente di OffGallery</b>, che la ricerca per frase non può "
+                "più confrontare.<br><br>"
+                "SigLIP è installato e funziona: <b>non va riscaricato</b>. "
+                "Vanno rielaborate le foto dalla scheda <b>Elaborazione</b>.<br><br>"
+                "Nel frattempo la <b>Ricerca per tag</b> funziona normalmente."
+            )
+            self.search_executed.emit(results)
+            return
+
         # Zero risultati perché nessuna foto ha l'impronta visiva: senza
         # spiegazione sembra un catalogo vuoto, mentre le foto ci sono e sono
         # anche etichettate. Mostrato una volta sola per sessione.
