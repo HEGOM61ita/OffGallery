@@ -685,6 +685,19 @@ class DatabaseManager:
             if _r != str(_p):
                 _orig_per_risolto[_r] = str(_p)
 
+        # Il percorso che torna dal DB puo' differire per maiuscole da quello
+        # richiesto: il chiamante confronta sulla propria forma, quindi il
+        # risultato va riportato su quella.
+        _per_confronto = {str(_p).lower(): str(_p) for _p in fpaths_list}
+        for _r, _o in _orig_per_risolto.items():
+            _per_confronto.setdefault(str(_r).lower(), _o)
+
+        def _risolvi_chiave(dal_db):
+            """Riporta il percorso letto dal DB alla forma usata dal chiamante."""
+            if dal_db in _orig_per_risolto:
+                return _orig_per_risolto[dal_db]
+            return _per_confronto.get(str(dal_db).lower(), dal_db)
+
         try:
             _da_cercare = fpaths_list + list(_orig_per_risolto.keys())
             for i in range(0, len(_da_cercare), 500):
@@ -692,12 +705,20 @@ class DatabaseManager:
                 placeholders = ','.join('?' * len(batch))
                 if valid_fields:
                     cols = ', '.join(valid_fields)
+                    # COLLATE NOCASE: su Windows 'D:\\foto' e 'd:\\foto' sono lo
+                    # stesso file, ma un IN normale li considera diversi e
+                    # l'immagine risulta nuova. E' cosi' che il 29/05/2026 sono
+                    # nate 36 righe doppie nella cartella INPUT: la scansione
+                    # produce 'D:' maiuscolo, il DB conteneva 'd:' minuscolo.
+                    # filepath_exists (modalita' "solo nuove") lo gestiva gia';
+                    # questa strada, usata da "rielabora tutte", no.
                     rows = self.cursor.execute(
-                        f"SELECT filepath, {cols} FROM images WHERE filepath IN ({placeholders})",
+                        f"SELECT filepath, {cols} FROM images "
+                        f"WHERE filepath COLLATE NOCASE IN ({placeholders})",
                         batch
                     ).fetchall()
                     for row in rows:
-                        fpath = _orig_per_risolto.get(row[0], row[0])
+                        fpath = _risolvi_chiave(row[0])
                         presence = {}
                         for j, field in enumerate(valid_fields):
                             val = row[j + 1]
@@ -705,11 +726,12 @@ class DatabaseManager:
                         result[fpath] = presence
                 else:
                     rows = self.cursor.execute(
-                        f"SELECT filepath FROM images WHERE filepath IN ({placeholders})",
+                        f"SELECT filepath FROM images "
+                        f"WHERE filepath COLLATE NOCASE IN ({placeholders})",
                         batch
                     ).fetchall()
                     for row in rows:
-                        result[_orig_per_risolto.get(row[0], row[0])] = {}
+                        result[_risolvi_chiave(row[0])] = {}
         except Exception as e:
             logger.error(f"Errore get_fields_presence_bulk: {e}")
             return {}
