@@ -1071,11 +1071,16 @@ class PromptContextConfigDialog(QDialog):
         gen_btn_row.addStretch()
         gen_outer.addLayout(gen_btn_row)
 
+        # Modificabile: quello che il modello propone e' un punto di partenza,
+        # non un verdetto. Diventa a sola lettura solo quando mostra un errore.
         self._gen_preview = QTextEdit()
-        self._gen_preview.setReadOnly(True)
-        self._gen_preview.setFixedHeight(80)
+        self._gen_preview.setReadOnly(False)
+        self._gen_preview.setMinimumHeight(220)
         self._gen_preview.setVisible(False)
         self._gen_preview.setStyleSheet(self._preview.styleSheet())
+        self._gen_preview.setToolTip(
+            "Puoi correggere il testo prima di salvarlo: viene salvato cosi' come lo lasci qui."
+        )
         gen_outer.addWidget(self._gen_preview)
 
         save_row = QHBoxLayout()
@@ -1249,11 +1254,13 @@ class PromptContextConfigDialog(QDialog):
 
         if result:
             self._generated_block = result
+            self._gen_preview.setReadOnly(False)   # correggibile prima di salvare
             self._gen_preview.setPlainText(result)
             self._gen_preview.setVisible(True)
             self._gen_name_input.setVisible(True)
             self._btn_save_gen.setVisible(True)
         else:
+            self._gen_preview.setReadOnly(True)    # un messaggio d'errore non si corregge
             self._gen_preview.setPlainText(
                 f"⚠️ {error_message or 'Generazione non riuscita.'}"
             )
@@ -1263,7 +1270,11 @@ class PromptContextConfigDialog(QDialog):
 
     def _on_save_generated(self):
         name = self._gen_name_input.text().strip()
-        if not name or not self._generated_block:
+        # Si salva quello che c'e' nella casella in questo momento, comprese le
+        # correzioni dell'utente: salvare _generated_block renderebbe le modifiche
+        # solo apparenti.
+        block = self._gen_preview.toPlainText().strip()
+        if not name or not block:
             return
         import re
         preset_id = re.sub(r'[^\w]', '_', name.lower())
@@ -1274,7 +1285,7 @@ class PromptContextConfigDialog(QDialog):
             'icon':          '🔖',
             'author':        'utente',
             'version':       '1.0',
-            'context_block': self._generated_block,
+            'context_block': block,
         }
         try:
             mod = self._plugin_module()

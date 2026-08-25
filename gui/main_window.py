@@ -645,6 +645,11 @@ class MainWindow(QMainWindow):
         self.plugins_tab.prompt_context_preset_changed.connect(
             self.processing_tab.refresh_prompt_context_preset
         )
+        # Eliminazioni dalla Gallery: il Processing Tab deve rifare il conteggio
+        # delle immagini da elaborare, altrimenti le considera ancora processate.
+        self.gallery_tab.images_removed_from_db.connect(
+            self.processing_tab.on_images_removed_from_db
+        )
         
         layout.addWidget(self.tabs)
 

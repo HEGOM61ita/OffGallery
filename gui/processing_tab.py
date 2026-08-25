@@ -2239,6 +2239,9 @@ class ProcessingTab(QWidget):
         self._bionomen_lang_label: 'QLabel | None' = None
         # Combo preset PromptContext (None se plugin non installato)
         self._prompt_context_combo: 'QComboBox | None' = None
+        # Segnato quando l'archivio cambia da un altro pannello (es. eliminazioni
+        # dalla Gallery): il conteggio delle immagini da elaborare e' da rifare.
+        self._archive_changed_elsewhere = False
         # Reader thread attivi durante esecuzione post-import
         self._active_plugin_readers: list[PluginStdoutReader] = []
         # Contatore plugin ancora in esecuzione (per sapere quando sbloccare il tab)
@@ -2603,10 +2606,27 @@ class ProcessingTab(QWidget):
         except Exception:
             return 'IT'
 
+    def on_images_removed_from_db(self, count: int) -> None:
+        """Le immagini eliminate altrove non sono piu' elaborate: il conteggio va rifatto.
+
+        Non si rilegge subito: la scansione puo' essere lunga su cartelle grandi e
+        l'utente sta ancora lavorando in Gallery. Si segna il da farsi e si rilegge
+        al rientro nel pannello, che e' il momento in cui il numero viene guardato.
+        """
+        self._archive_changed_elsewhere = True
+        logger.debug("Gallery ha eliminato %d immagini: conteggio da rifare al rientro", count)
+
     def on_activated(self) -> None:
         """Chiamato da main_window quando si passa alla processing tab.
         Rilegge la config del geo enricher e aggiorna la label modalità.
-        Sincronizza anche il dropdown preset prompt_context con la config."""
+        Sincronizza anche il dropdown preset prompt_context con la config.
+        Rifà il conteggio se l'archivio è cambiato da un altro pannello."""
+        if self._archive_changed_elsewhere:
+            self._archive_changed_elsewhere = False
+            try:
+                self.scan_directory()
+            except Exception as e:
+                logger.warning("Riconteggio dopo eliminazione fallito: %s", e, exc_info=True)
         self._refresh_prompt_context_combo()
         # Aggiorna la sigla lingua BioNomen (la lingua può essere cambiata nel frattempo)
         if self._bionomen_lang_label is not None:

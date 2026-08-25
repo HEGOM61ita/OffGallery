@@ -2265,6 +2265,16 @@ class ImageCard(QFrame):
                 if not has_selection:
                     gallery.selection_label.setText("")
 
+            # Avvisa il Processing Tab: le immagini eliminate non sono piu' elaborate
+            # e devono tornare nel conteggio di quelle da elaborare.
+            if deleted > 0 and gallery is not None:
+                try:
+                    gallery.images_removed_from_db.emit(deleted)
+                except Exception as e:
+                    logger.warning(
+                        "Segnalazione eliminazione al Processing Tab fallita: %s", e, exc_info=True
+                    )
+
             # Messaggio risultato
             if deleted > 0:
                 if failed > 0:

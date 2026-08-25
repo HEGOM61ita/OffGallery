@@ -206,7 +206,11 @@ def _parse_db_datetime(value) -> "datetime | None":
 
 class GalleryTab(QWidget):
     """Tab gallery con layout a griglia + XMP Sync"""
-    
+
+    # Emesso quando immagini vengono tolte dall'archivio: il Processing Tab deve
+    # rileggere lo stato, altrimenti continua a considerarle gia' elaborate.
+    images_removed_from_db = pyqtSignal(int)  # numero di immagini eliminate
+
     def __init__(self, parent=None, ai_models=None):
         super().__init__(parent)
         self.parent_window = parent
