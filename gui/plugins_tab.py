@@ -1078,9 +1078,7 @@ class PromptContextConfigDialog(QDialog):
         self._gen_preview.setMinimumHeight(220)
         self._gen_preview.setVisible(False)
         self._gen_preview.setStyleSheet(self._preview.styleSheet())
-        self._gen_preview.setToolTip(
-            "Puoi correggere il testo prima di salvarlo: viene salvato cosi' come lo lasci qui."
-        )
+        self._gen_preview.setToolTip(t("plugins.tooltip.editable_preview"))
         gen_outer.addWidget(self._gen_preview)
 
         save_row = QHBoxLayout()

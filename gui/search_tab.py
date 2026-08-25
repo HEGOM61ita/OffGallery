@@ -664,20 +664,11 @@ class SearchTab(QWidget):
                 and _motivo == 'old_embeddings'
                 and not getattr(self, '_avviso_embedding_vecchi_mostrato', False)):
             self._avviso_embedding_vecchi_mostrato = True
-            self.results_label.setText("⚠️ 0 — impronte da rifare")
+            self.results_label.setText(t("search.label.old_embeddings"))
             QMessageBox.information(
                 self,
-                "Foto da rielaborare",
-                "<b>Queste foto sono state catalogate con una versione più "
-                "vecchia del programma e vanno parzialmente rielaborate.</b>"
-                "<br><br>"
-                "Dalla scheda <b>Processing</b>:<br>"
-                "&nbsp;&nbsp;1. scegli <b>Completa / Riprocessa tutte</b><br>"
-                "&nbsp;&nbsp;2. lascia selezionato solo <b>Embedding SigLIP</b>, "
-                "senza <b>Sovrascrivi</b><br>"
-                "&nbsp;&nbsp;3. deseleziona tutto il resto, soprattutto la "
-                "generazione di testi.<br><br>"
-                "Intanto puoi cercarle per <b>tag</b>."
+                t("search.title.old_embeddings"),
+                t("search.msg.old_embeddings")
             )
             self.search_executed.emit(results)
             return
