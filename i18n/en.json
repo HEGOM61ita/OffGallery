@@ -999,5 +999,8 @@
   "config.msg.connection_hint_lmstudio": "The second step is the one most people miss: in LM Studio the server is started from the «Developer» section.\n\nFor OffGallery to start it on its own, the «lms» tool is needed — it is installed from there too.",
   "config.msg.connection_hint_ollama": "Ollama normally starts on its own with the computer. If it is not responding, try restarting it.",
   "config.msg.connection_reason_refused_ollama": "Ollama is not running.\n\nIt normally starts on its own with the computer: try starting it, or restarting it if it appears to be open already.",
-  "gallery.status.ai_canceled": "{parts} — stopped on request"
+  "gallery.status.ai_canceled": "{parts} — stopped on request",
+  "main.label.version_source_ahead": "{version} +{n} (source)",
+  "main.label.version_source": "{version} (source)",
+  "main.label.version_source_sha": "source ({sha})"
 }

@@ -65,20 +65,39 @@ def _installed_version() -> str:
     if raw and raw not in ("dev", "sconosciuta"):
         return raw
 
-    # Copia da sorgente: lo SHA di HEAD è l'unico identificativo disponibile
+    # Copia da sorgente: si parte dall'ultima versione pubblicata e si dice
+    # quanto ci si e' allontanati, che e' piu' leggibile di uno SHA da solo.
     if (app_dir / ".git").exists():
         try:
             import subprocess
             from utils.subprocess_utils import subprocess_creation_kwargs
-            result = subprocess.run(
-                ['git', 'rev-parse', '--short', 'HEAD'],
-                capture_output=True, text=True, cwd=str(app_dir), timeout=5,
-                **subprocess_creation_kwargs()
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                return f"dev ({result.stdout.strip()})"
+
+            def _git(*args):
+                r = subprocess.run(
+                    ['git', *args], capture_output=True, text=True,
+                    cwd=str(app_dir), timeout=5, **subprocess_creation_kwargs()
+                )
+                return r.stdout.strip() if r.returncode == 0 else ''
+
+            tag = _git('describe', '--tags', '--abbrev=0')
+            if tag:
+                avanti = _git('rev-list', f'{tag}..HEAD', '--count')
+                try:
+                    n = int(avanti)
+                except (TypeError, ValueError):
+                    n = 0
+                if n > 0:
+                    # es. "v1.0.37 +15 (sorgente)": sei 15 modifiche oltre l'ultima
+                    # versione pubblicata
+                    return t("main.label.version_source_ahead", version=tag, n=n)
+                return t("main.label.version_source", version=tag)
+
+            # Nessun tag disponibile: resta lo SHA, meglio di niente
+            sha = _git('rev-parse', '--short', 'HEAD')
+            if sha:
+                return t("main.label.version_source_sha", sha=sha)
         except Exception:
-            logger.debug("Lettura SHA di HEAD non riuscita", exc_info=True)
+            logger.debug("Versione da git non determinabile", exc_info=True)
 
     return raw or t("main.label.version_unknown")
 
