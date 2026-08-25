@@ -662,6 +662,28 @@ class MainWindow(QMainWindow):
         self._status_timer.timeout.connect(self._check_dynamic_status)
         self._status_timer.start()
 
+    def _nome_backend_scelto(self) -> str:
+        """Nome del programma LLM scelto nelle impostazioni.
+
+        Serve quando nessun plugin risulta caricato: senza questo l'indicatore
+        resta sul nome di partenza e accusa il programma sbagliato, dicendo
+        "Ollama" a chi ha scelto LM Studio.
+        """
+        try:
+            backend = (self.config.get('embedding', {})
+                                  .get('models', {})
+                                  .get('llm_vision', {})
+                                  .get('backend', 'auto') or 'auto').lower()
+        except Exception:
+            backend = 'auto'
+        if backend == 'lmstudio':
+            return 'LM Studio'
+        if backend == 'ollama':
+            return 'Ollama'
+        # 'auto': nessuno dei due risponde, quindi non si puo' incolpare l'uno
+        # o l'altro
+        return 'LLM'
+
     def _update_model_status_indicators(self):
         """Legge lo stato dei modelli AI inizializzati e aggiorna i semafori nell'header.
 
@@ -748,7 +770,11 @@ class MainWindow(QMainWindow):
                 backend_label = 'Ollama'
             self.header.update_model_status('llm', 'ok', label=backend_label)
         elif llm_enabled:
-            self.header.update_model_status('llm', 'error')
+            # Nessun plugin caricato: il nome va preso dalla configurazione,
+            # altrimenti resta quello di partenza e si accusa il programma
+            # sbagliato — dice "Ollama" a chi ha scelto LM Studio.
+            self.header.update_model_status(
+                'llm', 'error', label=self._nome_backend_scelto())
         else:
             self.header.update_model_status('llm', 'missing')
 
@@ -799,6 +825,9 @@ class MainWindow(QMainWindow):
             label = 'LM Studio' if 'LMStudio' in plugin_class else 'Ollama'
             self.header.update_model_status('llm', 'ok' if alive else 'error', label=label)
         elif llm_enabled:
+            # Anche qui il nome viene dalla configurazione, non dal valore iniziale
+            self.header.update_model_status(
+                'llm', 'error', label=self._nome_backend_scelto())
             # Nessun plugin caricato ma LLM abilitato: riprova auto-detect,
             # ma solo ogni 5 minuti (10 cicli da 30s) per non spammare entrambi i backend
             self._llm_redetect_counter = getattr(self, '_llm_redetect_counter', 0) + 1
