@@ -730,13 +730,20 @@ class ConfigTab(QWidget):
         refresh_btn.setToolTip("Ricalcola VRAM LLM leggendo da config corrente")
         refresh_btn.setFixedWidth(110)
         refresh_btn.clicked.connect(self._refresh_llm_vram_if_active)
-        save_matrix_btn = QPushButton("💾 Salva Matrice")
-        save_matrix_btn.setToolTip("Salva l'attuale combinazione GPU/CPU/OFF per tutti i modelli")
-        save_matrix_btn.setFixedWidth(140)
+        save_matrix_btn = QPushButton("💾 Memorizza combinazione")
+        save_matrix_btn.setToolTip(
+            "Mette da parte l'attuale combinazione GPU/CPU/OFF con un nome, "
+            "per poterla richiamare in futuro.\n"
+            "Non cambia la configurazione in uso: serve solo a ricordarla."
+        )
+        save_matrix_btn.setFixedWidth(190)
         save_matrix_btn.clicked.connect(self._save_matrix_dialog)
-        load_matrix_btn = QPushButton("📋 Carica Matrice")
-        load_matrix_btn.setToolTip("Ripristina una combinazione salvata")
-        load_matrix_btn.setFixedWidth(140)
+        load_matrix_btn = QPushButton("📋 Scegli e attiva")
+        load_matrix_btn.setToolTip(
+            "Sceglie una combinazione messa da parte e la mette in uso.\n"
+            "I modelli cambiano scheda al prossimo avvio di OffGallery."
+        )
+        load_matrix_btn.setFixedWidth(190)
         load_matrix_btn.clicked.connect(self._load_matrix_dialog)
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(auto_btn)
@@ -1043,7 +1050,8 @@ class ConfigTab(QWidget):
     def _save_matrix_dialog(self):
         params = self._get_matrix_params()
         name, ok = QInputDialog.getText(
-            self, "Salva Matrice", "Nome della configurazione:")
+            self, "Memorizza combinazione",
+            "Con che nome vuoi ricordarla?")
         if not ok or not name.strip():
             return
         name = name.strip()
@@ -1052,7 +1060,8 @@ class ConfigTab(QWidget):
         while name in existing:
             choice = QMessageBox.question(
                 self, "Nome già esistente",
-                f"Esiste già una matrice chiamata '{name}'. Sovrascrivere?",
+                f"Hai già messo da parte una combinazione chiamata '{name}'. "
+                f"Vuoi sostituirla?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
@@ -1060,7 +1069,7 @@ class ConfigTab(QWidget):
                 matrices = [m for m in matrices if m['name'] != name]
                 break
             new_name, ok2 = QInputDialog.getText(
-                self, "Salva Matrice", "Nuovo nome:", text=name)
+                self, "Memorizza combinazione", "Nuovo nome:", text=name)
             if not ok2 or not new_name.strip():
                 return
             name = new_name.strip()
@@ -1070,16 +1079,24 @@ class ConfigTab(QWidget):
             'params': params,
         })
         self._save_saved_matrices(matrices)
-        QMessageBox.information(self, "Matrice salvata", f"'{name}' salvata.")
+        QMessageBox.information(
+            self, "Combinazione memorizzata",
+            f"'{name}' è stata messa da parte.\n\n"
+            f"Per metterla in uso, premi «Scegli e attiva»."
+        )
 
     def _load_matrix_dialog(self):
         matrices = self._load_saved_matrices()
         if not matrices:
-            QMessageBox.information(self, "Nessuna matrice",
-                                     "Non ci sono matrici salvate.")
+            QMessageBox.information(
+                self, "Nessuna combinazione",
+                "Non hai ancora messo da parte nessuna combinazione.\n\n"
+                "Sistema i modelli su GPU o CPU come preferisci, "
+                "poi premi «Memorizza combinazione»."
+            )
             return
         dialog = QDialog(self)
-        dialog.setWindowTitle("Carica Matrice")
+        dialog.setWindowTitle("Scegli e attiva una combinazione")
         dialog.resize(380, 300)
         layout = QVBoxLayout(dialog)
         list_widget = QListWidget()
@@ -1102,8 +1119,8 @@ class ConfigTab(QWidget):
                 return
             entry = sel[0].data(Qt.ItemDataRole.UserRole)
             confirm = QMessageBox.question(
-                dialog, "Elimina matrice",
-                f"Eliminare '{entry['name']}'?",
+                dialog, "Elimina combinazione",
+                f"Vuoi eliminare la combinazione '{entry['name']}'?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             if confirm == QMessageBox.StandardButton.Yes:
                 remaining = [m for m in self._load_saved_matrices() if m['name'] != entry['name']]
@@ -1130,18 +1147,19 @@ class ConfigTab(QWidget):
         nome = f" «{matrix_name}»" if matrix_name else ""
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Question)
-        box.setWindowTitle("Matrice caricata")
+        box.setWindowTitle("Attiva questa combinazione")
         box.setText(
-            f"La matrice{nome} è stata caricata nelle impostazioni."
+            f"Hai scelto la combinazione{nome}."
         )
         box.setInformativeText(
-            "I modelli già in funzione restano però sulla scheda dove sono: "
-            "cambiano scheda solo al prossimo avvio di OffGallery.\n\n"
-            "Vuoi salvare la configurazione adesso?"
+            "Per ora si sono spostate solo le tendine qui sopra. Perché OffGallery "
+            "la usi davvero, va scritta nelle impostazioni.\n\n"
+            "I modelli già in funzione cambiano scheda soltanto quando il programma "
+            "riparte: riavviando adesso li sposti subito."
         )
-        btn_salva_riavvia = box.addButton("Salva e riavvia", QMessageBox.ButtonRole.AcceptRole)
-        btn_salva         = box.addButton("Salva soltanto", QMessageBox.ButtonRole.ApplyRole)
-        btn_dopo          = box.addButton("Più tardi", QMessageBox.ButtonRole.RejectRole)
+        btn_salva_riavvia = box.addButton("Attiva e riavvia", QMessageBox.ButtonRole.AcceptRole)
+        btn_salva         = box.addButton("Attiva al prossimo avvio", QMessageBox.ButtonRole.ApplyRole)
+        btn_dopo          = box.addButton("Non attivare", QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(btn_salva_riavvia)
         try:
             # Import locale: evita una dipendenza fra moduli GUI solo per lo stile
