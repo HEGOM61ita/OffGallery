@@ -127,69 +127,148 @@ def delete_user_preset(preset_id: str) -> bool:
     return False
 
 
-def generate_preset_from_description(user_input: str, llm_endpoint: str = 'http://localhost:11434',
-                                     model: str = '', timeout: int = 60) -> Optional[str]:
+class PresetGenerationError(Exception):
+    """Generazione preset fallita, con il motivo in parole comprensibili.
+
+    Distingue i due casi che l'utente deve poter separare: il backend LLM non
+    risponde (server spento, indirizzo sbagliato, modello non caricato) oppure
+    il backend ha risposto ma il testo prodotto non era utilizzabile.
+    """
+
+    def __init__(self, message: str, backend_unreachable: bool = False):
+        super().__init__(message)
+        self.backend_unreachable = backend_unreachable
+
+
+def _load_llm_backend(config: dict):
+    """Restituisce il plugin LLM attivo secondo la configurazione di OffGallery.
+
+    Non decide nulla da se': si limita a chiedere al loader, lo stesso centralino
+    che usa embedding_generator per la generazione da immagine. Cosi' il generatore
+    di preset segue automaticamente il backend scelto dall'utente, oggi Ollama o
+    LM Studio, domani qualunque altro.
+
+    Raises:
+        PresetGenerationError: se nessun backend e' utilizzabile.
+    """
+    if not config:
+        raise PresetGenerationError(
+            "Configurazione non disponibile: impossibile sapere quale motore LLM usare.",
+            backend_unreachable=True
+        )
+
+    llm_config = config.get('embedding', {}).get('models', {}).get('llm_vision', {})
+    if not llm_config.get('enabled', False):
+        raise PresetGenerationError(
+            "Il motore LLM e' disattivato nelle impostazioni: attivalo per generare i preset.",
+            backend_unreachable=True
+        )
+
+    try:
+        from ..loader import load_plugin
+    except ImportError:
+        from plugins.loader import load_plugin
+
+    plugin = load_plugin(config)
+    if plugin is None:
+        backend = llm_config.get('backend', 'auto')
+        if backend == 'auto':
+            detail = "Nessun motore LLM raggiungibile (ne' Ollama ne' LM Studio)."
+        else:
+            detail = f"Il motore LLM selezionato ({backend}) non risponde."
+        raise PresetGenerationError(
+            f"{detail} Avvia il server e assicurati che il modello sia caricato.",
+            backend_unreachable=True
+        )
+    return plugin
+
+
+def generate_preset_from_description(user_input: str, config: dict = None,
+                                     timeout: int = 60, **legacy) -> Optional[str]:
     """Genera un context_block da una descrizione in linguaggio libero via LLM locale.
 
-    Chiama il modello LLM in modalità testo puro (nessuna immagine) con il meta-prompt
-    ottimizzato dagli autori. Parametri di generazione calibrati per questo compito
-    (più creatività rispetto al vision, output breve e strutturato).
+    Usa il backend LLM configurato in OffGallery attraverso i plugin già presenti
+    (Ollama, LM Studio o qualunque altro backend futuro): non conosce il dialetto
+    di nessuno di essi, chiede solo "genera questo testo" al centralino.
 
     Args:
-        user_input:    Descrizione dell'archivio fotografico scritta dall'utente.
-        llm_endpoint:  URL base Ollama (default http://localhost:11434).
-        model:         Nome modello da usare (default: modello configurato in OffGallery).
-        timeout:       Timeout HTTP in secondi.
+        user_input: Descrizione dell'archivio fotografico scritta dall'utente.
+        config:     Configurazione OffGallery completa, da cui si ricava il backend attivo.
+        timeout:    Timeout HTTP in secondi.
+        **legacy:   Ignora i vecchi argomenti llm_endpoint/model dei chiamanti precedenti.
 
     Returns:
-        Stringa del context_block generato (inizia con "CONTEXT:"), oppure None se errore.
+        Stringa del context_block generato (inizia con "CONTEXT:").
+
+    Raises:
+        PresetGenerationError: con backend_unreachable=True se il backend non
+            risponde, False se ha risposto ma il testo non era utilizzabile.
     """
     meta_prompt_path = _PLUGIN_DIR / 'generator' / 'meta_prompt.txt'
     if not meta_prompt_path.exists():
-        logger.error("meta_prompt.txt non trovato")
-        return None
+        raise PresetGenerationError(
+            "File del meta-prompt non trovato: l'installazione del plugin e' incompleta."
+        )
 
     try:
         meta_prompt_template = meta_prompt_path.read_text(encoding='utf-8')
     except Exception as e:
-        logger.error(f"Errore lettura meta_prompt.txt: {e}")
-        return None
+        raise PresetGenerationError(f"Impossibile leggere il meta-prompt: {e}")
 
     prompt = meta_prompt_template.replace('{user_input}', user_input.strip())
 
+    # Il backend attivo lo sceglie il loader in base alla configurazione:
+    # qui non si sa e non si deve sapere se sia Ollama, LM Studio o altro.
+    plugin = _load_llm_backend(config)
+    backend_name = type(plugin).__name__.replace('Plugin', '')
+
+    # Il backend e' raggiungibile? Distinguere "server spento" da "generazione
+    # fallita" evita di mandare l'utente a cercare nella stanza sbagliata.
+    try:
+        reachable = plugin.is_available()
+    except Exception as e:
+        logger.warning(f"Controllo disponibilita' backend fallito: {e}", exc_info=True)
+        reachable = False
+
+    if not reachable:
+        raise PresetGenerationError(
+            f"{backend_name} non risponde. Controlla che il server sia avviato e "
+            f"che il modello configurato sia caricato.",
+            backend_unreachable=True
+        )
+
     # Parametri ottimizzati per generazione testo (non vision)
     # Temperatura più alta rispetto al vision (0.1): serve creatività controllata
-    payload = {
-        'model':  model,
-        'prompt': prompt,
-        'stream': False,
-        'think':  False,
-        'options': {
-            'num_predict': 220,
-            'temperature': 0.4,
-            'top_p':       0.9,
-            'top_k':       50,
-            'num_ctx':     2048,
-        }
+    params = {
+        'temperature': 0.4,
+        'top_p':       0.9,
+        'top_k':       50,
+        'num_ctx':     2048,
+        'timeout':     timeout,
     }
 
     try:
-        import requests
-        r = requests.post(f'{llm_endpoint}/api/generate', json=payload, timeout=timeout)
-        r.raise_for_status()
-        raw = r.json().get('response', '').strip()
+        raw = plugin.generate_text(prompt, max_tokens=220, params=params)
     except Exception as e:
-        logger.error(f"Errore chiamata LLM per generazione preset: {e}")
-        return None
+        logger.error(f"Errore chiamata {backend_name} per generazione preset: {e}", exc_info=True)
+        raise PresetGenerationError(f"Errore durante la chiamata a {backend_name}: {e}")
 
     if not raw:
-        return None
+        raise PresetGenerationError(
+            f"{backend_name} ha risposto ma non ha prodotto nessun testo utilizzabile. "
+            f"Prova a riformulare la descrizione."
+        )
+
+    raw = raw.strip()
 
     # Rimuovi eventuale blocco <think> (Qwen3)
     import re
     raw = re.sub(r'<think>.*?</think>', '', raw, flags=re.DOTALL).strip()
     if not raw:
-        return None
+        raise PresetGenerationError(
+            f"{backend_name} ha prodotto solo ragionamento interno, senza il testo finale. "
+            f"Prova a riformulare la descrizione."
+        )
 
     # Assicura che inizi con "CONTEXT:"
     if not raw.upper().startswith('CONTEXT:'):

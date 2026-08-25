@@ -41,8 +41,11 @@ GNU Classpath Exception. It does NOT apply to any other file in OffGallery.
 ---------------------------------------------------------------------------
 """
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class GeoEnricherPlugin(ABC):
@@ -162,6 +165,30 @@ class LLMVisionPlugin(ABC):
             Testo generato (già pulito da artefatti del modello), oppure None.
         """
         ...
+
+    def generate_text(self, prompt: str, max_tokens: int, params: dict) -> Optional[str]:
+        """Genera testo da solo prompt, senza immagine.
+
+        Serve a chi usa il modello per compiti di puro testo (per esempio la
+        generazione di un preset da una descrizione scritta dall'utente), senza
+        dover conoscere il dialetto del backend.
+
+        Implementazione opzionale: il default segnala che il backend non la
+        offre, così il chiamante può dirlo con parole chiare invece di fallire
+        in modo generico.
+
+        Args:
+            prompt:     prompt completo già costruito
+            max_tokens: limite token di output
+            params:     parametri di generazione (model, temperature, top_p, timeout, ...)
+
+        Returns:
+            Testo generato, oppure None in caso di errore o se non supportato.
+        """
+        logger.warning(
+            f"{type(self).__name__} non offre la generazione di solo testo"
+        )
+        return None
 
     def warmup(self) -> None:
         """Pre-carica il modello in VRAM prima del batch processing.

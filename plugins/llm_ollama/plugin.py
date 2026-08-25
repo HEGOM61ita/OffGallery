@@ -152,6 +152,44 @@ class OllamaPlugin(LLMVisionPlugin):
             logger.error(f"Errore chiamata Ollama: {e}")
             return None
 
+    def generate_text(self, prompt: str, max_tokens: int, params: dict) -> Optional[str]:
+        """Chiama Ollama /api/generate in modalità solo testo (nessuna immagine).
+
+        Stessa rotta di generate(), senza il campo images.
+        """
+        try:
+            payload = {
+                "model":      params.get('model') or self.model,
+                "prompt":     prompt,
+                "stream":     False,
+                "think":      False,
+                "keep_alive": params.get('keep_alive', self.keep_alive),
+                "options": {
+                    "num_predict": max_tokens,
+                    "temperature": params.get('temperature', self.temperature),
+                    "top_p":       params.get('top_p',       self.top_p),
+                    "top_k":       params.get('top_k',       self.top_k),
+                    "num_ctx":     params.get('num_ctx',     self.num_ctx),
+                }
+            }
+
+            response = self._session.post(
+                f"{self.endpoint}/api/generate",
+                json=payload,
+                timeout=params.get('timeout', self.timeout)
+            )
+
+            if response.status_code != 200:
+                logger.error(f"Ollama API error (testo): {response.status_code} - {response.text[:200]}")
+                return None
+
+            text = response.json().get("response", "").strip()
+            return self._strip_think_blocks(text)
+
+        except Exception as e:
+            logger.error(f"Errore chiamata Ollama (testo): {e}")
+            return None
+
     def warmup(self) -> None:
         """Pre-carica il modello in VRAM tramite /api/generate senza prompt."""
         try:

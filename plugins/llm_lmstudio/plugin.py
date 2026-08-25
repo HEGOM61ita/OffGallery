@@ -130,6 +130,37 @@ class LMStudioPlugin(LLMVisionPlugin):
             logger.error(f"Errore chiamata LM Studio: {e}")
             return None
 
+    def generate_text(self, prompt: str, max_tokens: int, params: dict) -> Optional[str]:
+        """Chiama LM Studio /v1/chat/completions in modalità solo testo (nessuna immagine).
+
+        Stessa rotta di generate(), con un messaggio di solo testo invece del
+        contenuto misto testo+immagine.
+        """
+        try:
+            payload = {
+                "model":       params.get('model') or self.model,
+                "messages":    [{"role": "user", "content": prompt}],
+                "temperature": params.get('temperature', self.temperature),
+                "top_p":       params.get('top_p',       self.top_p),
+                "max_tokens":  max_tokens
+            }
+
+            response = self._session.post(
+                f"{self.endpoint}/v1/chat/completions",
+                json=payload,
+                timeout=params.get('timeout', self.timeout)
+            )
+
+            if response.status_code != 200:
+                logger.error(f"LM Studio API error (testo): {response.status_code} - {response.text[:200]}")
+                return None
+
+            content = response.json()["choices"][0]["message"]["content"]
+            return self._strip_think_blocks(content.strip())
+        except Exception as e:
+            logger.error(f"Errore chiamata LM Studio (testo): {e}")
+            return None
+
     def warmup(self) -> None:
         """Pre-carica il modello in VRAM con una richiesta minimale."""
         try:

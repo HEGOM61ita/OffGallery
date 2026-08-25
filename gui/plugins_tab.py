@@ -1215,30 +1215,34 @@ class PromptContextConfigDialog(QDialog):
         if not user_input:
             return
 
+        # La configurazione completa serve al plugin per sapere quale motore LLM
+        # usare: non si assume piu' che sia Ollama.
         try:
             import yaml
             cfg = yaml.safe_load(
                 Path(self._config_path).read_text(encoding='utf-8')
             ) or {}
-            llm_cfg  = cfg.get('embedding', {}).get('models', {}).get('llm_vision', {})
-            endpoint = llm_cfg.get('endpoint', 'http://localhost:11434')
-            model    = llm_cfg.get('model', '')
-        except Exception:
-            endpoint = 'http://localhost:11434'
-            model    = ''
+        except Exception as e:
+            logger.warning(f"Impossibile leggere la configurazione: {e}", exc_info=True)
+            cfg = {}
 
         self._btn_generate.setText("⏳ Generazione…")
         self._btn_generate.setEnabled(False)
         QApplication.processEvents()
 
+        result = None
+        error_message = None
         try:
             mod = self._plugin_module()
-            result = mod.generate_preset_from_description(
-                user_input, llm_endpoint=endpoint, model=model, timeout=90
-            )
+            result = mod.generate_preset_from_description(user_input, config=cfg, timeout=90)
         except Exception as e:
-            result = None
-            logger.warning(f"Errore generazione preset: {e}")
+            # PresetGenerationError porta gia' un messaggio scritto per l'utente;
+            # per qualunque altra eccezione si dice quel che si sa senza inventare colpevoli.
+            if type(e).__name__ == 'PresetGenerationError':
+                error_message = str(e)
+            else:
+                error_message = f"Generazione non riuscita: {e}"
+            logger.warning(f"Errore generazione preset: {e}", exc_info=True)
 
         self._btn_generate.setText("⚡ Genera con LLM")
         self._btn_generate.setEnabled(True)
@@ -1250,7 +1254,9 @@ class PromptContextConfigDialog(QDialog):
             self._gen_name_input.setVisible(True)
             self._btn_save_gen.setVisible(True)
         else:
-            self._gen_preview.setPlainText("⚠️ Generazione fallita — verificare che Ollama sia attivo.")
+            self._gen_preview.setPlainText(
+                f"⚠️ {error_message or 'Generazione non riuscita.'}"
+            )
             self._gen_preview.setVisible(True)
             self._gen_name_input.setVisible(False)
             self._btn_save_gen.setVisible(False)
