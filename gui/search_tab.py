@@ -670,8 +670,15 @@ class SearchTab(QWidget):
                 "Foto da rielaborare",
                 "<b>Queste foto sono state catalogate con una versione più "
                 "vecchia del programma, e vanno rifatte.</b><br><br>"
-                "Non c'è niente da scaricare né da installare: basta "
-                "rielaborarle dalla scheda <b>Elaborazione</b>.<br><br>"
+                "Non c'è niente da scaricare né da installare. Nella scheda "
+                "<b>Elaborazione</b>:<br>"
+                "&nbsp;&nbsp;1. scegli <b>Completa / Riprocessa tutte</b><br>"
+                "&nbsp;&nbsp;2. lascia acceso solo <b>Embedding SigLIP</b>, con "
+                "la sua spunta <b>Sovrascrivi</b><br>"
+                "&nbsp;&nbsp;3. spegni tutto il resto, soprattutto la "
+                "generazione di testi<br><br>"
+                "Il terzo punto conta: con i testi accesi il lavoro passa da "
+                "qualche ora a diversi giorni.<br><br>"
                 "Intanto puoi cercarle per <b>tag</b>."
             )
             self.search_executed.emit(results)
