@@ -18,6 +18,19 @@ from typing import Dict, List, Optional, Any
 
 logger = logging.getLogger(__name__)
 
+# Impronte visive: di queste conta anche la DIMENSIONE, perche' una generata
+# da un modello precedente non e' confrontabile e va rigenerata.
+# In byte: 4 per ogni valore float32.
+#   clip_embedding   1152 valori (SigLIP so400m)  -> 4608 byte
+#                    768 valori era il vecchio CLIP ViT-L/14, non piu' in uso
+#   dinov2_embedding  768 valori (DINOv2 base)    -> 3072 byte
+# ⚠️ Cambiando modello questi numeri vanno aggiornati a mano: un valore
+# sbagliato farebbe risultare TUTTE le foto da rielaborare.
+_CAMPI_EMBEDDING = {
+    'clip_embedding':   1152 * 4,
+    'dinov2_embedding':  768 * 4,
+}
+
 class DatabaseManager:
     """Gestore database con schema completo XMP Lightroom e tags unificati"""
     
@@ -672,6 +685,8 @@ class DatabaseManager:
         fpaths_list = list(filepaths)
         result = {}
 
+        _attesi = _CAMPI_EMBEDDING
+
         # Su unità di rete mappate il DB contiene la forma risolta (UNC) mentre
         # qui arrivano i percorsi come li vede l'utente (Z:\...): si interroga
         # con entrambe le scritture e si riporta il risultato sulla chiave
@@ -712,8 +727,17 @@ class DatabaseManager:
                     # produce 'D:' maiuscolo, il DB conteneva 'd:' minuscolo.
                     # filepath_exists (modalita' "solo nuove") lo gestiva gia';
                     # questa strada, usata da "rielabora tutte", no.
+                    # Degli embedding si legge la LUNGHEZZA, non il contenuto:
+                    # serve a riconoscere le impronte generate da un modello
+                    # precedente (768 valori del vecchio CLIP contro i 1152 di
+                    # SigLIP), che vanno rifatte. Costa anche meno: 43 ms invece
+                    # di 48 su 500 righe, senza trasferire i blob.
+                    _sel = ', '.join(
+                        f"LENGTH({f})" if f in _CAMPI_EMBEDDING else f
+                        for f in valid_fields
+                    )
                     rows = self.cursor.execute(
-                        f"SELECT filepath, {cols} FROM images "
+                        f"SELECT filepath, {_sel} FROM images "
                         f"WHERE filepath COLLATE NOCASE IN ({placeholders})",
                         batch
                     ).fetchall()
@@ -722,7 +746,16 @@ class DatabaseManager:
                         presence = {}
                         for j, field in enumerate(valid_fields):
                             val = row[j + 1]
-                            presence[field] = val is not None and val not in ('', '[]')
+                            if field in _CAMPI_EMBEDDING:
+                                # Un'impronta di dimensione diversa da quella
+                                # attesa non e' utilizzabile: va rigenerata,
+                                # quindi conta come assente.
+                                atteso = _attesi.get(field)
+                                presence[field] = bool(val) and (
+                                    atteso is None or val == atteso
+                                )
+                            else:
+                                presence[field] = val is not None and val not in ('', '[]')
                         result[fpath] = presence
                 else:
                     rows = self.cursor.execute(
