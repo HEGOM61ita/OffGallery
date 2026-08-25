@@ -768,7 +768,14 @@ class EmbeddingGenerator:
                     self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
                     # Primo tentativo senza rete di sicurezza: se l'ambiente è
                     # sano si carica normalmente e sys.modules resta intatto.
-                    self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
+                    # use_fast=True serve a togliere due avvisi inutili che
+                    # transformers stampa ad ogni avvio: NON e' una questione di
+                    # prestazioni (il guadagno e' lo 0,1% del tempo per immagine,
+                    # il grosso lo prende il modello). Verificato che la qualita'
+                    # non cali: somiglianza 0.999999 su immagini reali. Riguarda
+                    # solo il ritaglio dell'immagine, non il tokenizer: nessun
+                    # contatto con la faccenda protobuf.
+                    self.clip_processor = AutoProcessor.from_pretrained(str(clip_local), use_fast=True)
                     loaded = True
                     logger.info("[OK] SigLIP caricato da locale")
                 except Exception as e:
@@ -809,7 +816,7 @@ class EmbeddingGenerator:
                     if not _mancanti:
                         self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
                         # Il bypass protobuf è già attivo da _prepara_pb2_sano().
-                        self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
+                        self.clip_processor = AutoProcessor.from_pretrained(str(clip_local), use_fast=True)
                         loaded = True
                         logger.info("[OK] SigLIP caricato da repo")
                     else:
@@ -833,13 +840,13 @@ class EmbeddingGenerator:
                     )
                     self.clip_model = self._model_to_device(AutoModel.from_pretrained(str(clip_local)), 'clip')
                     # Il bypass protobuf è già attivo da _prepara_pb2_sano().
-                    self.clip_processor = AutoProcessor.from_pretrained(str(clip_local))
+                    self.clip_processor = AutoProcessor.from_pretrained(str(clip_local), use_fast=True)
                     logger.info(f"[OK] SigLIP caricato e salvato (fallback: {fallback_model})")
                     loaded = True
                 except Exception as fe:
                     logger.error(f"SigLIP: snapshot_download fallito ({fe}), provo from_pretrained in memoria...")
                     self.clip_model = self._model_to_device(AutoModel.from_pretrained(fallback_model), 'clip')
-                    self.clip_processor = AutoProcessor.from_pretrained(fallback_model)
+                    self.clip_processor = AutoProcessor.from_pretrained(fallback_model, use_fast=True)
                     logger.info(f"[OK] SigLIP caricato in memoria senza persistenza (fallback: {fallback_model})")
                     loaded = True
 
