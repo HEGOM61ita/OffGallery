@@ -2631,15 +2631,16 @@ class ConfigTab(QWidget):
 
         # Nessuno in ascolto su quella porta: il caso di gran lunga piu' comune
         if isinstance(errore, _rq.ConnectionError) or '10061' in testo or 'Connection refused' in testo:
-            porta = '?'
-            try:
-                porta = endpoint.rstrip('/').rsplit(':', 1)[1].split('/')[0]
-            except Exception:
-                pass
-            # Indirizzo inesistente: non e' "porta chiusa" ma "casa sbagliata"
+            # Indirizzo inesistente: non e' "nessuno risponde" ma "indirizzo sbagliato"
             if 'getaddrinfo' in testo or 'Name or service not known' in testo or '11001' in testo:
                 return t("config.msg.connection_reason_host", endpoint=endpoint)
-            return t("config.msg.connection_reason_refused", provider=provider, port=porta)
+            # Ollama non ha un server da accendere a parte: l'elenco dei due
+            # passaggi vale per LM Studio, non per lui.
+            if 'ollama' in provider.lower():
+                return t("config.msg.connection_reason_refused_ollama")
+            hint = t("config.msg.connection_hint_lmstudio") if 'lm studio' in provider.lower() else ''
+            return t("config.msg.connection_reason_refused",
+                     provider=provider, hint=hint).rstrip()
 
         if isinstance(errore, _rq.Timeout) or 'timed out' in testo.lower():
             return t("config.msg.connection_reason_timeout", provider=provider)

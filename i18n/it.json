@@ -991,9 +991,12 @@
   "config.overlay.llm_plugin_desc": "Questa sezione richiede un plugin LLM Vision opzionale (Ollama o LM Studio). Il plugin ottimizza la generazione di tag, titoli e descrizioni per le tue fotografie usando modelli vision locali.",
   "config.overlay.llm_plugin_request": "Per ricevere il plugin scrivi a:",
   "config.overlay.llm_plugin_note": "Le email non saranno usate per scopi diversi da aggiornamenti e notifiche relative al plugin.",
-  "config.msg.connection_reason_refused": "Il computer c'è, ma sulla porta {port} non c'è nessuno in ascolto.\n\nDi solito significa che {provider} non è stato avviato, oppure che è aperto ma il suo server non è stato acceso: sono due cose distinte.",
-  "config.msg.connection_reason_timeout": "{provider} non ha risposto entro il tempo previsto.\n\nPotrebbe essere occupato a caricare un modello: riprova fra qualche istante.",
-  "config.msg.connection_reason_host": "L'indirizzo «{endpoint}» non è raggiungibile.\n\nControlla che sia scritto correttamente.",
-  "config.msg.connection_reason_status": "{provider} ha risposto con un errore (codice {code}).\n\nIl server è acceso ma non ha accettato la richiesta.",
-  "config.msg.connection_reason_generic": "Controlla che {provider} sia avviato e che il suo server sia acceso."
+  "config.msg.connection_reason_refused": "Controlla due cose, in quest'ordine:\n\n1. che {provider} sia aperto\n2. che al suo interno il server sia acceso\n\n{hint}",
+  "config.msg.connection_reason_timeout": "Ci ha messo troppo a rispondere.\n\nProbabilmente sta caricando un modello: aspetta qualche istante e riprova.",
+  "config.msg.connection_reason_host": "L'indirizzo «{endpoint}» non porta da nessuna parte.\n\nControlla che sia scritto giusto.",
+  "config.msg.connection_reason_status": "Ha risposto rifiutando la richiesta (codice {code}).\n\nIl server è acceso, ma qualcosa non gli è andato bene: prova a controllare che il modello indicato nelle impostazioni sia caricato.",
+  "config.msg.connection_reason_generic": "Controlla che {provider} sia aperto e che il suo server sia acceso.",
+  "config.msg.connection_hint_lmstudio": "Non basta la prima: è il passaggio che sfugge più spesso. In LM Studio il server si accende dalla sezione «Developer».",
+  "config.msg.connection_hint_ollama": "Di norma Ollama parte da solo insieme al computer. Se non risponde, prova a riavviarlo.",
+  "config.msg.connection_reason_refused_ollama": "Ollama non è in funzione.\n\nDi norma parte da solo insieme al computer: prova ad avviarlo, o a riavviarlo se risulta già aperto."
 }
