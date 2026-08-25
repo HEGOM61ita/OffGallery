@@ -1155,11 +1155,19 @@ class ConfigTab(QWidget):
             "Per ora è cambiato solo quello che vedi qui sopra: OffGallery non la "
             "sta ancora usando. Perché la usi davvero, va scritta nelle impostazioni.\n\n"
             "I modelli già in funzione cambiano scheda soltanto quando il programma "
-            "riparte: riavviando adesso li sposti subito."
+            "riparte:\n\n"
+            "• Riavvia ora — li sposta subito\n"
+            "• Lascia stare — non attiva questa combinazione\n"
+            "• Più tardi — la attiva, ma i modelli si spostano al prossimo avvio"
         )
-        btn_salva_riavvia = box.addButton("Attiva e riavvia", QMessageBox.ButtonRole.AcceptRole)
-        btn_salva         = box.addButton("Attiva al prossimo avvio", QMessageBox.ButtonRole.ApplyRole)
-        btn_dopo          = box.addButton("Non attivare", QMessageBox.ButtonRole.RejectRole)
+        # Etichette corte: lo stile comune dei popup fissa i pulsanti a 80 pixel
+        # e non li allarga per far entrare il testo, che verrebbe troncato.
+        # La spiegazione sta nel messaggio qui sopra, dove lo spazio c'e'.
+        btn_salva_riavvia = box.addButton("Riavvia ora", QMessageBox.ButtonRole.AcceptRole)
+        btn_salva         = box.addButton("Più tardi", QMessageBox.ButtonRole.ApplyRole)
+        btn_dopo          = box.addButton("Lascia stare", QMessageBox.ButtonRole.RejectRole)
+        for _b in (btn_salva_riavvia, btn_salva, btn_dopo):
+            _b.setMinimumWidth(_b.fontMetrics().horizontalAdvance(_b.text()) + 40)
         box.setDefaultButton(btn_salva_riavvia)
         try:
             # Import locale: evita una dipendenza fra moduli GUI solo per lo stile
