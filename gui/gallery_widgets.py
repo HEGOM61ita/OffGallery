@@ -396,6 +396,39 @@ class _ThumbnailLoader(QRunnable):
         else:
             self.signals.failed.emit()
 
+    def _apply_orientation(self, img):
+        """Raddrizza la miniatura secondo l'orientamento dichiarato.
+
+        Prima cerca il tag sull'immagine (JPEG e TIFF ce l'hanno); se manca,
+        lo chiede al file di partenza (le preview estratte dai RAW escono
+        senza metadati). Delega a RAWProcessor per non avere due regole
+        diverse sullo stesso problema.
+        """
+        try:
+            orientation = img.getexif().get(274)
+            if not orientation:
+                from raw_processor import read_orientation_from_file
+                orientation = read_orientation_from_file(self.filepath)
+            if not orientation or orientation == 1:
+                return img
+            # Import locale: PIL non e' importato a livello di modulo qui
+            from PIL import Image as _Img
+            ops = {
+                2: (_Img.Transpose.FLIP_LEFT_RIGHT,),
+                3: (_Img.Transpose.ROTATE_180,),
+                4: (_Img.Transpose.FLIP_TOP_BOTTOM,),
+                5: (_Img.Transpose.FLIP_LEFT_RIGHT, _Img.Transpose.ROTATE_90),
+                6: (_Img.Transpose.ROTATE_270,),
+                7: (_Img.Transpose.FLIP_LEFT_RIGHT, _Img.Transpose.ROTATE_270),
+                8: (_Img.Transpose.ROTATE_90,),
+            }
+            for op in ops.get(int(orientation), ()):
+                img = img.transpose(op)
+            return img
+        except Exception as e:
+            logger.debug(f"Raddrizzamento miniatura fallito per {self.filepath.name}: {e}")
+            return img
+
     def _resize_and_cache(self, data: bytes):
         """Salva thumbnail 150px in cache disco, ritorna i bytes della thumb già ridimensionata."""
         try:
@@ -404,6 +437,10 @@ class _ThumbnailLoader(QRunnable):
             from utils.thumb_cache import save_gallery_thumb, load_gallery_thumb_bytes
             img = Image.open(io.BytesIO(data))
             img.load()  # Forza decodifica completa prima che BytesIO esca dallo scope
+            # Raddrizza prima di salvare: le preview estratte dai RAW con
+            # ExifTool escono senza tag Orientation, quindi le foto verticali
+            # finirebbero coricate nella cache e resterebbero tali in gallery.
+            img = self._apply_orientation(img)
             save_gallery_thumb(self.filepath, img)
             # Rileggi i bytes della thumbnail appena salvata (già 150px JPEG, ~5KB)
             return load_gallery_thumb_bytes(self.filepath)

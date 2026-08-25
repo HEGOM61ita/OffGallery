@@ -1082,26 +1082,11 @@ class ProcessingWorker(QThread):
             # resta in RAM nel prep_cache per i thread modello (no disco)
             if thumbnail and hasattr(thumbnail, 'size'):
                 try:
+                    # Nessuna rotazione qui: extract_thumbnail consegna gia'
+                    # l'immagine dritta. Ruotarla di nuovo la rimetterebbe
+                    # coricata — e' esattamente cio' che accadeva.
                     from utils.thumb_cache import save_gallery_thumb
-                    from PIL import Image as _PILImage
-                    _ORIENT_OPS = {
-                        2: [_PILImage.Transpose.FLIP_LEFT_RIGHT],
-                        3: [_PILImage.Transpose.ROTATE_180],
-                        4: [_PILImage.Transpose.FLIP_TOP_BOTTOM],
-                        5: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_90],
-                        6: [_PILImage.Transpose.ROTATE_270],
-                        7: [_PILImage.Transpose.FLIP_LEFT_RIGHT, _PILImage.Transpose.ROTATE_270],
-                        8: [_PILImage.Transpose.ROTATE_90],
-                    }
-                    orientation = image_data.get('orientation')
-                    ops = _ORIENT_OPS.get(int(orientation), []) if orientation and orientation != 1 else []
-                    if ops:
-                        thumb_oriented = thumbnail.copy()
-                        for op in ops:
-                            thumb_oriented = thumb_oriented.transpose(op)
-                        save_gallery_thumb(image_path, thumb_oriented)
-                    else:
-                        save_gallery_thumb(image_path, thumbnail)
+                    save_gallery_thumb(image_path, thumbnail)
                 except Exception as _e:
                     logger.warning(f"Errore thumbnail cache gallery: {_e}")
             elif need_thumb and is_raw:

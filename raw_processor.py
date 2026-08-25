@@ -63,6 +63,49 @@ def _exiftool_executable() -> str:
     return _EXIFTOOL_EXE
 
 
+# Orientamenti gia' letti, per non riavviare ExifTool ad ogni estrazione:
+# la stessa immagine viene estratta una volta per modello.
+_ORIENTATION_CACHE: Dict[str, Optional[int]] = {}
+
+
+def read_orientation_from_file(file_path: Path) -> Optional[int]:
+    """Legge l'orientamento (EXIF Orientation 1-8) dichiarato da un file immagine.
+
+    Serve per le preview estratte dai RAW: ExifTool le restituisce senza
+    metadati, quindi il tag va cercato nel file che le contiene. Il risultato
+    viene ricordato perche' ogni lettura costa l'avvio di un processo esterno
+    (circa 170 ms) e la stessa immagine viene estratta piu' volte, una per
+    ogni modello.
+
+    Returns:
+        Il valore 1-8, oppure None se il file non lo dichiara o non e' leggibile.
+    """
+    chiave = str(file_path)
+    if chiave in _ORIENTATION_CACHE:
+        return _ORIENTATION_CACHE[chiave]
+
+    valore = None
+    try:
+        result = subprocess.run(
+            [_exiftool_executable(), '-Orientation', '-n', '-S', '-s', str(file_path)],
+            capture_output=True, text=True, timeout=10,
+            **subprocess_creation_kwargs()
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            testo = result.stdout.strip()
+            try:
+                numero = int(float(testo))
+                if 1 <= numero <= 8:
+                    valore = numero
+            except (ValueError, TypeError):
+                pass
+    except Exception as e:
+        logger.debug(f"Lettura orientamento fallita per {file_path.name}: {e}")
+
+    _ORIENTATION_CACHE[chiave] = valore
+    return valore
+
+
 class ExifToolStayOpen:
     """Processo ExifTool persistente per comandi JSON (metadati).
 
@@ -572,34 +615,8 @@ class RAWProcessor:
             return image
 
     def _read_orientation_from_file(self, file_path: Path) -> Optional[int]:
-        """Legge l'orientamento dichiarato dal file, con memoria dei valori gia' letti.
-
-        Serve per le preview estratte dai RAW: ExifTool le restituisce senza
-        metadati, quindi il tag va cercato nel file che le contiene. Il risultato
-        viene ricordato perche' la stessa immagine viene estratta piu' volte, una
-        per ogni modello, e ogni lettura costa l'avvio di un processo esterno.
-        """
-        chiave = str(file_path)
-        cache = getattr(self, '_orientation_cache', None)
-        if cache is None:
-            cache = self._orientation_cache = {}
-        if chiave in cache:
-            return cache[chiave]
-
-        valore = None
-        try:
-            result = subprocess.run(
-                [_exiftool_executable(), '-Orientation', '-n', '-S', '-s', str(file_path)],
-                capture_output=True, text=True, timeout=10,
-                **subprocess_creation_kwargs()
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                valore = self._parse_orientation(result.stdout.strip())
-        except Exception as e:
-            logger.debug(f"Lettura orientamento fallita per {file_path.name}: {e}")
-
-        cache[chiave] = valore
-        return valore
+        """Legge l'orientamento dichiarato dal file. Vedi read_orientation_from_file()."""
+        return read_orientation_from_file(file_path)
 
     def _extract_thumbnail_raw(self, raw_path: Path, target_size: int = None, profile_name: str = None) -> Optional[Image.Image]:
         """
