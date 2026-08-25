@@ -1140,9 +1140,9 @@ class ConfigTab(QWidget):
     def _offer_save_and_restart(self, matrix_name: str = ''):
         """Chiede se salvare la matrice appena caricata e riavviare.
 
-        Spostare le tendine non sposta i modelli: quelli gia' caricati restano
-        sulla scheda dove sono finche' il programma non riparte. Dirlo qui evita
-        che l'utente creda di aver gia' cambiato qualcosa.
+        Cambiare le scelte a schermo non sposta i modelli: quelli gia' caricati
+        restano sulla scheda dove sono finche' il programma non riparte. Dirlo qui
+        evita che l'utente creda di aver gia' cambiato qualcosa.
         """
         nome = f" «{matrix_name}»" if matrix_name else ""
         box = QMessageBox(self)
@@ -1152,8 +1152,8 @@ class ConfigTab(QWidget):
             f"Hai scelto la combinazione{nome}."
         )
         box.setInformativeText(
-            "Per ora si sono spostate solo le tendine qui sopra. Perché OffGallery "
-            "la usi davvero, va scritta nelle impostazioni.\n\n"
+            "Per ora è cambiato solo quello che vedi qui sopra: OffGallery non la "
+            "sta ancora usando. Perché la usi davvero, va scritta nelle impostazioni.\n\n"
             "I modelli già in funzione cambiano scheda soltanto quando il programma "
             "riparte: riavviando adesso li sposti subito."
         )
@@ -1501,7 +1501,7 @@ class ConfigTab(QWidget):
         # anche quella delle ricerche, così l'impostazione normale non richiede
         # né una seconda scelta né alcun pacchetto di traduzione. Chi le vuole
         # diverse (catalogo ereditato con tag in un'altra lingua) modifica la
-        # tendina subito dopo, e la scelta manuale non viene più sovrascritta.
+        # elenco a discesa subito dopo, e la scelta manuale non viene più sovrascritta.
         self._query_lang_toccata = False
         self.query_lang_combo.activated.connect(
             lambda _idx: setattr(self, '_query_lang_toccata', True))
