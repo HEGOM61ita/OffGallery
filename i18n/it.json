@@ -396,7 +396,7 @@
   "config.msg.reset_done_title": "Reset Completato",
   "config.msg.reset_done": "Configurazione resettata ai valori di default e salvata!\n\nBackup della configurazione precedente creato.",
   "config.msg.connection_ok_detail": "✅ {provider} raggiungibile!\n\nModelli disponibili: {models}",
-  "config.msg.connection_fail_detail": "❌ Impossibile connettersi a {provider}:\n{error}\n\nVerifica che {provider} sia avviato e raggiungibile.",
+  "config.msg.connection_fail_detail": "❌ Non è stato possibile usare {provider}.\n\n{reason}",
   "config.msg.endpoint_empty_msg": "Inserisci un endpoint valido",
   "config.dialog.select_db": "Seleziona Database",
   "config.dialog.select_log_dir": "Seleziona Directory Log",
@@ -990,5 +990,10 @@
   "config.overlay.llm_plugin_missing": "Plugin LLM Vision non installato",
   "config.overlay.llm_plugin_desc": "Questa sezione richiede un plugin LLM Vision opzionale (Ollama o LM Studio). Il plugin ottimizza la generazione di tag, titoli e descrizioni per le tue fotografie usando modelli vision locali.",
   "config.overlay.llm_plugin_request": "Per ricevere il plugin scrivi a:",
-  "config.overlay.llm_plugin_note": "Le email non saranno usate per scopi diversi da aggiornamenti e notifiche relative al plugin."
+  "config.overlay.llm_plugin_note": "Le email non saranno usate per scopi diversi da aggiornamenti e notifiche relative al plugin.",
+  "config.msg.connection_reason_refused": "Il computer c'è, ma sulla porta {port} non c'è nessuno in ascolto.\n\nDi solito significa che {provider} non è stato avviato, oppure che è aperto ma il suo server non è stato acceso: sono due cose distinte.",
+  "config.msg.connection_reason_timeout": "{provider} non ha risposto entro il tempo previsto.\n\nPotrebbe essere occupato a caricare un modello: riprova fra qualche istante.",
+  "config.msg.connection_reason_host": "L'indirizzo «{endpoint}» non è raggiungibile.\n\nControlla che sia scritto correttamente.",
+  "config.msg.connection_reason_status": "{provider} ha risposto con un errore (codice {code}).\n\nIl server è acceso ma non ha accettato la richiesta.",
+  "config.msg.connection_reason_generic": "Controlla che {provider} sia avviato e che il suo server sia acceso."
 }

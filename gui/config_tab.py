@@ -2594,14 +2594,57 @@ class ConfigTab(QWidget):
                     padding: 2px;
                 }}
             """)
+            # L'errore tecnico resta nel log per la diagnosi; a schermo va il
+            # motivo in parole comprensibili.
+            logger.warning(f"Prova connessione a {provider_name} fallita: {e}", exc_info=True)
             QMessageBox.warning(
                 self,
                 t("config.msg.connection_fail_title"),
-                t("config.msg.connection_fail_detail", provider=provider_name, error=str(e))
+                t("config.msg.connection_fail_detail",
+                  provider=provider_name,
+                  reason=self._spiega_errore_connessione(e, provider_name, endpoint))
             )
 
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(3000, self.reset_test_button)
+
+    def _spiega_errore_connessione(self, errore: Exception, provider: str, endpoint: str) -> str:
+        """Traduce l'errore tecnico di connessione nel motivo, in parole comprensibili.
+
+        Il testo grezzo di una eccezione di rete ("HTTPConnectionPool... Max retries
+        exceeded... WinError 10061") non dice niente a chi non programma, e nasconde
+        l'unica informazione utile: cosa fare adesso.
+        """
+        import requests as _rq
+
+        testo = str(errore)
+
+        # Il server ha risposto, ma con un errore
+        codice = None
+        if isinstance(errore, _rq.RequestException) and 'Status code:' in testo:
+            try:
+                codice = testo.split('Status code:')[1].strip().split()[0]
+            except Exception:
+                codice = None
+        if codice:
+            return t("config.msg.connection_reason_status", provider=provider, code=codice)
+
+        # Nessuno in ascolto su quella porta: il caso di gran lunga piu' comune
+        if isinstance(errore, _rq.ConnectionError) or '10061' in testo or 'Connection refused' in testo:
+            porta = '?'
+            try:
+                porta = endpoint.rstrip('/').rsplit(':', 1)[1].split('/')[0]
+            except Exception:
+                pass
+            # Indirizzo inesistente: non e' "porta chiusa" ma "casa sbagliata"
+            if 'getaddrinfo' in testo or 'Name or service not known' in testo or '11001' in testo:
+                return t("config.msg.connection_reason_host", endpoint=endpoint)
+            return t("config.msg.connection_reason_refused", provider=provider, port=porta)
+
+        if isinstance(errore, _rq.Timeout) or 'timed out' in testo.lower():
+            return t("config.msg.connection_reason_timeout", provider=provider)
+
+        return t("config.msg.connection_reason_generic", provider=provider)
 
     # Manteniamo il vecchio nome come alias per compatibilità con eventuali riferimenti esterni
     def test_ollama_connection(self):

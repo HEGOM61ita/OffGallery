@@ -396,7 +396,7 @@
   "config.msg.reset_done_title": "Reset Complete",
   "config.msg.reset_done": "Configuration reset to default values and saved!\n\nBackup of previous configuration created.",
   "config.msg.connection_ok_detail": "✅ {provider} reachable!\n\nAvailable models: {models}",
-  "config.msg.connection_fail_detail": "❌ Cannot connect to {provider}:\n{error}\n\nCheck that {provider} is running and reachable.",
+  "config.msg.connection_fail_detail": "❌ Could not reach {provider}.\n\n{reason}",
   "config.msg.endpoint_empty_msg": "Please enter a valid endpoint",
   "config.dialog.select_db": "Select Database",
   "config.dialog.select_log_dir": "Select Log Directory",
@@ -990,5 +990,10 @@
   "config.overlay.llm_plugin_missing": "LLM Vision plugin not installed",
   "config.overlay.llm_plugin_desc": "This section requires an optional LLM Vision plugin (Ollama or LM Studio). The plugin enhances tag, title and description generation for your photos using local vision models.",
   "config.overlay.llm_plugin_request": "To receive the plugin, write to:",
-  "config.overlay.llm_plugin_note": "Emails will not be used for purposes other than plugin updates and notifications."
+  "config.overlay.llm_plugin_note": "Emails will not be used for purposes other than plugin updates and notifications.",
+  "config.msg.connection_reason_refused": "The machine is there, but nothing is listening on port {port}.\n\nThis usually means {provider} was not started, or it is open but its server was not switched on: those are two separate things.",
+  "config.msg.connection_reason_timeout": "{provider} did not answer in time.\n\nIt may be busy loading a model: try again in a moment.",
+  "config.msg.connection_reason_host": "The address «{endpoint}» cannot be reached.\n\nCheck that it is spelled correctly.",
+  "config.msg.connection_reason_status": "{provider} answered with an error (code {code}).\n\nThe server is on but did not accept the request.",
+  "config.msg.connection_reason_generic": "Check that {provider} is running and that its server is switched on."
 }
