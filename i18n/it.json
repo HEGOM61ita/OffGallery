@@ -998,5 +998,6 @@
   "config.msg.connection_reason_generic": "Controlla che {provider} sia aperto e che il suo server sia acceso.",
   "config.msg.connection_hint_lmstudio": "Il secondo passaggio è quello che sfugge più spesso: in LM Studio il server si accende dalla sezione «Developer».\n\nPerché OffGallery possa accenderlo da solo, serve lo strumento «lms», che si installa sempre da lì.",
   "config.msg.connection_hint_ollama": "Di norma Ollama parte da solo insieme al computer. Se non risponde, prova a riavviarlo.",
-  "config.msg.connection_reason_refused_ollama": "Ollama non è in funzione.\n\nDi norma parte da solo insieme al computer: prova ad avviarlo, o a riavviarlo se risulta già aperto."
+  "config.msg.connection_reason_refused_ollama": "Ollama non è in funzione.\n\nDi norma parte da solo insieme al computer: prova ad avviarlo, o a riavviarlo se risulta già aperto.",
+  "gallery.status.ai_canceled": "{parts} — interrotto su richiesta"
 }

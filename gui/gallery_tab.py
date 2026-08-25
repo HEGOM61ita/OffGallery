@@ -15,12 +15,15 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap
 import json
+import logging
 import yaml
 from queue import Queue
 
 from xmp_badge_manager import refresh_xmp_badges
 from i18n import t
 from utils.tag_utils import normalize_tags
+
+logger = logging.getLogger(__name__)
 
 # Import componenti UI dal modulo widgets
 from gui.gallery_widgets import (
@@ -1187,212 +1190,214 @@ class GalleryTab(QWidget):
             progress.setValue(1)
             QApplication.processEvents()
             
-            updated_title = 0
-            updated_tags = 0
-            updated_desc = 0
-            bio_found = 0
-            bio_not_found = 0
-            
-            for i, item in enumerate(items):
-                if progress.wasCanceled():
-                    break
-                
-                progress.setValue(i + 1)
-                progress.setLabelText(t("gallery.progress.llm_analyzing", filename=item.image_data.get('filename', ''), i=i+1, total=len(items)))
-                QApplication.processEvents()
-                
-                filepath = Path(item.image_data.get('filepath', ''))
-                if not filepath.exists():
-                    continue
-                #-------------------------------------------
-                # Pre-processa immagine come nel Processing Tab
-                from raw_processor import RAWProcessor
-                raw_processor = RAWProcessor(config)
-                is_raw = filepath.suffix.lower() in ['.orf', '.cr2', '.nef', '.arw', '.dng', '.raf', '.cr3', '.nrw', '.srf', '.sr2', '.rw2', '.raw', '.pef', '.ptx', '.rwl', '.3fr', '.iiq', '.x3f']
+            # Il lavoro lento passa a un thread separato: la chiamata al modello
+            # dura 40-50 secondi per immagine e nel thread della finestra la
+            # bloccherebbe per tutto quel tempo. Le scritture sul database
+            # restano qui, nel thread principale.
+            from gui.llm_worker import LLMWorkerThread
 
-                if is_raw:
-                    llm_input = raw_processor.extract_thumbnail(filepath, profile_name='llm_vision')
-                else:
-                    from PIL import Image
-                    llm_profile = config.get('image_optimization', {}).get('profiles', {}).get('llm_vision', {})
-                    llm_target = llm_profile.get('target_size', 768)
-                    with Image.open(filepath) as img:
-                        if max(img.size) > llm_target:
-                            pil_image = img.copy().convert('RGB')
-                            pil_image.thumbnail((llm_target, llm_target), Image.Resampling.LANCZOS)
-                            llm_input = pil_image
-                        else:
-                            llm_input = filepath
+            self._llm_state = {
+                'items': items,
+                'db_manager': db_manager,
+                'progress': progress,
+                'updated_title': 0,
+                'updated_tags': 0,
+                'updated_desc': 0,
+                'skipped': 0,
+            }
 
-                # Usa i parametri scelti nel dialog (override sui default config)
-                max_tags        = gen_options.get('max_tags', 10)
-                max_words       = gen_options.get('max_words_desc', 100)
-                max_title_words = gen_options.get('max_title_words', 5)
+            worker = LLMWorkerThread(
+                items=items,
+                embedding_gen=embedding_gen,
+                config=config,
+                db_path=config['paths']['database'],
+                gen_options=gen_options,
+                parent=self,
+            )
+            self._llm_worker = worker
 
-                # Estrai location_hint dalla gerarchia geografica nel DB
-                location_hint = None
-                geo_hierarchy = item.image_data.get('geo_hierarchy')
-                if geo_hierarchy:
-                    try:
-                        from geo_enricher import get_location_hint
-                        location_hint = get_location_hint(geo_hierarchy)
-                    except Exception:
-                        pass
+            worker.progress.connect(self._on_llm_progress)
+            worker.context_ready.connect(self._on_llm_context)
+            worker.result_ready.connect(self._on_llm_result)
+            worker.item_skipped.connect(self._on_llm_skipped)
+            worker.finished_all.connect(self._on_llm_finished)
+            worker.error.connect(self._on_llm_error)
+            progress.canceled.connect(worker.cancel)
 
-                # Leggi vernacular_name da BioNomen (se già elaborato in fase pre_llm)
-                vernacular_name = None
-                try:
-                    _vrow = db_manager.conn.execute(
-                        "SELECT vernacular_name FROM images WHERE filename = ?",
-                        (item.image_data.get('filename', ''),)
-                    ).fetchone()
-                    if _vrow and _vrow[0]:
-                        vernacular_name = _vrow[0]
-                except Exception:
-                    pass
+            worker.start()
 
-                # Estrai contesto BioCLIP dal campo dedicato bioclip_taxonomy
-                bioclip_context = None
-                category_hint = None
-                taxonomy_raw = item.image_data.get('bioclip_taxonomy')
-                if taxonomy_raw:
-                    try:
-                        taxonomy = json.loads(taxonomy_raw) if isinstance(taxonomy_raw, str) else taxonomy_raw
-                        if isinstance(taxonomy, list) and len(taxonomy) >= 6:
-                            # taxonomy: [kingdom, phylum, class, order, family, genus, species_epithet]
-                            genus = taxonomy[5] if len(taxonomy) > 5 else ''
-                            species_ep = taxonomy[6] if len(taxonomy) > 6 else ''
-                            species = f"{genus} {species_ep}".strip() if genus else ''
-                            if species:
-                                bioclip_context = species
-                        # Estrai hint di categoria dalla classe tassonomica
-                        from embedding_generator import EmbeddingGenerator
-                        category_hint = EmbeddingGenerator.extract_category_hint(taxonomy)
-                    except Exception:
-                        pass
-
-                # Mostra contesto BioCLIP esistente (letto dal DB, non rigenerato)
-                if bioclip_context:
-                    bio_found += 1
-                    ctx_info = t("gallery.label.context", info=bioclip_context)
-                    if category_hint:
-                        ctx_info += f" ({category_hint})"
-                else:
-                    bio_not_found += 1
-                    if category_hint:
-                        ctx_info = t("gallery.label.context_hint", hint=category_hint)
-                    else:
-                        ctx_info = t("gallery.label.context_none")
-                progress.setLabelText(t("gallery.progress.llm_generating", filename=item.image_data.get('filename', ''), ctx_info=ctx_info, i=i+1, total=len(items)))
-                QApplication.processEvents()
-
-                # Genera contenuti in base alle selezioni — una sola chiamata LLM
-                # con nucleo analitico condiviso (qualità uniforme su tutti i modi)
-                modes = []
-                if gen_options.get('title'):
-                    modes.append('title')
-                if gen_options.get('tags'):
-                    modes.append('tags')
-                if gen_options.get('description'):
-                    modes.append('description')
-
-                result = {}
-                if modes:
-                    result = embedding_gen.generate_llm_combined(
-                        llm_input, modes=modes,
-                        max_tags=max_tags,
-                        max_description_words=max_words,
-                        max_title_words=max_title_words,
-                        bioclip_context=bioclip_context,
-                        category_hint=category_hint,
-                        location_hint=location_hint,
-                        vernacular_name=vernacular_name,
-                    ) or {}
-                #-------------------------------------------
-                if not result:
-                    continue
-
-                # Salva TITLE
-                if result.get('title'):
-                    db_manager.cursor.execute(
-                        "UPDATE images SET title = ? WHERE id = ?",
-                        (result['title'], item.image_id)
-                    )
-                    item.image_data['title'] = result['title']
-                    updated_title += 1
-
-                # Salva TAGS LLM
-                if result.get('tags'):
-                    existing_tags = []
-                    if item.image_data.get('llm_tags'):
-                        try:
-                            existing_tags = json.loads(item.image_data['llm_tags'])
-                        except Exception:
-                            existing_tags = []
-
-                    # Merge: unione senza duplicati, poi normalize con nome scientifico
-                    existing_lower = {t.lower() for t in existing_tags}
-                    merged = list(existing_tags) + [
-                        tag for tag in result['tags'] if tag.lower() not in existing_lower
-                    ]
-                    final_tags = normalize_tags(merged, scientific_name=bioclip_context or None)
-                    tags_json = json.dumps(final_tags, ensure_ascii=False)
-
-                    db_manager.cursor.execute(
-                        "UPDATE images SET llm_tags = ? WHERE id = ?",
-                        (tags_json, item.image_id)
-                    )
-                    item.image_data['llm_tags'] = tags_json
-                    updated_tags += 1
-
-                # Salva DESCRIPTION
-                if result.get('description'):
-                    db_manager.cursor.execute(
-                        "UPDATE images SET description = ? WHERE id = ?",
-                        (result['description'], item.image_id)
-                    )
-                    item.image_data['description'] = result['description']
-                    updated_desc += 1
-
-                db_manager.conn.commit()
-            
-            progress.setValue(len(items) + 1)
-            db_manager.close()
-            
-            # Force refresh tooltip delle card elaborate
-            for item in items:
-                for card in self.cards:
-                    if hasattr(card, 'image_id') and card.image_id == item.image_id:
-                        # Aggiorna i dati della card
-                        card.image_data.update(item.image_data)
-                        # Force rebuild del tooltip
-                        if hasattr(card, '_invalidate_tooltip_cache'):
-                            card._invalidate_tooltip_cache()
-                        break
-
-            # Refresh generale
-            self._refresh_cards(items)
-
-            # Refresh badge XMP per le card aggiornate
-            updated_cards = [c for c in self.cards if any(c.image_id == item.image_id for item in items)]
-            if updated_cards:
-                QTimer.singleShot(100, lambda: refresh_xmp_badges(updated_cards, "llm_generation"))
-
-            status_parts = []
-            if updated_title > 0:
-                status_parts.append(t("gallery.status.titles", n=updated_title))
-            if updated_tags > 0:
-                status_parts.append(f"{updated_tags} tag")
-            if updated_desc > 0:
-                status_parts.append(t("gallery.status.descs", n=updated_desc))
-
-            if self.parent_window and status_parts:
-                self.parent_window.update_status(t("gallery.status.ai_generated", parts=', '.join(status_parts)))
-        
         except Exception as e:
             QMessageBox.critical(self, t("gallery.msg.llm_error_title"), t("gallery.msg.llm_error", error=e))
-            import traceback
-            traceback.print_exc()
+            logger.error("Errore avvio generazione AI: %s", e, exc_info=True)
+
+    # ── generazione AI: risposte dal thread di lavoro ────────────────────────
+
+    def _on_llm_progress(self, i: int, total: int, filename: str):
+        """Nuova immagine in lavorazione."""
+        st = getattr(self, '_llm_state', None)
+        if not st:
+            return
+        st['progress'].setValue(i + 1)
+        st['progress'].setLabelText(
+            t("gallery.progress.llm_analyzing", filename=filename, i=i + 1, total=total)
+        )
+
+    def _on_llm_context(self, i: int, filename: str, info: str):
+        """Contesto raccolto: si sa cosa raffigura l'immagine, prima di chiedere al modello."""
+        st = getattr(self, '_llm_state', None)
+        if not st:
+            return
+        if info:
+            ctx_info = t("gallery.label.context", info=info)
+        else:
+            ctx_info = t("gallery.label.context_none")
+        st['progress'].setLabelText(
+            t("gallery.progress.llm_generating", filename=filename, ctx_info=ctx_info,
+              i=i + 1, total=len(st['items']))
+        )
+
+    def _on_llm_result(self, i: int, result: dict):
+        """Risultato pronto: si salva qui, nel thread principale, una immagine per volta."""
+        st = getattr(self, '_llm_state', None)
+        if not st:
+            return
+        try:
+            item = st['items'][i]
+        except IndexError:
+            logger.warning("Risultato per un'immagine fuori elenco (indice %d)", i)
+            return
+
+        db_manager = st['db_manager']
+        bioclip_context = result.get('_bioclip_context')
+
+        try:
+            if result.get('title'):
+                db_manager.cursor.execute(
+                    "UPDATE images SET title = ? WHERE id = ?",
+                    (result['title'], item.image_id)
+                )
+                item.image_data['title'] = result['title']
+                st['updated_title'] += 1
+
+            if result.get('tags'):
+                existing_tags = []
+                if item.image_data.get('llm_tags'):
+                    try:
+                        existing_tags = json.loads(item.image_data['llm_tags'])
+                    except Exception:
+                        existing_tags = []
+
+                # Merge: unione senza duplicati, poi normalize con nome scientifico
+                existing_lower = {tg.lower() for tg in existing_tags}
+                merged = list(existing_tags) + [
+                    tag for tag in result['tags'] if tag.lower() not in existing_lower
+                ]
+                final_tags = normalize_tags(merged, scientific_name=bioclip_context or None)
+                tags_json = json.dumps(final_tags, ensure_ascii=False)
+
+                db_manager.cursor.execute(
+                    "UPDATE images SET llm_tags = ? WHERE id = ?",
+                    (tags_json, item.image_id)
+                )
+                item.image_data['llm_tags'] = tags_json
+                st['updated_tags'] += 1
+
+            if result.get('description'):
+                db_manager.cursor.execute(
+                    "UPDATE images SET description = ? WHERE id = ?",
+                    (result['description'], item.image_id)
+                )
+                item.image_data['description'] = result['description']
+                st['updated_desc'] += 1
+
+            db_manager.conn.commit()
+
+        except Exception as e:
+            logger.error("Salvataggio fallito per %s: %s",
+                         item.image_data.get('filename', '?'), e, exc_info=True)
+
+    def _on_llm_skipped(self, i: int, motivo: str):
+        """Immagine saltata: si annota e si prosegue."""
+        st = getattr(self, '_llm_state', None)
+        if not st:
+            return
+        st['skipped'] += 1
+        try:
+            nome = st['items'][i].image_data.get('filename', '?')
+        except IndexError:
+            nome = '?'
+        logger.info("Immagine saltata (%s): %s", nome, motivo)
+
+    def _on_llm_error(self, messaggio: str):
+        """Errore che ha interrotto tutto il lavoro."""
+        self._chiudi_generazione_llm()
+        QMessageBox.critical(
+            self, t("gallery.msg.llm_error_title"),
+            t("gallery.msg.llm_error", error=messaggio)
+        )
+
+    def _on_llm_finished(self, annullato: bool):
+        """Lavoro concluso: si aggiorna la gallery e si tira le somme."""
+        st = getattr(self, '_llm_state', None)
+        if not st:
+            return
+        items = st['items']
+        st['progress'].setValue(len(items) + 1)
+
+        # Tooltip delle card elaborate
+        for item in items:
+            for card in self.cards:
+                if hasattr(card, 'image_id') and card.image_id == item.image_id:
+                    card.image_data.update(item.image_data)
+                    if hasattr(card, '_invalidate_tooltip_cache'):
+                        card._invalidate_tooltip_cache()
+                    break
+
+        self._refresh_cards(items)
+
+        updated_cards = [c for c in self.cards
+                         if any(c.image_id == item.image_id for item in items)]
+        if updated_cards:
+            QTimer.singleShot(100, lambda: refresh_xmp_badges(updated_cards, "llm_generation"))
+
+        status_parts = []
+        if st['updated_title'] > 0:
+            status_parts.append(t("gallery.status.titles", n=st['updated_title']))
+        if st['updated_tags'] > 0:
+            status_parts.append(f"{st['updated_tags']} tag")
+        if st['updated_desc'] > 0:
+            status_parts.append(t("gallery.status.descs", n=st['updated_desc']))
+
+        if self.parent_window and status_parts:
+            testo = t("gallery.status.ai_generated", parts=', '.join(status_parts))
+            if annullato:
+                testo = t("gallery.status.ai_canceled", parts=testo)
+            self.parent_window.update_status(testo)
+
+        self._chiudi_generazione_llm()
+
+    def _chiudi_generazione_llm(self):
+        """Chiude database e finestra di avanzamento, e libera il thread."""
+        st = getattr(self, '_llm_state', None)
+        if st:
+            try:
+                st['db_manager'].close()
+            except Exception as e:
+                logger.debug("Chiusura database fallita: %s", e)
+            try:
+                st['progress'].close()
+            except Exception as e:
+                logger.debug("Chiusura finestra avanzamento fallita: %s", e)
+        self._llm_state = None
+
+        worker = getattr(self, '_llm_worker', None)
+        if worker is not None:
+            # Attende che il thread finisca davvero prima di lasciarlo andare:
+            # un QThread distrutto mentre e' in esecuzione fa cadere il programma.
+            if worker.isRunning():
+                worker.wait(60000)
+            worker.deleteLater()
+        self._llm_worker = None
 
     def add_user_tags_to_images(self, items, new_tags):
         try:
