@@ -668,12 +668,11 @@ class SearchTab(QWidget):
             QMessageBox.information(
                 self,
                 "Foto da rielaborare",
-                "<b>Le tue foto hanno un'impronta visiva creata da una versione "
-                "precedente di OffGallery</b>, che la ricerca per frase non può "
-                "più confrontare.<br><br>"
-                "SigLIP è installato e funziona: <b>non va riscaricato</b>. "
-                "Vanno rielaborate le foto dalla scheda <b>Elaborazione</b>.<br><br>"
-                "Nel frattempo la <b>Ricerca per tag</b> funziona normalmente."
+                "<b>Queste foto sono state catalogate con una versione più "
+                "vecchia del programma, e vanno rifatte.</b><br><br>"
+                "Non c'è niente da scaricare né da installare: basta "
+                "rielaborarle dalla scheda <b>Elaborazione</b>.<br><br>"
+                "Intanto puoi cercarle per <b>tag</b>."
             )
             self.search_executed.emit(results)
             return
