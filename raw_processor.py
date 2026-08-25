@@ -13,7 +13,7 @@ import threading
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
-from PIL import Image
+from PIL import Image, ImageOps
 from io import BytesIO
 from utils.subprocess_utils import subprocess_creation_kwargs
 
@@ -213,7 +213,11 @@ class CallerOptimizer:
         try:
             # Analizza lo stack delle chiamate
             stack = inspect.stack()
-            for frame_info in stack[2:6]:  # Salta i primi 2 frame (questo metodo + extract_thumbnail)
+            # Salta tutti i frame interni di raw_processor (questo metodo, extract_thumbnail
+            # e il suo guscio): il chiamante vero e' il primo frame di un altro file.
+            external = [f for f in stack[1:8]
+                        if Path(f.filename).name != 'raw_processor.py']
+            for frame_info in external[:4]:
                 filename = Path(frame_info.filename).name
                 function_name = frame_info.function
                 logger.debug(f"🔍 CALLER DEBUG: filename={filename}, function={function_name}")
@@ -494,6 +498,38 @@ class RAWProcessor:
         return metadata
     
     def extract_thumbnail(self, raw_path: Path, target_size: int = None, profile_name: str = None) -> Optional[Image.Image]:
+        """Punto di ingresso unico: estrae l'immagine e la raddrizza secondo l'orientamento EXIF.
+
+        Il raddrizzamento avviene qui, in un punto solo, perche' tutti i percorsi di
+        estrazione si ricongiungono su questo return. Vedi _apply_exif_orientation()
+        per il motivo per cui non si rischia la doppia rotazione."""
+        image = self._extract_thumbnail_raw(raw_path, target_size, profile_name)
+        return self._apply_exif_orientation(image, raw_path)
+
+    def _apply_exif_orientation(self, image: Optional[Image.Image], raw_path: Path = None) -> Optional[Image.Image]:
+        """Raddrizza l'immagine secondo il tag EXIF Orientation, azzerandolo dopo la rotazione.
+
+        Niente doppia rotazione: ImageOps.exif_transpose() agisce solo se il tag Orientation
+        e' presente e diverso da 1, e lo rimuove dall'immagine restituita. Le immagini che
+        arrivano da rawpy (Image.fromarray) sono gia' raddrizzate da rawpy stesso e non
+        portano alcun tag EXIF, quindi qui restano intatte."""
+        if image is None:
+            return None
+        try:
+            orientation = image.getexif().get(274)
+            rotated = ImageOps.exif_transpose(image)
+            if rotated is None:
+                return image
+            if orientation and orientation != 1:
+                name = raw_path.name if raw_path is not None else '?'
+                logger.debug(f"Orientamento EXIF {orientation} applicato: {name} -> {rotated.size}")
+            return rotated
+        except Exception as e:
+            # Un tag EXIF malformato non deve far perdere l'immagine
+            logger.warning(f"Raddrizzamento EXIF fallito, uso l'immagine come estratta: {e}", exc_info=True)
+            return image
+
+    def _extract_thumbnail_raw(self, raw_path: Path, target_size: int = None, profile_name: str = None) -> Optional[Image.Image]:
         """
         Estrai thumbnail da qualsiasi file con OTTIMIZZAZIONE AUTOMATICA
         Il metodo di estrazione si adatta automaticamente al chiamante.
