@@ -81,3 +81,28 @@ def load_gallery_thumb_bytes(filepath: Path) -> Optional[bytes]:
     except Exception as e:
         logger.debug(f"Cache miss o errore per {filepath.name}: {e}")
     return None
+
+
+def invalidate_gallery_thumb(filepath: Path) -> bool:
+    """
+    Cancella la miniatura in cache di una foto.
+
+    Serve quando l'orientamento cambia: la miniatura salvata e' gia'
+    raddrizzata secondo il vecchio valore, quindi va rifatta. Si ricrea
+    da sola al prossimo caricamento della card.
+
+    Args:
+        filepath: Path assoluto del file originale
+
+    Returns:
+        True se la miniatura esisteva ed e' stata cancellata.
+    """
+    try:
+        dest = _cache_path(filepath)
+        if dest.exists():
+            dest.unlink()
+            logger.debug(f"Miniatura cache invalidata: {filepath.name}")
+            return True
+    except Exception as e:
+        logger.warning(f"Invalidazione miniatura fallita per {filepath.name}: {e}")
+    return False

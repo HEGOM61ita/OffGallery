@@ -188,6 +188,15 @@ def _set_cached_pixmap(filepath_str, pixmap):
     _thumb_pixmap_cache[filepath_str] = pixmap
 
 
+def _drop_cached_pixmap(filepath_str):
+    """Toglie una miniatura dalla cache in-memory.
+
+    Serve dopo una rotazione: la copia in memoria e' ancora quella vecchia
+    e verrebbe rimostrata storta senza mai rileggere il disco.
+    """
+    _thumb_pixmap_cache.pop(filepath_str, None)
+
+
 class FlowLayout(QLayout):
     """
     FlowLayout reale con wrapping automatico.
@@ -355,10 +364,14 @@ class _ThumbnailLoader(QRunnable):
     _RAW_EXT = {'.cr2', '.cr3', '.nef', '.arw', '.orf', '.rw2',
                 '.pef', '.dng', '.nrw', '.srf', '.sr2'}
 
-    def __init__(self, filepath: Path, signals: '_ThumbSignals'):
+    def __init__(self, filepath: Path, signals: '_ThumbSignals', db_orientation=None):
         super().__init__()
         self.filepath = filepath
         self.signals = signals
+        # Orientamento dall'archivio: se c'e', vince sul tag del file.
+        # E' la correzione fatta a mano dall'utente col pulsante Ruota, e
+        # deve prevalere su cio' che dichiara la fotocamera.
+        self.db_orientation = db_orientation
         self.setAutoDelete(True)
 
     def run(self):
@@ -369,8 +382,9 @@ class _ThumbnailLoader(QRunnable):
             if cached:
                 self.signals.loaded.emit(cached)
                 return
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Lettura cache miniatura fallita per {self.filepath.name}: {e}",
+                           exc_info=True)
 
         # Cache miss: estrazione thumbnail dal file originale
         data = None
@@ -399,13 +413,18 @@ class _ThumbnailLoader(QRunnable):
     def _apply_orientation(self, img):
         """Raddrizza la miniatura secondo l'orientamento dichiarato.
 
-        Prima cerca il tag sull'immagine (JPEG e TIFF ce l'hanno); se manca,
-        lo chiede al file di partenza (le preview estratte dai RAW escono
-        senza metadati). Delega a RAWProcessor per non avere due regole
-        diverse sullo stesso problema.
+        Ordine di precedenza:
+        1. Valore nell'archivio, se presente: e' la correzione fatta a mano
+           dall'utente col pulsante Ruota e vince su tutto il resto.
+        2. Tag sull'immagine (JPEG e TIFF ce l'hanno).
+        3. Tag sul file di partenza (le preview estratte dai RAW escono
+           senza metadati). Delega a RAWProcessor per non avere due regole
+           diverse sullo stesso problema.
         """
         try:
-            orientation = img.getexif().get(274)
+            orientation = self.db_orientation
+            if not orientation:
+                orientation = img.getexif().get(274)
             if not orientation:
                 from raw_processor import read_orientation_from_file
                 orientation = read_orientation_from_file(self.filepath)
@@ -598,7 +617,19 @@ class ImageCard(QFrame):
             self._thumb_signals = _ThumbSignals()
             self._thumb_signals.loaded.connect(self._on_thumb_loaded)
             self._thumb_signals.failed.connect(self._on_thumb_failed)
-            loader = _ThumbnailLoader(self.filepath, self._thumb_signals)
+            # L'orientamento dell'archivio ha la precedenza: e' la correzione
+            # manuale dell'utente, che deve valere anche contro il tag del file.
+            _db_orient = None
+            try:
+                _raw_orient = self.image_data.get('orientation')
+                if _raw_orient:
+                    _db_orient = int(_raw_orient)
+                    if not 1 <= _db_orient <= 8:
+                        _db_orient = None
+            except (ValueError, TypeError):
+                _db_orient = None
+
+            loader = _ThumbnailLoader(self.filepath, self._thumb_signals, _db_orient)
             QThreadPool.globalInstance().start(loader)
 
         except Exception as e:
@@ -1655,8 +1686,96 @@ class ImageCard(QFrame):
 
         except Exception as e:
             logger.warning(f"Errore refresh_display: {e}", exc_info=True)
-    
-    
+
+    # Rotazione di 90 gradi in senso orario: dallo stato attuale al successivo.
+    # I valori sono ASSOLUTI (posizione finale), non incrementi: cosi' il dato
+    # resta valido anche se qualcun altro lo rilegge, e non si somma mai.
+    # Gli stati speculari (2,4,5,7) sono rari ma vanno gestiti: ruotarli deve
+    # mantenere lo specchiamento, altrimenti l'immagine si ribalta.
+    _ROTATE_CW_NEXT = {
+        1: 6, 6: 3, 3: 8, 8: 1,      # catena normale
+        2: 7, 7: 4, 4: 5, 5: 2,      # catena speculare
+    }
+
+    def rotate_90_cw(self, db_manager) -> bool:
+        """Ruota la foto di 90 gradi in senso orario: DB, cache e miniatura.
+
+        Non tocca in alcun modo il file fotografico: l'orientamento vive solo
+        nell'archivio di OffGallery.
+
+        Args:
+            db_manager: DatabaseManager gia' aperto (lo passa il chiamante,
+                        cosi' una selezione di 200 foto non ne apre 200).
+
+        Returns:
+            True se il database e' stato aggiornato.
+        """
+        try:
+            if not getattr(self, 'image_id', None):
+                return False
+
+            corrente = self.image_data.get('orientation')
+            try:
+                corrente = int(corrente) if corrente else 1
+            except (ValueError, TypeError):
+                corrente = 1
+            if corrente not in self._ROTATE_CW_NEXT:
+                corrente = 1
+
+            nuovo = self._ROTATE_CW_NEXT[corrente]
+
+            # Larghezza e altezza si scambiano solo con rotazioni di 90 o 270
+            # gradi. Il confronto e' fra "immagine coricata" prima e dopo.
+            _coricata = {5, 6, 7, 8}
+            scambia = (corrente in _coricata) != (nuovo in _coricata)
+
+            campi = {'orientation': nuovo}
+            larghezza = self.image_data.get('width')
+            altezza = self.image_data.get('height')
+            if scambia and larghezza and altezza:
+                campi['width'] = altezza
+                campi['height'] = larghezza
+
+            if not db_manager.update_image_metadata(self.image_id, **campi):
+                return False
+
+            # Dati in memoria della card: tooltip e pannello EXIF leggono qui
+            self.image_data.update(campi)
+            if scambia and larghezza and altezza:
+                try:
+                    self.image_data['aspect_ratio'] = altezza / larghezza
+                except ZeroDivisionError:
+                    pass
+
+            self._invalidate_thumb_and_reload()
+            return True
+
+        except Exception as e:
+            logger.error(f"Rotazione fallita per {getattr(self, 'filepath', '?')}: {e}",
+                         exc_info=True)
+            return False
+
+    def _invalidate_thumb_and_reload(self):
+        """Butta via la miniatura vecchia (memoria + disco) e la fa rifare.
+
+        Il ricaricamento e' asincrono: la card si ridisegna da sola quando il
+        thread di lavoro ha finito, senza ricostruire la gallery.
+        """
+        if not getattr(self, 'filepath', None):
+            return
+        try:
+            _drop_cached_pixmap(str(self.filepath))
+            from utils.thumb_cache import invalidate_gallery_thumb
+            invalidate_gallery_thumb(self.filepath)
+        except Exception as e:
+            logger.warning(f"Pulizia miniatura fallita per {self.filepath.name}: {e}",
+                           exc_info=True)
+        try:
+            self._load_thumbnail()
+        except Exception as e:
+            logger.warning(f"Ricaricamento miniatura fallito per {self.filepath.name}: {e}",
+                           exc_info=True)
+
     def _open_folder(self, items):
         """Apri cartella contenente le immagini, con dialog informativo per file mancanti"""
         try:

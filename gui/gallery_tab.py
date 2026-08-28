@@ -449,7 +449,15 @@ class GalleryTab(QWidget):
         self.deselect_all_btn.clicked.connect(self.deselect_all)
         self.deselect_all_btn.setEnabled(False)
         action_bar.addWidget(self.deselect_all_btn)
-        
+
+        # Rotazione delle foto selezionate: 90 gradi orari ad ogni pressione.
+        # Agisce solo sull'archivio di OffGallery, mai sui file fotografici.
+        self.rotate_btn = QPushButton(t("gallery.btn.rotate"))
+        self.rotate_btn.setToolTip(t("gallery.tooltip.rotate"))
+        self.rotate_btn.clicked.connect(self._rotate_selected)
+        self.rotate_btn.setEnabled(False)
+        action_bar.addWidget(self.rotate_btn)
+
         layout.addLayout(action_bar)
         
         # Scroll area
@@ -611,6 +619,7 @@ class GalleryTab(QWidget):
         has_results = count > 0
         self.select_all_btn.setEnabled(has_results)
         self.deselect_all_btn.setEnabled(False)
+        self.rotate_btn.setEnabled(False)
 
         if count == 0:
             no_results = QLabel(t("gallery.label.empty_state"))
@@ -685,9 +694,11 @@ class GalleryTab(QWidget):
         if count > 0:
             self.selection_label.setText(t("gallery.label.selection_count", count=count))
             self.deselect_all_btn.setEnabled(True)
+            self.rotate_btn.setEnabled(True)
         else:
             self.selection_label.setText("")
             self.deselect_all_btn.setEnabled(False)
+            self.rotate_btn.setEnabled(False)
     
     def select_all(self):
         for card in self.cards:
@@ -698,6 +709,56 @@ class GalleryTab(QWidget):
         for item in list(self.selected_items):
             item.set_selected(False)
     
+    def _rotate_selected(self):
+        """Ruota di 90 gradi in senso orario tutte le foto selezionate.
+
+        L'orientamento viene salvato nell'archivio di OffGallery: i file
+        fotografici non vengono toccati in alcun modo. L'effetto si vede
+        subito in gallery, la selezione resta.
+        """
+        selected = self.get_selected_images()
+        if not selected:
+            return
+
+        db_manager = None
+        try:
+            config = self._load_config()
+            if not config:
+                QMessageBox.warning(self, t("gallery.rotate.error_title"),
+                                    t("gallery.rotate.no_config"))
+                return
+
+            from db_manager_new import DatabaseManager
+            db_manager = DatabaseManager(config['paths']['database'])
+
+            # Un solo collegamento all'archivio per tutta la selezione
+            ruotate = 0
+            for card in selected:
+                if card.rotate_90_cw(db_manager):
+                    ruotate += 1
+
+            falliti = len(selected) - ruotate
+            if falliti:
+                logger.warning(f"Rotazione: {ruotate} riuscite, {falliti} fallite")
+                QMessageBox.warning(
+                    self, t("gallery.rotate.error_title"),
+                    t("gallery.rotate.partial", ok=ruotate, ko=falliti)
+                )
+            else:
+                logger.info(f"Rotazione applicata a {ruotate} foto")
+
+        except Exception as e:
+            logger.error(f"Rotazione selezione fallita: {e}", exc_info=True)
+            QMessageBox.warning(self, t("gallery.rotate.error_title"),
+                                t("gallery.rotate.failed", error=str(e)))
+        finally:
+            if db_manager:
+                try:
+                    db_manager.close()
+                except Exception as e:
+                    logger.warning(f"Chiusura archivio dopo rotazione fallita: {e}",
+                                   exc_info=True)
+
     def _reload_sync_states_from_db(self):
         """Ricarica sync_state dal database per tutti i current_results"""
         try:
