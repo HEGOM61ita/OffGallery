@@ -5,6 +5,7 @@ Unica finestra tk.Tk() — decide se mostrare wizard o dashboard.
 
 import os
 import sys
+import logging
 import platform
 
 # Fix Tcl/Tk e SSL quando eseguito come bundle PyInstaller
@@ -74,9 +75,15 @@ class AppWindow:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("OffGallery Manager")
-        self.root.geometry("780x680")
-        self.root.resizable(False, False)
-        _center_window(self.root, 780, 680)
+        # 900 e non 780: a 780 la colonna destra offriva 324px ai tre pulsanti
+        # che ne chiedono 426, e "Aggiorna stato" usciva come "Agg..."
+        # (segnalazione 2026-08-28). Ridimensionabile perche' con i font di
+        # sistema ingranditi (125%) neanche 900 basterebbero: chi ha quella
+        # impostazione allarga la finestra invece di restare col testo mozzato.
+        self.root.geometry("900x680")
+        self.root.resizable(True, True)
+        self.root.minsize(900, 620)
+        _center_window(self.root, 900, 680)
 
         # Stato condiviso fra le pagine
         self.profile:          str               = "leggero"
@@ -177,12 +184,50 @@ def _detect_legacy_install(install_path: str) -> Optional[StateManager]:
 # Avvio
 # ---------------------------------------------------------------------------
 
+def _find_existing_install() -> Optional[StateManager]:
+    """Cerca un'installazione gia' presente nel percorso predefinito.
+
+    Serve per non far attraversare a chi ha gia' OffGallery tre schermate
+    che parlano solo di installazione ("~14 GB, ~40 min", "Scegli cosa
+    installare") prima di arrivare al pulsante Aggiorna: chi voleva solo
+    aggiornare temeva di reinstallare tutto da capo (segnalazione 2026-08-28).
+
+    Restituisce lo stato dell'installazione trovata, oppure None: in quel
+    caso il wizard parte normalmente e nulla cambia.
+    """
+    try:
+        path = _default_install_path()
+        if not os.path.isdir(path):
+            return None
+
+        sm = StateManager(path)
+        if sm.load_or_create() and sm.has_partial_install():
+            return sm
+
+        # Installazioni fatte con i vecchi .bat: nessun installer_state.json
+        return _detect_legacy_install(path)
+    except Exception:
+        # Un rilevamento che fallisce non deve impedire l'avvio: si riparte
+        # dal wizard, che e' il comportamento di sempre.
+        logging.getLogger(__name__).warning(
+            "Rilevamento installazione esistente fallito", exc_info=True)
+        return None
+
+
 def main():
     app = AppWindow()
-    # Parte sempre dal wizard: l'utente sceglie dove installare.
-    # Il rilevamento dell'installazione esistente avviene in PathPage._next()
-    # dopo che l'utente ha confermato il percorso.
-    app.show_page("welcome")
+
+    # Se OffGallery e' gia' installato si va dritti alla dashboard, dove il
+    # pulsante Aggiorna e' subito visibile. Il wizard resta la strada per chi
+    # installa la prima volta, o per chi ha OffGallery in un percorso diverso
+    # da quello predefinito (da la' si arriva comunque alla dashboard).
+    esistente = _find_existing_install()
+    if esistente:
+        app.state = esistente
+        app.install_path = esistente.install_path_saved or _default_install_path()
+        app.show_page("dashboard")
+    else:
+        app.show_page("welcome")
     app.run()
 
 

@@ -97,10 +97,12 @@ class AppWindow:
         # grandi, tema con più spaziatura) l'utente può allargare la finestra
         # invece di trovarsi un pulsante tagliato a metà e nessun rimedio.
         self.root.resizable(True, True)
-        _h = _center_window(self.root, 780, 680)
+        # 900 come su Windows: la barra pulsanti qui ne ha uno solo e non
+        # troncava, ma le due finestre devono avere lo stesso ingombro.
+        _h = _center_window(self.root, 900, 680)
         # L'altezza minima non deve superare quella concessa dallo schermo,
         # altrimenti su schermi bassi la finestra tornerebbe a sforare.
-        self.root.minsize(780, min(560, _h))
+        self.root.minsize(900, min(560, _h))
 
         # Stato condiviso fra le pagine
         self.profile:          str               = "leggero"

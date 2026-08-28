@@ -273,6 +273,17 @@ class DashboardPage(tk.Frame):
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
+        # Via d'uscita verso il wizard: il Manager ora si apre direttamente qui
+        # quando trova OffGallery installato, ma chi lo tiene in una cartella
+        # diversa da quella predefinita deve poter indicare dov'e'.
+        self._other_folder = tk.Label(
+            left, text="Installato in un'altra cartella?",
+            font=("Segoe UI", 8, "underline"), bg=BG, fg="#1565c0",
+            cursor="hand2", anchor="w")
+        self._other_folder.pack(side="bottom", fill="x", pady=(6, 0))
+        self._other_folder.bind("<Button-1>",
+                                lambda e: self.app.show_page("welcome"))
+
         self._build_section("AMBIENTE", [
             ("core",      "OffGallery Core"),
             ("miniconda", "Miniconda"),
