@@ -261,7 +261,10 @@ class DashboardPage(tk.Frame):
         # ne chiede 422 con i font predefiniti, e a 420 il pulsante di destra
         # veniva tagliato. Oltre i 9pt di sistema serve allargare la finestra,
         # che ora e' ridimensionabile.
-        left = tk.Frame(body, bg=BG, width=440)
+        # Cresce con lo schermo: su un 4K ingrandito i font sono piu' grandi,
+        # e una colonna da 440px fissi taglierebbe di nuovo i pulsanti.
+        _fatt = getattr(self.app, "_fattore", 1.0) or 1.0
+        left = tk.Frame(body, bg=BG, width=int(440 * _fatt))
         left.pack(side="left", fill="y", padx=(16, 8), pady=12)
         left.pack_propagate(False)
 
@@ -334,14 +337,21 @@ class DashboardPage(tk.Frame):
         self._panel = DownloadPanel(right, bg=BG)
         self._panel.pack(fill="both", expand=True)
 
+        # Un pulsante per riga, ciascuno largo quanto la colonna: e' l'unica
+        # disposizione che non taglia il testo a nessuna scalatura. Affiancati
+        # (con pack o con grid) su schermi ingranditi non ci stanno: le
+        # etichette col font triplicato chiedono piu' spazio di quanto la
+        # colonna ne abbia, e qualcuno usciva sempre mozzato (segnalazione
+        # 2026-08-28, schermo 4K al 300%).
         btn_frame = tk.Frame(right, bg=BG, pady=8)
         btn_frame.pack(fill="x")
-        ttk.Button(btn_frame, text="▶  Avvia OffGallery",
-                   command=self._launch).pack(side="left", ipadx=10, ipady=4)
-        ttk.Button(btn_frame, text="🔗  Ricrea collegamenti",
-                   command=self._action_create_shortcuts).pack(side="left", padx=8, ipady=4)
-        ttk.Button(btn_frame, text="↻  Aggiorna stato",
-                   command=self._refresh_all).pack(side="right")
+        for _testo, _comando in (
+            ("▶  Avvia OffGallery", self._launch),
+            ("🔗  Ricrea collegamenti", self._action_create_shortcuts),
+            ("↻  Aggiorna stato", self._refresh_all),
+        ):
+            ttk.Button(btn_frame, text=_testo, command=_comando).pack(
+                fill="x", pady=2, ipady=4)
 
     def _build_section(self, title: str, items: list):
         tk.Label(self._comp_frame, text=title,

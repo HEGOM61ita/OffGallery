@@ -18,6 +18,38 @@ if getattr(sys, "frozen", False):
     import ssl
     ssl._create_default_https_context = ssl._create_unverified_context
 
+def _abilita_dpi_windows():
+    """Dice a Windows che la finestra sa gestire da se' gli schermi ad alta
+    densita'.
+
+    Senza questo, su uno schermo 4K con la scalatura al 200% o 300% Windows
+    disegna la finestra a 1280x720 e poi la STIRA come un'immagine: i testi
+    si sgranano e le etichette dei pulsanti escono tagliate, perche' il
+    pulsante ha calcolato la propria larghezza su un font piu' piccolo di
+    quello che viene poi mostrato (segnalazione 2026-08-28, schermo a 288 DPI).
+
+    Va chiamata PRIMA di creare qualsiasi finestra, altrimenti non ha effetto.
+    Su sistemi diversi da Windows, o su versioni che non espongono queste
+    funzioni, non fa nulla e il programma prosegue come prima.
+    """
+    if sys.platform != "win32":
+        return
+    import ctypes
+    try:
+        # Windows 8.1 e successivi: 2 = per-monitor DPI aware
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        return
+    except (AttributeError, OSError) as e:
+        logging.getLogger(__name__).debug("SetProcessDpiAwareness non disponibile: %s", e)
+    try:
+        # Ripiego per Windows 7/8
+        ctypes.windll.user32.SetProcessDPIAware()
+    except (AttributeError, OSError) as e:
+        logging.getLogger(__name__).debug("SetProcessDPIAware non disponibile: %s", e)
+
+
+_abilita_dpi_windows()
+
 import tkinter as tk
 from tkinter import ttk
 from typing import Optional
@@ -48,6 +80,57 @@ def logo_path() -> str:
     return os.path.join(base, "assets", "logo_header.png")
 
 
+def _fattore_scala() -> float:
+    """Di quanto e' ingrandito lo schermo dell'utente (1.0 = 100%, 3.0 = 300%)."""
+    if sys.platform != "win32":
+        return 1.0
+    import ctypes
+    try:
+        dc = ctypes.windll.user32.GetDC(0)
+        try:
+            dpi = ctypes.windll.gdi32.GetDeviceCaps(dc, 88)  # LOGPIXELSX
+        finally:
+            ctypes.windll.user32.ReleaseDC(0, dc)
+        if dpi:
+            return dpi / 96.0
+    except (AttributeError, OSError) as e:
+        logging.getLogger(__name__).debug("Lettura DPI fallita: %s", e)
+    return 1.0
+
+
+def _adegua_scalatura(win: tk.Tk) -> float:
+    """Ingrandisce caratteri e widget quanto lo schermo dell'utente.
+
+    Dopo _abilita_dpi_windows() la finestra lavora sui pixel veri: su uno
+    schermo 4K al 300% tutto risulterebbe minuscolo. Qui si ingrandiscono i
+    font della stessa misura, cosi' il testo torna leggibile e i pulsanti
+    calcolano la propria larghezza sul carattere che verra' davvero mostrato.
+
+    Restituisce il fattore applicato, che serve anche per le dimensioni
+    della finestra.
+    """
+    fattore = _fattore_scala()
+    if fattore <= 1.05:
+        return 1.0
+    try:
+        from tkinter import font as _font
+        # 'tk scaling' e' in punti per pixel: governa la resa dei widget ttk
+        win.tk.call("tk", "scaling", fattore * 96.0 / 72.0)
+        for nome in _font.names(win):
+            f = _font.nametofont(nome, win)
+            dim = f.cget("size")
+            if dim:
+                # le dimensioni negative sono in pixel, le positive in punti:
+                # in entrambi i casi si moltiplica, il segno va conservato
+                f.configure(size=int(dim * fattore) if dim > 0
+                            else -int(abs(dim) * fattore))
+    except Exception as e:
+        logging.getLogger(__name__).warning(
+            "Adeguamento alla scalatura dello schermo fallito: %s", e, exc_info=True)
+        return 1.0
+    return fattore
+
+
 def _center_window(win: tk.Tk, w: int, h: int):
     win.update_idletasks()
     x = (win.winfo_screenwidth()  - w) // 2
@@ -75,6 +158,7 @@ class AppWindow:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("OffGallery Manager")
+        self._fattore = _adegua_scalatura(self.root)
         # 940 e non 780 (segnalazione 2026-08-28): a 780 la colonna destra
         # offriva 324px ai tre pulsanti che ne chiedono 444, e "Aggiorna stato"
         # usciva come "Agg...". Servono 440 per la colonna sinistra (le righe
@@ -82,10 +166,18 @@ class AppWindow:
         # Ridimensionabile perche' con i font di sistema ingranditi neanche 940
         # basterebbero: chi ha quella impostazione allarga la finestra invece
         # di restare col testo mozzato e nessun rimedio.
-        self.root.geometry("940x680")
+        # Su schermi ingranditi la finestra cresce quanto il resto, altrimenti
+        # i contenuti appena ingranditi non ci starebbero piu' dentro.
+        _w = int(940 * self._fattore)
+        _h = int(680 * self._fattore)
+        # Mai piu' grande dello schermo disponibile: su un portatile 4K al 300%
+        # una finestra da 2820px non entrerebbe.
+        _w = min(_w, self.root.winfo_screenwidth() - 40)
+        _h = min(_h, self.root.winfo_screenheight() - 80)
+        self.root.geometry(f"{_w}x{_h}")
         self.root.resizable(True, True)
-        self.root.minsize(940, 620)
-        _center_window(self.root, 940, 680)
+        self.root.minsize(min(_w, 940), min(_h, 620))
+        _center_window(self.root, _w, _h)
 
         # Stato condiviso fra le pagine
         self.profile:          str               = "leggero"
