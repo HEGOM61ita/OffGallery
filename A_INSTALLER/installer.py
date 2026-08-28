@@ -200,9 +200,14 @@ def _find_existing_install() -> Optional[StateManager]:
         if not os.path.isdir(path):
             return None
 
-        sm = StateManager(path)
-        if sm.load_or_create() and sm.has_partial_install():
-            return sm
+        # Solo LETTURA: si controlla che il file esista prima di chiamare
+        # load_or_create(), che altrimenti ne creerebbe uno nuovo. Un semplice
+        # avvio del Manager non deve lasciare tracce in una cartella che non
+        # contiene un'installazione.
+        if os.path.isfile(os.path.join(path, "installer_state.json")):
+            sm = StateManager(path)
+            if sm.load_or_create() and sm.has_partial_install():
+                return sm
 
         # Installazioni fatte con i vecchi .bat: nessun installer_state.json
         return _detect_legacy_install(path)
