@@ -75,15 +75,17 @@ class AppWindow:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("OffGallery Manager")
-        # 900 e non 780: a 780 la colonna destra offriva 324px ai tre pulsanti
-        # che ne chiedono 426, e "Aggiorna stato" usciva come "Agg..."
-        # (segnalazione 2026-08-28). Ridimensionabile perche' con i font di
-        # sistema ingranditi (125%) neanche 900 basterebbero: chi ha quella
-        # impostazione allarga la finestra invece di restare col testo mozzato.
-        self.root.geometry("900x680")
+        # 940 e non 780 (segnalazione 2026-08-28): a 780 la colonna destra
+        # offriva 324px ai tre pulsanti che ne chiedono 444, e "Aggiorna stato"
+        # usciva come "Agg...". Servono 440 per la colonna sinistra (le righe
+        # componente col loro pulsante) + 444 per quella destra + margini.
+        # Ridimensionabile perche' con i font di sistema ingranditi neanche 940
+        # basterebbero: chi ha quella impostazione allarga la finestra invece
+        # di restare col testo mozzato e nessun rimedio.
+        self.root.geometry("940x680")
         self.root.resizable(True, True)
-        self.root.minsize(900, 620)
-        _center_window(self.root, 900, 680)
+        self.root.minsize(940, 620)
+        _center_window(self.root, 940, 680)
 
         # Stato condiviso fra le pagine
         self.profile:          str               = "leggero"
