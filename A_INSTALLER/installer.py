@@ -99,36 +99,24 @@ def _fattore_scala() -> float:
 
 
 def _adegua_scalatura(win: tk.Tk) -> float:
-    """Ingrandisce caratteri e widget quanto lo schermo dell'utente.
+    """Di quanto risultano ingranditi i contenuti sullo schermo dell'utente.
 
-    Dopo _abilita_dpi_windows() la finestra lavora sui pixel veri: su uno
-    schermo 4K al 300% tutto risulterebbe minuscolo. Qui si ingrandiscono i
-    font della stessa misura, cosi' il testo torna leggibile e i pulsanti
-    calcolano la propria larghezza sul carattere che verra' davvero mostrato.
+    NON tocca i font: dopo _abilita_dpi_windows() Tk imposta gia' da se'
+    la propria scalatura (su uno schermo al 300% "Segoe UI 9pt" viene reso
+    a 151px, non a 51). Ingrandire anche i font qui li moltiplicava una
+    seconda volta e le scritte diventavano enormi.
 
-    Restituisce il fattore applicato, che serve anche per le dimensioni
-    della finestra.
+    Serve solo a sapere quanto spazio chiederanno i contenuti, per dare
+    alla finestra e alla colonna sinistra una dimensione proporzionata.
     """
-    fattore = _fattore_scala()
-    if fattore <= 1.05:
-        return 1.0
     try:
-        from tkinter import font as _font
-        # 'tk scaling' e' in punti per pixel: governa la resa dei widget ttk
-        win.tk.call("tk", "scaling", fattore * 96.0 / 72.0)
-        for nome in _font.names(win):
-            f = _font.nametofont(nome, win)
-            dim = f.cget("size")
-            if dim:
-                # le dimensioni negative sono in pixel, le positive in punti:
-                # in entrambi i casi si moltiplica, il segno va conservato
-                f.configure(size=int(dim * fattore) if dim > 0
-                            else -int(abs(dim) * fattore))
-    except Exception as e:
-        logging.getLogger(__name__).warning(
-            "Adeguamento alla scalatura dello schermo fallito: %s", e, exc_info=True)
-        return 1.0
-    return fattore
+        # 'tk scaling' e' in punti per pixel: 1.333 corrisponde al 100%
+        scaling = float(win.tk.call("tk", "scaling"))
+        fattore = scaling * 72.0 / 96.0
+    except (tk.TclError, ValueError) as e:
+        logging.getLogger(__name__).debug("Lettura di 'tk scaling' fallita: %s", e)
+        fattore = _fattore_scala()
+    return fattore if fattore > 1.05 else 1.0
 
 
 def _center_window(win: tk.Tk, w: int, h: int):
@@ -170,10 +158,12 @@ class AppWindow:
         # i contenuti appena ingranditi non ci starebbero piu' dentro.
         _w = int(940 * self._fattore)
         _h = int(680 * self._fattore)
-        # Mai piu' grande dello schermo disponibile: su un portatile 4K al 300%
-        # una finestra da 2820px non entrerebbe.
-        _w = min(_w, self.root.winfo_screenwidth() - 40)
-        _h = min(_h, self.root.winfo_screenheight() - 80)
+        # Non oltre l'85% dello schermo: a scalature alte la finestra
+        # arriverebbe a 2820x2040 su un 4K, cioe' quasi tutto lo schermo in
+        # altezza. Il contenuto e' comunque raggiungibile — la lista dei
+        # componenti scorre e la finestra si puo' allargare.
+        _w = min(_w, int(self.root.winfo_screenwidth() * 0.85))
+        _h = min(_h, int(self.root.winfo_screenheight() * 0.85))
         self.root.geometry(f"{_w}x{_h}")
         self.root.resizable(True, True)
         self.root.minsize(min(_w, 940), min(_h, 620))
