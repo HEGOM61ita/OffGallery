@@ -739,6 +739,13 @@ def _shortcut_linux(install_path: str, manager_exe: str = ""):
             and os.path.abspath(manager_exe) != os.path.abspath(stable_manager)):
         _shutil.copy2(manager_exe, stable_manager)
         os.chmod(stable_manager, 0o755)
+        # Annota la versione della copia: senza questo segnaposto il Manager
+        # non puo' sapere se quella nel menu e' rimasta indietro.
+        try:
+            from components.manager_selfcopy import scrivi_versione
+            scrivi_versione(install_path)
+        except Exception:
+            pass
 
     entries = [
         (

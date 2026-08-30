@@ -262,6 +262,19 @@ class DashboardPage(tk.Frame):
                    command=self._open_releases_page).pack(side="right",
                                                           padx=16, pady=6)
 
+        # Barra distinta: qui non e' vecchio il Manager in esecuzione, ma la
+        # copia che apre la voce di menu. Chi lancia il setup nuovo dalla
+        # cartella Download non vedrebbe altrimenti nulla, e continuerebbe ad
+        # aprire dal menu quella di mesi prima.
+        self._copia_bar = tk.Frame(self, bg="#fff3cd")
+        self._copia_lbl = tk.Label(
+            self._copia_bar, bg="#fff3cd", fg="#664d03",
+            font=("sans-serif", 9), justify="left", anchor="w", wraplength=620)
+        self._copia_lbl.pack(side="left", padx=(16, 8), pady=6)
+        self._copia_btn = ttk.Button(self._copia_bar, text="Aggiorna la voce di menu",
+                                     command=self._aggiorna_copia_manager)
+        self._copia_btn.pack(side="right", padx=16, pady=6)
+
         body = tk.Frame(self, bg=BG)
         body.pack(fill="both", expand=True)
 
@@ -370,6 +383,75 @@ class DashboardPage(tk.Frame):
             self.after(0, lambda: self._show_manager_bar(nuova))
 
         threading.Thread(target=worker, daemon=True).start()
+        self._check_copia_manager()
+
+    def _check_copia_manager(self):
+        """Verifica in un thread se la copia nel menu e' rimasta indietro."""
+        sm = self.app.state
+        if not sm or not getattr(sm, "install_path", ""):
+            return
+
+        install_path = sm.install_path
+
+        def worker():
+            try:
+                from components.manager_selfcopy import copia_da_aggiornare
+                nuova = copia_da_aggiornare(install_path)
+            except Exception:
+                nuova = None
+            self.after(0, lambda: self._show_copia_bar(nuova))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _show_copia_bar(self, nuova: Optional[str]):
+        if not nuova:
+            self._copia_bar.pack_forget()
+            return
+        self._copia_lbl.configure(
+            text=("La voce di menu \u00abOffGallery Manager\u00bb apre una versione "
+                  f"vecchia. Aggiornala a {nuova}: l'applicazione non viene "
+                  "toccata."))
+        self._copia_bar.pack(fill="x", after=self._header)
+
+    def _aggiorna_copia_manager(self):
+        """Scarica il Manager della release e sostituisce la copia nel menu."""
+        sm = self.app.state
+        if not sm or not getattr(sm, "install_path", ""):
+            return
+        install_path = sm.install_path
+
+        self._copia_btn.configure(state="disabled")
+        self._copia_lbl.configure(text="Scaricamento in corso\u2026")
+
+        def worker():
+            try:
+                from components.manager_selfcopy import aggiorna_copia
+
+                def progresso(p):
+                    try:
+                        pct = int(getattr(p, "percent", 0) or 0)
+                    except Exception:
+                        pct = 0
+                    self.after(0, lambda: self._copia_lbl.configure(
+                        text=f"Scaricamento del Manager\u2026 {pct}%"))
+
+                tag = aggiorna_copia(install_path, progress_cb=progresso)
+                self.after(0, lambda: self._copia_esito(True, tag))
+            except Exception as exc:
+                messaggio = str(exc)
+                self.after(0, lambda: self._copia_esito(False, messaggio))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _copia_esito(self, riuscito: bool, testo: str):
+        if riuscito:
+            self._copia_lbl.configure(
+                text=(f"Fatto. La voce di menu \u00abOffGallery Manager\u00bb ora apre "
+                      f"la versione {testo}."))
+            self._copia_btn.pack_forget()
+        else:
+            self._copia_lbl.configure(text=f"Aggiornamento non riuscito: {testo}")
+            self._copia_btn.configure(state="normal")
 
     def _show_manager_bar(self, nuova: Optional[str]):
         if not nuova:

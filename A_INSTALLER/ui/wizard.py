@@ -719,6 +719,13 @@ def _shortcut_windows(install_path: str, manager_exe: str = "", log_cb=None, pyt
             and os.path.isfile(manager_exe)
             and os.path.abspath(manager_exe) != os.path.abspath(stable_manager)):
         _shutil.copy2(manager_exe, stable_manager)
+        # Annota la versione della copia: senza questo segnaposto il Manager
+        # non puo' sapere se quella nel collegamento e' rimasta indietro.
+        try:
+            from components.manager_selfcopy import scrivi_versione
+            scrivi_versione(install_path)
+        except Exception:
+            pass
 
     def _make_lnk(lnk_path, target, arguments, workdir, description, icon_path=""):
         # Tentativo 1: win32com (disponibile se installato sul sistema)
