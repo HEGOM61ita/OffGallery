@@ -111,6 +111,9 @@ a = Analysis(
         "enum",
         "dataclasses",
         "utils.logger",
+        # Importato dentro le funzioni della dashboard: PyInstaller
+        # analizza solo gli import a livello di modulo e non lo vedrebbe.
+        "components.manager_selfcopy",
         # email è usato internamente da urllib
         "email",
         "email.message",
