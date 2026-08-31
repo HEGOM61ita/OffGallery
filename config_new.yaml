@@ -154,7 +154,7 @@ image_optimization:
       target_size: 256
       upscale: false
     llm_vision:
-      method: rawpy_full
+      method: preview_optimized
       quality: 95
       resampling: LANCZOS
       target_size: 512
