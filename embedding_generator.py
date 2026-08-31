@@ -250,7 +250,7 @@ class EmbeddingGenerator:
             'bioclip_classification': {'target_size': 224, 'resampling': Image.Resampling.LANCZOS},  # ViT-B/16 input 224x224
             'aesthetic_score': {'target_size': 224, 'resampling': Image.Resampling.BILINEAR},  # CLIP-based input 224x224
             'technical_score': {'target_size': 1024, 'resampling': Image.Resampling.LANCZOS},  # MUSIQ a 1024px
-            'llm_vision': {'target_size': 512, 'resampling': Image.Resampling.LANCZOS},  # Qwen3-VL 448-512px
+            'llm_vision': {'target_size': 768, 'resampling': Image.Resampling.LANCZOS},  # qwen3-vl:8b — 768 misurato meglio di 512 (18 prove, stesso costo)
             'default': {'target_size': 512, 'resampling': Image.Resampling.LANCZOS}
         }
 

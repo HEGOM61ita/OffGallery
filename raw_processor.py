@@ -326,9 +326,9 @@ class RAWProcessor:
         # PROFILI HARDCODED OTTIMIZZATI (fallback di sicurezza)
         hardcoded_profiles = {
             'llm_vision': {
-                'target_size': 1024,
+                'target_size': 768,
                 'quality': 95,
-                'method': 'rawpy_full',
+                'method': 'preview_optimized',
                 'resampling': 'LANCZOS',
                 'upscale': False
             },
