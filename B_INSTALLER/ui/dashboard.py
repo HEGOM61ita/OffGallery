@@ -4,12 +4,15 @@ Frame puro, nessuna finestra propria.
 Vive dentro AppWindow insieme alle pagine del wizard.
 """
 
+import logging
 import os
 import sys
 import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING, Optional
+
+logger = logging.getLogger(__name__)
 
 from components.conda_env    import ensure_env, python_executable
 from components.core         import ensure_core, installed_version, update_available
@@ -279,7 +282,13 @@ class DashboardPage(tk.Frame):
         body.pack(fill="both", expand=True)
 
         # Colonna sinistra: lista componenti
+        # Larghezza di partenza, poi corretta sul contenuto reale in
+        # _adatta_colonna_sinistra(): le righe si dimensionano in caratteri e
+        # quanti pixel occupino dipende dal font del sistema, che fra una
+        # distribuzione e l'altra cambia. Un numero fisso taglia il pulsante
+        # di destra su chi ha i caratteri piu' grandi.
         left = tk.Frame(body, bg=BG, width=500)
+        self._left_frame = left
         left.pack(side="left", fill="y", padx=(16, 8), pady=12)
         left.pack_propagate(False)
 
@@ -348,6 +357,43 @@ class DashboardPage(tk.Frame):
         btn_frame.pack(fill="x")
         ttk.Button(btn_frame, text="▶  Avvia OffGallery",
                    width=26, command=self._launch).pack(side="left", ipadx=10, ipady=4)
+
+        # Larghezza della colonna sinistra decisa sul contenuto vero, non su
+        # una costante: va fatto a costruzione finita, quando le righe esistono.
+        self.after_idle(self._adatta_colonna_sinistra)
+
+    def _adatta_colonna_sinistra(self):
+        """Allarga la colonna sinistra quanto chiede la riga piu' larga.
+
+        Le righe componente sono fatte di widget dimensionati in caratteri:
+        quanti pixel occupino dipende dal font di sistema, che cambia fra una
+        distribuzione e l'altra e con le impostazioni di ingrandimento.
+        Misurarle e' l'unico modo per non tagliare mai il pulsante di destra.
+        """
+        try:
+            frame = self._left_frame
+            if not frame.winfo_exists():
+                return
+            frame.update_idletasks()
+            richiesta = max(
+                [r.winfo_reqwidth() for r in self._comp_frame.winfo_children()
+                 if r.winfo_exists()] or [0]
+            )
+            if richiesta <= 0:
+                return
+            barra = 20
+            for figlio in frame.winfo_children():
+                if isinstance(figlio, ttk.Scrollbar):
+                    barra = max(barra, figlio.winfo_reqwidth())
+            larghezza = richiesta + barra + 8
+            massimo = int(self.winfo_width() * 0.55)
+            if massimo > 100:
+                larghezza = min(larghezza, massimo)
+            if larghezza > frame.winfo_width():
+                frame.configure(width=larghezza)
+        except tk.TclError as e:
+            logger.warning("Adattamento colonna sinistra fallito: %s",
+                           e, exc_info=True)
 
     def _build_section(self, title: str, items: list):
         tk.Label(self._comp_frame, text=title,

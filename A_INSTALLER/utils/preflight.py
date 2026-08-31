@@ -152,10 +152,32 @@ def check_ram() -> CheckResult:
     )
 
 
+def _cartella_esistente_piu_vicina(path: str) -> str:
+    """Risale dai genitori di `path` finche' non trova una cartella che esiste.
+
+    La cartella di installazione scelta dall'utente normalmente NON esiste
+    ancora quando si misura lo spazio libero: e' quella che l'installer sta
+    per creare. Misurarla direttamente dava "Errore lettura disco" e mandava
+    l'utente a reimpostare la cartella a mano ad ogni avvio (segnalazione
+    2026-08-31). Lo spazio libero e' comunque quello dell'unita' che la
+    conterra', quindi si misura il primo genitore che esiste davvero.
+    """
+    corrente = os.path.abspath(path)
+    while True:
+        if os.path.isdir(corrente):
+            return corrente
+        genitore = os.path.dirname(corrente)
+        # Arrivati alla radice (C:\\ o /) dirname restituisce se stesso:
+        # se nemmeno quella esiste, l'unita' non e' raggiungibile davvero.
+        if genitore == corrente:
+            return corrente
+        corrente = genitore
+
+
 def check_disk(path: str) -> CheckResult:
     """Controlla lo spazio libero sul disco che contiene `path`."""
     try:
-        usage = shutil.disk_usage(path)
+        usage = shutil.disk_usage(_cartella_esistente_piu_vicina(path))
         free_gb = usage.free / (1024 ** 3)
     except OSError:
         return CheckResult(
