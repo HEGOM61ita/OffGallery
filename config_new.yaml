@@ -222,7 +222,7 @@ models_repository:
   models_dir: Models
 paths:
   database: database/offgallery.sqlite
-  input_dir: C:\Users\HEGOM\Desktop\pippo1
+  input_dir: INPUT
   log_dir: logs
   temp_cache_dir: temp_cache
 search:
