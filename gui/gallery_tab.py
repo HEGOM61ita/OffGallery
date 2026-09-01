@@ -220,6 +220,9 @@ class GalleryTab(QWidget):
         self.ai_models = ai_models  # Modelli centralizzati
         self.current_results = []
         self.selected_items = []
+        # Estremo di partenza per la selezione con Shift+click: e' l'ultima
+        # card su cui si e' cliccato senza Shift.
+        self._ancora_selezione = None
         self.config_path = Path('config_new.yaml')
         self.cards = []
         # XMP Manager condiviso — inizializzato dopo init_ui() che crea i radio
@@ -604,6 +607,9 @@ class GalleryTab(QWidget):
         self.flow_layout.clear_items()
         self.cards.clear()
         self.selected_items.clear()
+        # Le card di prima non esistono piu': l'estremo per Shift+click
+        # verrebbe cercato in un elenco che non lo contiene.
+        self._ancora_selezione = None
 
         self.current_results = results
         self._original_results = list(results)

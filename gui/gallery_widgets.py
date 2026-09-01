@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QRadioButton, QButtonGroup, QTextEdit, QMessageBox, QScrollArea,
     QPushButton, QSpinBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThreadPool, QRunnable, QObject
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThreadPool, QRunnable, QObject, QEvent
 from PyQt6.QtGui import QPixmap, QCursor, QAction
 from PyQt6.QtWidgets import QToolTip
 from PyQt6 import QtCore
@@ -186,6 +186,29 @@ def _set_cached_pixmap(filepath_str, pixmap):
         oldest = next(iter(_thumb_pixmap_cache))
         del _thumb_pixmap_cache[oldest]
     _thumb_pixmap_cache[filepath_str] = pixmap
+
+
+def _invalida_miniatura(filepath):
+    """Elimina la miniatura di un'immagine dalla memoria e dal disco.
+
+    Va fatto quando l'immagine esce dall'archivio: le due cache sono
+    indicizzate per percorso, quindi un file reimportato piu' tardi
+    ritroverebbe l'anteprima di prima.
+    """
+    if not filepath:
+        return
+    try:
+        _drop_cached_pixmap(str(filepath))
+    except Exception as e:
+        logger.warning("Miniatura in memoria non rimossa per %s: %s",
+                       filepath, e, exc_info=True)
+    try:
+        from utils.thumb_cache import invalidate_gallery_thumb
+        from pathlib import Path as _Path
+        invalidate_gallery_thumb(_Path(str(filepath)))
+    except Exception as e:
+        logger.warning("Miniatura su disco non rimossa per %s: %s",
+                       filepath, e, exc_info=True)
 
 
 def _drop_cached_pixmap(filepath_str):
@@ -529,6 +552,10 @@ class ImageCard(QFrame):
         
         self.checkbox = QCheckBox()
         self.checkbox.stateChanged.connect(lambda state: self.set_selected(state == Qt.CheckState.Checked.value))
+        # La casellina si prende il click da sola e la card non lo vedrebbe:
+        # senza questo, Shift+click funzionerebbe sull'immagine ma non sul
+        # quadratino, che e' proprio dove si tende a cliccare per selezionare.
+        self.checkbox.installEventFilter(self)
         header.addWidget(self.checkbox)
         
         filename = self.image_data.get('filename', 'Unknown')
@@ -1204,14 +1231,26 @@ class ImageCard(QFrame):
     # ═══════════════════════════════════════════════════════════════
     
     def mousePressEvent(self, event):
-        """Gestisce click per selezione - Ctrl+click per multi-selezione"""
+        """Click per selezione: semplice, Ctrl+click, Shift+click."""
         if event.button() == Qt.MouseButton.LeftButton:
-            ctrl_pressed = event.modifiers() & Qt.KeyboardModifier.ControlModifier
+            modificatori = event.modifiers()
+            ctrl_pressed  = modificatori & Qt.KeyboardModifier.ControlModifier
+            shift_pressed = modificatori & Qt.KeyboardModifier.ShiftModifier
             gallery = self._gallery
 
-            if ctrl_pressed:
+            if shift_pressed and not ctrl_pressed:
+                # Shift+click = seleziona tutte da quella di partenza a questa,
+                # come in qualsiasi elenco (segnalazione 2026-09-01: prima non
+                # faceva nulla e le foto andavano prese una per una).
+                if self._seleziona_intervallo_fino_a_qui(gallery):
+                    return
+                # Nessun estremo di partenza: ci si comporta come un Ctrl+click
+                self.set_selected(not self._selected)
+                self._ricorda_estremo(gallery)
+            elif ctrl_pressed:
                 # Ctrl+click = toggle questa card (aggiungi/rimuovi)
                 self.set_selected(not self._selected)
+                self._ricorda_estremo(gallery)
             else:
                 # Click normale = seleziona SOLO questa card
                 if gallery and hasattr(gallery, 'selected_items'):
@@ -1222,6 +1261,62 @@ class ImageCard(QFrame):
                     gallery.selected_items.clear()
                 # Seleziona questa
                 self.set_selected(True)
+                self._ricorda_estremo(gallery)
+
+    def eventFilter(self, oggetto, evento):
+        """Fa valere Shift+click anche sulla casellina di selezione."""
+        try:
+            if (oggetto is self.checkbox
+                    and evento.type() == QEvent.Type.MouseButtonPress
+                    and evento.button() == Qt.MouseButton.LeftButton
+                    and evento.modifiers() & Qt.KeyboardModifier.ShiftModifier
+                    and not (evento.modifiers() & Qt.KeyboardModifier.ControlModifier)):
+                if self._seleziona_intervallo_fino_a_qui(self._gallery):
+                    return True   # gestito: la casellina non deve fare altro
+        except Exception as e:
+            logger.debug("Filtro eventi casellina: %s", e)
+        return super().eventFilter(oggetto, evento)
+
+    def _ricorda_estremo(self, gallery):
+        """Segna questa card come punto di partenza per un futuro Shift+click."""
+        if gallery is not None:
+            gallery._ancora_selezione = self
+
+    def _seleziona_intervallo_fino_a_qui(self, gallery) -> bool:
+        """Seleziona dalla card di partenza fino a questa, comprese.
+
+        L'ordine e' quello che si vede a schermo (gallery.cards, riordinata
+        dai controlli di ordinamento). Restituisce False se non c'e' un
+        punto di partenza valido, cosi' il chiamante ripiega.
+        """
+        if gallery is None or not hasattr(gallery, 'cards'):
+            return False
+        ancora = getattr(gallery, '_ancora_selezione', None)
+        if ancora is None or ancora is self:
+            return False
+        try:
+            cards = list(gallery.cards)
+            inizio = cards.index(ancora)
+            fine   = cards.index(self)
+        except ValueError:
+            # La card di partenza non c'e' piu' (cancellata, o filtrata via)
+            gallery._ancora_selezione = None
+            return False
+
+        if inizio > fine:
+            inizio, fine = fine, inizio
+
+        intervallo = cards[inizio:fine + 1]
+        da_deselezionare = [c for c in cards
+                            if c.is_selected() and c not in intervallo]
+        for card in da_deselezionare:
+            card.set_selected(False)
+        for card in intervallo:
+            if not card.is_selected():
+                card.set_selected(True)
+        # L'estremo di partenza resta quello: cosi' si puo' allargare o
+        # stringere l'intervallo con altri Shift+click, come ci si aspetta.
+        return True
     
     def mouseDoubleClickEvent(self, event):
         """Gestisce doppio click"""
@@ -2390,12 +2485,25 @@ class ImageCard(QFrame):
                     try:
                         if db_manager.delete_image(image_id):
                             deleted += 1
+                            # Via anche la miniatura, in memoria e su disco.
+                            # Le cache sono indicizzate per percorso: senza
+                            # questa pulizia, reimportando lo stesso file
+                            # tornava l'anteprima vecchia — se era stata
+                            # ruotata, riappariva gia' ruotata e il pulsante
+                            # Ruota sommava una seconda rotazione, girandola
+                            # di 180 gradi (segnalazione 2026-09-01).
+                            # Cancellare deve dimenticare tutto.
+                            _invalida_miniatura(getattr(item, 'filepath', None))
                             # Rimuovi dai riferimenti della gallery prima di distruggere il widget
                             if gallery is not None:
                                 if item in gallery.selected_items:
                                     gallery.selected_items.remove(item)
                                 if item in gallery.cards:
                                     gallery.cards.remove(item)
+                                # Non lasciare come estremo per Shift+click
+                                # una card che non esiste piu'.
+                                if getattr(gallery, '_ancora_selezione', None) is item:
+                                    gallery._ancora_selezione = None
                             item.setParent(None)
                             item.deleteLater()
                         else:
