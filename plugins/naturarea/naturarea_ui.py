@@ -339,7 +339,12 @@ def main():
     parser.add_argument('--filter-bioclip', action='store_true',
                         help="Processa solo foto con bioclip_taxonomy non NULL")
     parser.add_argument('--headless',  action='store_true', help="Modalità headless (nessuna UI Qt)")
-    args = parser.parse_args()
+    # parse_known_args e non parse_args: OffGallery passa a tutti i plugin
+    # anche --offgallery-config, che serve solo a BioNomen. Con parse_args
+    # questo plugin usciva subito con 'unrecognized arguments' e non veniva
+    # mai eseguito (visto nei log del 01/09/2026). GeoNames usa gia' questa
+    # forma, ed e' il motivo per cui era l'unico a funzionare.
+    args, _ignorati = parser.parse_known_args()
 
     # Carica configurazione
     config = {}

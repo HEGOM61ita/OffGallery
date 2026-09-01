@@ -101,6 +101,30 @@ class DiskThumbRef:
                     pass
 
 
+def _plugin_accetta_opzione(entry_path, opzione: str) -> bool:
+    """Dice se lo script di un plugin dichiara una certa opzione da riga di comando.
+
+    OffGallery passa --offgallery-config solo a chi lo capisce: i plugin che
+    non lo dichiarano uscivano con "unrecognized arguments" senza fare nulla
+    (NaturArea e Meteo, log del 01/09/2026). Si legge il sorgente invece di
+    tenere un elenco a mano, che si disallineerebbe al primo plugin nuovo.
+
+    In caso di dubbio si risponde False: non passare un'opzione fa perdere una
+    rifinitura, passarla a chi non la vuole impedisce al plugin di partire.
+    """
+    try:
+        testo = Path(entry_path).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        logger.debug("Sorgente del plugin non leggibile: %s", entry_path, exc_info=True)
+        return False
+    # Cercata dentro add_argument, non nel sorgente intero: la stringa puo'
+    # comparire in un commento e darebbe un falso positivo.
+    import re as _re
+    schema = _re.compile(
+        r"add_argument\s*\(\s*[^)]*?['\"]" + _re.escape(opzione) + r"['\"]", _re.S)
+    return bool(schema.search(testo))
+
+
 class ProcessingWorker(QThread):
     """Worker thread per processing immagini — ARCHITETTURA THREAD PER MODELLO
 
@@ -1617,14 +1641,17 @@ class ProcessingWorker(QThread):
             config_json = Path(plugin_dir) / 'config.json'
             if config_json.exists():
                 cmd += ['--config', str(config_json)]
-            # Passa anche il config_new.yaml di OffGallery: serve ai plugin (es. BioNomen)
-            # che ereditano la lingua interfaccia quando in modalità "auto".
-            try:
-                _og_cfg = getattr(self, 'config_path', None)
-                if _og_cfg and Path(_og_cfg).exists():
-                    cmd += ['--offgallery-config', str(_og_cfg)]
-            except Exception:
-                pass
+            # Il config_new.yaml di OffGallery serve solo ai plugin che lo
+            # dichiarano (BioNomen, per ereditare la lingua in modalità "auto").
+            # Passarlo a tutti faceva uscire con errore quelli che non lo
+            # conoscono — NaturArea e Meteo non partivano affatto (log 01/09/2026).
+            if _plugin_accetta_opzione(entry_path, '--offgallery-config'):
+                try:
+                    _og_cfg = getattr(self, 'config_path', None)
+                    if _og_cfg and Path(_og_cfg).exists():
+                        cmd += ['--offgallery-config', str(_og_cfg)]
+                except Exception:
+                    logger.debug("config OffGallery non passato al plugin", exc_info=True)
 
             cmd += ['--headless']
 
@@ -2788,14 +2815,14 @@ class ProcessingTab(QWidget):
         config_json = Path(plugin_dir) / 'config.json'
         if config_json.exists():
             cmd += ['--config', str(config_json)]
-        # Passa anche il config_new.yaml di OffGallery: serve ai plugin (es. BioNomen)
-        # che ereditano la lingua interfaccia quando in modalità "auto".
-        try:
-            _og_cfg = getattr(self, 'config_path', None)
-            if _og_cfg and Path(_og_cfg).exists():
-                cmd += ['--offgallery-config', str(_og_cfg)]
-        except Exception:
-            pass
+        # Vedi sopra: solo ai plugin che dichiarano questa opzione.
+        if _plugin_accetta_opzione(entry_path, '--offgallery-config'):
+            try:
+                _og_cfg = getattr(self, 'config_path', None)
+                if _og_cfg and Path(_og_cfg).exists():
+                    cmd += ['--offgallery-config', str(_og_cfg)]
+            except Exception:
+                logger.debug("config OffGallery non passato al plugin", exc_info=True)
         # Applica run_condition: bioclip_not_null → passa flag al subprocess
         if manifest.get('run_condition') == 'bioclip_not_null':
             cmd += ['--filter-bioclip']

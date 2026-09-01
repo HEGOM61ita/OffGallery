@@ -1002,7 +1002,9 @@ def main():
                         help="Esegui senza finestra Qt (solo stdout PROGRESS)")
     parser.add_argument("--filter-bioclip", action="store_true",
                         help="Elabora solo immagini con bioclip_taxonomy (già default in bionomen)")
-    args = parser.parse_args()
+    # parse_known_args come gli altri plugin: un'opzione in piu' passata da
+    # una versione futura di OffGallery non deve impedire l'avvio.
+    args, _ignorati = parser.parse_known_args()
 
     if not Path(args.db).exists():
         print(f"ERRORE: Database non trovato: {args.db}", file=sys.stderr)
