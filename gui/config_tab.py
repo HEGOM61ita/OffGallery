@@ -1742,10 +1742,11 @@ class ConfigTab(QWidget):
         
         # Info header
         info_label = QLabel(
-            "⚡ Come viene estratta l'immagine da dare ai modelli. "
-            "LLM Vision comanda l'immagine che il Processing passa a tutti i "
-            "modelli; BioCLIP estrae la propria; AI Generic vale quando non si "
-            "genera la descrizione.")
+            "⚡ Come viene aperto un file RAW per darlo ai modelli. "
+            "Durante l'elaborazione l'immagine viene estratta una volta sola e "
+            "passata a tutti i modelli attivi: le prime due righe dicono come, "
+            "a seconda che si generi anche la descrizione oppure no. "
+            "BioCLIP fa eccezione — estrae la propria immagine.")
         info_label.setWordWrap(True)
         info_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; font-style: italic;")
         layout.addWidget(info_label)
@@ -1783,9 +1784,9 @@ class ConfigTab(QWidget):
         self.profile_widgets = {}
         _llm_installed = self._llm_plugin_installed()
         profiles = [
-            ("llm_vision", "LLM Vision"),
+            ("llm_vision", "Con descrizione"),
+            ("ai_processing", "Senza descrizione"),
             ("bioclip_classification", "BioCLIP"),
-            ("ai_processing", "AI Generic"),
         ]
 
         for row, (profile_key, profile_name) in enumerate(profiles, 1):
