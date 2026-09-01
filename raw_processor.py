@@ -862,6 +862,28 @@ class RAWProcessor:
                 if thumbnail:
                     return thumbnail
 
+            # Rete di sicurezza: tutte le strade qui sopra passano da ExifTool o
+            # PIL. rawpy e' un motore indipendente, con un elenco di fotocamere
+            # supportate proprio suo: per un formato che ExifTool non apre e'
+            # l'unica possibilita' rimasta. Costa 5 volte tanto, per questo si
+            # tenta solo qui, quando il resto ha gia' fallito e l'alternativa e'
+            # non avere l'immagine affatto.
+            if self.is_raw_file(raw_path):
+                _profilo = dict(self.optimization_profiles.get('default', {}))
+                # resampling dev'essere l'oggetto PIL, non la stringa: i profili
+                # caricati lo sono gia', ma non si puo' dare per scontato che
+                # 'default' esista.
+                _ricampiona = _profilo.get('resampling')
+                if isinstance(_ricampiona, str) or _ricampiona is None:
+                    _profilo['resampling'] = self._get_resampling_method(
+                        _ricampiona or 'LANCZOS')
+                thumbnail = self._extract_rawpy_full_quality(
+                    raw_path, target_size, _profilo)
+                if thumbnail:
+                    logger.info("Immagine estratta con rawpy dopo il fallimento "
+                                "di tutte le strade ExifTool/PIL: %s", raw_path.name)
+                    return thumbnail
+
             return None
 
         except Exception as e:

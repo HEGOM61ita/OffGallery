@@ -872,8 +872,19 @@ class ProcessingWorker(QThread):
                 if llm_active:
                     active_profiles.append('llm_vision')
                 max_size = raw_processor.get_max_target_size(active_profiles) if active_profiles else 1024
+                # Quale profilo detta il METODO di estrazione. Finora non se ne
+                # passava nessuno e il metodo veniva dedotto dal nome del file
+                # chiamante (CallerOptimizer), che da qui risponde sempre
+                # 'ai_processing': l'impostazione llm_vision scelta dall'utente
+                # veniva ignorata dal Processing e rispettata dalla Gallery, e
+                # le due strade davano descrizioni diverse sulla stessa foto
+                # (segnalazione Motofoto, agosto 2026). Quando si genera anche
+                # la descrizione, comanda il profilo llm_vision: e' l'unico
+                # visibile e modificabile dall'utente in Config Tab.
+                profilo_estrazione = 'llm_vision' if llm_active else None
             else:
                 max_size = 0
+                profilo_estrazione = None
 
             # ── Lettura unica del file in RAM ────────────────────────
             # Su HDD USB meccanico (13MB/s), 3 thread che leggono lo stesso
@@ -931,7 +942,8 @@ class ProcessingWorker(QThread):
                     return
                 _t = time.monotonic()
                 thumb_result['thumbnail'] = self._prepare_image_for_ai_corrected(
-                    _tmp_path, raw_processor, is_raw, target_size=max_size)
+                    _tmp_path, raw_processor, is_raw, target_size=max_size,
+                    profile_name=profilo_estrazione)
                 thumb_result['thumb_dur'] = time.monotonic() - _t
                 thumb_done.set()
 
@@ -2090,13 +2102,20 @@ class ProcessingWorker(QThread):
         except Exception:
             pass
 
-    def _prepare_image_for_ai_corrected(self, image_path, raw_processor, is_raw, target_size=1024):
+    def _prepare_image_for_ai_corrected(self, image_path, raw_processor, is_raw,
+                                        target_size=1024, profile_name=None):
         """Prepara immagine PIL per modelli AI con dimensioni ottimali.
-        Estrae a risoluzione massima per cache condivisa fra tutti i modelli."""
+        Estrae a risoluzione massima per cache condivisa fra tutti i modelli.
+
+        profile_name detta il METODO di estrazione (anteprima della fotocamera
+        o sviluppo da rawpy). La dimensione resta target_size, che e' la
+        massima fra i modelli attivi: l'immagine e' una sola e serve tutti.
+        """
         try:
             if is_raw:
                 self.log_message.emit(f"🔄 Preparazione RAW: {image_path.name}", "debug")
-                pil_image = raw_processor.extract_thumbnail(image_path, target_size=target_size)
+                pil_image = raw_processor.extract_thumbnail(
+                    image_path, target_size=target_size, profile_name=profile_name)
                 if pil_image:
                     return pil_image
                 else:
