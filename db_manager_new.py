@@ -1179,6 +1179,15 @@ class DatabaseManager:
                 if key in valid_columns and key not in {'id', 'filename', 'file_hash'}:
                     update_data[key] = value
 
+            # Data di elaborazione: senza questo restava quella del primo
+            # inserimento, e una foto rielaborata oggi risultava ferma a mesi
+            # fa. Il campo diventa inservibile per filtrare o capire cosa e'
+            # stato rifatto di recente (osservato il 01/09/2026: 9 foto
+            # rielaborate, processed_date ancora ad aprile e maggio).
+            if update_data and 'processed_date' not in update_data:
+                from datetime import datetime as _dt
+                update_data['processed_date'] = _dt.now().isoformat()
+
             if not update_data:
                 logger.warning(f"Nessun campo valido da aggiornare per hash={file_hash[:8] if file_hash else '?'}...")
                 return False
