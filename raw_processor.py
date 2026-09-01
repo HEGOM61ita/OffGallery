@@ -722,9 +722,21 @@ class RAWProcessor:
                     scale = target_size / max_side
                     new_size = (int(w * scale), int(h * scale))
                     image = image.resize(new_size, profile['resampling'])
-                
-                return image.convert('RGB')
-                
+
+                image = image.convert('RGB')
+                # rawpy sviluppa il RAW dai dati grezzi del sensore e ignora il
+                # Picture Style della fotocamera: uno scatto fatto in monocromo
+                # riaffiora a colori, e il modello lo descrive a colori mentre
+                # la Gallery lo mostra in b/n (segnalazione 2026-09-01).
+                # La config predefinita usa gia' preview_optimized, ma chi ha
+                # una config precedente si tiene rawpy_full: la coerenza va
+                # garantita qui, non solo nel file di configurazione.
+                if self._raw_scattato_monocromo(raw_path):
+                    image = image.convert('L').convert('RGB')
+                    logger.info("Scatto monocromo: immagine resa in b/n per %s",
+                                raw_path.name)
+                return image
+
         except ImportError:
             logger.warning("rawpy non disponibile - fallback a metodo alternativo")
             return self._extract_high_quality(raw_path, target_size, profile)
@@ -1497,6 +1509,36 @@ class RAWProcessor:
         except Exception as e:
             logger.error(f"Errore estrazione per B/N analysis: {e}")
             return None
+
+    def _raw_scattato_monocromo(self, raw_path: Path) -> bool:
+        """Dice se il RAW e' stato scattato in bianco e nero.
+
+        Lo si capisce dall'anteprima incorporata dalla fotocamera, che il
+        Picture Style lo rispetta (a differenza dello sviluppo di rawpy).
+        Il risultato viene ricordato: durante una elaborazione lo stesso file
+        puo' essere richiesto piu' volte.
+        """
+        chiave = str(raw_path)
+        if not hasattr(self, '_cache_monocromo'):
+            self._cache_monocromo = {}
+        if chiave in self._cache_monocromo:
+            return self._cache_monocromo[chiave]
+
+        esito = False
+        try:
+            import rawpy
+            with rawpy.imread(str(raw_path)) as raw:
+                anteprima = raw.extract_thumb()
+            if anteprima.format == rawpy.ThumbFormat.JPEG:
+                import io as _io
+                with Image.open(_io.BytesIO(anteprima.data)) as img:
+                    esito = self._is_monochrome_image(img)
+        except Exception as e:
+            # Nessuna anteprima utilizzabile: si prosegue a colori, come prima.
+            logger.debug("Monocromia non verificabile per %s: %s", raw_path.name, e)
+
+        self._cache_monocromo[chiave] = esito
+        return esito
 
     def _is_monochrome_image(self, image: Image.Image) -> bool:
         """

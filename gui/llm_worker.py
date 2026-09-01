@@ -68,6 +68,7 @@ class LLMWorkerThread(QThread):
         # Conteggi per il riepilogo finale
         self.bio_found = 0
         self.bio_not_found = 0
+        self._preset_nome_cache = None
 
     # ------------------------------------------------------------------
     # Comandi dal thread principale
@@ -256,4 +257,41 @@ class LLMWorkerThread(QThread):
             self.bio_not_found += 1
             ctx['info'] = ctx['category_hint'] or ''
 
+        # Il contesto scelto nel dialogo (es. "Boudoir e nudo") va mostrato:
+        # veniva applicato al prompt ma la finestra diceva comunque
+        # "Contesto: nessuno" (segnalazione 2026-09-01).
+        preset = self._nome_preset_attivo()
+        if preset:
+            ctx['info'] = f"{preset} - {ctx['info']}" if ctx['info'] else preset
+
         return ctx
+
+    def _nome_preset_attivo(self) -> str:
+        """Nome leggibile del contesto scelto nel dialogo, '' se nessuno.
+
+        Il dialogo passa il solo identificativo: il nome da mostrare si
+        recupera dall'elenco dei preset del plugin, una volta sola.
+        """
+        preset_id = (self.gen_options or {}).get('preset_id', '')
+        if not preset_id:
+            return ''
+        if self._preset_nome_cache is not None:
+            return self._preset_nome_cache
+
+        nome = preset_id  # se il plugin non risponde, meglio l'id di niente
+        try:
+            import sys
+            from utils.paths import get_app_dir
+            cartella = str(get_app_dir() / 'plugins')
+            if cartella not in sys.path:
+                sys.path.insert(0, cartella)
+            from plugins.prompt_context.plugin import load_all_presets
+            for voce in load_all_presets():
+                if voce.get('id') == preset_id:
+                    nome = voce.get('name') or preset_id
+                    break
+        except Exception as e:
+            logger.debug("Nome del contesto non recuperato: %s", e)
+
+        self._preset_nome_cache = nome
+        return nome
