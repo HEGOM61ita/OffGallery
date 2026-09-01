@@ -377,6 +377,25 @@ class DashboardPage(tk.Frame):
         # una costante: va fatto a costruzione finita, quando le righe esistono.
         self.after_idle(self._adatta_colonna_sinistra)
 
+    def richiedi_riadatta_colonna(self):
+        """Richiede una nuova misura della colonna, al massimo una per volta.
+
+        Le righe compaiono a raffica quando finisce il controllo dei
+        componenti: senza questo filtro la misura verrebbe rifatta una
+        ventina di volte di seguito. Il lavoro vero e' rimandato a quando
+        Tk ha finito di disegnare, cosi' i pulsanti sono gia' a posto.
+        """
+        if getattr(self, "_riadatta_in_coda", False):
+            return
+        self._riadatta_in_coda = True
+        def _esegui():
+            self._riadatta_in_coda = False
+            self._adatta_colonna_sinistra()
+        try:
+            self.after_idle(_esegui)
+        except (RuntimeError, tk.TclError):
+            self._riadatta_in_coda = False
+
     def _adatta_colonna_sinistra(self):
         """Allarga la colonna sinistra quanto chiede la riga piu' larga.
 
@@ -393,10 +412,24 @@ class DashboardPage(tk.Frame):
                 return
             frame.update_idletasks()
             # Quanto chiede la riga piu' esigente fra tutte quelle costruite.
-            richiesta = max(
-                [r.winfo_reqwidth() for r in self._comp_frame.winfo_children()
-                 if r.winfo_exists()] or [0]
-            )
+            # I pulsanti nascono nascosti (pack_forget) e compaiono solo quando
+            # il controllo dei componenti finisce, molto dopo la costruzione:
+            # una riga senza pulsante misura ~118px in meno di quanto occupera'
+            # davvero, ed e' per questo che uscivano tagliati a QUALUNQUE
+            # scalatura (segnalazione 2026-09-01: "troncati sempre").
+            # Sommiamo quindi la larghezza del pulsante anche quando e' nascosto.
+            richiesta = 0
+            for r in self._comp_frame.winfo_children():
+                if not r.winfo_exists():
+                    continue
+                larghezza_riga = r.winfo_reqwidth()
+                btn = getattr(r, "_btn", None)
+                if btn is not None and not btn.winfo_ismapped():
+                    try:
+                        larghezza_riga += btn.winfo_reqwidth() + 8
+                    except tk.TclError:
+                        pass
+                richiesta = max(richiesta, larghezza_riga)
             if richiesta <= 0:
                 return
             # Piu' la barra di scorrimento, che vive nella stessa colonna.
@@ -410,7 +443,7 @@ class DashboardPage(tk.Frame):
             massimo = int(self.winfo_width() * 0.55)
             if massimo > 100:
                 larghezza = min(larghezza, massimo)
-            if larghezza > frame.winfo_width():
+            if larghezza != frame.winfo_width():
                 frame.configure(width=larghezza)
         except tk.TclError as e:
             logger.warning("Adattamento colonna sinistra fallito: %s",
@@ -939,6 +972,7 @@ class _ComponentRow(tk.Frame):
     def __init__(self, parent, key: str, label: str, dashboard: DashboardPage,
                  tooltip: str = "", **kw):
         super().__init__(parent, bg=BG, **kw)
+        self._dashboard = dashboard
         self._action   = None
         self._icon_var = tk.StringVar(value="○")
         self._val_var  = tk.StringVar(value="—")
@@ -981,8 +1015,13 @@ class _ComponentRow(tk.Frame):
             self._val_var.set(value)
             self._action = action
             if action_label and action:
+                era_nascosto = not self._btn.winfo_ismapped()
                 self._btn.configure(text=action_label)
                 self._btn.pack(side="right", padx=4)
+                # Il pulsante compare ORA, dopo che la colonna e' gia' stata
+                # misurata: la larghezza va rifatta o l'etichetta esce tagliata.
+                if era_nascosto and self._dashboard is not None:
+                    self._dashboard.richiedi_riadatta_colonna()
             else:
                 self._btn.pack_forget()
         try:
