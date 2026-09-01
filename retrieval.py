@@ -114,7 +114,7 @@ class ImageRetrieval:
                    iso, shutter_speed, width, height, datetime_original,
                    datetime_digitized, datetime_modified, processed_date,
                    aesthetic_score, technical_score, lr_rating, color_label,
-                   bioclip_taxonomy, geo_hierarchy, is_raw{plugin_cols}
+                   bioclip_taxonomy, geo_hierarchy, is_raw, orientation{plugin_cols}
             FROM images
             """
             if filters_sql:
@@ -258,7 +258,7 @@ class ImageRetrieval:
                    iso, shutter_speed, width, height, datetime_original,
                    datetime_digitized, datetime_modified, processed_date,
                    aesthetic_score, technical_score, lr_rating, color_label,
-                   bioclip_taxonomy, geo_hierarchy, is_raw{plugin_cols}
+                   bioclip_taxonomy, geo_hierarchy, is_raw, orientation{plugin_cols}
             FROM images
             """
             # Nessun vincolo su clip_embedding: la ricerca per tag confronta
@@ -357,7 +357,7 @@ class ImageRetrieval:
                iso, shutter_speed, width, height, datetime_original,
                datetime_digitized, datetime_modified, processed_date,
                aesthetic_score, technical_score, lr_rating, color_label,
-               bioclip_taxonomy, geo_hierarchy, is_raw{plugin_cols}
+               bioclip_taxonomy, geo_hierarchy, is_raw, orientation{plugin_cols}
         FROM images WHERE id IN ({placeholders})
         """
         try:
