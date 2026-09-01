@@ -363,8 +363,16 @@ def _check_for_updates(parent_window):
                     **subprocess_creation_kwargs()
                 )
                 _sha_tag = _r.stdout.strip()
+                if not _sha_tag:
+                    # Il tag esiste su GitHub ma non nella copia locale: le
+                    # release si creano sul server, e chi lavora da sorgente
+                    # non le ha finche' non fa "git fetch --tags". Senza il
+                    # tag il confronto non si puo' fare, e avvisare sarebbe
+                    # un falso allarme proprio su una copia aggiornata
+                    # (segnalazione 2026-09-01, subito dopo la v1.0.43).
+                    return
                 # Lunghezze abbreviate diverse: basta il prefisso comune
-                if _sha_tag and (_sha_tag.startswith(local) or local.startswith(_sha_tag)):
+                if _sha_tag.startswith(local) or local.startswith(_sha_tag):
                     return
             except Exception:
                 logging.getLogger(__name__).debug(
