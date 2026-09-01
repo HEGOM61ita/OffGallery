@@ -128,13 +128,6 @@ image_optimization:
       resampling: LANCZOS
       target_size: 512
       upscale: false
-    gallery_display:
-      description: Gallery - Visualizzazione veloce
-      method: fast_thumbnail
-      quality: 75
-      resampling: BILINEAR
-      target_size: 256
-      upscale: false
     llm_vision:
       method: preview_optimized
       quality: 95

@@ -374,6 +374,13 @@ class RAWProcessor:
                 'resampling': 'LANCZOS',
                 'upscale': False
             },
+            # NON IN USO. La gallery non passa da qui: chiede a ExifTool
+            # l'anteprima e la riduce a THUMB_SIZE (150px, fisso in
+            # gallery_widgets.py e thumb_cache.py), leggendo prima la cache su
+            # disco popolata durante l'importazione. Resta definito perche' e'
+            # il posto naturale dove finirebbe la scelta del metodo se un
+            # giorno la gallery venisse ricondotta ai profili; tolto dal
+            # config_new.yaml, dove sembrava una scelta e non lo era.
             'gallery_display': {
                 'target_size': 256,
                 'quality': 75,
