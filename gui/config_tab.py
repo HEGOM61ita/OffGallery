@@ -1741,7 +1741,12 @@ class ConfigTab(QWidget):
         layout = QVBoxLayout()
         
         # Info header
-        info_label = QLabel("⚡ Profili ottimizzati per ogni modello AI (target_size, quality, method)")
+        info_label = QLabel(
+            "⚡ Come viene estratta l'immagine da dare ai modelli. "
+            "LLM Vision comanda l'immagine che il Processing passa a tutti i "
+            "modelli; BioCLIP estrae la propria; AI Generic vale quando non si "
+            "genera la descrizione.")
+        info_label.setWordWrap(True)
         info_label.setStyleSheet(f"color: {COLORS['grigio_medio']}; font-size: 10px; font-style: italic;")
         layout.addWidget(info_label)
         
@@ -1760,15 +1765,26 @@ class ConfigTab(QWidget):
             label.setStyleSheet(f"font-weight: bold; color: {COLORS['ambra']};")
             profiles_layout.addWidget(label, 0, i)
         
-        # Profili configurabili (principali)
+        # Profili configurabili.
+        #
+        # SigLIP, DINOv2, Aesthetic e MUSIQ NON compaiono piu': durante
+        # l'elaborazione il Processing estrae UNA sola immagine e la passa a
+        # tutti i modelli, quindi i loro profili non venivano mai consultati.
+        # Il metodo era del tutto inerte, e la dimensione era peggio che
+        # inutile: valeva come "misura minima pretesa da tutti" (comanda la
+        # piu' grande fra i modelli attivi), cosi' alzarla rallentava l'intera
+        # elaborazione e abbassarla non faceva nulla. Due leve che non
+        # facevano quello che il loro nome prometteva (analisi 01/09/2026).
+        #
+        # Restano le tre che hanno un effetto reale:
+        #   llm_vision  - detta metodo e dimensione dell'immagine condivisa
+        #   BioCLIP     - unico modello che estrae l'immagine per conto proprio
+        #   AI Generic  - usato dal Processing quando non si genera la descrizione
         self.profile_widgets = {}
         _llm_installed = self._llm_plugin_installed()
         profiles = [
             ("llm_vision", "LLM Vision"),
-            ("clip_embedding", "SigLIP"),
-            ("dinov2_embedding", "DINOv2"),
             ("bioclip_classification", "BioCLIP"),
-            ("aesthetic_score", "Aesthetic"),
             ("ai_processing", "AI Generic"),
         ]
 
@@ -2083,13 +2099,19 @@ class ConfigTab(QWidget):
             # --------------------------------------------------
             # IMAGE OPTIMIZATION
             # --------------------------------------------------
-            profiles = self.config['image_optimization']['profiles']
+            profiles = self.config.get('image_optimization', {}).get('profiles', {})
             for key, widgets in self.profile_widgets.items():
-                profile = profiles[key]
-                widgets['size'].setValue(profile['target_size'])
-                widgets['quality'].setValue(profile['quality'])
-                widgets['method'].setCurrentText(profile['method'])
-                widgets['resampling'].setCurrentText(profile['resampling'])
+                # Una voce puo' mancare: i profili non piu' gestiti qui sono
+                # stati tolti dal config, e chi arriva da una versione
+                # precedente puo' averne altri. In quel caso valgono i valori
+                # interni di raw_processor, gli stessi che il programma usa.
+                profile = profiles.get(key)
+                if not profile:
+                    continue
+                widgets['size'].setValue(profile.get('target_size', 512))
+                widgets['quality'].setValue(profile.get('quality', 85))
+                widgets['method'].setCurrentText(profile.get('method', 'preview_optimized'))
+                widgets['resampling'].setCurrentText(profile.get('resampling', 'LANCZOS'))
 
             # --------------------------------------------------
             # SEARCH
