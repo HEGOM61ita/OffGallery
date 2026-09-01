@@ -1268,11 +1268,21 @@ class ImageCard(QFrame):
         try:
             if (oggetto is self.checkbox
                     and evento.type() == QEvent.Type.MouseButtonPress
-                    and evento.button() == Qt.MouseButton.LeftButton
-                    and evento.modifiers() & Qt.KeyboardModifier.ShiftModifier
-                    and not (evento.modifiers() & Qt.KeyboardModifier.ControlModifier)):
-                if self._seleziona_intervallo_fino_a_qui(self._gallery):
-                    return True   # gestito: la casellina non deve fare altro
+                    and evento.button() == Qt.MouseButton.LeftButton):
+                modificatori = evento.modifiers()
+                shift = modificatori & Qt.KeyboardModifier.ShiftModifier
+                ctrl  = modificatori & Qt.KeyboardModifier.ControlModifier
+                if shift and not ctrl:
+                    if self._seleziona_intervallo_fino_a_qui(self._gallery):
+                        return True   # gestito: la casellina non deve fare altro
+                else:
+                    # Click semplice sulla casellina: la spunta la mette Qt, ma
+                    # l'estremo di partenza per un successivo Shift+click va
+                    # registrato qui — mousePressEvent non viene chiamato,
+                    # perche' la casellina si prende il click da sola
+                    # (segnalazione 2026-09-01: Shift dopo un click sul
+                    # quadratino selezionava una foto sola).
+                    self._ricorda_estremo(self._gallery)
         except Exception as e:
             logger.debug("Filtro eventi casellina: %s", e)
         return super().eventFilter(oggetto, evento)
