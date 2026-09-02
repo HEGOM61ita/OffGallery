@@ -286,16 +286,38 @@ class DashboardPage(tk.Frame):
         left = tk.Frame(body, bg=BG, width=int(440 * _fatt))
         self._left_frame = left
         left.pack(side="left", fill="y", padx=(16, 8), pady=12)
-        left.pack_propagate(False)
+        # pack_propagate resta attivo: senza, la colonna e' inchiodata alla
+        # larghezza impostata e se la misura non parte — per un errore, o
+        # perche' arriva prima dei pulsanti — l'utente vede i contenuti
+        # tagliati e nessuno se ne accorge. Lasciandolo attivo la colonna si
+        # allarga DA SOLA quanto chiede il contenuto: la misura serve ancora a
+        # dare la larghezza giusta al canvas, ma non e' piu' l'unica difesa.
+        # Segnalazione 02/09/2026: utente con la v1.0.47 e i pulsanti ancora
+        # tagliati, colonna ferma alla larghezza di partenza.
+        left.pack_propagate(True)
 
-        canvas    = tk.Canvas(left, bg=BG, highlightthickness=0)
+        # Larghezza iniziale ragionevole: con pack_propagate attivo il frame
+        # si dimensiona sul canvas, che altrimenti nasce a 1px.
+        canvas    = tk.Canvas(left, bg=BG, highlightthickness=0,
+                              width=int(440 * _fatt))
         scrollbar = ttk.Scrollbar(left, orient="vertical", command=canvas.yview)
         self._comp_frame = tk.Frame(canvas, bg=BG)
-        self._comp_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
+        def _contenuto_cambiato(evento):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+            # Il canvas chiede quanto serve al contenuto. E' la difesa di
+            # fondo: vale anche se _adatta_colonna_sinistra non parte, e si
+            # aggiorna da sola quando i pulsanti compaiono o cambiano
+            # etichetta, perche' cambia la larghezza richiesta dal frame.
+            try:
+                serve = evento.width
+                if serve > 1 and canvas.winfo_reqwidth() < serve:
+                    canvas.configure(width=serve)
+            except tk.TclError:
+                logger.debug("Larghezza canvas non aggiornata", exc_info=True)
+
+        self._comp_frame.bind("<Configure>", _contenuto_cambiato)
         canvas.create_window((0, 0), window=self._comp_frame, anchor="nw")
+        self._canvas = canvas
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
@@ -457,9 +479,31 @@ class DashboardPage(tk.Frame):
             if self.winfo_width() > 100 and servono > self.winfo_width():
                 self._allarga_finestra(servono)
 
-            if larghezza != frame.winfo_width():
-                frame.configure(width=larghezza)
-        except tk.TclError as e:
+            logger.info(
+                "Colonna sinistra: serve %dpx (riga piu' larga %d + barra %d), "
+                "era %dpx",
+                larghezza, richiesta, barra, frame.winfo_width())
+            # Si dimensiona il canvas, non il frame: il frame ora si adatta da
+            # solo al contenuto (pack_propagate attivo), quindi seguira'.
+            canvas = getattr(self, "_canvas", None)
+            if canvas is not None and canvas.winfo_exists():
+                larghezza_canvas = max(richiesta + 8, 100)
+                if canvas.winfo_reqwidth() != larghezza_canvas:
+                    canvas.configure(width=larghezza_canvas)
+                frame.update_idletasks()
+                if frame.winfo_width() < richiesta:
+                    # Il gestore di layout ha rifiutato la larghezza chiesta:
+                    # con pack_propagate(False) non dovrebbe succedere, ma se
+                    # succede l'utente vede i pulsanti tagliati e finora non
+                    # restava traccia di nulla.
+                    logger.warning(
+                        "La colonna non ha accettato la larghezza: chiesti %dpx, "
+                        "ottenuti %dpx", larghezza, frame.winfo_width())
+        except Exception as e:
+            # Non solo TclError: qualunque errore qui lasciava la colonna alla
+            # larghezza di partenza, coi pulsanti tagliati e nessuna traccia
+            # nel log — indistinguibile da "il fix non funziona"
+            # (segnalazione 02/09/2026, utente con la v1.0.47 gia' installata).
             logger.warning("Adattamento colonna sinistra fallito: %s",
                            e, exc_info=True)
 
