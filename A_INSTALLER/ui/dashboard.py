@@ -438,16 +438,52 @@ class DashboardPage(tk.Frame):
                 if isinstance(figlio, ttk.Scrollbar):
                     barra = max(barra, figlio.winfo_reqwidth())
             larghezza = richiesta + barra + 8
-            # Mai piu' della meta' della finestra: la colonna destra ha i suoi
-            # tre pulsanti a tutta larghezza e non deve restare schiacciata.
-            massimo = int(self.winfo_width() * 0.55)
-            if massimo > 100:
-                larghezza = min(larghezza, massimo)
+
+            # NESSUN tetto sulla larghezza della colonna.
+            # Fino alla v1.0.45 c'era un limite al 55% della finestra, per non
+            # schiacciare la colonna destra. Ma quel limite vince sulla misura
+            # e rimette esattamente il difetto che la misura doveva togliere:
+            # con un font di sistema piu' grande, o una finestra piu' stretta,
+            # la colonna si ferma prima di essere abbastanza larga e i pulsanti
+            # restano tagliati — segnalato il 02/09/2026 da un utente che aveva
+            # gia' la v1.0.45. Riprodotto: a font +50% servono 537px e il tetto
+            # ne concedeva 519; con la finestra a 800px ne concedeva 440 contro
+            # i 493 necessari.
+            #
+            # Se la colonna non ci sta, il problema e' che la finestra e'
+            # troppo stretta: si allarga quella, non si taglia il contenuto.
+            larghezza_minima_destra = 360   # i tre pulsanti a tutta larghezza
+            servono = larghezza + larghezza_minima_destra + 48
+            if self.winfo_width() > 100 and servono > self.winfo_width():
+                self._allarga_finestra(servono)
+
             if larghezza != frame.winfo_width():
                 frame.configure(width=larghezza)
         except tk.TclError as e:
             logger.warning("Adattamento colonna sinistra fallito: %s",
                            e, exc_info=True)
+
+    def _allarga_finestra(self, larghezza_richiesta: int):
+        """Allarga la finestra quanto serve perche' tutto ci stia.
+
+        Non si stringe mai: se l'utente l'ha allargata, resta come l'ha messa.
+        Si rispetta anche il bordo dello schermo — su un monitor piccolo si
+        arriva al massimo disponibile e la colonna, semmai, scorre.
+        """
+        try:
+            finestra = self.winfo_toplevel()
+            attuale = finestra.winfo_width()
+            if larghezza_richiesta <= attuale:
+                return
+            schermo = finestra.winfo_screenwidth()
+            nuova = min(larghezza_richiesta, max(schermo - 80, attuale))
+            if nuova <= attuale:
+                return
+            finestra.geometry(f"{nuova}x{finestra.winfo_height()}")
+            logger.info("Finestra allargata da %dpx a %dpx: i pulsanti non ci stavano",
+                        attuale, nuova)
+        except tk.TclError as e:
+            logger.warning("Allargamento finestra non riuscito: %s", e, exc_info=True)
 
     def _build_section(self, title: str, items: list):
         tk.Label(self._comp_frame, text=title,
