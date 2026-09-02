@@ -618,14 +618,20 @@ class DashboardPage(tk.Frame):
         except Exception:
             pass
 
-        # Mostrare installata e disponibile insieme: con la sola "versione dev"
-        # non si capiva se l'aggiornamento fosse stato applicato davvero.
+        # Due numeri distinti, ed e' importante che si vedano entrambi:
+        # questa riga mostrava solo la versione di OffGallery, mentre quella
+        # del Manager non compariva da nessuna parte se non dentro l'avviso
+        # "sei superato". Chiedendo a un utente "che versione vedi nel
+        # Manager?" si otteneva quindi la versione dell'app, e siccome il
+        # Manager NON si aggiorna da solo i due numeri possono benissimo
+        # essere diversi (segnalazione 02/09/2026).
         if ver and new_ver:
-            _txt = f"versione {ver} → disponibile {new_ver}"
+            _txt = f"OffGallery {ver} → disponibile {new_ver}"
         elif ver:
-            _txt = f"versione {ver}"
+            _txt = f"OffGallery {ver}"
         else:
             _txt = ""
+        _txt = f"{_txt}   ·   Manager {MANAGER_VERSION}" if _txt else f"Manager {MANAGER_VERSION}"
         self._version_lbl.configure(text=_txt)
         self._check_manager_version()
 

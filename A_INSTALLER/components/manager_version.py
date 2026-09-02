@@ -19,7 +19,7 @@ from utils.download import download_text
 
 # Versione di questo Manager. Va allineata a mano al tag della release in cui
 # viene pubblicato: è l'unico modo per un eseguibile di sapere quanto è vecchio.
-MANAGER_VERSION = "v1.0.46"
+MANAGER_VERSION = "v1.0.47"
 
 # Pagina da cui scaricare l'eseguibile aggiornato
 RELEASES_PAGE = f"https://github.com/{GITHUB_USER}/{GITHUB_REPO}/releases/latest"
