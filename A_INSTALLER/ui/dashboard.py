@@ -319,6 +319,15 @@ class DashboardPage(tk.Frame):
         canvas.create_window((0, 0), window=self._comp_frame, anchor="nw")
         self._canvas = canvas
         canvas.configure(yscrollcommand=scrollbar.set)
+        # Il link in fondo va impacchettato PRIMA del canvas e in un
+        # contenitore proprio: 'left' dispone i figli in orizzontale, quindi un
+        # link largo accanto al canvas ne SOMMA la larghezza invece di stargli
+        # sotto — con pack_propagate attivo la colonna diventava piu' larga del
+        # necessario esattamente della larghezza del link (163px misurati,
+        # segnalazione 02/09/2026: "resta troppo spazio a destra dei tasti").
+        piede = tk.Frame(left, bg=BG)
+        piede.pack(side="bottom", fill="x")
+
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
@@ -326,10 +335,10 @@ class DashboardPage(tk.Frame):
         # quando trova OffGallery installato, ma chi lo tiene in una cartella
         # diversa da quella predefinita deve poter indicare dov'e'.
         self._other_folder = tk.Label(
-            left, text="Installato in un'altra cartella?",
+            piede, text="Installato in un'altra cartella?",
             font=("Segoe UI", 8, "underline"), bg=BG, fg="#1565c0",
             cursor="hand2", anchor="w")
-        self._other_folder.pack(side="bottom", fill="x", pady=(6, 0))
+        self._other_folder.pack(fill="x", pady=(6, 0))
         self._other_folder.bind("<Button-1>",
                                 lambda e: self.app.show_page("welcome"))
 
