@@ -1566,6 +1566,7 @@ Destination (e.g. E:\Backup):
 
 <h3>Semantic search is not finding relevant photos</h3>
 <p>SigLIP embeddings may have been generated with an incompatible library version, or the database may contain old CLIP embeddings (768 dimensions) incompatible with SigLIP (1152 dimensions). Reprocess photos with "Reprocess all". On Windows and Linux reinstall using the wizard (<code>OffGallerySetup.exe</code> or <code>OffGallerySetup</code>); on macOS see <code>installer/INSTALL_GUIDE_EN.md</code> for version requirements.</p>
+<p><strong>Before suspecting the embeddings</strong>, check the directory group in the Search tab: if it is checked but no folder inside it is selected, the search always returns 0 results regardless of everything else. This easily happens if you keep photos in the root folder with no subfolders. The results label distinguishes the two cases ("no photo passes the filters" for the directory filter, versus a specific message when visual SigLIP fingerprints are genuinely missing).</p>
 
 <h3>A RAW file is not being processed</h3>
 <p>Some high-efficiency RAW formats (e.g. NEF with lossless compression) do not contain an extractable JPEG preview. In these cases OffGallery saves EXIF metadata but skips embeddings and LLM. Check the Log tab for details.</p>

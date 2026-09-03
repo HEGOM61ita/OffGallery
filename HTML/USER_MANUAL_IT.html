@@ -1740,6 +1740,7 @@ Destinazione (es. E:\Backup):
 
 <h3>La ricerca semantica non trova foto pertinenti</h3>
 <p>Gli embedding SigLIP potrebbero essere stati generati con una versione incompatibile del modello, oppure il database contiene vecchi embedding CLIP (768 dimensioni) non compatibili con SigLIP (1152 dimensioni). Rielabora le foto con "Riprocessa tutte". Su Windows e Linux reinstalla tramite il wizard (<code>OffGallerySetup.exe</code> o <code>OffGallerySetup</code>); su macOS vedi <code>installer/INSTALL_GUIDE_IT.md</code> per i requisiti di versione.</p>
+<p><strong>Prima di sospettare gli embedding</strong>, controlla il gruppo directory nel tab Ricerca: se è spuntato ma nessuna cartella al suo interno è selezionata, la ricerca restituisce sempre 0 risultati indipendentemente da tutto il resto. Capita facilmente a chi tiene le foto nella cartella radice senza sottocartelle. L'etichetta risultati distingue i due casi ("nessuna foto supera i filtri" per il filtro directory, contro un messaggio specifico quando mancano davvero le impronte visive SigLIP).</p>
 
 <h3>Una foto RAW non viene elaborata</h3>
 <p>Alcuni formati RAW high-efficiency (es. NEF con compressione loss-less) non contengono un'anteprima JPEG estraibile. In questi casi OffGallery salva i metadati EXIF ma salta embedding e LLM. Controlla il tab Log per i dettagli.</p>
