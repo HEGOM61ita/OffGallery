@@ -4,6 +4,7 @@ import pickle
 import numpy as np
 import logging
 import re
+import time
 import unicodedata
 import json
 from pathlib import Path
@@ -214,6 +215,13 @@ class ImageRetrieval:
                         emb_list.append(emb)
                     except Exception:
                         pass
+
+                # Cede la CPU al thread GUI tra un batch e l'altro. Senza
+                # questo, deserializzare 20mila+ embedding tiene il GIL per
+                # diversi secondi filati: la finestra principale non risponde
+                # ai messaggi di Windows e la barra del titolo sfarfalla per
+                # tutta la ricerca (segnalazione utente 2026-09-03).
+                time.sleep(0)
 
             # Senza embedding la ricerca semantica non ha nulla da confrontare.
             # Vale solo qui: la pipeline tag lavora su testo e prosegue comunque.
