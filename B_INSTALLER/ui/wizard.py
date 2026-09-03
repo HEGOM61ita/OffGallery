@@ -21,6 +21,7 @@ from components.models       import download_models, MODELS
 from components.ollama       import ensure_ollama
 from components.packages     import detect_torch_variant, install_packages, torch_variant_label
 from state.state_manager     import StateManager
+from state.last_path         import save_last_path
 from ui.progress             import DownloadPanel, StepIndicator, fmt_bytes, fmt_eta
 from utils.preflight         import run_preflight, Severity
 from utils.logger            import InstallLogger
@@ -358,6 +359,7 @@ class PathPage(tk.Frame):
             messagebox.showerror("Errore", "Scegli una cartella di installazione.")
             return
         self.app.install_path = path
+        save_last_path(path)
         if self._conda_var.get() == "manual":
             cp = self._conda_manual_var.get().strip()
             self.app.user_conda_path = cp or None

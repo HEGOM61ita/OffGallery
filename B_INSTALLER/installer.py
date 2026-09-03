@@ -30,6 +30,7 @@ from tkinter import ttk
 from typing import Optional
 
 from state.state_manager import StateManager
+from state.last_path     import load_last_path, save_last_path
 from ui.dashboard        import DashboardPage
 from ui.wizard           import (WelcomePage, PreflightPage, PathPage,
                                   InstallPage, DonePage)
@@ -144,16 +145,41 @@ class AppWindow:
 # Avvio
 # ---------------------------------------------------------------------------
 
+def _try_install_dir(path: str) -> Optional[StateManager]:
+    """Verifica se `path` contiene un'installazione valida."""
+    if not path or not os.path.isdir(path):
+        return None
+    if not os.path.isfile(os.path.join(path, "installer_state.json")):
+        return None
+    sm = StateManager(path)
+    if sm.load_or_create() and sm.has_partial_install():
+        return sm
+    return None
+
+
+def _find_existing_install() -> Optional[StateManager]:
+    """Cerca un'installazione gia' presente.
+
+    Prova prima la cartella predefinita (~/OffGallery), poi l'ultima cartella
+    scelta a mano dall'utente: chi installa altrove veniva rimandato al
+    wizard ad ogni avvio, perche' il Manager non aveva memoria di quella
+    scelta al di fuori della cartella stessa (segnalazione 2026-09-03).
+    """
+    trovata = _try_install_dir(_default_install_path())
+    if trovata:
+        return trovata
+    return _try_install_dir(load_last_path())
+
+
 def main():
     app = AppWindow()
 
-    # Cerca un'installazione esistente nel percorso predefinito
-    state = StateManager(app.install_path)
-    already_installed = state.load_or_create()
-
-    if already_installed and state.has_partial_install():
+    esistente = _find_existing_install()
+    if esistente:
         # Installazione parziale o completa → dashboard
-        app.state = state
+        app.state = esistente
+        app.install_path = esistente.install_path_saved or _default_install_path()
+        save_last_path(app.install_path)
         app.show_page("dashboard")
     else:
         # Prima volta → wizard dal benvenuto

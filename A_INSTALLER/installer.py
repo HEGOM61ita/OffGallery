@@ -55,6 +55,7 @@ from tkinter import ttk
 from typing import Optional
 
 from state.state_manager import StateManager
+from state.last_path     import load_last_path, save_last_path
 from ui.dashboard        import DashboardPage
 from ui.wizard           import (WelcomePage, PreflightPage, PathPage,
                                   InstallPage, DonePage)
@@ -268,33 +269,45 @@ def _detect_legacy_install(install_path: str) -> Optional[StateManager]:
 # Avvio
 # ---------------------------------------------------------------------------
 
+def _try_install_dir(path: str) -> Optional[StateManager]:
+    """Verifica se `path` contiene un'installazione valida (nuova o legacy)."""
+    if not path or not os.path.isdir(path):
+        return None
+
+    # Solo LETTURA: si controlla che il file esista prima di chiamare
+    # load_or_create(), che altrimenti ne creerebbe uno nuovo. Un semplice
+    # avvio del Manager non deve lasciare tracce in una cartella che non
+    # contiene un'installazione.
+    if os.path.isfile(os.path.join(path, "installer_state.json")):
+        sm = StateManager(path)
+        if sm.load_or_create() and sm.has_partial_install():
+            return sm
+
+    # Installazioni fatte con i vecchi .bat: nessun installer_state.json
+    return _detect_legacy_install(path)
+
+
 def _find_existing_install() -> Optional[StateManager]:
-    """Cerca un'installazione gia' presente nel percorso predefinito.
+    """Cerca un'installazione gia' presente.
 
     Serve per non far attraversare a chi ha gia' OffGallery tre schermate
     che parlano solo di installazione ("~14 GB, ~40 min", "Scegli cosa
     installare") prima di arrivare al pulsante Aggiorna: chi voleva solo
     aggiornare temeva di reinstallare tutto da capo (segnalazione 2026-08-28).
 
+    Prova prima la cartella predefinita (~/OffGallery), poi l'ultima cartella
+    scelta a mano dall'utente: chi installa altrove veniva rimandato al
+    wizard ad ogni avvio, perche' il Manager non aveva memoria di quella
+    scelta al di fuori della cartella stessa (segnalazione 2026-09-03).
+
     Restituisce lo stato dell'installazione trovata, oppure None: in quel
     caso il wizard parte normalmente e nulla cambia.
     """
     try:
-        path = _default_install_path()
-        if not os.path.isdir(path):
-            return None
-
-        # Solo LETTURA: si controlla che il file esista prima di chiamare
-        # load_or_create(), che altrimenti ne creerebbe uno nuovo. Un semplice
-        # avvio del Manager non deve lasciare tracce in una cartella che non
-        # contiene un'installazione.
-        if os.path.isfile(os.path.join(path, "installer_state.json")):
-            sm = StateManager(path)
-            if sm.load_or_create() and sm.has_partial_install():
-                return sm
-
-        # Installazioni fatte con i vecchi .bat: nessun installer_state.json
-        return _detect_legacy_install(path)
+        trovata = _try_install_dir(_default_install_path())
+        if trovata:
+            return trovata
+        return _try_install_dir(load_last_path())
     except Exception:
         # Un rilevamento che fallisce non deve impedire l'avvio: si riparte
         # dal wizard, che e' il comportamento di sempre.
@@ -314,6 +327,7 @@ def main():
     if esistente:
         app.state = esistente
         app.install_path = esistente.install_path_saved or _default_install_path()
+        save_last_path(app.install_path)
         app.show_page("dashboard")
     else:
         app.show_page("welcome")
