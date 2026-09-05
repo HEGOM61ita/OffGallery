@@ -776,14 +776,17 @@ class ImageCard(QFrame):
             status_layout.setSpacing(4)
 
             # XMP placeholder - sarà popolato dal background thread
-            self.xmp_label = QLabel("")
+            # Parent esplicito: senza, il QLabel resta orfano finché il layout
+            # non viene installato e un eventuale show() lo trasformerebbe in
+            # una finestra a sé (vedi commento sull'ordine a fondo funzione).
+            self.xmp_label = QLabel("", self.info_frame)
             self.xmp_label.hide()  # Nascosto finché non arrivano dati reali
             status_layout.addWidget(self.xmp_label)
 
             status_layout.addStretch()
 
             # Rating stars (celeste chiaro) - a destra
-            self.rating_label = QLabel("")
+            self.rating_label = QLabel("", self.info_frame)
             self.rating_label.setStyleSheet(f"""
                 color: {COLORS['rating_star']};
                 font-size: 10px;
@@ -794,17 +797,25 @@ class ImageCard(QFrame):
             status_layout.addWidget(self.rating_label)
 
             # Color label square - a destra del rating
-            self.color_label_indicator = QLabel("")
+            self.color_label_indicator = QLabel("", self.info_frame)
             self.color_label_indicator.setFixedSize(12, 12)
             self.color_label_indicator.hide()
             status_layout.addWidget(self.color_label_indicator)
 
             badge_container.addLayout(status_layout)
 
-            # Aggiorna display rating/color
-            self._update_rating_color_display()
-
+            # ORDINE CRITICO — non invertire queste due righe.
+            # Prima si aggancia il badge alla gerarchia della card, poi si
+            # aggiornano rating e color label. Al contrario, il show() dentro
+            # _update_rating_color_display() cadrebbe su QLabel ancora orfani:
+            # Qt li promuove a finestra a se' stante, e per un istante Windows
+            # sposta l'attivazione su quella finestrina. Con decine di card la
+            # barra del titolo della finestra principale lampeggia di continuo
+            # (segnalazione utente, causa isolata il 2026-09-05).
             layout.addLayout(badge_container)
+
+            # Solo ora i widget sono nella gerarchia: show() e' sicuro.
+            self._update_rating_color_display()
 
         except Exception as e:
             logger.error("ERRORE _build_scores_and_indicators: %s", e, exc_info=True)
