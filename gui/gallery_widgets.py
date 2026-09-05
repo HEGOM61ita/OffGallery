@@ -371,10 +371,36 @@ class FlowLayout(QLayout):
                 break
 
 
+def _diagnose_file_status(filepath):
+    """Distingue disco assente, percorso assente e file assente.
+
+    Sta a livello di modulo perche' la stessa regola serve al worker thread
+    (durante il caricamento della miniatura) e al thread GUI (sulle azioni
+    di menu, dove riguarda un solo file). Fa fino a 3 accessi al disco:
+    su percorsi di rete costa parecchio, quindi va chiamata fuori dal
+    thread grafico ogni volta che riguarda molte foto insieme.
+    """
+    if not filepath:
+        return 'no_path'
+    # Il disco/mount point esiste? Su Linux e macOS l'anchor e' '/', che
+    # esiste sempre: la' questo ramo non scatta mai, come prima.
+    anchor = filepath.anchor  # Es: 'D:\' o '/'
+    if anchor and not Path(anchor).exists():
+        return 'no_disk'
+    if not filepath.parent.exists():
+        return 'no_path'
+    if not filepath.exists():
+        return 'no_file'
+    return 'ok'
+
+
 class _ThumbSignals(QObject):
     """Segnali per _ThumbnailLoader cross-thread (QRunnable non è QObject)"""
     loaded = pyqtSignal(bytes)
     failed = pyqtSignal()
+    # File non raggiungibile: porta al thread GUI quale dei tre casi e'
+    # ('no_disk', 'no_path', 'no_file'), per mostrare il cartello giusto.
+    missing = pyqtSignal(str)
 
 
 class _ThumbnailLoader(QRunnable):
@@ -387,10 +413,14 @@ class _ThumbnailLoader(QRunnable):
     _RAW_EXT = {'.cr2', '.cr3', '.nef', '.arw', '.orf', '.rw2',
                 '.pef', '.dng', '.nrw', '.srf', '.sr2'}
 
-    def __init__(self, filepath: Path, signals: '_ThumbSignals', db_orientation=None):
+    def __init__(self, filepath: Path, signals: '_ThumbSignals', db_orientation=None,
+                 solo_verifica: bool = False):
         super().__init__()
         self.filepath = filepath
         self.signals = signals
+        # La card mostra gia' la miniatura dalla cache in memoria: qui resta
+        # solo da controllare che il file esista ancora.
+        self.solo_verifica = solo_verifica
         # Orientamento dall'archivio: se c'e', vince sul tag del file.
         # E' la correzione fatta a mano dall'utente col pulsante Ruota, e
         # deve prevalere su cio' che dichiara la fotocamera.
@@ -398,7 +428,27 @@ class _ThumbnailLoader(QRunnable):
         self.setAutoDelete(True)
 
     def run(self):
-        # Prima controlla cache disco (I/O nel worker thread, non blocca la GUI)
+        # Disco/percorso/file raggiungibili? Fino a 3 accessi al disco, che su
+        # unita' di rete costano decine di ms l'uno: stanno qui, nel worker,
+        # e non nel thread grafico dove bloccherebbero la finestra per ogni
+        # card costruita. Il controllo si fa PRIMA della cache, di proposito:
+        # una foto cancellata dal disco deve mostrare NO FILE anche se la sua
+        # miniatura e' ancora in cache.
+        try:
+            status = _diagnose_file_status(self.filepath)
+        except Exception as e:
+            logger.warning(f"Verifica raggiungibilita' fallita per {self.filepath}: {e}",
+                           exc_info=True)
+            status = 'ok'  # Nel dubbio si prova a caricare: peggio non fa
+        if status != 'ok':
+            self.signals.missing.emit(status)
+            return
+
+        # Il file c'e' e la card mostra gia' la miniatura: non serve altro.
+        if self.solo_verifica:
+            return
+
+        # Poi la cache disco (I/O nel worker thread, non blocca la GUI)
         try:
             from utils.thumb_cache import load_gallery_thumb_bytes
             cached = load_gallery_thumb_bytes(self.filepath)
@@ -528,6 +578,11 @@ class ImageCard(QFrame):
         # NUOVO: Cache stato XMP per performance
         self._xmp_state_cache = None
         self._xmp_info_cache = None
+
+        # Miniatura gia' mostrata dalla cache in memoria: il worker gira
+        # comunque per verificare che il file esista, ma non deve ridisegnare
+        # un'immagine identica a quella gia' a schermo.
+        self._thumb_from_cache = False
         
         # Configurazione editor esterni
         self.external_editors = self._load_external_editors()
@@ -589,20 +644,13 @@ class ImageCard(QFrame):
         layout.addWidget(self.info_frame)
     
     def _check_file_status(self):
-        """Verifica stato del file: distingue disco, percorso e file mancante"""
-        if not self.filepath:
-            return 'no_path'
-        # Controlla se il disco/mount point esiste
-        anchor = self.filepath.anchor  # Es: 'D:\' o '/'
-        if anchor and not Path(anchor).exists():
-            return 'no_disk'
-        # Controlla se la directory padre esiste
-        if not self.filepath.parent.exists():
-            return 'no_path'
-        # Controlla se il file esiste
-        if not self.filepath.exists():
-            return 'no_file'
-        return 'ok'
+        """Verifica stato del file: distingue disco, percorso e file mancante.
+
+        Accede al disco: va chiamata solo su azione dell'utente e su un file
+        alla volta (menu contestuale). Durante la costruzione della card ci
+        pensa il worker della miniatura, che gira fuori dal thread grafico.
+        """
+        return _diagnose_file_status(self.filepath)
 
     def _load_thumbnail(self):
         """
@@ -611,39 +659,33 @@ class ImageCard(QFrame):
         2) Fallback asincrono: ExifTool in background thread (cache miss)
         """
         try:
-            file_status = self._check_file_status()
-            if file_status != 'ok':
-                status_labels = {
-                    'no_disk': '⛔\nNO DISK',
-                    'no_path': '⛔\nNO PATH',
-                    'no_file': '⛔\nNO FILE',
-                }
-                self.thumbnail_label.setText(status_labels.get(file_status, '⛔\nN/A'))
-                self.thumbnail_label.setStyleSheet(f"""
-                    background-color: {COLORS['grafite_light']};
-                    border: 2px solid {COLORS['rosso']};
-                    border-radius: 4px;
-                    color: {COLORS['rosso']};
-                    font-size: 13px;
-                    font-weight: bold;
-                """)
-                return
+            # Nessun accesso al disco qui: la card viene costruita nel thread
+            # grafico, e su unita' di rete i controlli di esistenza bloccano la
+            # finestra per ogni foto. Se ne occupa il worker, che segnala con
+            # _on_thumb_missing quando il file non e' raggiungibile.
 
-            # 0) CACHE IN-MEMORY (istantanea, nessun I/O disco)
-            if self.filepath:
-                cached_pm = _get_cached_pixmap(str(self.filepath))
-                if cached_pm is not None:
-                    self.thumbnail_label.setPixmap(cached_pm)
-                    return
-
-            # 1) Caricamento asincrono (cache disco + fallback ExifTool/file)
-            # Nessun I/O disco nel main thread — tutto nel worker thread
             if not self.filepath:
                 return
 
+            # Azzerato ad ogni giro: questa funzione viene richiamata anche
+            # dopo una rotazione, e li' la miniatura va rifatta davvero.
+            self._thumb_from_cache = False
+
+            # 0) CACHE IN-MEMORY (istantanea, nessun I/O disco): mostra subito
+            # qualcosa. Il worker parte lo stesso, perche' e' lui a verificare
+            # che il file esista ancora: una foto cancellata dal disco deve
+            # mostrare NO FILE anche se la miniatura era gia' in memoria.
+            cached_pm = _get_cached_pixmap(str(self.filepath))
+            if cached_pm is not None:
+                self.thumbnail_label.setPixmap(cached_pm)
+                self._thumb_from_cache = True
+
+            # 1) Caricamento asincrono (verifica + cache disco + ExifTool/file)
+            # Nessun I/O disco nel main thread — tutto nel worker thread
             self._thumb_signals = _ThumbSignals()
             self._thumb_signals.loaded.connect(self._on_thumb_loaded)
             self._thumb_signals.failed.connect(self._on_thumb_failed)
+            self._thumb_signals.missing.connect(self._on_thumb_missing)
             # L'orientamento dell'archivio ha la precedenza: e' la correzione
             # manuale dell'utente, che deve valere anche contro il tag del file.
             _db_orient = None
@@ -656,7 +698,10 @@ class ImageCard(QFrame):
             except (ValueError, TypeError):
                 _db_orient = None
 
-            loader = _ThumbnailLoader(self.filepath, self._thumb_signals, _db_orient)
+            # A immagine gia' a schermo il worker verifica soltanto: niente
+            # rilettura della miniatura, che sarebbe identica a quella mostrata.
+            loader = _ThumbnailLoader(self.filepath, self._thumb_signals, _db_orient,
+                                      solo_verifica=self._thumb_from_cache)
             QThreadPool.globalInstance().start(loader)
 
         except Exception as e:
@@ -683,7 +728,34 @@ class ImageCard(QFrame):
 
     def _on_thumb_failed(self):
         """Fallback quando thumbnail non disponibile neanche via ExifTool"""
+        # Se un'immagine e' gia' a schermo dalla cache, tenerla: e' meglio di
+        # un cartello, e il file esiste (altrimenti sarebbe arrivato missing).
+        if self._thumb_from_cache:
+            return
         self.thumbnail_label.setText("📷\nRAW")
+
+    def _on_thumb_missing(self, status: str):
+        """File non raggiungibile: mostra il cartello rosso al posto della foto.
+
+        Lo stato arriva dal worker, che ha interrogato il disco fuori dal
+        thread grafico. Il cartello e' lo stesso di prima, cambia solo il
+        momento in cui compare (dopo la costruzione, non durante).
+        """
+        etichette = {
+            'no_disk': '⛔\nNO DISK',
+            'no_path': '⛔\nNO PATH',
+            'no_file': '⛔\nNO FILE',
+        }
+        self.thumbnail_label.setPixmap(QPixmap())  # Toglie l'eventuale miniatura da cache
+        self.thumbnail_label.setText(etichette.get(status, '⛔\nN/A'))
+        self.thumbnail_label.setStyleSheet(f"""
+            background-color: {COLORS['grafite_light']};
+            border: 2px solid {COLORS['rosso']};
+            border-radius: 4px;
+            color: {COLORS['rosso']};
+            font-size: 13px;
+            font-weight: bold;
+        """)
     
     def _build_scores_and_indicators(self, layout):
         """Costruisce badge qualità su due righe: scores + status XMP/sync"""
