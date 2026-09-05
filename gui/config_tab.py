@@ -2451,7 +2451,17 @@ class ConfigTab(QWidget):
             # Salva
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 yaml.dump(self.config, f, allow_unicode=True, default_flow_style=False)
-            
+
+            # Le card in gallery tengono da parte gli editor esterni per non
+            # rileggere il file ad ogni foto: qui li hanno appena cambiati,
+            # quindi vanno riletti al prossimo tasto destro.
+            try:
+                from gui.gallery_widgets import ImageCard
+                ImageCard.invalida_cache_editor_esterni()
+            except Exception as e:
+                logger.warning("Aggiornamento editor esterni in gallery non riuscito: %s",
+                               e, exc_info=True)
+
             if not silent:
                 QMessageBox.information(self, t("config.msg.success_title"), t("config.msg.saved_ok_full"))
 
