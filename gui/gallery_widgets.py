@@ -584,9 +584,11 @@ class ImageCard(QFrame):
         # un'immagine identica a quella gia' a schermo.
         self._thumb_from_cache = False
         
-        # Configurazione editor esterni
-        self.external_editors = self._load_external_editors()
-        
+        # Gli editor esterni NON si leggono qui: servono solo al menu del tasto
+        # destro, e leggerli in costruzione significava aprire e interpretare
+        # config_new.yaml una volta per ogni foto in gallery. Ci pensa la
+        # proprieta' external_editors, che li carica al primo uso.
+
         self.setFixedWidth(self.CARD_WIDTH)
         self.setFrameStyle(QFrame.Shape.Box)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
@@ -1710,13 +1712,44 @@ class ImageCard(QFrame):
         except Exception as e:
             logger.warning("Errore context menu: %s", e, exc_info=True)
     
+    # Editor esterni: letti dal disco una volta sola e condivisi da tutte le
+    # card. Prima ogni ImageCard rileggeva config_new.yaml in costruzione, cioe'
+    # un'apertura di file e un parse YAML per ogni foto mostrata in gallery.
+    # None = mai letti; una lista (anche vuota) = gia' letti.
+    _external_editors_cache = None
+
+    @property
+    def external_editors(self):
+        """Editor esterni configurati, caricati al primo accesso.
+
+        Il primo tasto destro paga la lettura, tutte le card successive
+        riusano il risultato.
+        """
+        if ImageCard._external_editors_cache is None:
+            ImageCard._external_editors_cache = self._load_external_editors()
+        return ImageCard._external_editors_cache
+
+    @staticmethod
+    def invalida_cache_editor_esterni():
+        """Dimentica gli editor letti: il prossimo menu li rilegge dal disco.
+
+        Va chiamata quando l'utente cambia gli editor in Configurazione,
+        altrimenti il menu continuerebbe a mostrare quelli di prima fino al
+        riavvio dell'applicazione.
+        """
+        ImageCard._external_editors_cache = None
+
     def _load_external_editors(self):
         """Carica configurazione editor esterni dal config"""
         try:
-            config_path = Path('config_new.yaml')
+            # Percorso assoluto: con 'config_new.yaml' relativo il file veniva
+            # cercato nella cartella di lavoro corrente, che non e' detto sia
+            # quella dell'applicazione. Se non lo trovava, gli editor
+            # sparivano dal menu senza spiegazione.
+            config_path = get_app_dir() / 'config_new.yaml'
             if not config_path.exists():
                 return []
-            
+
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
             
