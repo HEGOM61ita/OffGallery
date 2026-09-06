@@ -11,8 +11,8 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, 
     QPushButton, QLabel, QCheckBox, QFrame
 )
-from PyQt6.QtCore import Qt, QObject, pyqtSignal
-from PyQt6.QtGui import QFont, QTextCursor
+from PyQt6.QtCore import Qt, QObject, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont
 from i18n import t
 
 # Palette colori
@@ -75,7 +75,17 @@ class LogTab(QWidget):
         self._log_entries = []  # Lista di (timestamp, level, message) per filtraggio
         self._max_entries = 500  # Limite massimo entry in memoria e display
         self._is_filtering = False  # Guard per evitare ricorsione durante filter
+        self._pending_repaint = False  # Un ridisegno del pannello è già programmato
         self.init_ui()
+
+        # Il ridisegno del pannello è differito: una raffica di centinaia di
+        # righe (es. i badge XMP di una gallery) costa un solo aggiornamento
+        # invece di uno per riga. Vedi _flush_display().
+        self._flush_timer = QTimer(self)
+        self._flush_timer.setSingleShot(True)
+        self._flush_timer.setInterval(200)  # ms
+        self._flush_timer.timeout.connect(self._flush_display)
+
         self.setup_logging()
         
     def init_ui(self):
@@ -255,60 +265,78 @@ class LogTab(QWidget):
         return cb.isChecked() if cb else True
 
     def append_log(self, timestamp, level, message):
-        """Aggiunge un nuovo log entry"""
-        # Salva in lista per filtraggio, con limite memoria
+        """Registra un nuovo log entry e programma il ridisegno del pannello.
+
+        NON scrive subito nel QTextEdit: l'inserimento riga per riga costava
+        tempo crescente col contenuto già presente (0,3 ms a documento vuoto,
+        12 ms oltre le 10.000 righe), e siccome avviene nel thread grafico
+        rallentava tutta la finestra. Il ridisegno è raggruppato dal timer.
+        """
+        # Salva in lista per filtraggio, con limite memoria.
+        # Questa lista è l'UNICA fonte di verità sul tetto delle righe.
         self._log_entries.append((timestamp, level, message))
         if len(self._log_entries) > self._max_entries:
             self._log_entries = self._log_entries[-self._max_entries:]
 
-        # Mostra solo se il livello e' attivo nei filtri
-        if not self._is_level_visible(level):
+        self._schedule_repaint()
+
+    def _schedule_repaint(self):
+        """Programma un ridisegno del pannello, se non ce n'è già uno in coda"""
+        if self._pending_repaint:
+            return
+        self._pending_repaint = True
+        self._flush_timer.start()
+
+    def _flush_display(self):
+        """Ridisegna il pannello dalle entry in memoria.
+
+        Ricostruire da _log_entries (max 500) invece di accodare al documento
+        tiene il costo costante: il vecchio codice si affidava a
+        doc.blockCount() per potare le righe in eccesso, ma con l'HTML
+        inserito via '<br>' Qt tiene tutto in UN SOLO blocco — blockCount()
+        restituiva sempre 1, la potatura non partiva mai e il documento
+        cresceva senza limite.
+        """
+        self._pending_repaint = False
+        if self._is_filtering:
             return
 
-        formatted = self._format_log_entry(timestamp, level, message)
-
-        # Aggiungi al display
-        cursor = self.log_display.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        cursor.insertHtml(formatted + "<br>")
-
-        # Limita buffer display a max_entries righe per evitare degrado GUI
-        doc = self.log_display.document()
-        if doc.blockCount() > self._max_entries:
-            cursor = self.log_display.textCursor()
-            cursor.movePosition(QTextCursor.MoveOperation.Start)
-            cursor.movePosition(QTextCursor.MoveOperation.Down,
-                                QTextCursor.MoveMode.KeepAnchor,
-                                doc.blockCount() - self._max_entries)
-            cursor.removeSelectedText()
-            cursor.deleteChar()
-
-        # Auto-scroll verso il basso
+        # Ricorda se l'utente era in fondo: solo in quel caso si auto-scrolla,
+        # altrimenti scrollare gli strapperebbe via il punto che sta leggendo.
         scrollbar = self.log_display.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        was_at_bottom = scrollbar.value() >= scrollbar.maximum() - 4
+
+        html = "<br>".join(
+            self._format_log_entry(ts, lvl, msg)
+            for ts, lvl, msg in self._log_entries
+            if self._is_level_visible(lvl)
+        )
+        self.log_display.setHtml(html)
+
+        if was_at_bottom:
+            scrollbar.setValue(scrollbar.maximum())
 
         # Aggiorna contatore
         self.update_info()
-        
+
     def filter_logs(self):
         """Ri-renderizza i log in base ai filtri livello attivi"""
         if self._is_filtering:
             return
         self._is_filtering = True
         try:
-            self.log_display.clear()
-            for timestamp, level, message in self._log_entries:
-                if self._is_level_visible(level):
-                    formatted = self._format_log_entry(timestamp, level, message)
-                    cursor = self.log_display.textCursor()
-                    cursor.movePosition(QTextCursor.MoveOperation.End)
-                    cursor.insertHtml(formatted + "<br>")
+            html = "<br>".join(
+                self._format_log_entry(ts, lvl, msg)
+                for ts, lvl, msg in self._log_entries
+                if self._is_level_visible(lvl)
+            )
+            self.log_display.setHtml(html)
             # Scroll in fondo
             scrollbar = self.log_display.verticalScrollBar()
             scrollbar.setValue(scrollbar.maximum())
         finally:
             self._is_filtering = False
-        
+
     def clear_logs(self):
         """Cancella tutti i log"""
         self._log_entries.clear()
@@ -374,6 +402,14 @@ class LogTab(QWidget):
 
     def cleanup(self):
         """Cleanup risorse quando si chiude"""
+        # Ferma il ridisegno differito: un flush in coda scatterebbe su widget
+        # già distrutti da Qt.
+        try:
+            self._flush_timer.stop()
+        except RuntimeError:
+            pass  # oggetto C++ già distrutto
+        self._pending_repaint = False
+
         if self.log_handler:
             logging.getLogger().removeHandler(self.log_handler)
             # removeHandler() NON toglie l'handler da logging._handlerList, la
