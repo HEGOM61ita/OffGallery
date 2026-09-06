@@ -159,16 +159,17 @@ class XMPBadgeManager(QObject):
         # Scarta card stale di ricerche precedenti prima di accodare il nuovo batch
         self.worker.clear_queue()
         
-        # Invalida cache su tutte le cards (UI thread)
+        # Invalida cache su tutte le cards (UI thread).
+        # Nessun log per singola card: è un azzeramento meccanico che riusciva
+        # sempre, e la riga per foto triplicava il log di una gallery. Il totale
+        # è già nel messaggio "accodate N cards" del worker.
         for card in valid_cards:
             try:
                 # Reset cache XMP per forzare ricalcolo
                 if hasattr(card, '_xmp_state_cache'):
                     card._xmp_state_cache = None
-                if hasattr(card, '_xmp_info_cache'): 
+                if hasattr(card, '_xmp_info_cache'):
                     card._xmp_info_cache = None
-                
-                logger.debug(f"🗑️ Cache invalidata per {card.image_data.get('filename', 'unknown')}")
             except Exception as e:
                 logger.error(f"❌ Errore invalidazione cache: {e}")
         
@@ -190,7 +191,11 @@ class XMPBadgeManager(QObject):
             if hasattr(card, 'update'):
                 card.update()
 
-            logger.debug(f"✅ Badge aggiornato: {card.image_data.get('filename', 'unknown')}")
+            # Nessun log di conferma per singola card: l'esito complessivo è già
+            # nel "Batch XMP completato: N badges", e un fallimento lo segnala
+            # l'except qui sotto. La riga "XMP analisi:" nel worker resta invece
+            # utile: precede la lettura da disco, quindi se un file blocca
+            # l'applicazione è l'ultima riga visibile e ne fa il nome.
         except Exception as e:
             logger.error(f"❌ Errore update badge UI: {e}")
 

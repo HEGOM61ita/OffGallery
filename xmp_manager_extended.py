@@ -329,8 +329,10 @@ class XMPManagerExtended:
                     }
                 
                 if xmp_data:
+                    # Solo il conteggio: l'elenco completo dei nomi produceva righe
+                    # da migliaia di caratteri (fino a 367 tag su una riga sola) e
+                    # da solo occupava il 62% del log di una gallery.
                     logger.debug(f"XMP embedded letto da {file_path.name}: {len(xmp_data)} tags")
-                    logger.debug(f"XMP tags trovati: {list(xmp_data.keys())}")  # Debug dettagliato
                     return self._normalize_xmp_tags(xmp_data)
                 
         except Exception as e:
@@ -917,8 +919,9 @@ class XMPManagerExtended:
             if debug_info: logger.debug(f"XMP Compare MISMATCH: {' | '.join(debug_info)}")
             return False
 
-        # Se arriviamo qui, tutto coincide
-        logger.debug(f"XMP Compare MATCH: Keywords={len(kw1)}, Desc='{desc1[:30]}...', Title='{t1[:30]}...', Rating={r1}, Color='{c1}'")
+        # Se arriviamo qui, tutto coincide. Nessun log: il caso "tutto uguale" è
+        # la norma e si ripeteva per ogni foto senza aggiungere informazione.
+        # I MISMATCH qui sopra restano: dicono cosa è cambiato, e sono rari.
         return True
     
     def _extract_description_from_dict(self, xmp_dict: Dict[str, Any]) -> str:
