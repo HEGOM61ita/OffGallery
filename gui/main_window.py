@@ -406,22 +406,6 @@ class MainWindow(QMainWindow):
         user_lang = self.config.get('ui', {}).get('user_language', 'it')
         i18n_module.load_language(user_lang)
 
-        # Titoli dei riquadri: su Linux i font di sistema sono più larghi che su
-        # Windows e i titoli dei QGroupBox venivano tagliati ("Sorgente Immagi"
-        # invece di "Sorgente Immagini"). Lo stile si applica a tutti i riquadri
-        # dell'applicazione, non solo a quelli corretti singolarmente.
-        self.setStyleSheet(self.styleSheet() + """
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                subcontrol-position: top left;
-                left: 8px;
-                padding: 0 6px 0 6px;
-            }
-            QGroupBox {
-                margin-top: 10px;
-            }
-        """)
-
         # === MODELLI AI ===
         if preloaded_models is not None:
             # Modelli già inizializzati dal thread di caricamento (caso normale)
@@ -586,6 +570,21 @@ class MainWindow(QMainWindow):
                 border: 1px solid {COLORS['ambra']};
                 padding: 4px;
                 font-size: 12px;
+            }}
+            /* Titoli dei riquadri: senza queste regole Qt disegna il titolo
+               dentro il bordo, in uno spazio stretto, e lo tronca
+               ("Sorgente Immagi" invece di "Sorgente Immagini").
+               DEVONO stare in QUESTO foglio di stile: era un secondo
+               setStyleSheet in __init__ a contenerle, e questa assegnazione
+               lo sostituiva per intero cancellandole. */
+            QGroupBox {{
+                margin-top: 10px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: 8px;
+                padding: 0 6px 0 6px;
             }}
         """)
         
