@@ -805,12 +805,16 @@ class SearchTab(QWidget):
 
         left_bottom = QHBoxLayout()
         left_bottom.setSpacing(6)
-        left_bottom.addWidget(self.create_date_section())
-        left_bottom.addWidget(self.create_location_section())
+        # Stretch factor invece di addStretch(): senza di essi QHBoxLayout
+        # ripartiva lo spazio a favore di Posizione/Tassonomia (combo larghe)
+        # e comprimeva "Data" sotto il suo minimo, troncandone il titolo e i
+        # due QDateEdit ("Filtra pe", "2:" — segnalazione utente).
+        _date_section = self.create_date_section()
+        left_bottom.addWidget(_date_section, 2)
+        left_bottom.addWidget(self.create_location_section(), 3)
         _taxonomy_section = self.create_taxonomy_section()
         if _taxonomy_section:
-            left_bottom.addWidget(_taxonomy_section)
-        left_bottom.addStretch()
+            left_bottom.addWidget(_taxonomy_section, 3)
         left_col.addLayout(left_bottom)
         left_col.addStretch()
 
@@ -902,37 +906,46 @@ class SearchTab(QWidget):
         self._dir_group = QGroupBox("📁 Ambito ricerca — Directory")
         self._dir_group.setCheckable(True)
         self._dir_group.setChecked(False)
-        self._dir_group.setStyleSheet("""
-            QGroupBox {
+        # QGroupBox::indicator e' un selettore diverso da QCheckBox::indicator:
+        # non lo raggiunge lo stile globale impostato in splash_screen, quindi
+        # va allineato qui a mano. Prima era grigio chiaro da spento (colore da
+        # tema chiaro, fuori posto sul fondo scuro) e blu pieno senza spunta da
+        # acceso. Stessi colori e stesso SVG delle checkbox.
+        _assets = (get_app_dir() / 'assets').as_posix()
+        self._dir_group.setStyleSheet(f"""
+            QGroupBox {{
                 font-weight: bold;
                 font-size: 12px;
                 border: 1px solid #ccc;
                 border-radius: 5px;
                 margin-top: 6px;
                 padding-top: 4px;
-            }
-            QGroupBox::title {
+            }}
+            QGroupBox::title {{
                 subcontrol-origin: margin;
                 subcontrol-position: top left;
                 padding: 0 6px;
                 color: #ffffff;
-            }
-            QGroupBox::indicator {
+            }}
+            QGroupBox::indicator {{
                 width: 14px;
                 height: 14px;
-            }
-            QGroupBox::indicator:unchecked {
+            }}
+            QGroupBox::indicator:unchecked {{
                 image: none;
-                background-color: #e0e0e0;
-                border: 1px solid #aaa;
-                border-radius: 2px;
-            }
-            QGroupBox::indicator:checked {
-                image: none;
-                background-color: #1C4F63;
-                border: 1px solid #1C4F63;
-                border-radius: 2px;
-            }
+                background-color: #2A2A2A;
+                border: 1px solid #FFFFFF;
+                border-radius: 3px;
+            }}
+            QGroupBox::indicator:hover {{
+                border: 1px solid #E0A84A;
+            }}
+            QGroupBox::indicator:checked {{
+                image: url({_assets}/check.svg);
+                background-color: #C88B2E;
+                border: 1px solid #FFFFFF;
+                border-radius: 3px;
+            }}
         """)
 
         outer_layout = QVBoxLayout(self._dir_group)
@@ -1651,6 +1664,11 @@ class SearchTab(QWidget):
     def create_date_section(self):
         """Filtri data"""
         group = QGroupBox(t("search.group.date_filter"))
+        # Larghezza minima esplicita: lo stretch factor ripartisce solo lo
+        # spazio in eccesso, non impedisce a QHBoxLayout di comprimere il
+        # riquadro sotto il suo minimo quando lo spazio scarseggia. Senza
+        # questo il titolo e i due QDateEdit restavano troncati.
+        group.setMinimumWidth(250)
         layout = QVBoxLayout()
         layout.setSpacing(3)
         
@@ -1674,6 +1692,10 @@ class SearchTab(QWidget):
         date_layout.addWidget(self.date_to)
         
         layout.addLayout(date_layout)
+        # Compatta i controlli in alto: il riquadro si allunga per pareggiare
+        # l'altezza di "Posizione", e senza stretch i due controlli restavano
+        # distanziati da vuoti verticali.
+        layout.addStretch()
         
         self.date_filter_enabled.toggled.connect(self.date_from.setEnabled)
         self.date_filter_enabled.toggled.connect(self.date_to.setEnabled)
