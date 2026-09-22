@@ -2391,11 +2391,17 @@ class ProcessingTab(QWidget):
                     chk.setChecked(True)
                     chk.setEnabled(False)
                     chk.setToolTip(f"{plugin_name} — sempre attivo")
+                    # Spunta visibile anche qui: "image: url(none)" la
+                    # sopprimeva, lasciando un quadratino pieno. Il colore
+                    # resta diverso dall'ambra delle altre caselle perche'
+                    # segnala "sempre attivo, non modificabile".
+                    _chk_svg = (get_app_dir() / 'assets' / 'check_disabled.svg').as_posix()
                     chk.setStyleSheet(
                         "QCheckBox::indicator:disabled:checked {"
-                        "  background-color: #4a90d9;"
-                        "  border: 1px solid #4a90d9;"
-                        "  image: url(none);"
+                        "  background-color: #3A6A94;"
+                        "  border: 1px solid #8A8A8A;"
+                        "  border-radius: 3px;"
+                        f"  image: url({_chk_svg});"
                         "}"
                     )
                     chk_lay.addWidget(chk)
