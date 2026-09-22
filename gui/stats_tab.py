@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, QObject, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QPainter
 from gui.directory_dialog import DirectoryTreeWidget
+from utils.paths import get_app_dir
 
 _MESI_IT = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"]
 
@@ -747,6 +748,10 @@ class StatsTab(QWidget):
         self._dir_group = QGroupBox("📁 Ambito statistiche")
         self._dir_group.setCheckable(True)
         self._dir_group.setChecked(False)
+        # Stessi colori e stesso SVG delle altre caselle: QGroupBox::indicator
+        # non e' raggiunto dallo stile globale e restava grigio chiaro da spento
+        # (colore da tema chiaro) e blu pieno senza spunta da acceso.
+        _assets = (get_app_dir() / 'assets').as_posix()
         self._dir_group.setStyleSheet(f"""
             QGroupBox {{
                 font-weight: bold; font-size: 12px;
@@ -760,11 +765,16 @@ class StatsTab(QWidget):
             }}
             QGroupBox::indicator {{ width: 14px; height: 14px; }}
             QGroupBox::indicator:unchecked {{
-                background-color: #e0e0e0; border: 1px solid #aaa; border-radius: 2px;
+                background-color: {COLORS['grafite']};
+                border: 1px solid #FFFFFF; border-radius: 3px;
+            }}
+            QGroupBox::indicator:hover {{
+                border: 1px solid #E0A84A;
             }}
             QGroupBox::indicator:checked {{
-                background-color: {COLORS['blu_petrolio']};
-                border: 1px solid {COLORS['blu_petrolio']}; border-radius: 2px;
+                background-color: {COLORS['ambra']};
+                border: 1px solid #FFFFFF; border-radius: 3px;
+                image: url({_assets}/check.svg);
             }}
         """)
 

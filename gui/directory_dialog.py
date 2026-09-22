@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 
 from i18n import t
+from utils.paths import get_app_dir
 
 
 class DirectoryTreeWidget(QWidget):
@@ -180,6 +181,11 @@ class DirectoryTreeWidget(QWidget):
         self.tree.setIndentation(20)
         self.tree.itemChanged.connect(self._on_item_changed)
 
+        # Checkbox dell'albero allineate al resto della UI: erano blu pieno
+        # senza segno di spunta e con bordo grigio da spente. QTreeWidget::indicator
+        # e' un selettore ancora diverso da QCheckBox/QGroupBox, quindi non lo
+        # raggiunge lo stile globale e va allineato qui.
+        _assets = (get_app_dir() / 'assets').as_posix()
         self.tree.setStyleSheet(f"""
             QTreeWidget {{
                 background-color: {self._GRAFITE_DARK};
@@ -219,18 +225,23 @@ class DirectoryTreeWidget(QWidget):
             }}
             QTreeWidget::indicator:unchecked {{
                 background-color: {self._GRAFITE};
-                border: 1px solid {self._GRIGIO_MEDIO};
-                border-radius: 2px;
+                border: 1px solid #FFFFFF;
+                border-radius: 3px;
+            }}
+            QTreeWidget::indicator:hover {{
+                border: 1px solid {self._AMBRA_LIGHT};
             }}
             QTreeWidget::indicator:checked {{
-                background-color: {self._BLU_PETROLIO_LIGHT};
-                border: 1px solid {self._BLU_PETROLIO};
-                border-radius: 2px;
+                background-color: {self._AMBRA};
+                border: 1px solid #FFFFFF;
+                border-radius: 3px;
+                image: url({_assets}/check.svg);
             }}
             QTreeWidget::indicator:indeterminate {{
                 background-color: {self._GRAFITE};
-                border: 1px solid {self._AMBRA};
-                border-radius: 2px;
+                border: 1px solid #FFFFFF;
+                border-radius: 3px;
+                image: url({_assets}/dash.svg);
             }}
         """)
 
