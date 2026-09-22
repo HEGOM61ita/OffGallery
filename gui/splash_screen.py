@@ -553,6 +553,64 @@ def run_with_splash():
     palette.setColor(QPalette.ColorRole.HighlightedText, QColor(COLORS['grigio_chiaro']))
     app.setPalette(palette)
 
+    # Stile globale di checkbox e radio button.
+    # Senza queste regole Qt/Fusion disegna l'indicatore non spuntato grigio
+    # scuro su sfondo grigio scuro con bordo nero: praticamente invisibile nel
+    # tema scuro (segnalazione utente). Si applica sulla QApplication e non
+    # sulla MainWindow perche' cosi' copre anche i QDialog e le finestre dei
+    # plugin, che sono top-level e non erediterebbero il foglio di stile
+    # della finestra principale.
+    #
+    # Il segno di spunta arriva da un SVG su disco: definendo background-color
+    # sull'indicator, Qt smette di disegnare lo spunto nativo e resterebbe solo
+    # il quadratino pieno, indistinguibile da una decorazione. I data: URI NON
+    # funzionano nelle "image:" di Qt (verificato), quindi serve un file vero;
+    # il path passa da get_app_dir() per reggere anche il bundle PyInstaller ed
+    # e' normalizzato con "/" perche' nel QSS il backslash di Windows e' un
+    # escape.
+    _assets = (get_app_dir() / 'assets').as_posix()
+    app.setStyleSheet(f"""
+        QCheckBox::indicator, QRadioButton::indicator {{
+            width: 14px;
+            height: 14px;
+            background-color: {COLORS['grafite']};
+            border: 1px solid #FFFFFF;
+        }}
+        QCheckBox::indicator {{
+            border-radius: 3px;
+        }}
+        QRadioButton::indicator {{
+            border-radius: 8px;
+        }}
+        QCheckBox::indicator:hover, QRadioButton::indicator:hover {{
+            border: 1px solid #E0A84A;
+        }}
+        QCheckBox::indicator:checked {{
+            background-color: #C88B2E;
+            border: 1px solid #FFFFFF;
+            image: url({_assets}/check.svg);
+        }}
+        QRadioButton::indicator:checked {{
+            background-color: {COLORS['grafite']};
+            border: 1px solid #FFFFFF;
+            image: url({_assets}/radio_dot.svg);
+        }}
+        QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{
+            border: 1px solid #8A8A8A;
+            background-color: #333333;
+        }}
+        QCheckBox::indicator:checked:disabled {{
+            background-color: #6E5423;
+            border: 1px solid #8A8A8A;
+            image: url({_assets}/check_disabled.svg);
+        }}
+        QRadioButton::indicator:checked:disabled {{
+            background-color: #333333;
+            border: 1px solid #8A8A8A;
+            image: url({_assets}/radio_dot_disabled.svg);
+        }}
+    """)
+
     # Crea e mostra splash
     splash = SplashScreen()
     splash.show()

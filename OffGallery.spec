@@ -34,6 +34,10 @@ a = Analysis(
         'PyQt6.QtGui',
         'PyQt6.QtWidgets',
         'PyQt6.sip',
+        # Necessario per il segno di spunta SVG delle checkbox (stile globale
+        # in splash_screen): senza il plugin imageformat svg l'indicatore
+        # resterebbe un quadratino pieno senza spunta nell'EXE.
+        'PyQt6.QtSvg',
 
         # Torch
         'torch',
