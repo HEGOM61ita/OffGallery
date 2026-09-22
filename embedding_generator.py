@@ -959,7 +959,7 @@ class EmbeddingGenerator:
             if dinov2_local.exists() and (dinov2_local / 'config.json').exists():
                 try:
                     self.dinov2_model = self._model_to_device(AutoModel.from_pretrained(str(dinov2_local)), 'dinov2')
-                    self.dinov2_processor = AutoImageProcessor.from_pretrained(str(dinov2_local))
+                    self.dinov2_processor = AutoImageProcessor.from_pretrained(str(dinov2_local), use_fast=True)
                     loaded = True
                     logger.info("[OK] DINOv2 caricato da locale")
                 except Exception as e:
@@ -988,7 +988,7 @@ class EmbeddingGenerator:
 
                     if (dinov2_local / 'config.json').exists() and (dinov2_local / 'model.safetensors').exists():
                         self.dinov2_model = self._model_to_device(AutoModel.from_pretrained(str(dinov2_local)), 'dinov2')
-                        self.dinov2_processor = AutoImageProcessor.from_pretrained(str(dinov2_local))
+                        self.dinov2_processor = AutoImageProcessor.from_pretrained(str(dinov2_local), use_fast=True)
                         loaded = True
                         logger.info("[OK] DINOv2 caricato da repo")
                     else:
@@ -1008,13 +1008,13 @@ class EmbeddingGenerator:
                         ignore_patterns=['*.msgpack', '*.h5', 'rust_model.ot', 'tf_model.h5', 'flax_model.msgpack']
                     )
                     self.dinov2_model = self._model_to_device(AutoModel.from_pretrained(str(dinov2_local)), 'dinov2')
-                    self.dinov2_processor = AutoImageProcessor.from_pretrained(str(dinov2_local))
+                    self.dinov2_processor = AutoImageProcessor.from_pretrained(str(dinov2_local), use_fast=True)
                     logger.info(f"[OK] DINOv2 caricato e salvato (fallback: {fallback_model})")
                     loaded = True
                 except Exception as fe:
                     logger.error(f"DINOv2: snapshot_download fallito ({fe}), provo from_pretrained in memoria...")
                     self.dinov2_model = self._model_to_device(AutoModel.from_pretrained(fallback_model), 'dinov2')
-                    self.dinov2_processor = AutoImageProcessor.from_pretrained(fallback_model)
+                    self.dinov2_processor = AutoImageProcessor.from_pretrained(fallback_model, use_fast=True)
                     logger.info(f"[OK] DINOv2 caricato in memoria senza persistenza (fallback: {fallback_model})")
                     loaded = True
 
@@ -1051,7 +1051,7 @@ class EmbeddingGenerator:
             if local_exists:
                 try:
                     clip_model = self._model_to_device(CLIPModel.from_pretrained(str(aesthetic_dir)), 'aesthetic')
-                    self.aesthetic_processor = CLIPProcessor.from_pretrained(str(aesthetic_dir))
+                    self.aesthetic_processor = CLIPProcessor.from_pretrained(str(aesthetic_dir), use_fast=True)
                     logger.info("[OK] Aesthetic caricato da locale")
                 except Exception as e:
                     logger.warning(f"Aesthetic: cartella locale non valida ({e}), uso repo...")
@@ -1082,7 +1082,7 @@ class EmbeddingGenerator:
 
                     if (aesthetic_dir / 'config.json').exists() and (aesthetic_dir / 'model.safetensors').exists():
                         clip_model = self._model_to_device(CLIPModel.from_pretrained(str(aesthetic_dir)), 'aesthetic')
-                        self.aesthetic_processor = CLIPProcessor.from_pretrained(str(aesthetic_dir))
+                        self.aesthetic_processor = CLIPProcessor.from_pretrained(str(aesthetic_dir), use_fast=True)
                         logger.info("[OK] Aesthetic caricato da repo")
                     else:
                         logger.warning("Aesthetic: repo congelato incompleto, uso fallback...")
@@ -1102,12 +1102,12 @@ class EmbeddingGenerator:
                         ignore_patterns=['*.msgpack', '*.h5', 'rust_model.ot', 'tf_model.h5', 'flax_model.msgpack']
                     )
                     clip_model = self._model_to_device(CLIPModel.from_pretrained(str(aesthetic_dir)), 'aesthetic')
-                    self.aesthetic_processor = CLIPProcessor.from_pretrained(str(aesthetic_dir))
+                    self.aesthetic_processor = CLIPProcessor.from_pretrained(str(aesthetic_dir), use_fast=True)
                     logger.info(f"[OK] Aesthetic caricato e salvato (fallback: {fallback_model})")
                 except Exception as fe:
                     logger.error(f"Aesthetic: snapshot_download fallito ({fe}), provo from_pretrained in memoria...")
                     clip_model = self._model_to_device(CLIPModel.from_pretrained(fallback_model), 'aesthetic')
-                    self.aesthetic_processor = CLIPProcessor.from_pretrained(fallback_model)
+                    self.aesthetic_processor = CLIPProcessor.from_pretrained(fallback_model, use_fast=True)
                     logger.info(f"[OK] Aesthetic caricato in memoria senza persistenza (fallback: {fallback_model})")
 
             # Head per score estetico
