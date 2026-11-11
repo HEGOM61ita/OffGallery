@@ -428,7 +428,16 @@ class MainWindow(QMainWindow):
                                .get('llm_vision', {}))
         _llm_enabled = _llm_cfg.get('enabled', False)
         _llm_model   = (_llm_cfg.get('model', '') or '').strip()
-        if _llm_enabled and _llm_model:
+        # Il warmup tiene il modello in VRAM (keep_alive -1): sulle GPU da 8 GB
+        # soffoca SigLIP/DINOv2 e il desktop. Si fa solo se almeno una generazione
+        # (tag, descrizione, titolo) e' attiva; altrimenti il modello si carica
+        # alla prima chiamata LLM.
+        _llm_auto = _llm_cfg.get('auto_import', {}) or {}
+        _llm_gen_attiva = any(
+            (_llm_auto.get(k, {}) or {}).get('enabled', False)
+            for k in ('tags', 'description', 'title')
+        )
+        if _llm_enabled and _llm_model and _llm_gen_attiva:
             import threading, logging as _logging
             _logger = _logging.getLogger(__name__)
             def _llm_warmup():
