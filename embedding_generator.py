@@ -920,9 +920,7 @@ class EmbeddingGenerator:
                         "e protobuf lo accetta una volta sola. Rimedio: avviare "
                         "OffGallery con 'python gui_launcher.py' (il launcher "
                         "previene il conflitto come prima cosa); se si legge "
-                        "questo messaggio avviando dal launcher, segnalarlo. "
-                        "Per capire cosa sta succedendo "
-                        "prima di reinstallare: python diagnostica_siglip.py"
+                        "questo messaggio avviando dal launcher, segnalarlo."
                     )
                 elif _mancanti:
                     logger.error(
