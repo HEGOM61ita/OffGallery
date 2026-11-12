@@ -187,6 +187,44 @@ class ProcessingWorker(QThread):
         self._progress_throttle_lock = threading.Lock()
         self._PROGRESS_INTERVAL_EXIFTOOL = 0.5   # ExifTool: aggiorna counter visibile
         self._PROGRESS_INTERVAL_MODEL    = 1.0   # modelli AI: aggiorna solo barre (meno urgente)
+        # Executor di inferenza persistenti, uno per modello (vedi _get_infer_pool)
+        self._infer_pools = {}
+        self._infer_pools_lock = threading.Lock()
+
+    def _get_infer_pool(self, chiave):
+        """Executor a un solo thread, creato una volta e riusato per tutte le foto.
+
+        Prima ogni inferenza apriva un ThreadPoolExecutor nuovo, quindi un
+        thread nuovo per ogni foto. Con i modelli su CPU (MUSIQ, Aesthetic,
+        BioCLIP) torch alloca buffer per-thread (OpenMP/oneDNN) che non vengono
+        rilasciati alla morte del thread: il commit del processo cresceva di
+        circa 36 MB per foto (misurato: MUSIQ 17.6, Aesthetic 9.3, BioCLIP 9.5)
+        fino a esaurire la memoria virtuale. Con un thread persistente la
+        crescita misurata e' zero.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+        with self._infer_pools_lock:
+            pool = self._infer_pools.get(chiave)
+            if pool is None:
+                pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"infer_{chiave}")
+                self._infer_pools[chiave] = pool
+            return pool
+
+    def _reset_infer_pool(self, chiave):
+        """Scarta l'executor dopo un timeout: il thread bloccato resta suo e il
+        prossimo giro ne riceve uno nuovo (evita di accodare dietro un'inferenza ferma)."""
+        with self._infer_pools_lock:
+            pool = self._infer_pools.pop(chiave, None)
+        if pool is not None:
+            pool.shutdown(wait=False)
+
+    def _shutdown_infer_pools(self):
+        """Chiude tutti gli executor di inferenza a fine elaborazione."""
+        with self._infer_pools_lock:
+            pools = list(self._infer_pools.values())
+            self._infer_pools.clear()
+        for pool in pools:
+            pool.shutdown(wait=False)
 
     def _wait_if_paused(self):
         """Attende se in pausa. Ritorna True se si può continuare, False se stoppato."""
@@ -789,6 +827,9 @@ class ProcessingWorker(QThread):
             # immagini saltate) vengono rimosse prima del GC, restituendo memoria al pool Python
             prep_cache.clear()
 
+            # Chiude i thread di inferenza persistenti dei modelli
+            self._shutdown_infer_pools()
+
             # Libera VRAM e forza due passaggi GC (il secondo raccoglie cicli circolari)
             self._cleanup_gpu_memory()
             import gc
@@ -1266,20 +1307,22 @@ class ProcessingWorker(QThread):
                 # Skip se campo già presente e overwrite OFF
                 if overwrite or is_new or not ai_fields.get(db_field, False):
                     try:
-                        from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FuturesTimeout
+                        from concurrent.futures import TimeoutError as _FuturesTimeout
                         _INFER_TIMEOUT = 120  # secondi max per foto
                         _t = time.monotonic()
-                        with ThreadPoolExecutor(max_workers=1) as _ex:
-                            _future = _ex.submit(infer_fn, [thumb])
-                            try:
-                                results = _future.result(timeout=_INFER_TIMEOUT)
-                            except _FuturesTimeout:
-                                self.log_message.emit(
-                                    f"⏰ {model_key.upper()} timeout ({_INFER_TIMEOUT}s) su {fname} — foto saltata",
-                                    "warning")
-                                with self._stats_lock:
-                                    stats['model_timeouts'].setdefault(pkey, set()).add(model_key)
-                                results = None
+                        # Thread di inferenza persistente (vedi _get_infer_pool)
+                        _ex = self._get_infer_pool(f"model_{model_key}")
+                        _future = _ex.submit(infer_fn, [thumb])
+                        try:
+                            results = _future.result(timeout=_INFER_TIMEOUT)
+                        except _FuturesTimeout:
+                            self.log_message.emit(
+                                f"⏰ {model_key.upper()} timeout ({_INFER_TIMEOUT}s) su {fname} — foto saltata",
+                                "warning")
+                            with self._stats_lock:
+                                stats['model_timeouts'].setdefault(pkey, set()).add(model_key)
+                            results = None
+                            self._reset_infer_pool(f"model_{model_key}")
                         _dur = time.monotonic() - _t
 
                         if results and results[0] is not None:
@@ -1429,27 +1472,29 @@ class ProcessingWorker(QThread):
                         and ai_fields.get('bioclip_taxonomy', False))
                 if not skip:
                     try:
-                        from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FuturesTimeout
+                        from concurrent.futures import TimeoutError as _FuturesTimeout
                         _BIOCLIP_TIMEOUT = 120  # secondi max per foto
                         _geo_hierarchy = prep.get('geo_hierarchy')
                         _gps_lat = prep.get('gps_latitude')
                         _gps_lon = prep.get('gps_longitude')
 
-                        with ThreadPoolExecutor(max_workers=1) as _ex:
-                            _future = _ex.submit(
-                                emb_gen.generate_bioclip_tags, thumb,
-                                geo_hierarchy=_geo_hierarchy,
-                                gps_lat=_gps_lat, gps_lon=_gps_lon)
-                            try:
-                                bioclip_tags, bioclip_taxonomy = _future.result(timeout=_BIOCLIP_TIMEOUT)
-                            except _FuturesTimeout:
-                                self.log_message.emit(
-                                    f"⏰ BioCLIP timeout ({_BIOCLIP_TIMEOUT}s) su {fname} — "
-                                    f"foto saltata, tag/descrizione/titolo potrebbero essere incompleti",
-                                    "warning")
-                                with self._stats_lock:
-                                    stats['model_timeouts'].setdefault(pkey, set()).add('bioclip')
-                                bioclip_tags, bioclip_taxonomy = None, None
+                        # Thread di inferenza persistente (vedi _get_infer_pool)
+                        _ex = self._get_infer_pool("bioclip")
+                        _future = _ex.submit(
+                            emb_gen.generate_bioclip_tags, thumb,
+                            geo_hierarchy=_geo_hierarchy,
+                            gps_lat=_gps_lat, gps_lon=_gps_lon)
+                        try:
+                            bioclip_tags, bioclip_taxonomy = _future.result(timeout=_BIOCLIP_TIMEOUT)
+                        except _FuturesTimeout:
+                            self.log_message.emit(
+                                f"⏰ BioCLIP timeout ({_BIOCLIP_TIMEOUT}s) su {fname} — "
+                                f"foto saltata, tag/descrizione/titolo potrebbero essere incompleti",
+                                "warning")
+                            with self._stats_lock:
+                                stats['model_timeouts'].setdefault(pkey, set()).add('bioclip')
+                            bioclip_tags, bioclip_taxonomy = None, None
+                            self._reset_infer_pool("bioclip")
 
                         if bioclip_taxonomy and isinstance(bioclip_taxonomy, list):
                             update_data['bioclip_taxonomy'] = json.dumps(
