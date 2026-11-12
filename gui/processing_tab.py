@@ -2019,6 +2019,7 @@ class ProcessingWorker(QThread):
         _has_model_queues = bool(model_queues)
         _feed_llm_direct  = llm_active and not _has_model_queues
         _EXIFTOOL_RESTART_EVERY = 200
+        _mem_diag_prev = 0.0  # ultimo commit campionato (MB), per la diagnostica memoria
 
         for i, image_path in enumerate(images_to_process, 1):
             if not self._wait_if_paused():
@@ -2047,6 +2048,31 @@ class ProcessingWorker(QThread):
                 geo_plugin=geo_plugin, geo_plugin_cfg=geo_plugin_cfg,
                 disk_consumers=disk_consumers,
             )
+
+            # Diagnostica memoria: ogni 25 foto, oppure subito se il commit del
+            # processo salta di oltre 1 GB rispetto al campione precedente
+            # (permette di individuare un file che gonfia la memoria).
+            try:
+                import psutil
+                _mi = psutil.Process().memory_info()
+                _rss_mb = _mi.rss / 1048576
+                _vms_mb = _mi.vms / 1048576   # su Windows = commit privato
+                _salto = _vms_mb - _mem_diag_prev
+                if i % 25 == 0 or _salto > 1024:
+                    try:
+                        _sz_mb = image_path.stat().st_size / 1048576
+                    except OSError:
+                        _sz_mb = -1
+                    _code = {mk: q.qsize() for mk, q in model_queues.items()}
+                    self.log_message.emit(
+                        f"🧮 MEM foto {i}/{total_to_process} {image_path.name} "
+                        f"({_sz_mb:.0f} MB su disco): rss={_rss_mb:.0f} MB "
+                        f"commit={_vms_mb:.0f} MB (Δ{_salto:+.0f}) "
+                        f"prep_cache={len(prep_cache)} code={_code}",
+                        "warning" if _salto > 1024 else "info")
+                _mem_diag_prev = _vms_mb
+            except Exception:
+                logger.debug("Diagnostica memoria non disponibile", exc_info=True)
 
             if prep:
                 # Chiave = percorso completo: nomi duplicati in sotto-cartelle diverse
