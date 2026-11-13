@@ -1,0 +1,1558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OffGallery — Your archive. Your AI. Zero cloud.</title>
+  <meta name="description" content="OffGallery — Six local AI models for photo cataloging. Combined semantic search + tags + EXIF, automatic flora and fauna recognition, aesthetic scoring, Lightroom/darktable sync via XMP, full statistics. Scalable, configurable, multilingual. Zero cloud, total privacy." />
+  <meta name="keywords" content="OffGallery, photography, local AI, offline, photo cataloging, semantic search, Lightroom, privacy, RAW, XMP, BioCLIP" />
+  <meta property="og:site_name" content="OffGallery" />
+  <meta property="og:title" content="OffGallery — Your archive. Your AI. Zero cloud." />
+  <meta property="og:description" content="Intelligent photo cataloging for professional photographers. Local AI, no data sent online." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://offgallery.app/en/" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:locale:alternate" content="it_IT" />
+  <meta property="og:image" content="https://offgallery.app/assets/og-en.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="OffGallery — Your archive. Your AI. Zero cloud." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="OffGallery — Your archive. Your AI. Zero cloud." />
+  <meta name="twitter:description" content="Intelligent photo cataloging for professional photographers. Local AI, no data sent online." />
+  <meta name="twitter:image" content="https://offgallery.app/assets/og-en.png" />
+  <link rel="canonical" href="https://offgallery.app/en/" />
+  <link rel="alternate" hreflang="it" href="https://offgallery.app/" />
+  <link rel="alternate" hreflang="en" href="https://offgallery.app/en/" />
+  <link rel="alternate" hreflang="x-default" href="https://offgallery.app/en/" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://offgallery.app/#website",
+      "url": "https://offgallery.app/",
+      "name": "OffGallery",
+      "inLanguage": [
+        "it",
+        "en"
+      ]
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://offgallery.app/#app",
+      "name": "OffGallery",
+      "url": "https://offgallery.app/en/",
+      "description": "OffGallery — Six local AI models for photo cataloging. Combined semantic search + tags + EXIF, automatic flora and fauna recognition, aesthetic scoring, Lightroom/darktable sync via XMP, full statistics. Scalable, configurable, multilingual. Zero cloud, total privacy.",
+      "applicationCategory": "MultimediaApplication",
+      "operatingSystem": "Windows 10, Windows 11, macOS 12+, Linux",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "EUR"
+      },
+      "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "downloadUrl": "https://github.com/HEGOM61ita/OffGallery/releases/latest",
+      "softwareHelp": {
+        "@type": "WebPage",
+        "url": "https://offgallery.app/USER_MANUAL_EN.html"
+      },
+      "image": "https://offgallery.app/assets/og-en.png",
+      "screenshot": [
+        "https://offgallery.app/assets/Gallery.png",
+        "https://offgallery.app/assets/Search.png"
+      ],
+      "featureList": [
+        "Multilingual semantic search with SigLIP",
+        "Combined semantic + tag + EXIF search",
+        "Animal and plant species recognition with BioCLIP 2 (~450,000 species, 7-level taxonomy)",
+        "Aesthetic and technical image scoring",
+        "Tags, titles and descriptions with a local Vision LLM (Ollama, LM Studio)",
+        "Offline geolocation from GPS",
+        "XMP sync with Lightroom, darktable, Capture One, digiKam",
+        "Import from Lightroom catalogs (.lrcat)",
+        "Support for 25+ RAW formats",
+        "Interface and generated content in 6 languages",
+        "100% offline: no image ever leaves the computer"
+      ],
+      "inLanguage": "en",
+      "sameAs": [
+        "https://github.com/HEGOM61ita/OffGallery"
+      ],
+      "isPartOf": {
+        "@id": "https://offgallery.app/#website"
+      }
+    }
+  ]
+}
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:           #f5f7fb;
+      --surface:      #ffffff;
+      --surface-2:    #eef3fb;
+      --text:         #0f172a;
+      --text-soft:    #475569;
+      --text-faint:   #64748b;
+      --line:         rgba(15,23,42,0.08);
+      --brand-navy:   #071b49;
+      --brand-blue:   #0a5bff;
+      --brand-cyan:   #22d3ee;
+      --shadow-sm:    0 8px 22px rgba(15,23,42,0.06);
+      --shadow-md:    0 18px 48px rgba(15,23,42,0.10);
+      --shadow-brand: 0 18px 42px rgba(7,27,73,0.20);
+      --radius-sm:    12px;
+      --radius-full:  999px;
+      --container:    1180px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: "Inter", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(34,211,238,0.08), transparent 30%),
+        linear-gradient(180deg, #f8fbff 0%, #f4f7fc 100%);
+      color: var(--text); line-height: 1.6;
+      padding-left: 100px;
+    }
+    img { display: block; max-width: 100%; height: auto; }
+    a { color: inherit; text-decoration: none; }
+    .container { width: min(var(--container), calc(100% - 32px)); margin: 0 auto; }
+
+    /* ── SIDENAV ── */
+    .sidenav {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: 100px; z-index: 200;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 18px 0 24px;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(16px);
+      border-right: 1px solid var(--line);
+      box-shadow: 2px 0 18px rgba(7,27,73,0.06);
+    }
+    .sidenav-logo {
+      display: flex; align-items: center; justify-content: center;
+      width: 44px; height: 44px; border-radius: 14px;
+      background: var(--brand-navy);
+      box-shadow: 0 6px 18px rgba(7,27,73,0.28);
+      margin-bottom: 10px; flex-shrink: 0;
+    }
+    .sidenav-logo img { height: 26px; width: auto; }
+    .sidenav-divider {
+      width: 28px; height: 1px;
+      background: var(--line); margin: 8px 0 12px;
+      flex-shrink: 0;
+    }
+    .sidenav-items {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 4px;
+      flex: 1; width: 100%;
+    }
+    .sidenav-item {
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      width: 76px; height: 76px; border-radius: 18px;
+      color: var(--text-faint);
+      transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+      cursor: pointer;
+    }
+    .sidenav-item svg {
+      width: 44px; height: 44px;
+      stroke: currentColor; fill: none;
+      stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
+      transition: stroke 0.18s;
+    }
+    .sidenav-item:hover,
+    .sidenav-item.active {
+      background: rgba(10,91,255,0.08);
+      color: var(--brand-blue);
+      box-shadow: 0 0 0 1px rgba(10,91,255,0.12);
+    }
+    .sidenav-item.active {
+      background: rgba(10,91,255,0.13);
+    }
+    /* dot indicatore voce attiva */
+    .sidenav-item.active::before {
+      content: '';
+      position: absolute; left: -1px; top: 50%; transform: translateY(-50%);
+      width: 3px; height: 22px; border-radius: 0 3px 3px 0;
+      background: var(--brand-blue);
+    }
+    /* tooltip */
+    .sidenav-item .sn-tip {
+      pointer-events: none;
+      position: absolute; left: 88px; top: 50%; transform: translateY(-50%);
+      white-space: nowrap;
+      background: var(--brand-navy); color: #fff;
+      font-size: 0.78rem; font-weight: 600; letter-spacing: 0.01em;
+      padding: 6px 12px; border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(7,27,73,0.22);
+      opacity: 0; translate: -6px 0;
+      transition: opacity 0.18s, translate 0.18s;
+    }
+    .sidenav-item .sn-tip::before {
+      content: '';
+      position: absolute; right: 100%; top: 50%; transform: translateY(-50%);
+      border: 5px solid transparent;
+      border-right-color: var(--brand-navy);
+    }
+    .sidenav-item:hover .sn-tip {
+      opacity: 1; translate: 0 0;
+    }
+    /* highlight accent sul tooltip */
+    .sidenav-item:hover .sn-tip { background: var(--brand-blue); }
+    .sidenav-item:hover .sn-tip::before { border-right-color: var(--brand-blue); }
+
+    /* Mobile: barra orizzontale in basso */
+    @media (max-width: 768px) {
+      body { padding-left: 0; padding-bottom: 64px; }
+      .sidenav {
+        top: auto; bottom: 0; left: 0; right: 0;
+        width: 100%; height: 64px;
+        flex-direction: row; justify-content: space-around;
+        padding: 0 8px;
+        border-right: none; border-top: 1px solid var(--line);
+        box-shadow: 0 -2px 18px rgba(7,27,73,0.07);
+      }
+      .sidenav-logo, .sidenav-divider { display: none; }
+      .sidenav-items { flex-direction: row; gap: 0; justify-content: space-around; width: 100%; }
+      .sidenav-item { width: 64px; height: 64px; }
+      .sidenav-item .sn-tip {
+        left: 50%; translate: -50% 0;
+        top: auto; bottom: 58px; transform: none;
+      }
+      .sidenav-item:hover .sn-tip { translate: -50% 0; }
+      .sidenav-item .sn-tip::before {
+        right: auto; left: 50%; top: 100%; transform: translateX(-50%);
+        border-right-color: transparent;
+        border-top-color: var(--brand-blue);
+        border-bottom: none;
+      }
+      .sidenav-item.active::before { display: none; }
+    }
+
+    /* ── HEADER ── */
+    .site-header {
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(16px);
+      background: rgba(255,255,255,0.92);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav {
+      min-height: 120px;
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 24px;
+    }
+    .nav-left { display: flex; align-items: center; gap: 36px; min-width: 0; }
+    .brand { display: inline-flex; align-items: center; gap: 18px; flex: 0 0 auto; }
+    .brand-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 14px 22px; border-radius: 18px;
+      background: var(--brand-navy); box-shadow: var(--shadow-brand);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .brand-badge img { height: 72px; width: auto; max-width: none; }
+    .brand-meta { display: flex; flex-direction: column; gap: 4px; }
+    .brand-name { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
+    .brand-subtitle { font-size: 0.84rem; color: var(--text-faint); }
+.nav-actions { display: flex; align-items: center; gap: 10px; }
+
+    /* ── LANG TOGGLE ── */
+    .lang-toggle {
+      display: inline-flex; align-items: center; gap: 7px;
+      min-height: 40px; padding: 0 14px;
+      border-radius: var(--radius-full);
+      font-weight: 600; font-size: 0.85rem;
+      border: 1px solid var(--line); background: var(--surface);
+      color: var(--text-soft); cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      font-family: "Inter", sans-serif; transition: 180ms ease;
+    }
+    .lang-toggle:hover { color: var(--brand-blue); border-color: rgba(10,91,255,0.2); }
+    .lang-toggle svg { flex-shrink: 0; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 48px; padding: 0 22px;
+      border-radius: var(--radius-full);
+      font-weight: 600; font-size: 0.95rem;
+      transition: 180ms ease; border: 1px solid transparent; white-space: nowrap;
+    }
+    .btn-secondary {
+      background: var(--surface); border-color: var(--line);
+      color: var(--text); box-shadow: var(--shadow-sm);
+    }
+    .btn-secondary:hover { border-color: rgba(10,91,255,0.18); color: var(--brand-blue); }
+    .btn-primary {
+      background: linear-gradient(180deg, #0d67ff 0%, #084ce0 100%);
+      color: white; box-shadow: 0 14px 28px rgba(10,91,255,0.24);
+    }
+    .btn-primary:hover { transform: translateY(-1px); }
+
+    /* ── HERO ── */
+    .hero { padding: 52px 0 40px; }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0,1.2fr) minmax(320px,430px);
+      gap: 36px; align-items: start;
+    }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 8px 14px; border-radius: var(--radius-full);
+      background: rgba(10,91,255,0.08); color: #1145b5;
+      font-size: 0.86rem; font-weight: 600; margin-bottom: 18px;
+    }
+
+    /* hero-notes sopra il titolo */
+    .hero-notes {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 20px;
+    }
+    .hero-notes span {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 7px 14px; border-radius: var(--radius-full);
+      font-size: 0.86rem; font-weight: 500;
+      border: 1px solid rgba(15,23,42,0.07);
+    }
+    .note-privacy  { background: #e8f4e8; color: #2d6a2d; }
+    .note-ai       { background: #e8eeff; color: #1a3acc; }
+    .note-oss      { background: #fff4e0; color: #7a4a00; }
+
+    .hero h1 {
+      font-size: clamp(1.9rem, 3.6vw, 3.2rem);
+      line-height: 1.05; letter-spacing: -0.04em;
+      max-width: 16ch; margin-bottom: 18px;
+    }
+    .hero h1 .accent { color: var(--brand-blue); }
+    .hero-lead {
+      font-size: clamp(0.98rem, 1.2vw, 1.08rem);
+      color: var(--text-soft); max-width: 58ch; margin-bottom: 28px;
+    }
+    .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+
+    /* ── DOWNLOAD CARD ── */
+    .download-card {
+      position: relative; overflow: hidden;
+      padding: 28px; border-radius: 24px;
+      background: linear-gradient(180deg, #0c3d97 0%, #071b49 100%);
+      color: white; box-shadow: var(--shadow-brand);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .download-card::before {
+      content: ""; position: absolute;
+      inset: auto -40px -50px auto; width: 180px; height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(34,211,238,0.28), transparent 70%);
+    }
+    .download-label {
+      font-size: 0.78rem; text-transform: uppercase;
+      letter-spacing: 0.11em; color: rgba(255,255,255,0.65); margin-bottom: 12px;
+    }
+    .download-card h2 {
+      font-size: clamp(1.3rem, 1.9vw, 1.8rem); line-height: 1.1;
+      letter-spacing: -0.03em; margin-bottom: 12px; max-width: 14ch;
+    }
+    .download-card p { color: rgba(255,255,255,0.82); font-size: 0.94rem; margin-bottom: 18px; max-width: 32ch; }
+    .download-meta { display: grid; gap: 10px; margin: 16px 0 20px; }
+    .download-meta div {
+      display: flex; justify-content: space-between; gap: 12px;
+      font-size: 0.9rem; padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .download-meta span:first-child { color: rgba(255,255,255,0.60); }
+    .download-meta strong { color: #fff; font-weight: 600; }
+    .download-card .btn-dl {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; min-height: 48px;
+      background: #ffffff; color: var(--brand-navy);
+      border: none; border-radius: var(--radius-full);
+      font-weight: 700; font-size: 0.96rem;
+      font-family: "Inter", sans-serif; cursor: pointer;
+      transition: 180ms ease; text-decoration: none;
+    }
+    .download-card .btn-dl:hover { background: #eaf1ff; }
+
+    /* ── DONATE BAND ── */
+    .donate-band {
+      margin-top: 18px; padding: 20px 24px;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 18px; text-align: center;
+    }
+    .donate-band p {
+      font-size: 0.88rem; color: rgba(255,255,255,0.85);
+      margin-bottom: 12px; line-height: 1.5;
+    }
+    .donate-band p strong { color: #fff; }
+    .btn-kofi {
+      display: inline-flex; align-items: center; gap: 8px;
+      min-height: 42px; padding: 0 22px;
+      background: #ff5e5b; color: white;
+      border: none; border-radius: var(--radius-full);
+      font-weight: 700; font-size: 0.9rem;
+      font-family: "Inter", sans-serif; cursor: pointer;
+      text-decoration: none; transition: 180ms ease;
+      box-shadow: 0 4px 12px rgba(255,94,91,0.22);
+      opacity: 0.85;
+    }
+    .btn-kofi:hover { transform: translateY(-1px); background: #ff4441; opacity: 1; }
+
+    /* ── TRUST STRIP ── */
+    .trust-strip { padding: 16px 0; }
+    .trust-panel {
+      background: rgba(255,255,255,0.7); border: 1px solid var(--line);
+      border-radius: 20px; padding: 16px 20px;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .trust-title {
+      font-size: 0.82rem; color: var(--text-faint);
+      font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+    }
+    .trust-list { display: flex; flex-wrap: wrap; gap: 10px; }
+    .trust-list span {
+      font-size: 0.9rem; font-weight: 500;
+      padding: 5px 14px; border-radius: var(--radius-full);
+      border: 1px solid rgba(15,23,42,0.07);
+    }
+    .trust-list span:nth-child(1) { background: #e8f4e8; color: #2d6a2d; }
+    .trust-list span:nth-child(2) { background: #e8eeff; color: #1a3acc; }
+    .trust-list span:nth-child(3) { background: #fff4e0; color: #7a4a00; }
+    .trust-list span:nth-child(4) { background: #fce8f3; color: #8b1a5a; }
+    .trust-list span:nth-child(5) { background: #e8f7ff; color: #0c5a8a; }
+    .trust-list span:nth-child(6) { background: #f0ffe8; color: #3a6a10; }
+
+    /* ── SECTION DIVIDER ── */
+    .section-divider {
+      width: 100%; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--line) 20%, var(--line) 80%, transparent);
+      margin: 0;
+    }
+
+    /* ── SECTIONS ── */
+    section { padding: 36px 0; }
+    .section-head { margin-bottom: 24px; max-width: 760px; }
+    .section-head h2 {
+      font-size: clamp(1.65rem, 2.5vw, 2.4rem);
+      line-height: 1.06; letter-spacing: -0.04em; margin-bottom: 10px;
+    }
+    .section-head p { color: var(--text-soft); font-size: 1rem; }
+
+    /* ── PROBLEM ── */
+    .problem-intro {
+      font-size: 0.92rem; font-weight: 600; color: var(--text-faint);
+      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px;
+    }
+    .problem-bullets {
+      padding-left: 1.2rem; color: var(--text-soft); font-size: 0.96rem;
+      margin-bottom: 24px; line-height: 1.7;
+    }
+    .problem-bullets li + li { margin-top: 4px; }
+    .problem-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+    .problem-card {
+      background: rgba(255,255,255,0.84); border: 1px solid var(--line);
+      border-radius: 22px; padding: 26px; box-shadow: var(--shadow-sm);
+    }
+    .problem-card h3 { font-size: 1.06rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 10px; }
+    .problem-card p { color: var(--text-soft); font-size: 0.94rem; }
+
+    /* ── FEATURE GRID ── */
+    .feature-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; }
+    .feature-card {
+      background: rgba(255,255,255,0.84); border: 1px solid var(--line);
+      border-radius: 22px; padding: 26px; box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .feature-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .feature-icon { width: 40px; height: 40px; margin-bottom: 16px; color: var(--brand-blue); }
+    .feature-icon svg {
+      width: 100%; height: 100%; stroke: currentColor; fill: none;
+      stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .feature-kicker {
+      font-size: 0.74rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.12em; color: #3b5bcc; margin-bottom: 8px;
+    }
+    .feature-card h3 { font-size: 1.1rem; line-height: 1.2; margin-bottom: 8px; letter-spacing: -0.02em; }
+    .feature-card p { color: var(--text-soft); font-size: 0.93rem; }
+    .feature-footnote {
+      font-size: 0.76rem; color: var(--text-faint);
+      margin-top: 12px; padding-top: 10px;
+      border-top: 1px solid var(--line); line-height: 1.5;
+    }
+    .features-cta { margin-top: 28px; text-align: center; }
+
+    /* ── SCREENSHOTS ── */
+    .screenshot-main {
+      width: 100%; aspect-ratio: 16/9;
+      background: var(--surface-2); border: 1px solid var(--line);
+      border-radius: 18px; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-faint); font-size: 0.82rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      margin-bottom: 18px; box-shadow: var(--shadow-md);
+    }
+    .screenshot-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .screenshot-small {
+      aspect-ratio: 16/9; background: var(--surface-2);
+      border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-faint); font-size: 0.8rem;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      box-shadow: var(--shadow-sm);
+    }
+    .screenshot-main img, .screenshot-small img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* ── PLUGINS ── */
+    .plugins-intro { color: var(--text-soft); font-size: 0.96rem; max-width: 680px; margin-bottom: 24px; }
+    .plugins-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; }
+    .plugin-card {
+      background: rgba(255,255,255,0.84); border: 1px solid var(--line);
+      border-radius: 22px; padding: 26px; box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .plugin-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .plugin-icon { width: 36px; height: 36px; margin-bottom: 14px; color: var(--text-faint); }
+    .plugin-icon svg {
+      width: 100%; height: 100%; stroke: currentColor; fill: none;
+      stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .plugin-type {
+      font-size: 0.73rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.12em; color: #3b5bcc; margin-bottom: 8px;
+    }
+    .plugin-card h3 { font-size: 1.08rem; letter-spacing: -0.02em; margin-bottom: 8px; }
+    .plugin-card p { color: var(--text-soft); font-size: 0.91rem; }
+    .plugin-badge {
+      display: inline-block; margin-top: 14px;
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+      padding: 4px 12px; border-radius: var(--radius-full);
+      background: rgba(15,23,42,0.05); color: var(--text-faint);
+    }
+    .plugin-badge.beta {
+      background: rgba(10,91,255,0.08); color: var(--brand-blue);
+    }
+    .plugin-badge.beta { background: rgba(255,140,0,0.1); color: #c06800; }
+
+    /* ── Download plugin (link per Mac) ── */
+    .plugin-dl {
+      display: inline-flex; align-items: center; gap: 6px; margin-top: 14px;
+      font-size: 0.78rem; font-weight: 600;
+      padding: 6px 14px; border-radius: var(--radius-full);
+      background: rgba(10,91,255,0.08); color: var(--brand-blue);
+      text-decoration: none; transition: background 0.15s ease;
+    }
+    .plugin-dl:hover { background: rgba(10,91,255,0.16); }
+    .plugin-dl svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+    .plugin-dl .mac-note {
+      font-weight: 500; font-size: 0.72rem; color: var(--text-faint);
+      text-transform: none; letter-spacing: 0;
+    }
+
+    /* ── PLUGIN ACCESS BAND ── */
+    .plugin-access-band {
+      padding: 28px; border-radius: 24px;
+      background: rgba(255,255,255,0.7);
+      border: 1px solid var(--line); box-shadow: var(--shadow-sm);
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 22px; flex-wrap: wrap;
+    }
+    .plugin-access-band h3 { font-size: clamp(1.1rem, 1.8vw, 1.5rem); line-height: 1.15; margin-bottom: 6px; letter-spacing: -0.02em; }
+    .plugin-access-band p { color: var(--text-soft); max-width: 52ch; font-size: 0.95rem; }
+
+    /* ── CTA BAND ── */
+    .cta-band {
+      padding: 28px; border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(235,243,255,0.92));
+      border: 1px solid rgba(10,91,255,0.10); box-shadow: var(--shadow-md);
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 22px; flex-wrap: wrap;
+    }
+    .cta-band h3 { font-size: clamp(1.2rem, 2vw, 1.7rem); line-height: 1.1; margin-bottom: 6px; letter-spacing: -0.03em; }
+    .cta-band p { color: var(--text-soft); max-width: 52ch; }
+
+    /* ── FOOTER ── */
+    footer { padding: 36px 0 56px; }
+    .footer-inner {
+      border-top: 1px solid var(--line); padding-top: 28px;
+      display: grid; grid-template-columns: 1fr auto;
+      gap: 32px; align-items: start;
+    }
+    .footer-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .footer-brand-badge { padding: 7px 12px; border-radius: 12px; background: var(--brand-navy); }
+    .footer-brand-badge img { height: 26px; width: auto; max-width: none; }
+    .footer-brand-name { font-size: 1rem; font-weight: 700; color: var(--text); }
+    .footer-desc { color: var(--text-faint); font-size: 0.86rem; max-width: 360px; margin-bottom: 18px; }
+    .footer-links { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 18px; }
+    .footer-links a { font-size: 0.86rem; color: var(--text-faint); font-weight: 500; transition: color 0.15s; }
+    .footer-links a:hover { color: var(--brand-blue); }
+    .footer-legal { font-size: 0.78rem; color: var(--text-faint); }
+    .footer-donate { text-align: right; }
+    .footer-donate-label {
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-faint); margin-bottom: 8px;
+    }
+    .footer-donate p { font-size: 0.88rem; color: var(--text-soft); margin-bottom: 14px; line-height: 1.5; }
+
+    /* ── COMPARISON TABLE ── */
+    .comparison-section { padding: 56px 0 48px; }
+    .comparison-section .section-head { margin-bottom: 32px; }
+    .comparison-section .section-head p { margin-top: 8px; }
+    .comp-updated { font-size: 0.78rem; color: var(--text-faint); margin-top: 6px; }
+    .comp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
+    .comp-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; background: var(--surface); }
+    .comp-table thead tr { background: var(--brand-navy); color: #fff; }
+    .comp-table thead th { padding: 12px 16px; font-weight: 600; font-size: 0.82rem; text-align: center; border: none; letter-spacing: 0.02em; white-space: nowrap; }
+    .comp-table thead th:first-child { text-align: left; width: 32%; }
+    .comp-table thead th.col-og { background: #0a3baa; }
+    .comp-group th { background: #1e3a6e; color: #c8d8ff; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 16px; text-align: left; border: none; }
+    .comp-table tbody td { padding: 10px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; line-height: 1.4; color: var(--text-soft); }
+    .comp-table tbody td:first-child { color: var(--text); font-weight: 500; }
+    .comp-table tbody td:nth-child(2) { background: rgba(10,91,255,0.04); border-left: 2px solid var(--brand-blue); border-right: 2px solid rgba(10,91,255,0.15); }
+    .comp-table tbody tr:last-child td { border-bottom: none; }
+    .comp-table tbody tr:hover td { background: var(--surface-2); }
+    .comp-table tbody tr:hover td:nth-child(2) { background: rgba(10,91,255,0.08); }
+    .comp-table small { font-size: 0.75rem; color: var(--text-faint); display: block; margin-top: 2px; }
+    .ct-yes  { color: #16a34a; font-weight: 700; }
+    .ct-no   { color: #dc2626; font-weight: 700; }
+    .ct-part { color: #d97706; font-weight: 700; }
+    .ct-excl { display: inline-block; font-size: 0.7rem; font-weight: 700; color: #7c3aed; background: #f3e8ff; border-radius: 4px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; white-space: nowrap; }
+    .comp-legend { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 14px; font-size: 0.8rem; color: var(--text-faint); align-items: center; }
+    .comp-legend span { display: flex; align-items: center; gap: 5px; }
+    .comp-note { margin-top: 14px; font-size: 0.78rem; color: var(--text-faint); line-height: 1.7; border-top: 1px solid var(--line); padding-top: 12px; }
+    .comp-note strong { color: var(--text-soft); }
+    .comp-plugin-callout {
+      margin-bottom: 28px;
+      padding: 20px 24px;
+      background: linear-gradient(135deg, rgba(10,91,255,0.06) 0%, rgba(124,58,237,0.06) 100%);
+      border: 1px solid rgba(10,91,255,0.18);
+      border-left: 4px solid var(--brand-blue);
+      border-radius: var(--radius-sm);
+    }
+    .comp-plugin-callout h3 { font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .comp-plugin-callout p { font-size: 0.875rem; color: var(--text-soft); line-height: 1.6; margin-bottom: 10px; }
+    .comp-plugin-callout .excl-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .comp-plugin-callout .excl-pill {
+      font-size: 0.78rem; font-weight: 600;
+      color: #7c3aed; background: #f3e8ff;
+      border-radius: var(--radius-full); padding: 3px 10px;
+    }
+    .comp-plugin-callout a.comp-plugin-link {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.82rem; font-weight: 600; color: var(--brand-blue);
+      text-decoration: none; transition: opacity 0.15s;
+    }
+    .comp-plugin-callout a.comp-plugin-link:hover { opacity: 0.75; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 1080px) {
+      .hero-grid, .feature-grid, .plugins-grid, .problem-grid { grid-template-columns: 1fr; }
+      .footer-inner { grid-template-columns: 1fr; }
+      .footer-donate { text-align: left; }
+    }
+    @media (max-width: 720px) {
+      .container { width: min(var(--container), calc(100% - 20px)); }
+      .hero { padding-top: 28px; }
+      .screenshot-row { grid-template-columns: 1fr; }
+      .brand-badge img { height: 52px; }
+      .hero-actions .btn, .nav-actions .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── SIDENAV ── -->
+<nav class="sidenav" aria-label="Side navigation">
+  <a href="#" class="sidenav-logo" aria-label="Home">
+    <img src="../assets/logo3.jpg" alt="OffGallery" />
+  </a>
+  <div class="sidenav-divider"></div>
+  <div class="sidenav-items">
+
+    <!-- Home -->
+    <a href="#" class="sidenav-item active" id="sn-home">
+      <svg viewBox="0 0 24 24">
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H15v-5h-6v5H4a1 1 0 0 1-1-1V9.5z"/>
+      </svg>
+      <span class="sn-tip" data-i18n="nav_home">Home</span>
+    </a>
+
+    <!-- Funzionalità -->
+    <a href="#features" class="sidenav-item" id="sn-features">
+      <svg viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+        <path d="M17.5 14v6M14.5 17h6"/>
+      </svg>
+      <span class="sn-tip" data-i18n="nav_features">Features</span>
+    </a>
+
+    <!-- Plugin -->
+    <a href="#plugins" class="sidenav-item" id="sn-plugins">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 2l2.5 4.5H20l-4 3.5 1.5 5.5L12 13l-5.5 2.5L8 10 4 6.5h5.5L12 2z"/>
+      </svg>
+      <span class="sn-tip" data-i18n="nav_plugins">Plugins</span>
+    </a>
+
+    <!-- Plugin -->
+    <a href="#beta" class="sidenav-item" id="sn-beta">
+      <svg viewBox="0 0 24 24">
+        <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>
+      </svg>
+      <span class="sn-tip" data-i18n="nav_beta">Plugins</span>
+    </a>
+
+    <!-- Tutte le funzionalità -->
+    <a href="features.html" class="sidenav-item" id="sn-allfeatures">
+      <svg viewBox="0 0 24 24">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <path d="M9 12h6M9 16h4"/>
+      </svg>
+      <span class="sn-tip" data-i18n="nav_allfeatures">All features</span>
+    </a>
+
+    <!-- Manuale utente -->
+    <a href="../USER_MANUAL_EN.html" class="sidenav-item" id="sn-manual">
+      <svg viewBox="0 0 24 24">
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+      </svg>
+      <span class="sn-tip" data-i18n="nav_manual">Manual</span>
+    </a>
+
+    <!-- Crediti -->
+    <a href="credits.html" class="sidenav-item" id="sn-credits">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+      <span class="sn-tip" data-i18n="nav_credits">Credits</span>
+    </a>
+
+  </div>
+</nav>
+
+<!-- ── HEADER ── -->
+<header class="site-header">
+  <div class="container nav">
+    <div class="nav-left">
+      <a href="#" class="brand" aria-label="OffGallery Home">
+        <span class="brand-badge">
+          <img src="../assets/logo3.jpg" alt="OffGallery logo" width="866" height="402" loading="eager" />
+        </span>
+        <span class="brand-meta">
+          <span class="brand-name">OffGallery</span>
+          <span class="brand-subtitle" data-i18n="brand_subtitle">Photo cataloging with local AI, offline</span>
+        </span>
+      </a>
+    </div>
+    <div class="nav-actions">
+      <button class="lang-toggle" id="langToggle" aria-label="Change language">
+        <!-- mostra la lingua di destinazione (EN quando si è in IT) -->
+        <svg id="flagIcon" width="22" height="15" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="40" fill="#012169"/>
+          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="8"/>
+          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="4.8"/>
+          <path d="M30,0 V40 M0,20 H60" stroke="#fff" stroke-width="13.3"/>
+          <path d="M30,0 V40 M0,20 H60" stroke="#C8102E" stroke-width="8"/>
+        </svg>
+        <span id="langLabel">EN</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ── HERO ── -->
+<main>
+  <section class="hero">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <!-- note SOPRA il titolo -->
+        <div class="hero-notes">
+          <span class="note-privacy" data-i18n="note1">✓ No photo ever uploaded online</span>
+          <span class="note-ai" data-i18n="note2">✓ AI models run locally</span>
+          <span class="note-oss" data-i18n="note3">✓ Open source project under AGPLv3 licence + extensions</span>
+        </div>
+
+        <h1 data-i18n="hero_title">Your archive.<br /><span class="accent">Your AI.</span><br />Zero cloud.</h1>
+        <p class="hero-lead" data-i18n="hero_sub">Six local AI models. Combined semantic search + tags + EXIF. Hierarchical metadata with automatic recognition of flora, fauna and geolocation. Automatic aesthetic and technical image scoring. Full statistics. Customisable AI prompts. Sync with Lightroom/darktable etc. via XMP. Scalable on any hardware because fully configurable. Parametric data and photo export. Interface, generated texts and searches configurable in multiple languages. Optimised workflow.</p>
+      </div>
+
+      <aside class="download-card" id="scarica">
+        <div class="download-label" data-i18n="dl_label">Download OffGallery</div>
+        <h2 data-i18n="dl_title">One double-click. Everything installed.</h2>
+        <p data-i18n="dl_body">OffGallerySetup installs Miniconda, Python, libraries and AI models (~8 GB) automatically. No terminal, no manual configuration.</p>
+        <div class="download-meta">
+          <div><span data-i18n="dl_platform">Platform</span><strong data-i18n="dl_platform_val">Windows · macOS · Linux</strong></div>
+          <div><span data-i18n="dl_lang">Languages</span><strong data-i18n="dl_lang_val">IT · EN · FR · DE · ES · PT</strong></div>
+          <div><span data-i18n="dl_license">License</span><strong>AGPLv3 · Open source</strong></div>
+        </div>
+        <a class="btn-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup.exe"><svg width="16" height="16" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:7px;flex-shrink:0"><rect x="0" y="0" width="10" height="10" fill="#F35325"/><rect x="12" y="0" width="10" height="10" fill="#81BC06"/><rect x="0" y="12" width="10" height="10" fill="#05A6F0"/><rect x="12" y="12" width="10" height="10" fill="#FFBA08"/></svg><span data-i18n="dl_btn_win">⬇ OffGallerySetup.exe — Windows</span></a>
+        <a class="btn-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup" style="margin-top:8px"><svg width="13" height="16" viewBox="0 0 26 30" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:7px;flex-shrink:0"><ellipse cx="13" cy="8" rx="8" ry="8" fill="#1a1a1a"/><circle cx="9.5" cy="6.5" r="2.2" fill="#ffcc00"/><circle cx="16.5" cy="6.5" r="2.2" fill="#ffcc00"/><circle cx="10" cy="7" r="1" fill="#1a1a1a"/><circle cx="17" cy="7" r="1" fill="#1a1a1a"/><ellipse cx="13" cy="11.5" rx="3" ry="2" fill="#ff8c00"/><ellipse cx="13" cy="22" rx="10" ry="9" fill="#1a1a1a"/><ellipse cx="13" cy="24" rx="6" ry="7" fill="#f0efe6"/><ellipse cx="8" cy="29" rx="4" ry="1.6" fill="#ff8c00" transform="rotate(-15 8 29)"/><ellipse cx="18" cy="29" rx="4" ry="1.6" fill="#ff8c00" transform="rotate(15 18 29)"/></svg><span data-i18n="dl_btn_linux">⬇ OffGallerySetup — Linux</span></a>
+        <a class="btn-dl" href="https://github.com/HEGOM61ita/OffGallery/archive/refs/heads/main.zip" style="margin-top:8px"><svg width="13" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:7px;flex-shrink:0"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" fill="#333"/></svg><span data-i18n="dl_btn_other">⬇ macOS — ZIP + install script</span></a>
+        <p style="margin-top:12px;font-size:0.78rem;color:rgba(255,255,255,0.5)" data-i18n="dl_smartscreen_note">Windows: if SmartScreen shows a warning, click "More info" → "Run anyway".</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ── TRUST STRIP ── -->
+  <section class="trust-strip">
+    <div class="container">
+      <div class="trust-panel">
+        <div class="trust-title" data-i18n="trust_for">Built for</div>
+        <div class="trust-list">
+          <span data-i18n="trust1">Advanced amateurs</span>
+          <span data-i18n="trust2">Professional photographers</span>
+          <span data-i18n="trust3">Large RAW archives</span>
+          <span data-i18n="trust4">Workflow flexibility</span>
+          <span data-i18n="trust6">Lightroom compatibility &amp; more</span>
+          <span data-i18n="trust5">Wildlife &amp; botany</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <!-- ── PROBLEM ── -->
+  <section id="problem">
+    <div class="container">
+      <div class="section-head">
+        <p class="problem-intro" data-i18n="problem_title">Your photos: why should they end up on someone else's server?</p>
+        <ul class="problem-bullets" data-i18n="problem_sub"><li>Cloud services catalog your images remotely. OffGallery does everything locally.</li><li>Let your computer handle the cataloging task.</li><li>With the right plugins, customize your system and add new features.</li></ul>
+      </div>
+      <div class="problem-grid">
+        <div class="problem-card">
+          <h3 data-i18n="prob1_title">Cloud = loss of control</h3>
+          <p data-i18n="prob1_body">AI cataloging cloud services upload your images to remote servers. Your subjects, your locations, your clients — metadata extracted far from your eyes.</p>
+        </div>
+        <div class="problem-card">
+          <h3 data-i18n="prob2_title">Subscriptions and lock-in</h3>
+          <p data-i18n="prob2_body">You pay every month for features that might disappear. The day you stop paying, you lose access to your own cataloged data.</p>
+        </div>
+        <div class="problem-card">
+          <h3 data-i18n="prob3_title">You search by keywords, you find frustration.</h3>
+          <p data-i18n="prob3_body">Most software searches by filename or manual tags. OffGallery understands visual content: "sunset reflected on water" finds the right photos, even without keywords (tags).</p>
+        </div>
+        <div class="problem-card">
+          <h3 data-i18n="prob4_title">The alternative exists.</h3>
+          <p data-i18n="prob4_body">Next-generation AI models run locally on consumer hardware. OffGallery orchestrates them all — CLIP, DINOv2, BioCLIP, LLM vision — with no internet connection.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <!-- ── FEATURES ── -->
+  <section id="features">
+    <div class="container">
+      <div class="section-head">
+        <h2 data-i18n="feat_title">Six tools. One for every real problem.</h2>
+        <p data-i18n="feat_sub">Six core features, all running locally on your hardware.</p>
+      </div>
+      <div class="feature-grid">
+
+        <article class="feature-card" style="border:2px solid #5b6ef5;position:relative">
+          <div style="position:absolute;top:12px;right:12px;background:#5b6ef5;color:#fff;font-size:0.7rem;font-weight:700;padding:3px 8px;border-radius:20px;letter-spacing:0.05em" data-i18n="f0_badge">NEW</div>
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+          <div class="feature-kicker" data-i18n="f0_kicker">Installation</div>
+          <h3 data-i18n="f0_title">One-click on Windows and Linux</h3>
+          <p data-i18n="f0_body"><a href="https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup.exe" style="color:#5b6ef5;font-weight:600">OffGallerySetup.exe</a> (Windows) and <a href="https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup" style="color:#5b6ef5;font-weight:600">OffGallerySetup</a> (Linux) install everything automatically: Miniconda, Python, libraries and AI models (~8 GB). No terminal. No manual setup.</p>
+          <p class="feature-footnote" data-i18n="f0_note">macOS: guided script in the installer/ folder.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <div class="feature-kicker" data-i18n="f1_kicker">Privacy</div>
+          <h3 data-i18n="f1_title">100% offline and private</h3>
+          <p data-i18n="f1_body">No photo ever uploaded online. All AI models run locally. After the first download, OffGallery works without an internet connection.*</p>
+          <p class="feature-footnote" data-i18n="f1_note">* Except the initial AI model installation (~6 GB, one-time) and, if required, some plugins.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div>
+          <div class="feature-kicker" data-i18n="f2_kicker">AI</div>
+          <h3 data-i18n="f2_title">Multi-model AI</h3>
+          <p data-i18n="f2_body">CLIP for semantic search, DINOv2 for visual similarity, BioCLIP for ~450,000 biological species, local LLM vision for automatic titles and tags, Aesthetic scorer and MUSIQ for technical and aesthetic quality.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+          <div class="feature-kicker" data-i18n="f3_kicker">Integration</div>
+          <h3 data-i18n="f3_title">Lightroom integration</h3>
+          <p data-i18n="f3_body">Import .lrcat catalogs and sync tags, ratings and metadata via XMP sidecars compatible with Lightroom, Capture One and any DAM supporting the standard.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+          <div class="feature-kicker" data-i18n="f4_kicker">Search</div>
+          <h3 data-i18n="f4_title">Semantic search</h3>
+          <p data-i18n="f4_body">Search by concept: "child running on the beach", "birds in flight at sunset". The query is understood and matched against the visual content of every image.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+          <div class="feature-kicker" data-i18n="f5_kicker">Plugins</div>
+          <h3 data-i18n="f5_title">Plugin ecosystem</h3>
+          <p data-i18n="f5_body">Extensible architecture via plugins. Choose your LLM backend between Ollama and LM Studio, and enrich functionality with specialized modules like BioNomen.</p>
+        </article>
+
+      </div>
+      <div class="features-cta">
+        <a href="features.html" class="btn btn-secondary" data-i18n="feat_cta">Technical documentation</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <!-- ── COMPARISON TABLE ── -->
+  <section id="comparison" class="comparison-section">
+    <div class="container">
+      <div class="section-head">
+        <h2>OffGallery vs. the competition</h2>
+        <p style="color:var(--text-soft);font-size:1rem;">An honest comparison, based on source code and official documentation.</p>
+        <p class="comp-updated">Updated May 13, 2026 — Immich · digiKam · Mylio Photos</p>
+      </div>
+
+      <div class="comp-plugin-callout">
+        <h3>★ Exclusive features available through plugins</h3>
+        <p>Some of OffGallery's most unique capabilities are available through the plugin system. Among them, the <strong>AI generator of specialized prompts for producing tags, titles and descriptions</strong>, tailored to specific needs: just describe the required properties in natural language and the AI will build an optimized prompt, replacing the standard one, to guide the Vision LLM in producing tags, titles and descriptions for the submitted images — a feature that does not exist in any other photo cataloging software.</p>
+        <div class="excl-list">
+          <span class="excl-pill">AI generator of specialized prompts for Vision LLMs</span>
+          <span class="excl-pill">Multilingual biological common names (BioNomen)</span>
+          <span class="excl-pill">Geographic data from public databanks</span>
+          <span class="excl-pill">Swappable LLM backend (Ollama · LM Studio)</span>
+        </div>
+        <a href="#plugins" class="comp-plugin-link">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+          Discover all plugins →
+        </a>
+      </div>
+
+      <div class="comp-scroll">
+        <table class="comp-table">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th class="col-og">OffGallery</th>
+              <th>Immich</th>
+              <th>digiKam</th>
+              <th>Mylio Photos</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- RICERCA -->
+            <tr class="comp-group"><th colspan="5">Search and Retrieval</th></tr>
+            <tr>
+              <td>Natural-language semantic search<small>("sunset over the sea with a boat")</small></td>
+              <td><span class="ct-yes">✅</span> <strong>SigLIP so400m</strong> <small>(Google, 400M params, multilingual)</small></td>
+              <td><span class="ct-yes">✅</span> CLIP <small>(ViT-B/32, 151M params — EN only)</small></td>
+              <td><span class="ct-no">❌</span> keyword/tag only</td>
+              <td><span class="ct-part">⚠</span> Proprietary SmartTags, no free-text query</td>
+            </tr>
+            <tr>
+              <td>Semantic / text balance slider<small>(SigLIP weight vs tag/description/title — "Deep Search")</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ EXCLUSIVE</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Native multilingual semantic search<small>(SigLIP understands Italian, English and other languages — no translation needed)</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Deep-learning visual similarity search<small>("find photos similar to this one")</small></td>
+              <td><span class="ct-yes">✅</span> DINOv2</td>
+              <td><span class="ct-yes">✅</span> CLIP-based</td>
+              <td><span class="ct-part">⚠</span> Haar/Wavelets (not deep learning)</td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>AI quality filter<small>(aesthetic score + technical score)</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Structured geographic hierarchy search<small>(Continent › Country › Region › City)</small></td>
+              <td><span class="ct-yes">✅</span> hierarchical GeOFF</td>
+              <td><span class="ct-part">⚠</span> by place, unstructured</td>
+              <td><span class="ct-part">⚠</span> GPS/map, no hierarchy</td>
+              <td><span class="ct-part">⚠</span> drag-and-drop map</td>
+            </tr>
+            <!-- AI -->
+            <tr class="comp-group"><th colspan="5">AI and Automatic Analysis</th></tr>
+            <tr>
+              <td>Automatic biological taxonomy<small>(7 levels, ~450,000 flora/fauna species — BioCLIP v2)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ EXCLUSIVE</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Automatic natural-language description and title<small>(local Vision LLM via Ollama/LMStudio)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ EXCLUSIVE</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Configurable LLM output language<small>(tags/descriptions/titles in the user's chosen language)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ EXCLUSIVE</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Aesthetic score + Technical score AI</td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>AI-guided culling<small>(filter by AI score + stars + color; DINOv2 "find similar" with threshold and session window; savable presets for repeatable workflows)</small></td>
+              <td><span class="ct-yes">✅</span> AI-guided</td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Offline reverse geocoding<small>(GPS → Continent/Country/City without external APIs)</small></td>
+              <td><span class="ct-yes">✅</span> reverse_geocoder bundled</td>
+              <td><span class="ct-part">⚠</span> requires initial connection</td>
+              <td><span class="ct-part">⚠</span> uses an online service</td>
+              <td><span class="ct-yes">✅</span> offline</td>
+            </tr>
+            <!-- PRIVACY -->
+            <tr class="comp-group"><th colspan="5">Privacy and Architecture</th></tr>
+            <tr>
+              <td>Images never leave the device<small>(no photo is sent to external services — some plugins may make one-off requests to public databanks to enrich metadata)</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-yes">✅</span> self-hosted</td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-yes">✅</span> <small>[*1]</small></td>
+            </tr>
+            <tr>
+              <td>No mandatory subscription</td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-yes">✅</span> open source</td>
+              <td><span class="ct-yes">✅</span> open source</td>
+              <td><span class="ct-no">❌</span> monthly subscription</td>
+            </tr>
+            <tr>
+              <td>Extensible plugin architecture</td>
+              <td><span class="ct-yes">✅</span> native plugin system</td>
+              <td><span class="ct-part">⚠</span> limited</td>
+              <td><span class="ct-yes">✅</span> C++/Python</td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <!-- METADATI -->
+            <tr class="comp-group"><th colspan="5">Metadata and Export</th></tr>
+            <tr>
+              <td>XMP read/write<small>(round-trip with Lightroom/Capture One/darktable)</small></td>
+              <td><span class="ct-yes">✅</span> with selective field preservation</td>
+              <td><span class="ct-yes">✅</span> <small>[*2]</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-yes">✅</span></td>
+            </tr>
+            <tr>
+              <td>Export with source selection independent of the gallery<small>(gallery, or directory/entire DB — no need to search first)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ EXCLUSIVE</span></td>
+              <td><span class="ct-part">⚠</span> automatic export on all files, no arbitrary selection</td>
+              <td><span class="ct-part">⚠</span> destination selection only</td>
+              <td><span class="ct-part">⚠</span> manual photo-by-photo selection</td>
+            </tr>
+            <tr>
+              <td>Metadata CSV export<small>(with GPS/EXIF exclusion for privacy)</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-part">⚠</span> tag hierarchy only</td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Lightroom Classic catalog import<small>(.lrcat — rating, color label, file paths)</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-part">⚠</span> files only, no catalog</td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <!-- CONFIGURAZIONE -->
+            <tr class="comp-group"><th colspan="5">Configuration</th></tr>
+            <tr>
+              <td>AI model allocation on CPU/GPU with VRAM budget<small>(per model, VRAM slider, automatic GPU detection)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ EXCLUSIVE</span> granular per model</td>
+              <td><span class="ct-part">⚠</span> GPU selection, workers — no VRAM budget</td>
+              <td><span class="ct-part">⚠</span> OpenCL on/off</td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Individual AI model selection<small>(any compatible model downloaded locally, enabled from the Config tab)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ EXCLUSIVE</span> no constraints</td>
+              <td><span class="ct-part">⚠</span> CLIP and face recognition — no LLM</td>
+              <td><span class="ct-no">❌</span> models not selectable</td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Configurable LLM backend<small>(Ollama or LMStudio, endpoint, model, advanced parameters, output language)</small></td>
+              <td><span class="ct-yes">✅</span><span class="ct-excl">★ EXCLUSIVE</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-no">❌</span></td>
+            </tr>
+            <tr>
+              <td>Numerically configurable search and similarity thresholds<small>(SigLIP threshold, DINOv2 threshold, max results, fuzzy matching on/off)</small></td>
+              <td><span class="ct-yes">✅</span></td>
+              <td><span class="ct-part">⚠</span> duplicate threshold only</td>
+              <td><span class="ct-no">❌</span></td>
+              <td><span class="ct-part">⚠</span> qualitative slider</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="comp-legend">
+        <span><span class="ct-yes">✅</span> Present and verified</span>
+        <span><span class="ct-part">⚠</span> Partial or limited</span>
+        <span><span class="ct-no">❌</span> Absent</span>
+        <span><span class="ct-excl">★ EXCLUSIVE</span> Not present in any competitor</span>
+      </div>
+      <div class="comp-note">
+        <strong>[*1]</strong> Mylio: local AI confirmed, but some sync features require a Mylio account. &nbsp;
+        <strong>[*2]</strong> Immich: XMP sidecar writing confirmed, but it cannot write in read-only libraries.<br>
+        <strong>Plugin privacy note:</strong> images never leave the device. Some plugins may make one-off requests to public databanks (e.g. GBIF, GeoNames) to enrich metadata — never to transmit photos.<br>
+        <strong>Verified sources:</strong> docs.immich.app · docs.digikam.org · manual.mylio.com · OffGallery source code.
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <!-- ── SCREENSHOTS ── -->
+  <section id="screenshots" class="screenshots-section">
+    <div class="container">
+      <div class="section-head">
+        <h2 data-i18n="ss_title">The interface.</h2>
+      </div>
+      <div class="screenshot-main">
+        <img src="../assets/Search.png" alt="OffGallery — Semantic search"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='none';" />
+        <span style="display:none"></span>
+      </div>
+      <div class="screenshot-row">
+        <div class="screenshot-small">
+          <img src="../assets/Gallery.png" alt="OffGallery — Gallery"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='none';" />
+          <span style="display:none"></span>
+        </div>
+        <div class="screenshot-small">
+          <img src="../assets/Processing.png" alt="OffGallery — Processing"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='none';" />
+          <span style="display:none"></span>
+        </div>
+      </div>
+      <div class="screenshot-row">
+        <div class="screenshot-small">
+          <img src="../assets/Stat.png" alt="OffGallery — Statistics"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='none';" />
+          <span style="display:none"></span>
+        </div>
+        <div class="screenshot-small">
+          <img src="../assets/Config.png" alt="OffGallery — Settings"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='none';" />
+          <span style="display:none"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <!-- ── PLUGINS ── -->
+  <section id="plugins">
+    <div class="container">
+      <div class="section-head">
+        <h2 data-i18n="plug_title">Extend OffGallery with specialized modules.</h2>
+        <p class="plugins-intro" data-i18n="plug_intro">Every plugin is auto-discovered at startup. Choose the LLM backend, activate only what you use — the others don't occupy VRAM.</p>
+      </div>
+      <div class="plugins-grid">
+
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_llm">LLM Backend</p>
+          <h3>Ollama LLM Vision</h3>
+          <p data-i18n="plug_ollama_body">Connect OffGallery to Ollama for natural language tag, title and description generation. Supports vision models like Qwen3-VL, LLaVA, Gemma3.</p>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/llm_ollama.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Download</span> <span class="mac-note" data-i18n="plug_dl_mac">(for Mac)</span>
+          </a>
+        </div>
+
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_llm">LLM Backend</p>
+          <h3>LM Studio</h3>
+          <p data-i18n="plug_lmstudio_body">Use LM Studio as a local LLM server with a GUI. Ideal for managing quantized vision models.</p>
+          <p style="font-size:0.78rem; color:var(--text-soft); margin-top:6px;" data-i18n="plug_lmstudio_credit">Plugin by Riccardo Merlotti</p>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/llm_lmstudio.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Download</span> <span class="mac-note" data-i18n="plug_dl_mac">(for Mac)</span>
+          </a>
+        </div>
+
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_bio">Nature photography</p>
+          <h3>BioNomen</h3>
+          <p data-i18n="plug_bionomen_body">A grey heron identified by BioCLIP automatically becomes "airone cenerino", "héron cendré", "Graureiher" — in all XMP sidecars, offline. GBIF data bundled, taxa selectable from configuration.</p>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/bionomen.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Download</span> <span class="mac-note" data-i18n="plug_dl_mac">(for Mac)</span>
+          </a>
+        </div>
+
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_bio">Nature photography</p>
+          <h3>GeoSpecies</h3>
+          <p data-i18n="plug_geospecies_body">Refines BioCLIP classification using only the species expected at the photo's GPS location. Narrows the field from ~450,000 global species to a relevant geographic subset, increasing taxonomic accuracy. Checklists downloaded from GBIF, then used offline.</p>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/geospecies.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Download</span> <span class="mac-note" data-i18n="plug_dl_mac">(for Mac)</span>
+          </a>
+        </div>
+
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_geo">Geographic data</p>
+          <h3>GeoNames</h3>
+          <p data-i18n="plug_geonames_body">Assigns GPS coordinates and precise geographic hierarchy (Continent › Country › Region › City) to millions of places using the GeoNames database. Replaces the built-in engine with superior accuracy for villages and hamlets.</p>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/geonames.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Download</span> <span class="mac-note" data-i18n="plug_dl_mac">(for Mac)</span>
+          </a>
+        </div>
+
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/><path d="M5 17a5 5 0 0 1 5-5h4a4 4 0 0 1 0 8H8a3 3 0 0 1 0-6"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_geo">Geographic data</p>
+          <h3>NaturArea</h3>
+          <p data-i18n="plug_natura_body">Identifies the protected area (WDPA/UNEP) and habitat type (ESA WorldCover) for each GPS-tagged photo. Filter by habitat or protected area directly from the search panel.</p>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/naturarea.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Download</span> <span class="mac-note" data-i18n="plug_dl_mac">(for Mac)</span>
+          </a>
+        </div>
+
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><path d="M17.5 19a4.5 4.5 0 1 0 0-9H17A7 7 0 1 0 6 17.7"/><path d="M12 13v8M9 18l3 3 3-3"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_geo">Geographic data</p>
+          <h3>Weather Context</h3>
+          <p data-i18n="plug_weather_body">Retrieves historical weather conditions at the time of the shot via Open-Meteo (temperature, wind, rain, snow…). Conditions are searchable from the search panel and visible on gallery image cards.</p>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/weather_context.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Download</span> <span class="mac-note" data-i18n="plug_dl_mac">(for Mac)</span>
+          </a>
+        </div>
+
+        <div class="plugin-card">
+          <div class="plugin-icon"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
+          <p class="plugin-type" data-i18n="plug_type_llm">LLM Backend</p>
+          <h3>Contesto Prompt</h3>
+          <p data-i18n="plug_prompt_body">Injects a custom CONTEXT block into the Vision-Language prompt to steer the model towards the archive's photographic domain. Built-in presets (nature, landscape, astro, macro, underwater, reportage…) and custom presets generated by the local model.</p>
+          <a class="plugin-dl" href="https://github.com/HEGOM61ita/OffGallery/releases/download/plugins-latest/prompt_context.zip">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span data-i18n="plug_dl_label">Download</span> <span class="mac-note" data-i18n="plug_dl_mac">(for Mac)</span>
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <!-- ── PLUGIN INSTALL ── -->
+  <section id="beta">
+    <div class="container">
+      <div class="plugin-access-band">
+        <div>
+          <h3 data-i18n="access_title">All plugins are free.</h3>
+          <p data-i18n="access_body"><strong>Windows and Linux:</strong> install the plugins directly from OffGallery's graphical installer, in the «Plugins» section.<br><strong>macOS:</strong> download the plugin zip from the «Download» button on its card above, then extract the folder into <code>plugins/</code> in your OffGallery installation. On first run each plugin downloads its own data (maps, databases) from its configuration.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <section>
+    <div class="container">
+      <div class="cta-band">
+        <div>
+          <h3 data-i18n="cta_title">Want to know exactly what it does?</h3>
+          <p data-i18n="cta_body">A page with every feature documented — models, formats, search filters, metadata.</p>
+        </div>
+        <a class="btn btn-primary" href="features.html" data-i18n="feat_cta">Technical documentation</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <span class="footer-brand-badge">
+            <img src="../assets/logo3.jpg" alt="OffGallery" width="866" height="402" loading="lazy" />
+          </span>
+          <span class="footer-brand-name">OffGallery</span>
+        </div>
+        <p class="footer-desc" data-i18n="footer_desc">Intelligent photo cataloging, offline and private. Open source, AGPLv3.</p>
+        <div class="footer-links">
+          <a href="https://github.com/HEGOM61ita/OffGallery" data-i18n="footer_github">GitHub</a>
+          <a href="features.html" data-i18n="footer_features">Features</a>
+          <a href="../USER_MANUAL_EN.html" id="footer-manual-link" data-i18n="footer_manual">User manual</a>
+          <a href="credits.html" data-i18n="footer_credits">Credits</a>
+          <a href="mailto:OffGallery.AI.info@gmail.com" data-i18n="footer_contact">Contact</a>
+        </div>
+        <p class="footer-legal">© 2025 OffGallery — <span data-i18n="footer_license">AGPLv3 License — Free software</span></p>
+      </div>
+      <div class="footer-donate">
+        <p class="footer-donate-label" data-i18n="donate_label">Support the project</p>
+        <p data-i18n="donate_footer_text">OffGallery is developed in free time.<br />A donation makes a difference.</p>
+        <a href="https://ko-fi.com/offgallery" class="btn-kofi" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+          <span data-i18n="donate_btn">Support on Ko-fi</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- ── I18N ── -->
+<script>
+  // SVG flag IT
+  const FLAG_IT = `<svg width="22" height="15" viewBox="0 0 22 15" xmlns="http://www.w3.org/2000/svg"><rect width="7.33" height="15" fill="#009246"/><rect x="7.33" width="7.34" height="15" fill="#fff"/><rect x="14.67" width="7.33" height="15" fill="#ce2b37"/></svg>`;
+  // SVG flag UK
+  const FLAG_EN = `<svg width="22" height="15" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#012169"/><path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="8"/><path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="4.8"/><path d="M30,0 V40 M0,20 H60" stroke="#fff" stroke-width="13.3"/><path d="M30,0 V40 M0,20 H60" stroke="#C8102E" stroke-width="8"/></svg>`;
+
+  const T = {
+    it: {
+      brand_subtitle:   "Catalogazione fotografica con AI locale, offline",
+      nav_home: "Home",
+      nav_features:     "Funzionalità", nav_plugins: "Plugin",
+      nav_beta:         "Plugin", nav_allfeatures: "Tutte le feature",
+      nav_manual:       "Manuale", nav_credits: "Crediti",
+      hero_eyebrow:     "",
+      hero_title:       "Il tuo archivio.<br /><span class=\"accent\">La tua AI.</span><br />Zero cloud.",
+      hero_sub:         "Sei modelli AI locali. Ricerca semantica + tag + EXIF combinati. Metadati gerarchici su riconoscimento automatico di flora, fauna e geolocalizzazione. Valutazione estetica e tecnica delle immagini. Statistiche complete. Prompt AI personalizzabili. Sync Lightroom/darktable, ecc. con XMP. Scalabile su qualsiasi hardware perché completamente configurabile. Export dati e foto parametrico. Interfaccia, testi generati e ricerche configurabili in più lingue. Workflow ottimizzato.",
+      hero_download:    "Scarica OffGallery", hero_github: "GitHub",
+      note1: "✓ Nessuna foto inviata online", note2: "✓ Modelli AI in locale", note3: "✓ Progetto opensource su licenza AGPLv3 + estensioni",
+      dl_label: "Scarica OffGallery",
+      dl_title: "Un doppio click. Tutto installato.",
+      dl_body: "OffGallerySetup installa Miniconda, Python, librerie e modelli AI (~8 GB) in automatico. Nessun terminale, nessuna configurazione manuale.",
+      dl_platform: "Piattaforma", dl_platform_val: "Windows · macOS · Linux",
+      dl_lang: "Lingue", dl_lang_val: "IT · EN · FR · DE · ES · PT",
+      dl_license: "Licenza",
+      dl_btn_win: "⬇ OffGallerySetup.exe — Windows",
+      dl_btn_linux: "⬇ OffGallerySetup — Linux",
+      dl_btn_other: "⬇ macOS — ZIP + script installazione",
+      dl_smartscreen_note: "Windows: se SmartScreen mostra un avviso, clicca \"Ulteriori informazioni\" → \"Esegui comunque\".",
+      donate_card_text: "<strong>OffGallery è gratuito.</strong><br />Se ti è utile, una donazione aiuta lo sviluppo.",
+      donate_btn: "Supporta su Ko-fi",
+      trust_for: "Adatto a",
+      trust1: "Fotoamatori evoluti", trust2: "Fotografi professionisti",
+      trust3: "Archivi RAW numerosi", trust4: "Flessibilità workflow",
+      trust6: "Compatibilità Lightroom e altri",
+      trust5: "Wildlife e botanica",
+      problem_title: "Le tue foto: perché dovrebbero finire su un server altrui?",
+      problem_sub: "<li>I servizi cloud catalogano le tue immagini a distanza. OffGallery fa tutto in locale.</li><li>Lascia il compito della catalogazione al tuo computer.</li><li>Con gli appositi plugin, personalizza il tuo sistema e aggiungi nuove funzionalità.</li>",
+      prob1_title: "Cloud = perdita di controllo",
+      prob1_body: "I servizi cloud di catalogazione AI caricano le tue immagini su server remoti. I tuoi soggetti, le tue location, i tuoi clienti: metadati estratti lontano dai tuoi occhi.",
+      prob2_title: "Abbonamenti e lock-in",
+      prob2_body: "Paghi ogni mese per funzionalità che potrebbero sparire. Il giorno in cui smetti di pagare, perdi l'accesso ai tuoi stessi dati catalogati.",
+      prob3_title: "Cerchi per parole chiave, trovi frustrazione.",
+      prob3_body: "La maggior parte dei software cerca per nome file o tag manuali. OffGallery capisce il contenuto visivo: \"tramonto con riflesso sull'acqua\" trova le foto giuste, anche senza keywords (tags).",
+      prob4_title: "L'alternativa esiste.",
+      prob4_body: "Modelli AI di nuova generazione girano in locale su hardware consumer. OffGallery li orchestra tutti — CLIP, DINOv2, BioCLIP, LLM vision — senza connessione internet.",
+      feat_title: "Sei strumenti. Uno per ogni problema reale.",
+      feat_sub: "Sei funzionalità core, tutte eseguite in locale sul tuo hardware.",
+      f0_badge: "NUOVO", f0_kicker: "Installazione",
+      f0_title: "One-click su Windows e Linux",
+      f0_body: "OffGallerySetup.exe (Windows) e OffGallerySetup (Linux) installano tutto in automatico: Miniconda, Python, librerie e modelli AI (~8 GB). Nessun terminale. Nessuna configurazione.",
+      f0_note: "macOS: script guidato nella cartella installer/.",
+      f1_kicker: "Privacy", f1_title: "100% offline e privato",
+      f1_body: "Nessuna foto caricata online, mai. Tutti i modelli AI girano in locale. Dopo il primo download, OffGallery funziona senza connessione internet.*",
+      f1_note: "* Eccetto l'installazione iniziale dei modelli AI (~6 GB, una tantum) e, se richiesto, alcuni plugin.",
+      f2_kicker: "AI", f2_title: "AI multi-modello",
+      f2_body: "CLIP per la ricerca semantica, DINOv2 per la similarità visiva, BioCLIP per ~450.000 specie biologiche, LLM vision locale per titoli e tag automatici, Aesthetic scorer e MUSIQ per la qualità tecnica ed estetica.",
+      f3_kicker: "Integrazione", f3_title: "Integrazione Lightroom",
+      f3_body: "Importa cataloghi .lrcat e sincronizza tag, rating e metadati via sidecar XMP compatibili con Lightroom, Capture One e qualsiasi DAM che supporti lo standard.",
+      f4_kicker: "Ricerca", f4_title: "Ricerca semantica",
+      f4_body: "Cerca per concetto: \"bambino che corre sulla spiaggia\", \"volatili in volo al tramonto\". La query viene compresa e confrontata con il contenuto visivo di ogni immagine.",
+      f5_kicker: "Plugin", f5_title: "Plugin ecosystem",
+      f5_body: "Architettura estendibile tramite plugin. Scegli il backend LLM tra Ollama e LM Studio, e arricchisci le funzionalità con moduli specializzati come BioNomen per la fotografia naturalistica.",
+      feat_cta: "Vai alla documentazione tecnica",
+      ss_title: "L'interfaccia.",
+      plug_title: "Estendi OffGallery con moduli specializzati.",
+      plug_intro: "Ogni plugin viene riconosciuto automaticamente all'avvio. Scegli il backend LLM, attiva solo quello che usi — gli altri non occupano VRAM.",
+      plug_type_llm: "Backend LLM", plug_type_bio: "Fotografia naturalistica", plug_type_geo: "Dati geografici",
+      plug_ollama_body: "Collega OffGallery a Ollama per generare tag, titoli e descrizioni. Supporta modelli vision come Qwen3-VL, LLaVA, Gemma3.",
+      plug_lmstudio_body: "Usa LM Studio come server LLM locale con interfaccia grafica. Ideale per gestire modelli vision quantizzati.",
+      plug_lmstudio_credit: "Plugin di Riccardo Merlotti",
+      plug_bionomen_body: "Un airone cenerino identificato da BioCLIP diventa automaticamente \"grey heron\", \"héron cendré\", \"Graureiher\" — in tutti i sidecar XMP, offline. Dati GBIF bundled, taxa selezionabili dalla configurazione.",
+      plug_geospecies_body: "Affina la classificazione BioCLIP usando solo le specie attese nella posizione GPS della foto. Restringe il campo da ~450.000 specie globali a un sottoinsieme geografico pertinente, aumentando la precisione tassonomica. Checklist scaricate da GBIF, poi usate offline.",
+      plug_geonames_body: "Assegna coordinate GPS e gerarchia geografica precisa (Continente › Paese › Regione › Città) a milioni di luoghi tramite il database GeoNames. Sostituisce il motore builtin con precisione superiore su borghi e frazioni.",
+      plug_natura_body: "Identifica l'area protetta (WDPA/UNEP) e il tipo di habitat (ESA WorldCover) per ogni foto con GPS. Filtra per habitat o area protetta direttamente dalla ricerca.",
+      plug_weather_body: "Recupera le condizioni meteo storiche allo scatto via Open-Meteo (temperatura, vento, pioggia, neve…). Le condizioni sono filtrabili dalla ricerca e visibili nelle imagecard della gallery.",
+      plug_prompt_body: "Inietta un blocco CONTEXT nel prompt Vision-Language per orientare il modello verso il dominio fotografico dell'archivio. Preset built-in (naturalistica, paesaggio, astro, macro, subacqueo, reportage…) e preset personalizzati generati dal modello locale.",
+      plug_dl_label: "Scarica",
+      plug_dl_mac: "(per Mac)",
+      access_title: "Tutti i plugin sono gratuiti.",
+      access_body: "<strong>Windows e Linux:</strong> installa i plugin direttamente dall'installer grafico di OffGallery, nella sezione «Plugin».<br><strong>macOS:</strong> scarica lo zip del plugin dal pulsante «Scarica» sulla sua scheda qui sopra, poi estrai la cartella dentro <code>plugins/</code> nella tua installazione di OffGallery. Al primo avvio ogni plugin scarica i propri dati (mappe, database) dalla sua configurazione.",
+      cta_title: "Vuoi sapere esattamente cosa fa?",
+      cta_body: "Una pagina con ogni funzionalità documentata — modelli, formati, filtri di ricerca, metadati.",
+      footer_desc: "Catalogazione fotografica intelligente, offline e privata. Open source, AGPLv3.",
+      footer_github: "GitHub", footer_features: "Funzionalità",
+      footer_manual: "Manuale utente", footer_credits: "Crediti", footer_contact: "Contatto",
+      footer_license: "Licenza AGPLv3 — Software libero",
+      donate_label: "Supporta il progetto",
+      donate_footer_text: "OffGallery è sviluppato nel tempo libero.<br />Una donazione fa la differenza.",
+    },
+    en: {
+      brand_subtitle:   "Photo cataloging with local AI, offline",
+      nav_home: "Home",
+      nav_features:     "Features", nav_plugins: "Plugins",
+      nav_beta:         "Plugins", nav_allfeatures: "All features",
+      nav_manual:       "Manual", nav_credits: "Credits",
+      hero_eyebrow:     "",
+      hero_title:       "Your archive.<br /><span class=\"accent\">Your AI.</span><br />Zero cloud.",
+      hero_sub:         "Six local AI models. Combined semantic search + tags + EXIF. Hierarchical metadata with automatic recognition of flora, fauna and geolocation. Automatic aesthetic and technical image scoring. Full statistics. Customisable AI prompts. Sync with Lightroom/darktable etc. via XMP. Scalable on any hardware because fully configurable. Parametric data and photo export. Interface, generated texts and searches configurable in multiple languages. Optimised workflow.",
+      hero_download:    "Download OffGallery", hero_github: "GitHub",
+      note1: "✓ No photo ever uploaded online", note2: "✓ AI models run locally", note3: "✓ Open source project under AGPLv3 licence + extensions",
+      dl_label: "Download OffGallery",
+      dl_title: "One double-click. Everything installed.",
+      dl_body: "OffGallerySetup installs Miniconda, Python, libraries and AI models (~8 GB) automatically. No terminal, no manual configuration.",
+      dl_platform: "Platform", dl_platform_val: "Windows · macOS · Linux",
+      dl_lang: "Languages", dl_lang_val: "IT · EN · FR · DE · ES · PT",
+      dl_license: "License",
+      dl_btn_win: "⬇ OffGallerySetup.exe — Windows",
+      dl_btn_linux: "⬇ OffGallerySetup — Linux",
+      dl_btn_other: "⬇ macOS — ZIP + install script",
+      dl_smartscreen_note: "Windows: if SmartScreen shows a warning, click \"More info\" → \"Run anyway\".",
+      donate_card_text: "<strong>OffGallery is free.</strong><br />If it's useful to you, a donation helps development.",
+      donate_btn: "Support on Ko-fi",
+      trust_for: "Built for",
+      trust1: "Advanced amateurs", trust2: "Professional photographers",
+      trust3: "Large RAW archives", trust4: "Workflow flexibility",
+      trust6: "Lightroom compatibility &amp; more",
+      trust5: "Wildlife &amp; botany",
+      problem_title: "Your photos: why should they end up on someone else's server?",
+      problem_sub: "<li>Cloud services catalog your images remotely. OffGallery does everything locally.</li><li>Let your computer handle the cataloging task.</li><li>With the right plugins, customize your system and add new features.</li>",
+      prob1_title: "Cloud = loss of control",
+      prob1_body: "AI cataloging cloud services upload your images to remote servers. Your subjects, your locations, your clients — metadata extracted far from your eyes.",
+      prob2_title: "Subscriptions and lock-in",
+      prob2_body: "You pay every month for features that might disappear. The day you stop paying, you lose access to your own cataloged data.",
+      prob3_title: "You search by keywords, you find frustration.",
+      prob3_body: "Most software searches by filename or manual tags. OffGallery understands visual content: \"sunset reflected on water\" finds the right photos, even without keywords (tags).",
+      prob4_title: "The alternative exists.",
+      prob4_body: "Next-generation AI models run locally on consumer hardware. OffGallery orchestrates them all — CLIP, DINOv2, BioCLIP, LLM vision — with no internet connection.",
+      feat_title: "Six tools. One for every real problem.",
+      feat_sub: "Six core features, all running locally on your hardware.",
+      f0_badge: "NEW", f0_kicker: "Installation",
+      f0_title: "One-click on Windows and Linux",
+      f0_body: "<a href=\"https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup.exe\" style=\"color:#5b6ef5;font-weight:600\">OffGallerySetup.exe</a> (Windows) and <a href=\"https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup\" style=\"color:#5b6ef5;font-weight:600\">OffGallerySetup</a> (Linux) install everything automatically: Miniconda, Python, libraries and AI models (~8 GB). No terminal. No manual setup.",
+      f0_note: "macOS: guided script in the installer/ folder.",
+      f1_kicker: "Privacy", f1_title: "100% offline and private",
+      f1_body: "No photo ever uploaded online. All AI models run locally. After the first download, OffGallery works without an internet connection.*",
+      f1_note: "* Except the initial AI model installation (~6 GB, one-time) and, if required, some plugins.",
+      f2_kicker: "AI", f2_title: "Multi-model AI",
+      f2_body: "CLIP for semantic search, DINOv2 for visual similarity, BioCLIP for ~450,000 biological species, local LLM vision for automatic titles and tags, Aesthetic scorer and MUSIQ for technical and aesthetic quality.",
+      f3_kicker: "Integration", f3_title: "Lightroom integration",
+      f3_body: "Import .lrcat catalogs and sync tags, ratings and metadata via XMP sidecars compatible with Lightroom, Capture One and any DAM supporting the standard.",
+      f4_kicker: "Search", f4_title: "Semantic search",
+      f4_body: "Search by concept: \"child running on the beach\", \"birds in flight at sunset\". The query is understood and matched against the visual content of every image.",
+      f5_kicker: "Plugins", f5_title: "Plugin ecosystem",
+      f5_body: "Extensible architecture via plugins. Choose your LLM backend between Ollama and LM Studio, and enrich functionality with specialized modules like BioNomen.",
+      feat_cta: "Technical documentation",
+      ss_title: "The interface.",
+      plug_title: "Extend OffGallery with specialized modules.",
+      plug_intro: "Every plugin is auto-discovered at startup. Choose the LLM backend, activate only what you use — the others don't occupy VRAM.",
+      plug_type_llm: "LLM Backend", plug_type_bio: "Nature photography", plug_type_geo: "Geographic data",
+      plug_ollama_body: "Connect OffGallery to Ollama for natural language tag, title and description generation. Supports vision models like Qwen3-VL, LLaVA, Gemma3.",
+      plug_lmstudio_body: "Use LM Studio as a local LLM server with a GUI. Ideal for managing quantized vision models.",
+      plug_lmstudio_credit: "Plugin by Riccardo Merlotti",
+      plug_bionomen_body: "A grey heron identified by BioCLIP automatically becomes \"airone cenerino\", \"héron cendré\", \"Graureiher\" — in all XMP sidecars, offline. GBIF data bundled, taxa selectable from configuration.",
+      plug_geospecies_body: "Refines BioCLIP classification using only the species expected at the photo's GPS location. Narrows the field from ~450,000 global species to a relevant geographic subset, increasing taxonomic accuracy. Checklists downloaded from GBIF, then used offline.",
+      plug_geonames_body: "Assigns GPS coordinates and precise geographic hierarchy (Continent › Country › Region › City) to millions of places using the GeoNames database. Replaces the built-in engine with superior accuracy for villages and hamlets.",
+      plug_natura_body: "Identifies the protected area (WDPA/UNEP) and habitat type (ESA WorldCover) for each GPS-tagged photo. Filter by habitat or protected area directly from the search panel.",
+      plug_weather_body: "Retrieves historical weather conditions at the time of the shot via Open-Meteo (temperature, wind, rain, snow…). Conditions are searchable from the search panel and visible on gallery image cards.",
+      plug_prompt_body: "Injects a custom CONTEXT block into the Vision-Language prompt to steer the model towards the archive's photographic domain. Built-in presets (nature, landscape, astro, macro, underwater, reportage…) and custom presets generated by the local model.",
+      plug_dl_label: "Download",
+      plug_dl_mac: "(for Mac)",
+      access_title: "All plugins are free.",
+      access_body: "<strong>Windows and Linux:</strong> install the plugins directly from OffGallery's graphical installer, in the «Plugins» section.<br><strong>macOS:</strong> download the plugin zip from the «Download» button on its card above, then extract the folder into <code>plugins/</code> in your OffGallery installation. On first run each plugin downloads its own data (maps, databases) from its configuration.",
+      cta_title: "Want to know exactly what it does?",
+      cta_body: "A page with every feature documented — models, formats, search filters, metadata.",
+      footer_desc: "Intelligent photo cataloging, offline and private. Open source, AGPLv3.",
+      footer_github: "GitHub", footer_features: "Features",
+      footer_manual: "User manual", footer_credits: "Credits", footer_contact: "Contact",
+      footer_license: "AGPLv3 License — Free software",
+      donate_label: "Support the project",
+      donate_footer_text: "OffGallery is developed in free time.<br />A donation makes a difference.",
+    }
+  };
+
+  let lang = 'en';
+
+  function applyLang(l) {
+    const t = T[l];
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const k = el.getAttribute('data-i18n');
+      if (!t[k]) return;
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = t[k];
+      else if (el.tagName === 'OPTION') el.textContent = t[k];
+      else el.innerHTML = t[k];
+    });
+    document.documentElement.lang = l;
+    // mostra la bandiera della lingua di destinazione (quella a cui si passerà al click)
+    const nextLang = l === 'it' ? 'en' : 'it';
+    const nextFlag = nextLang === 'en' ? FLAG_EN : FLAG_IT;
+    const nextLabel = nextLang === 'en' ? 'EN' : 'IT';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = nextFlag;
+    const newSvg = tmp.firstChild;
+    newSvg.id = 'flagIcon';
+    document.getElementById('flagIcon').replaceWith(newSvg);
+    document.getElementById('langLabel').textContent = nextLabel;
+    // aggiorna link manuale alla lingua corrente
+    const manualLink = document.getElementById('sn-manual');
+    if (manualLink) manualLink.href = l === 'it' ? '../USER_MANUAL_IT.html' : '../USER_MANUAL_EN.html';
+  }
+
+  // il cambio lingua porta alla pagina equivalente (URL reale, indicizzabile)
+document.getElementById('langToggle').addEventListener('click', () => { window.location.href = '../'; });
+applyLang('en');
+</script>
+</body>
+</html>

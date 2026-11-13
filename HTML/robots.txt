@@ -1,0 +1,6 @@
+# OffGallery — sito pubblico: tutte le pagine sono indicizzabili.
+# Motori di ricerca e crawler AI (ricerca/risposte) sono i benvenuti.
+User-agent: *
+Allow: /
+
+Sitemap: https://offgallery.app/sitemap.xml

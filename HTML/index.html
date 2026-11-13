@@ -6,14 +6,91 @@
   <title>OffGallery — Il tuo archivio. La tua AI. Zero cloud.</title>
   <meta name="description" content="OffGallery — Sei modelli AI locali per la catalogazione fotografica. Ricerca semantica + tag + EXIF combinati, riconoscimento automatico di flora e fauna, valutazione estetica, sync Lightroom/darktable via XMP, statistiche complete. Scalabile, configurabile, multilingua. Zero cloud, privacy totale." />
   <meta name="keywords" content="OffGallery, fotografia, AI locale, offline, catalogazione foto, ricerca semantica, Lightroom, privacy" />
+  <meta property="og:site_name" content="OffGallery" />
   <meta property="og:title" content="OffGallery — Il tuo archivio. La tua AI. Zero cloud." />
   <meta property="og:description" content="Catalogazione intelligente per fotografi professionisti. AI locale, nessun dato inviato online." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://offgallery.app/" />
+  <meta property="og:locale" content="it_IT" />
+  <meta property="og:locale:alternate" content="en_US" />
+  <meta property="og:image" content="https://offgallery.app/assets/og-it.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="OffGallery — Il tuo archivio. La tua AI. Zero cloud." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="OffGallery — Il tuo archivio. La tua AI. Zero cloud." />
+  <meta name="twitter:description" content="Catalogazione intelligente per fotografi professionisti. AI locale, nessun dato inviato online." />
+  <meta name="twitter:image" content="https://offgallery.app/assets/og-it.png" />
   <link rel="canonical" href="https://offgallery.app/" />
   <link rel="alternate" hreflang="it" href="https://offgallery.app/" />
-  <link rel="alternate" hreflang="en" href="https://offgallery.app/" />
-  <link rel="alternate" hreflang="x-default" href="https://offgallery.app/" />
+  <link rel="alternate" hreflang="en" href="https://offgallery.app/en/" />
+  <link rel="alternate" hreflang="x-default" href="https://offgallery.app/en/" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://offgallery.app/#website",
+      "url": "https://offgallery.app/",
+      "name": "OffGallery",
+      "inLanguage": [
+        "it",
+        "en"
+      ]
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://offgallery.app/#app",
+      "name": "OffGallery",
+      "url": "https://offgallery.app/",
+      "description": "OffGallery — Sei modelli AI locali per la catalogazione fotografica. Ricerca semantica + tag + EXIF combinati, riconoscimento automatico di flora e fauna, valutazione estetica, sync Lightroom/darktable via XMP, statistiche complete. Scalabile, configurabile, multilingua. Zero cloud, privacy totale.",
+      "applicationCategory": "MultimediaApplication",
+      "operatingSystem": "Windows 10, Windows 11, macOS 12+, Linux",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "EUR"
+      },
+      "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "downloadUrl": "https://github.com/HEGOM61ita/OffGallery/releases/latest",
+      "softwareHelp": {
+        "@type": "WebPage",
+        "url": "https://offgallery.app/USER_MANUAL_IT.html"
+      },
+      "image": "https://offgallery.app/assets/og-it.png",
+      "screenshot": [
+        "https://offgallery.app/assets/Gallery.png",
+        "https://offgallery.app/assets/Search.png"
+      ],
+      "featureList": [
+        "Ricerca semantica multilingua con SigLIP",
+        "Ricerca combinata semantica + tag + EXIF",
+        "Riconoscimento di specie animali e vegetali con BioCLIP 2 (~450.000 specie, tassonomia a 7 livelli)",
+        "Valutazione estetica e tecnica delle immagini",
+        "Tag, titoli e descrizioni con LLM Vision locale (Ollama, LM Studio)",
+        "Geolocalizzazione offline da GPS",
+        "Sincronizzazione XMP con Lightroom, darktable, Capture One, digiKam",
+        "Import da catalogo Lightroom (.lrcat)",
+        "Supporto a oltre 25 formati RAW",
+        "Interfaccia e contenuti generati in 6 lingue",
+        "100% offline: nessuna immagine lascia il computer"
+      ],
+      "inLanguage": "it",
+      "sameAs": [
+        "https://github.com/HEGOM61ita/OffGallery"
+      ],
+      "isPartOf": {
+        "@id": "https://offgallery.app/#website"
+      }
+    }
+  ]
+}
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -1477,10 +1554,8 @@
     if (manualLink) manualLink.href = l === 'it' ? 'USER_MANUAL_IT.html' : 'USER_MANUAL_EN.html';
   }
 
-  document.getElementById('langToggle').addEventListener('click', () => {
-    lang = lang === 'it' ? 'en' : 'it';
-    applyLang(lang);
-  });
+  // il cambio lingua porta alla pagina equivalente (URL reale, indicizzabile)
+document.getElementById('langToggle').addEventListener('click', () => { window.location.href = 'en/'; });
 </script>
 </body>
 </html>

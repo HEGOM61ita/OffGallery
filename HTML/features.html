@@ -4,14 +4,29 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OffGallery — Tutte le funzionalità</title>
-  <meta name="description" content="OffGallery — Tutte le funzionalità. AI locale, ricerca semantica, plugin, integrazione Lightroom e molto altro." />
+  <meta name="description" content="OffGallery — Tutte le funzionalità: sei modelli AI locali, ricerca semantica, riconoscimento specie con BioCLIP, valutazione estetica e tecnica, plugin, sync XMP con Lightroom e darktable. Tutto offline." />
+  <meta property="og:site_name" content="OffGallery" />
   <meta property="og:title" content="OffGallery — Tutte le funzionalità" />
+  <meta property="og:description" content="OffGallery — Tutte le funzionalità: sei modelli AI locali, ricerca semantica, riconoscimento specie con BioCLIP, valutazione estetica e tecnica, plugin, sync XMP con Lightroom e darktable. Tutto offline." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://offgallery.app/features.html" />
+  <meta property="og:locale" content="it_IT" />
+  <meta property="og:locale:alternate" content="en_US" />
+  <meta property="og:image" content="https://offgallery.app/assets/og-it.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="OffGallery — Il tuo archivio. La tua AI. Zero cloud." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="OffGallery — Tutte le funzionalità" />
+  <meta name="twitter:description" content="OffGallery — Tutte le funzionalità: sei modelli AI locali, ricerca semantica, riconoscimento specie con BioCLIP, valutazione estetica e tecnica, plugin, sync XMP con Lightroom e darktable. Tutto offline." />
+  <meta name="twitter:image" content="https://offgallery.app/assets/og-it.png" />
   <link rel="canonical" href="https://offgallery.app/features.html" />
   <link rel="alternate" hreflang="it" href="https://offgallery.app/features.html" />
-  <link rel="alternate" hreflang="en" href="https://offgallery.app/features.html" />
-  <link rel="alternate" hreflang="x-default" href="https://offgallery.app/features.html" />
+  <link rel="alternate" hreflang="en" href="https://offgallery.app/en/features.html" />
+  <link rel="alternate" hreflang="x-default" href="https://offgallery.app/en/features.html" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -1130,7 +1145,8 @@
     const manualLink = document.getElementById('sn-manual');
     if (manualLink) manualLink.href = l === 'it' ? 'USER_MANUAL_IT.html' : 'USER_MANUAL_EN.html';
   }
-  document.getElementById('langToggle').addEventListener('click', () => { lang = lang === 'it' ? 'en' : 'it'; applyLang(lang); });
+  // il cambio lingua porta alla pagina equivalente (URL reale, indicizzabile)
+document.getElementById('langToggle').addEventListener('click', () => { window.location.href = 'en/features.html'; });
 </script>
 </body>
 </html>

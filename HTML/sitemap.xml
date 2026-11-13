@@ -4,35 +4,67 @@
 
   <url>
     <loc>https://offgallery.app/</loc>
-    <lastmod>2026-04-27</lastmod>
+    <lastmod>2026-11-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://offgallery.app/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://offgallery.app/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://offgallery.app/en/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://offgallery.app/en/"/>
+  </url>
+
+  <url>
+    <loc>https://offgallery.app/en/</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://offgallery.app/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://offgallery.app/en/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://offgallery.app/en/"/>
   </url>
 
   <url>
     <loc>https://offgallery.app/features.html</loc>
-    <lastmod>2026-04-27</lastmod>
+    <lastmod>2026-11-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://offgallery.app/features.html"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://offgallery.app/features.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://offgallery.app/en/features.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://offgallery.app/en/features.html"/>
+  </url>
+
+  <url>
+    <loc>https://offgallery.app/en/features.html</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://offgallery.app/features.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://offgallery.app/en/features.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://offgallery.app/en/features.html"/>
   </url>
 
   <url>
     <loc>https://offgallery.app/credits.html</loc>
-    <lastmod>2026-05-12</lastmod>
+    <lastmod>2026-11-13</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.4</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://offgallery.app/credits.html"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://offgallery.app/credits.html"/>
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://offgallery.app/credits.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://offgallery.app/en/credits.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://offgallery.app/en/credits.html"/>
+  </url>
+
+  <url>
+    <loc>https://offgallery.app/en/credits.html</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://offgallery.app/credits.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://offgallery.app/en/credits.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://offgallery.app/en/credits.html"/>
   </url>
 
   <url>
     <loc>https://offgallery.app/USER_MANUAL_IT.html</loc>
-    <lastmod>2026-05-01</lastmod>
+    <lastmod>2026-09-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://offgallery.app/USER_MANUAL_IT.html"/>
@@ -42,11 +74,11 @@
 
   <url>
     <loc>https://offgallery.app/USER_MANUAL_EN.html</loc>
-    <lastmod>2026-05-01</lastmod>
+    <lastmod>2026-09-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://offgallery.app/USER_MANUAL_EN.html"/>
     <xhtml:link rel="alternate" hreflang="it" href="https://offgallery.app/USER_MANUAL_IT.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://offgallery.app/USER_MANUAL_EN.html"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://offgallery.app/USER_MANUAL_EN.html"/>
   </url>
 

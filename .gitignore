@@ -100,6 +100,11 @@ installer/*.bat
 !HTML/credits.html
 !HTML/CNAME
 !HTML/sitemap.xml
+!HTML/robots.txt
+!HTML/llms.txt
+!HTML/favicon.ico
+!HTML/en/
+!HTML/en/*.html
 !HTML/assets/
 !HTML/assets/*
 

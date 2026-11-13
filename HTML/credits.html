@@ -5,13 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OffGallery — Crediti e Ringraziamenti</title>
   <meta name="description" content="OffGallery — Crediti, ringraziamenti e licenze dei componenti open source e dei modelli AI utilizzati." />
+  <meta property="og:site_name" content="OffGallery" />
   <meta property="og:title" content="OffGallery — Crediti e Ringraziamenti" />
+  <meta property="og:description" content="OffGallery — Crediti, ringraziamenti e licenze dei componenti open source e dei modelli AI utilizzati." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://offgallery.app/credits.html" />
+  <meta property="og:locale" content="it_IT" />
+  <meta property="og:locale:alternate" content="en_US" />
+  <meta property="og:image" content="https://offgallery.app/assets/og-it.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="OffGallery — Il tuo archivio. La tua AI. Zero cloud." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="OffGallery — Crediti e Ringraziamenti" />
+  <meta name="twitter:description" content="OffGallery — Crediti, ringraziamenti e licenze dei componenti open source e dei modelli AI utilizzati." />
+  <meta name="twitter:image" content="https://offgallery.app/assets/og-it.png" />
   <link rel="canonical" href="https://offgallery.app/credits.html" />
   <link rel="alternate" hreflang="it" href="https://offgallery.app/credits.html" />
-  <link rel="alternate" hreflang="en" href="https://offgallery.app/credits.html" />
-  <link rel="alternate" hreflang="x-default" href="https://offgallery.app/credits.html" />
+  <link rel="alternate" hreflang="en" href="https://offgallery.app/en/credits.html" />
+  <link rel="alternate" hreflang="x-default" href="https://offgallery.app/en/credits.html" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -1222,15 +1237,10 @@ function applyLang(l) {
   }
   if (manualLink) manualLink.href = l === 'it' ? 'USER_MANUAL_IT.html' : 'USER_MANUAL_EN.html';
   if (footerManual) footerManual.href = l === 'it' ? 'USER_MANUAL_IT.html' : 'USER_MANUAL_EN.html';
-  localStorage.setItem('og_lang', l);
 }
 
-document.getElementById('langToggle').addEventListener('click', () => {
-  const cur = localStorage.getItem('og_lang') || 'it';
-  applyLang(cur === 'it' ? 'en' : 'it');
-});
-
-applyLang(localStorage.getItem('og_lang') || 'it');
+// il cambio lingua porta alla pagina equivalente (URL reale, indicizzabile)
+document.getElementById('langToggle').addEventListener('click', () => { window.location.href = 'en/credits.html'; });
 </script>
 </body>
 </html>

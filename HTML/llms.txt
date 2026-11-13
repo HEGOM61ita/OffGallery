@@ -1,0 +1,32 @@
+# OffGallery
+
+> OffGallery is a free, open-source (AGPLv3) desktop application for photographers that catalogs and searches large photo archives (RAW, JPG, TIFF, PSD…) with AI models running entirely on the user's own computer. No image or metadata is ever sent to the cloud. Available for Windows, Linux and macOS; interface and generated content in 6 languages (Italian, English, French, German, Spanish, Portuguese).
+
+OffGallery combines six local AI models — SigLIP (multilingual semantic search), DINOv2 (visual similarity), BioCLIP 2 (species recognition, ~450,000 species with 7-level taxonomy), an aesthetic scorer, MUSIQ (technical quality) and an optional Vision LLM (via Ollama or LM Studio) for tags, titles and descriptions. Search can mix natural-language queries, tags and EXIF filters. Metadata syncs both ways with Lightroom, darktable, Capture One, digiKam and any XMP-compatible software, and photos can be imported directly from a Lightroom catalog (.lrcat). Offline geotagging builds a Continent › Country › Region › City hierarchy from GPS data.
+
+Typical questions this project answers: how to catalog and search a photo archive with AI without uploading photos; a Lightroom alternative or companion for semantic search; offline species identification for wildlife photographs; offline automatic tagging of RAW files.
+
+## Website
+
+- [Home (English)](https://offgallery.app/en/): overview, installation, plugins
+- [Home (Italiano)](https://offgallery.app/): panoramica, installazione, plugin
+- [All features (English)](https://offgallery.app/en/features.html): complete feature list
+- [Tutte le funzionalità (Italiano)](https://offgallery.app/features.html): elenco completo delle funzionalità
+- [User manual (English)](https://offgallery.app/USER_MANUAL_EN.html): complete guide to every tab and setting
+- [Manuale utente (Italiano)](https://offgallery.app/USER_MANUAL_IT.html): guida completa a ogni scheda e impostazione
+- [Credits and licenses (English)](https://offgallery.app/en/credits.html): open-source components and AI models used
+
+## Download and source
+
+- [Source code and README (GitHub)](https://github.com/HEGOM61ita/OffGallery): public repository, AGPLv3
+- [Latest release](https://github.com/HEGOM61ita/OffGallery/releases/latest): installers and plugin packages
+- [Windows installer](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup.exe): one-click setup (Miniconda, Python, libraries, AI models ~8 GB)
+- [Linux installer](https://github.com/HEGOM61ita/OffGallery/releases/latest/download/OffGallerySetup): graphical setup for Ubuntu, Fedora, Arch and compatible
+- [Discussions](https://github.com/HEGOM61ita/OffGallery/discussions): release notes and community
+
+## Key facts
+
+- Privacy: 100% offline after the first model download; no cloud, no API keys, no telemetry of images.
+- Stack: Python 3.12, PyTorch, PyQt6, SQLite; GPU (NVIDIA CUDA) optional, CPU supported; every model can be enabled, disabled or moved to CPU/GPU in the configuration.
+- Plugins (free): BioNomen (common names of species), GeoNames (geographic hierarchy), GeoSpecies (location-aware species filtering), NaturArea (protected areas and habitat), Weather (historical weather), Ollama and LM Studio (LLM backends), Prompt Context.
+- License: AGPLv3 for the application; plugins are free of charge under a proprietary license.
