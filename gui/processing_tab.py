@@ -434,11 +434,18 @@ class ProcessingWorker(QThread):
                                           ('title', 'title')]:
                 if llm_gen_config[_llm_key]['enabled']:
                     _required_steps.append((_llm_field, bool(llm_gen_config[_llm_key]['overwrite'])))
+            # Il geo_enricher non entra negli step per campo: i suoi campi di
+            # uscita (gps_*, geo_hierarchy) restano NULL su tutte le foto senza
+            # GPS, che risulterebbero "incomplete" per sempre e rientrerebbero
+            # in coda a ogni "Completa" (22.174 foto su 22.581 nel DB reale).
+            # Serve davvero solo dove c'è un GPS ma manca la gerarchia.
+            _geo_check = False
             for _p in self.pre_llm_plugins:
-                # geo_enricher gira sempre in modalità overwrite nel pipeline
-                _p_ovr = (_p.get('plugin_type') == 'geo_enricher')
+                if _p.get('plugin_type') == 'geo_enricher':
+                    _geo_check = True
+                    continue
                 for _f in _p.get('output_fields', []):
-                    _required_steps.append((_f, _p_ovr))
+                    _required_steps.append((_f, False))
 
             # === FILTRO MODALITÀ ===
             processing_mode = self.options.get('processing_mode', 'new_only')
@@ -446,9 +453,12 @@ class ProcessingWorker(QThread):
             # Bulk pre-check per reprocess_all: una sola query SQL evita I/O
             # su immagini già complete per tutti gli step selezionati.
             _fields_bulk = {}
-            if processing_mode == 'reprocess_all' and _required_steps:
+            if processing_mode == 'reprocess_all' and (_required_steps or _geo_check):
                 _all_fpaths = [str(p) for p in all_images]
                 _check_fields = list(dict.fromkeys(f for f, _ in _required_steps))
+                if _geo_check:
+                    _check_fields += [f for f in ('gps_latitude', 'geo_hierarchy')
+                                      if f not in _check_fields]
                 _fields_bulk = db_manager.get_fields_presence_bulk(_all_fpaths, _check_fields)
 
             images_to_process = []
@@ -458,7 +468,7 @@ class ProcessingWorker(QThread):
                 if processing_mode == 'new_only':
                     should = not db_manager.filepath_exists(_fpath_str)
                 elif processing_mode == 'reprocess_all':
-                    if not _required_steps:
+                    if not _required_steps and not _geo_check:
                         should = True  # nessun step attivo: processa comunque
                     elif _fpath_str not in _fields_bulk:
                         should = True  # non in DB: immagine nuova
@@ -468,6 +478,10 @@ class ProcessingWorker(QThread):
                             overwrite or not _ai.get(db_field, False)
                             for db_field, overwrite in _required_steps
                         )
+                        # Geo: solo se c'è un GPS ma la gerarchia è ancora vuota
+                        if not should and _geo_check:
+                            should = bool(_ai.get('gps_latitude', False)
+                                          and not _ai.get('geo_hierarchy', False))
                 elif processing_mode == 'new_plus_errors':
                     has_err = db_manager.had_processing_errors(_fpath_str)
                     should = not db_manager.filepath_exists(_fpath_str) or has_err
