@@ -15,7 +15,9 @@ env:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    # Versione fissa: con ubuntu-latest (ora 26.04) il pacchetto python3.12 non esiste in apt
+    # e il binary risulterebbe legato a una glibc troppo recente per le distro piu' vecchie
+    runs-on: ubuntu-24.04
 
     steps:
       # 1. Scarica il codice del repository sulla macchina Linux di GitHub
