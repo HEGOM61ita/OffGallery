@@ -1301,6 +1301,9 @@ class EmbeddingGenerator:
                 try:
                     # Determina device per BioCLIP (fallback CPU se VRAM insufficiente)
                     bioclip_device = self._device_for('bioclip')
+                    # True solo se la CPU è un ripiego per VRAM esaurita: se
+                    # il device è già cpu da configurazione non è un problema
+                    bioclip_vram_fallback = False
                     try:
                         model, _, preprocess = open_clip.create_model_and_transforms(
                             model_name='ViT-L-14',
@@ -1311,6 +1314,7 @@ class EmbeddingGenerator:
                         if 'not enough' in str(vram_err).lower() or 'out of memory' in str(vram_err).lower():
                             logger.warning(f"BioCLIP: VRAM insufficiente, caricamento su CPU...")
                             bioclip_device = 'cpu'
+                            bioclip_vram_fallback = True
                             model, _, preprocess = open_clip.create_model_and_transforms(
                                 model_name='ViT-L-14',
                                 pretrained=str(bioclip_dir / 'open_clip_model.safetensors'),
@@ -1431,8 +1435,10 @@ class EmbeddingGenerator:
                         model, preprocess, txt_emb, txt_names, bioclip_device
                     )
                     self.bioclip_on_cpu = (bioclip_device == 'cpu')
-                    if self.bioclip_on_cpu:
+                    if self.bioclip_on_cpu and bioclip_vram_fallback:
                         logger.info("[OK] BioCLIP caricato (CPU — VRAM insufficiente per GPU)")
+                    elif self.bioclip_on_cpu:
+                        logger.info("[OK] BioCLIP caricato (CPU, come da configurazione)")
                     else:
                         logger.info("[OK] BioCLIP caricato")
                     return True

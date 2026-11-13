@@ -181,6 +181,9 @@ class DatabaseManager:
         # Indici per performance
         indices = [
             "CREATE INDEX IF NOT EXISTS idx_filename ON images(filename)",
+            # Indice case-insensitive: serve a filepath_exists, che cerca per
+            # nome con COLLATE NOCASE (l'indice binario sopra non è usabile)
+            "CREATE INDEX IF NOT EXISTS idx_filename_nocase ON images(filename COLLATE NOCASE)",
             "CREATE INDEX IF NOT EXISTS idx_file_hash ON images(file_hash)",
             "CREATE INDEX IF NOT EXISTS idx_camera_model ON images(camera_model)",
             "CREATE INDEX IF NOT EXISTS idx_datetime_original ON images(datetime_original)",
@@ -324,6 +327,7 @@ class DatabaseManager:
             self.conn.execute("PRAGMA foreign_keys=ON")
             for idx_sql in [
                 "CREATE INDEX IF NOT EXISTS idx_filename ON images(filename)",
+                "CREATE INDEX IF NOT EXISTS idx_filename_nocase ON images(filename COLLATE NOCASE)",
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_file_hash ON images(file_hash)",
                 "CREATE INDEX IF NOT EXISTS idx_camera_model ON images(camera_model)",
                 "CREATE INDEX IF NOT EXISTS idx_datetime_original ON images(datetime_original)",
